@@ -109,11 +109,11 @@ Read prompts/01-kickstart-project.md and follow it.
 Clone or copy this kit, then copy the reusable files into the destination repo. Do not copy this kit's root `CHANGELOG.md`; use `templates/CHANGELOG.template.md` only when the destination project chooses a changelog.
 
 ```bash
-git clone <kit-repository-url> ai-kickstart-context-kit
+git clone <kit-repository-url> pathfinder
 mkdir my-project
 cd my-project
 git init
-cp -R ../ai-kickstart-context-kit/{AGENTS.md,CLAUDE.md,context,prompts,skills,templates} .
+cp -R ../pathfinder/{AGENTS.md,CLAUDE.md,context,prompts,skills,templates} .
 ```
 
 Then run:
