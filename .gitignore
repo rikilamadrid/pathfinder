@@ -1,0 +1,7 @@
+.DS_Store
+__MACOSX/
+._*
+
+# Destination-project generated learning/prototype output may be ignored locally if desired.
+# prototypes/
+# learning/
