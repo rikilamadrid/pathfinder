@@ -36,6 +36,11 @@ It is intentionally stack-agnostic. It does not choose React, Python, mobile, a 
 │   ├── complete-feature/
 │   ├── learn-feature/
 │   ├── learn-codebase/
+│   ├── teach-feature/
+│   ├── quiz-me/
+│   ├── challenge-me/
+│   ├── teach-architecture/
+│   ├── learning-review/
 │   ├── handoff/
 │   └── skillsmith/
 └── templates/
@@ -72,19 +77,43 @@ project context
 
 Features are intentionally sized for reliable delivery inside a focused LLM context window. They should be small, independently verifiable, and explicit about what the agent should and should not load.
 
-### Learning loop
+### Learning & Mentoring loop
 
 ```text
 completed feature
 → learn-feature
-→ interactive lesson + quiz
+→ teach-feature
+→ quiz-me
+→ challenge-me (optional)
 
 project milestone
+→ teach-architecture
 → learn-codebase
-→ modular codebase learning portal
+→ learning-review
 ```
 
 Learning is part of the workflow, not an afterthought. The goal is for the human owner to understand the architecture, implementation, tests, tradeoffs, and extension points of what the AI helped build.
+
+The mentoring skills complement the delivery workflow without replacing it.
+
+- **teach-feature** explains the verified implementation, tradeoffs, testing, accessibility, performance, and interview takeaways.
+- **quiz-me** measures understanding with varied question types.
+- **challenge-me** creates transfer exercises so concepts are applied in new contexts.
+- **teach-architecture** connects completed features to the larger system architecture.
+- **learning-review** periodically reviews demonstrated knowledge, interview readiness, and reinforcement priorities.
+
+The recommended flow becomes:
+
+```text
+feature review
+→ teach-feature
+→ quiz-me
+→ challenge-me (when valuable)
+→ teach-architecture (at milestones)
+→ learning-review (periodically)
+→ complete feature
+```
+
 
 ## Skills and prompts
 
