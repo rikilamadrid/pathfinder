@@ -1,11 +1,11 @@
 # Pathfinder
 
 AI Development Workflow
-by: Lamadrid Labs.
+by Lamadrid Labs.
 
 A small, reusable repository for starting and delivering software projects with an AI-assisted, human-in-the-loop workflow.
 
-It is intentionally stack-agnostic. It does not choose React, Python, mobile, a database, Git Flow, or any other implementation detail for you. The kit provides a process for discovering, challenging, prototyping, specifying, building, reviewing, completing, and learning from a project.
+It is intentionally stack-agnostic. It does not choose React, Python, mobile, a database, Git Flow, or any other implementation detail for you. The kit provides a process for discovering, challenging, analyzing references, prototyping, specifying, building, reviewing, completing, and learning from a project.
 
 > The kit owns the workflow. The project owns the stack.
 
@@ -28,6 +28,7 @@ It is intentionally stack-agnostic. It does not choose React, Python, mobile, a 
 ├── skills/
 │   ├── kickstart-pathfinder/
 │   ├── debate-me/
+│   ├── reverse-engineer/
 │   ├── prototype/
 │   ├── to-specs/
 │   ├── load-feature/
@@ -63,6 +64,53 @@ idea
 
 A prototype is optional. `debate-me` recommends whether the project needs an experience prototype, technical proof of concept, architecture diagram, or no prototype at all. An unapproved prototype must not quietly become production code.
 
+### External reference analysis
+
+When a project is inspired by an existing product, interface, repository, workflow, animation, or technical implementation, Pathfinder can analyze the reference before making product or architectural decisions.
+
+```text
+external reference
+→ reverse-engineer
+→ identify observed behavior, inferences, and unknowns
+→ extract transferable patterns
+→ debate reconstruction choices
+→ prototype the important behavior
+→ approve direction
+→ to-specs
+```
+
+`reverse-engineer` is intentionally separate from project discovery and implementation.
+
+It analyzes an external reference and produces an evidence-based reconstruction blueprint. It must clearly distinguish:
+
+* directly observed behavior
+* strong inferences
+* possible implementation approaches
+* unknown or unverifiable details
+
+It should reproduce useful patterns and outcomes rather than copy proprietary code, assets, branding, content, or private implementation details.
+
+The skill may recommend a Pathfinder handoff, but it must not silently perform the responsibilities of another skill.
+
+Typical handoffs include:
+
+* `kickstart-pathfinder` when the analysis is becoming a new project
+* `debate-me` when important product or technical choices remain
+* `prototype` when a behavior or assumption needs validation
+* `to-specs` when the direction is approved and ready for feature planning
+* `load-feature` when the analysis applies to an existing planned feature
+* `learn-codebase` when the real goal is understanding the user's own repository
+
+The boundary is:
+
+```text
+reverse-engineer = understand an external reference
+learn-codebase   = understand the current codebase
+kickstart        = initialize project context
+prototype        = validate a proposed direction
+to-specs         = convert an approved direction into planned work
+```
+
 ### Delivery loop
 
 ```text
@@ -77,7 +125,7 @@ project context
 
 Features are intentionally sized for reliable delivery inside a focused LLM context window. They should be small, independently verifiable, and explicit about what the agent should and should not load.
 
-### Learning & Mentoring loop
+### Learning and mentoring loop
 
 ```text
 completed feature
@@ -96,11 +144,11 @@ Learning is part of the workflow, not an afterthought. The goal is for the human
 
 The mentoring skills complement the delivery workflow without replacing it.
 
-- **teach-feature** explains the verified implementation, tradeoffs, testing, accessibility, performance, and interview takeaways.
-- **quiz-me** measures understanding with varied question types.
-- **challenge-me** creates transfer exercises so concepts are applied in new contexts.
-- **teach-architecture** connects completed features to the larger system architecture.
-- **learning-review** periodically reviews demonstrated knowledge, interview readiness, and reinforcement priorities.
+* **teach-feature** explains the verified implementation, tradeoffs, testing, accessibility, performance, and interview takeaways.
+* **quiz-me** measures understanding with varied question types.
+* **challenge-me** creates transfer exercises so concepts are applied in new contexts.
+* **teach-architecture** connects completed features to the larger system architecture.
+* **learning-review** periodically reviews demonstrated knowledge, interview readiness, and reinforcement priorities.
 
 The recommended flow becomes:
 
@@ -114,12 +162,11 @@ feature review
 → complete feature
 ```
 
-
 ## Skills and prompts
 
-`skills/` contains durable reusable behavior. `prompts/` contains short manual launchers for tools that do not discover local skills automatically.
+`skills/` contains durable, reusable behavior. `prompts/` contains short manual launchers for tools that do not discover local skills automatically.
 
-You use one or the other. A prompt does not need to run after the matching skill.
+Use one or the other. A prompt does not need to run after the matching skill.
 
 Example:
 
@@ -133,9 +180,15 @@ Or:
 Read prompts/01-kickstart-project.md and follow it.
 ```
 
+To analyze an external reference:
+
+```text
+Use skills/reverse-engineer/SKILL.md to analyze this reference. Clearly separate observations, inferences, possible implementation choices, and unknowns.
+```
+
 ## Start a new project
 
-Clone or copy this kit, then copy the reusable files into the destination repo. Do not copy this kit's root `CHANGELOG.md`; use `templates/CHANGELOG.template.md` only when the destination project chooses a changelog.
+Clone or copy this kit, then copy the reusable files into the destination repository. Do not copy this kit's root `CHANGELOG.md`; use `templates/CHANGELOG.template.md` only when the destination project chooses a changelog.
 
 ```bash
 git clone <kit-repository-url> pathfinder
@@ -153,31 +206,40 @@ Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this project. Do no
 
 ## Adapt an existing repo
 
-Copy the context, skills, prompts, templates, and agent entry files into the existing repository. The kickoff skill should inspect the repository lightly, preserve established conventions, and distinguish repository facts from decisions still requiring human input.
+Copy the context, skills, prompts, templates, and agent entry files into the existing repository.
+
+The kickoff skill should inspect the repository lightly, preserve established conventions, and distinguish repository facts from decisions still requiring human input.
+
+Use `learn-codebase` when deeper understanding, onboarding, teaching, or architectural explanation of the existing repository is needed.
+
+Do not use `reverse-engineer` to analyze the repository Pathfinder is currently operating inside. That responsibility belongs to `kickstart-pathfinder`, `learn-codebase`, or the relevant feature skill.
 
 ## Human control
 
 The user chooses or approves:
 
-- product and MVP scope
-- technology stack and architecture
-- database, auth, APIs, and infrastructure
-- prototype direction
-- Git and delivery workflow
-- dependency changes
-- destructive operations
-- commits, merges, and releases
+* product and MVP scope
+* technology stack and architecture
+* database, authentication, APIs, and infrastructure
+* prototype direction
+* reconstruction choices derived from external references
+* Git and delivery workflow
+* dependency changes
+* destructive operations
+* commits, merges, and releases
 
-The AI may recommend choices based on the product, constraints, learning goals, team, budget, and existing repo. Recommendations are proposals, not silent decisions.
+The AI may recommend choices based on the product, constraints, learning goals, team, budget, existing repository, and available evidence.
+
+Recommendations are proposals, not silent decisions.
 
 ## Decision states
 
 Use these consistently:
 
-- `TBD` — a human decision is still required
-- `None` — intentionally excluded
-- `N/A` — not applicable
-- `Deferred` — intentionally postponed
+* `TBD` — a human decision is still required
+* `None` — intentionally excluded
+* `N/A` — not applicable
+* `Deferred` — intentionally postponed
 
 Agents must not silently resolve `TBD` items while implementing a feature.
 
@@ -185,35 +247,101 @@ Agents must not silently resolve `TBD` items while implementing a feature.
 
 A good feature:
 
-- fits one focused implementation session
-- has a clear context boundary
-- touches a coherent set of systems
-- can be verified independently
-- creates a visible or meaningful result
-- states dependencies and assumptions
-- can be split into stable delivery chunks
+* fits one focused implementation session
+* has a clear context boundary
+* touches a coherent set of systems
+* can be verified independently
+* creates a visible or meaningful result
+* states dependencies and assumptions
+* can be split into stable delivery chunks
 
-Avoid features such as "build the backend," "add all components," or "polish everything." Split work by user-visible or system-verifiable outcomes.
+Avoid features such as:
+
+* “build the backend”
+* “add all components”
+* “polish everything”
+* “recreate the entire reference product”
+
+Split work by user-visible or system-verifiable outcomes.
+
+External reference analysis should inform feature design, but a reverse-engineering report is not itself a feature specification.
+
+Use `to-specs` to convert an approved reconstruction direction into small, verifiable features.
 
 ## Prototype rule
 
 Prototype only what needs validation. Choose the cheapest useful format:
 
-- wireframe or flow diagram
-- static visual mockup
-- interactive HTML/CSS/JS prototype
-- existing-stack prototype
-- technical proof of concept
-- architecture or data-flow diagram
+* wireframe or flow diagram
+* static visual mockup
+* interactive HTML/CSS/JS prototype
+* existing-stack prototype
+* technical proof of concept
+* architecture or data-flow diagram
 
 Prototype code is disposable unless a later feature explicitly adopts and hardens it.
 
+A reconstruction blueprint produced by `reverse-engineer` is not production code. When uncertain behavior, fidelity, feasibility, or technical risk remains, validate it through `prototype` before converting it into feature specifications.
+
+## Reverse-engineering rule
+
+Reverse-engineer only what is necessary to understand or reproduce the requested outcome.
+
+The skill must:
+
+* define the target and analysis boundary
+* inspect only relevant evidence
+* distinguish observation from inference
+* state unknowns honestly
+* extract transferable product, design, interaction, or engineering patterns
+* recommend an implementation appropriate for the user's project
+* avoid claiming knowledge of private or server-side implementation details
+* avoid copying proprietary code, protected assets, branding, or content
+* avoid bypassing authentication, authorization, paywalls, technical controls, or private systems
+* recommend the correct Pathfinder handoff when further work is needed
+
+The preferred goal is:
+
+```text
+understand the pattern
+→ reconstruct the behavior
+→ adapt it to the project
+```
+
+Not:
+
+```text
+copy the original product exactly
+```
+
 ## Learning outputs
 
-`learn-feature` should default to a lightweight self-contained HTML/CSS/JS lesson unless the destination repository already supports MDX or another appropriate documentation format.
+`learn-feature` should default to a lightweight, self-contained HTML/CSS/JS lesson unless the destination repository already supports MDX or another appropriate documentation format.
 
 `learn-codebase` may inspect broadly, but should generate modular lessons rather than one giant page. It is best used at milestones, for onboarding, or for interview preparation—not after every small change.
 
+A reverse-engineering report may explain transferable concepts, but it should not replace the structured teaching and assessment responsibilities of:
+
+* `teach-feature`
+* `teach-architecture`
+* `quiz-me`
+* `challenge-me`
+* `learning-review`
+
 ## Add more only after real pain
 
-Do not turn this into a giant framework. Add a new skill when a repeated task keeps going wrong and the skill can produce a concrete, verifiable result.
+Do not turn this into a giant framework.
+
+Add a new skill only when:
+
+* a repeated task keeps going wrong
+* an existing skill does not already own the responsibility
+* the new skill has a narrow and clearly defined trigger
+* it produces a concrete, verifiable result
+* its inputs and outputs are explicit
+* its boundaries with neighboring skills are documented
+* it improves the workflow without silently expanding Pathfinder's scope
+
+Before adding a skill, review the existing workflow for overlap.
+
+When a new skill is justified, use `skillsmith` to define and review its behavior contract.
