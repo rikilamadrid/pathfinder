@@ -52,6 +52,7 @@ Ask before actions identified in `context/ai-interaction.md`, especially depende
 
 - `kickstart-pathfinder` — discover and initialize project context
 - `debate-me` — pressure-test and recommend product, stack, workflow, and prototype direction
+- `reverse-engineer` — analyze an external reference and produce an evidence-based reconstruction blueprint
 - `prototype` — create and iterate the cheapest useful validation artifact
 - `to-specs` — generate context-sized feature specs
 - `load-feature` — prepare one feature for implementation
