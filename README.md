@@ -198,6 +198,19 @@ Skip it for trivial or routine work.
 
 A finding is only a Pathfinder candidate if it still holds in another language, framework, and business domain. Everything else stays with the project.
 
+Reflection also checks itself. After reviewing the work, `reflect` makes a single bounded pass over its own performance—did it miss a visible signal, overgeneralize, or propose something already covered?—and may recommend a change to its own skill definition.
+
+```text
+work
+→ reflect on the work
+→ reflect on reflect
+→ stop
+```
+
+That pass stops there. It does not recurse further, it does not go looking for a problem because the section exists, and "no improvement needed" is the expected result. A self-improvement follows the same promotion rule as any other proposal.
+
+> Self-reference does not lower the evidence threshold. It raises it.
+
 ## Skills and prompts
 
 `skills/` contains durable, reusable behavior. `prompts/` contains short manual launchers for tools that do not discover local skills automatically.

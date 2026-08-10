@@ -10,6 +10,23 @@ The kit follows Semantic Versioning:
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-10
+
+### Added
+
+- Bounded self-evaluation in `reflect`. After reflecting on the work, the skill makes one pass over the reflection itself and may propose changes to `skills/reflect/SKILL.md` under the same evidence standard it applies to Pathfinder. The recursion stops after that pass, `No Reflect improvement proposed.` is the expected result, and self-improvements still require human approval.
+- Evidence levels for reflection findings: incident, pattern, and validation.
+- A validation requirement on every proposed improvement, so a change can later be shown to have helped.
+
+### Changed
+
+- `reflect` output returns only sections that carry meaningful information rather than filling the template, and adds `Reflect self-evaluation` and `Reflect improvement candidates` sections.
+- README workflow reflection loop documents the single bounded self-evaluation pass and its promotion rule. `CLAUDE.md` and the `reflect` launcher prompt updated to match.
+
+### Fixed
+
+- Malformed YAML frontmatter in `skills/reflect/SKILL.md`, which prevented the skill from being discovered.
+
 ## [1.1.0] - 2026-08-10
 
 ### Added
