@@ -5,7 +5,7 @@ by Lamadrid Labs.
 
 A small, reusable repository for starting and delivering software projects with an AI-assisted, human-in-the-loop workflow.
 
-It is intentionally stack-agnostic. It does not choose React, Python, mobile, a database, Git Flow, or any other implementation detail for you. The kit provides a process for discovering, challenging, analyzing references, prototyping, specifying, building, reviewing, completing, and learning from a project.
+It is intentionally stack-agnostic. It does not choose React, Python, mobile, a database, Git Flow, or any other implementation detail for you. The kit provides a process for discovering, challenging, analyzing references, prototyping, specifying, building, reviewing, completing, learning from, and reflecting on a project.
 
 > The kit owns the workflow. The project owns the stack.
 
@@ -42,6 +42,7 @@ It is intentionally stack-agnostic. It does not choose React, Python, mobile, a 
 │   ├── challenge-me/
 │   ├── teach-architecture/
 │   ├── learning-review/
+│   ├── reflect/
 │   ├── handoff/
 │   └── skillsmith/
 └── templates/
@@ -162,6 +163,41 @@ feature review
 → complete feature
 ```
 
+### Workflow reflection loop
+
+The other loops improve the project. This one improves the workflow.
+
+```text
+discover
+→ challenge
+→ prototype / specify
+→ build
+→ review / verify
+→ complete
+→ reflect
+   └── proposed workflow improvement (human decides)
+```
+
+`reflect` reviews work that is already finished. It reconstructs what actually happened, separates knowledge that belongs to the project from lessons that could help unrelated projects, and proposes the smallest durable improvement—often none.
+
+It does not change Pathfinder, `AGENTS.md`, or any skill on its own.
+
+> Projects produce lessons. Pathfinder keeps the reusable ones.
+>
+> Reflect proposes. Humans promote.
+
+Reflection is not a mandatory step after every change. It earns its cost after:
+
+* a meaningful completion, such as a feature, migration, refactor, or project phase
+* difficult debugging
+* repeated human corrections
+* a surprising discovery about the system or the workflow
+* substantial workflow friction or repeated manual intervention
+
+Skip it for trivial or routine work.
+
+A finding is only a Pathfinder candidate if it still holds in another language, framework, and business domain. Everything else stays with the project.
+
 ## Skills and prompts
 
 `skills/` contains durable, reusable behavior. `prompts/` contains short manual launchers for tools that do not discover local skills automatically.
@@ -184,6 +220,12 @@ To analyze an external reference:
 
 ```text
 Use skills/reverse-engineer/SKILL.md to analyze this reference. Clearly separate observations, inferences, possible implementation choices, and unknowns.
+```
+
+To reflect on completed work:
+
+```text
+Use skills/reflect/SKILL.md to review this completed work. Propose improvements; do not change Pathfinder.
 ```
 
 ## Start a new project
@@ -343,5 +385,7 @@ Add a new skill only when:
 * it improves the workflow without silently expanding Pathfinder's scope
 
 Before adding a skill, review the existing workflow for overlap.
+
+`reflect` is the usual source of that evidence, but a reflection recommendation is a proposal. A human decides whether it becomes part of Pathfinder.
 
 When a new skill is justified, use `skillsmith` to define and review its behavior contract.
