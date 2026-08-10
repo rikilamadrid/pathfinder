@@ -8,4 +8,6 @@ Only propose a Pathfinder change when the lesson would still hold in another lan
 
 Prefer the smallest durable improvement. Concluding that Pathfinder should not change is a valid result.
 
+Then make one bounded pass over the reflection itself. Report `No Reflect improvement proposed.` unless evidence shows the process genuinely failed to do its job. Do not recurse further.
+
 Do not modify Pathfinder, `AGENTS.md`, skills, prompts, or project files as part of reflection. Propose the changes and wait for my decision.
