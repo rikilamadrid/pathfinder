@@ -10,6 +10,12 @@ The kit follows Semantic Versioning:
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-08-10
+
+### Fixed
+
+- Malformed YAML frontmatter in `skills/reverse-engineer/SKILL.md`, which prevented the skill from being discovered. The block opened with a blank line and closed with a dashed rule instead of `---`. Skill content is unchanged.
+
 ## [1.2.0] - 2026-08-10
 
 ### Added
