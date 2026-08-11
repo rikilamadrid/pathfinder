@@ -25,6 +25,8 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-08-12
+
 ### Fixed
 
 - **`skills/reverse-engineer/SKILL.md` fences its report template.** The `# Reverse-Engineering Report` block and its sections were live markdown, so the file read as though it contained a report rather than describing the one to produce. Wording unchanged; only the fence is new.
