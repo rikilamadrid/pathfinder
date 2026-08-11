@@ -10,6 +10,14 @@ The kit follows Semantic Versioning:
 
 ## [Unreleased]
 
+### Added
+
+- `LICENSE` (MIT). The kit exists to be copied into other repositories, but default copyright granted no permission to do so.
+- `CONTRIBUTING.md`, `SECURITY.md`, and `CODE_OF_CONDUCT.md`, documenting the branch/PR/squash convention, the SemVer policy above, the bar for adding a skill, and how to report a security concern privately.
+- README `Contributing` and `License` sections.
+
+No change to `skills/`, `context/`, `prompts/`, `templates/`, or the agent entry files, so destination projects are unaffected.
+
 ## [1.2.1] - 2026-08-10
 
 ### Fixed
