@@ -125,6 +125,9 @@ debug-issue      = an observed failure needs an explanation
 start-feature    = planned construction is difficult
 ```
 
+[The workflow](/guides/workflow/) draws all five loops, with every point where the
+agent stops and a human decides marked on the diagram.
+
 ## Where you decide
 
 This is the part that makes the rest work. The agent may recommend any of these,

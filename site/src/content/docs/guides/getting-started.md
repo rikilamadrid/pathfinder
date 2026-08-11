@@ -214,6 +214,10 @@ context is approved, and not before.
 
 ## Next
 
+[The workflow](/guides/workflow/) draws all five loops and marks every point where
+the agent is supposed to stop and ask you something. Read it once you have a feature
+or two behind you and the shape will already be familiar.
+
 Every skill in the sidebar is rendered from the kit's own `skills/` directory, so
 what you read here is exactly what your agent reads. The two worth reading before
 your second feature are [`start-feature`](/skills/start-feature/), which is where

@@ -70,7 +70,10 @@ const WORKFLOW_LOOPS = [
  * groups below they are listed explicitly — there is no directory to derive
  * them from and no risk of one going missing unnoticed.
  */
-const GUIDES = [{ label: 'Getting started', link: '/guides/getting-started/' }];
+const GUIDES = [
+  { label: 'Getting started', link: '/guides/getting-started/' },
+  { label: 'The workflow', link: '/guides/workflow/' },
+];
 
 /**
  * Project-context pages, most useful first rather than alphabetically. Files
