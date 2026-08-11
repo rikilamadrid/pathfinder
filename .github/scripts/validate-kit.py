@@ -29,11 +29,18 @@ SKILLS = ROOT / "skills"
 PROMPTS = ROOT / "prompts"
 INSTALLER = ROOT / "packages" / "create-pathfinder"
 
-# Exactly what a destination project receives. Stated here so the three places
-# that must agree — the README quickstart, the installer's COPY_LIST, and the
-# installer's npm `files` allowlist — are checked against one declaration
-# rather than against each other in a chain.
-COPY_LIST = ("AGENTS.md", "CLAUDE.md", "context", "prompts", "skills", "templates")
+# The one statement of what a destination project receives. Everything else
+# that names the list — the README install section, npm's `files` allowlist,
+# the installer at runtime — is checked against this file rather than against
+# each other in a chain. Not restated here: a copy in the validator is just a
+# fourth thing to drift.
+CANONICAL_COPY_LIST = INSTALLER / "copy-list.json"
+
+# Delimit the README's install section. Prose changes; these do not. The
+# quickstart is due to become `npx create-pathfinder` instead of a `cp -R`
+# line, and a rule anchored to the old wording would have started passing
+# vacuously at exactly the moment the install path changed.
+README_MARKERS = ("<!-- copy-list:start -->", "<!-- copy-list:end -->")
 
 failures: list[str] = []
 
@@ -214,47 +221,57 @@ def check_no_junk_tracked() -> None:
              "OS/editor junk is tracked; remove it with `git rm --cached`")
 
 
+def load_copy_list() -> tuple[str, ...] | None:
+    """Read the canonical copy list, or report why it could not be read."""
+    try:
+        data = json.loads(CANONICAL_COPY_LIST.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(CANONICAL_COPY_LIST, "copy-list-canonical",
+             f"could not be read: {error}")
+        return None
+
+    entries = data.get("entries")
+    if not isinstance(entries, list) or not entries:
+        fail(CANONICAL_COPY_LIST, "copy-list-canonical",
+             "`entries` must be a non-empty list of top-level names")
+        return None
+
+    for entry in entries:
+        # A path rather than a name would mean the installer copies part of a
+        # directory, which nothing else in the design expects.
+        if not isinstance(entry, str) or "/" in entry or entry in ("", ".", ".."):
+            fail(CANONICAL_COPY_LIST, "copy-list-canonical",
+                 f"{entry!r} is not a plain top-level name")
+            return None
+
+    return tuple(entries)
+
+
 def check_copy_list() -> None:
-    """Everything that names the copy list must name the same six entries.
+    """Everything that names the copy list must agree with copy-list.json.
 
     Until this rule existed, the `cp -R` line in the README was the only
     statement of what a destination project receives, and adding a seventh
-    top-level directory to the kit would have silently failed to ship it. The
-    installer now restates the list twice more — once for the copier, once for
-    npm — and three copies that can drift are worse than one.
+    top-level directory to the kit would have silently failed to ship it.
+
+    The README is checked between explicit markers rather than by matching the
+    install command, because the install command is about to change. A rule
+    anchored to `cp -R` would not have failed when that line disappeared — it
+    would have quietly stopped checking anything, which is worse than never
+    having existed.
     """
-    for entry in COPY_LIST:
+    copy_list = load_copy_list()
+    if copy_list is None:
+        return
+
+    for entry in copy_list:
         if not (ROOT / entry).exists():
             fail(entry, "copy-list-exists",
                  "named in the copy list but missing from the repository")
 
-    # README quickstart: cp -R ../pathfinder/{a,b,c} .
-    readme = ROOT / "README.md"
-    match = re.search(r"cp -R [^\s{]*\{([^}]*)\}", readme.read_text(encoding="utf-8"))
-    if match is None:
-        fail(readme, "copy-list-readme",
-             "no `cp -R ...{...}` quickstart line found")
-    else:
-        found = tuple(part.strip() for part in match.group(1).split(","))
-        if found != COPY_LIST:
-            fail(readme, "copy-list-readme",
-                 f"quickstart copies {found}, expected {COPY_LIST}")
+    check_readme_copy_list(copy_list)
 
-    if not INSTALLER.is_dir():
-        return
-
-    # Installer source: export const COPY_LIST = Object.freeze([...])
-    kit_source = INSTALLER / "src" / "kit.mjs"
-    match = re.search(r"COPY_LIST\s*=\s*Object\.freeze\(\[(.*?)\]\)",
-                      kit_source.read_text(encoding="utf-8"), re.DOTALL)
-    if match is None:
-        fail(kit_source, "copy-list-installer",
-             "no `COPY_LIST = Object.freeze([...])` declaration found")
-    else:
-        found = tuple(re.findall(r'"([^"]+)"', match.group(1)))
-        if found != COPY_LIST:
-            fail(kit_source, "copy-list-installer",
-                 f"COPY_LIST is {found}, expected {COPY_LIST}")
+    check_installer_copy_list(copy_list)
 
     # npm allowlist: the kit entries must all be published, and nothing
     # kit-external may be listed alongside them.
@@ -268,16 +285,93 @@ def check_copy_list() -> None:
         return
 
     files = manifest.get("files", [])
-    for entry in COPY_LIST:
+    for entry in copy_list:
         if entry not in files:
             fail(manifest_path, "copy-list-files",
                  f"`{entry}` is in the copy list but not in `files`, "
                  "so it would be missing from the published package")
     for extra in files:
-        if extra not in COPY_LIST and extra not in ("bin", "src"):
+        if extra not in copy_list and extra not in ("bin", "src", "copy-list.json"):
             fail(manifest_path, "copy-list-files",
                  f"`{extra}` is published but is neither installer code nor "
                  "part of the copy list")
+
+
+def check_installer_copy_list(copy_list: tuple[str, ...]) -> None:
+    """Ask the installer what it would copy, and compare.
+
+    Grepping kit.mjs for `copy-list.json` was the first version of this rule
+    and it was worthless: the string also appears in that file's own comments,
+    so the check passed even when the list had been replaced by a hardcoded
+    array. Importing the module and reading COPY_LIST tests the behaviour
+    rather than the spelling.
+    """
+    script = "import('./src/kit.mjs').then(m => console.log(JSON.stringify(m.COPY_LIST)))"
+    try:
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=INSTALLER, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        print("note: node unavailable, skipping copy-list-installer")
+        return
+
+    if result.returncode != 0:
+        fail("packages/create-pathfinder/src/kit.mjs", "copy-list-installer",
+             f"could not be loaded: {result.stderr.strip().splitlines()[-1:]}")
+        return
+
+    found = tuple(json.loads(result.stdout))
+    if found != copy_list:
+        fail("packages/create-pathfinder/src/kit.mjs", "copy-list-installer",
+             f"the installer would copy {found}, but the canonical list is "
+             f"{copy_list}")
+
+
+def check_readme_copy_list(copy_list: tuple[str, ...]) -> None:
+    """The README's install section must name every entry, between markers.
+
+    Deliberately checks only that each entry is mentioned, not that nothing
+    else is. The section legitimately names files a project must *not* copy —
+    the root CHANGELOG.md — and a rule forbidding kit-external names there
+    would fail on correct prose.
+    """
+    readme = ROOT / "README.md"
+    text = readme.read_text(encoding="utf-8")
+    start_marker, end_marker = README_MARKERS
+
+    start = text.find(start_marker)
+    end = text.find(end_marker)
+    if start == -1 or end == -1:
+        fail(readme, "copy-list-readme",
+             f"install section is not delimited by {start_marker} and "
+             f"{end_marker}; without them nothing checks that the README "
+             "describes the real copy list")
+        return
+    if end < start:
+        fail(readme, "copy-list-readme",
+             f"{end_marker} appears before {start_marker}")
+        return
+
+    section = text[start + len(start_marker):end]
+    for entry in copy_list:
+        if not re.search(rf"(?<![\w./-]){re.escape(entry)}(?![\w-])", section):
+            fail(readme, "copy-list-readme",
+                 f"`{entry}` is in the copy list but the install section "
+                 "never mentions it")
+
+    # When the section still carries a literal `cp -R {a,b,c}` command, check it
+    # exactly — mention-anywhere is too lenient on its own, since a name dropped
+    # from the command usually survives in the surrounding prose. This is
+    # conditional on purpose: when the quickstart becomes `npx create-pathfinder`
+    # the command disappears and the checks above still hold.
+    command = re.search(r"cp -R [^\s{]*\{([^}]*)\}", section)
+    if command is not None:
+        copied = tuple(part.strip() for part in command.group(1).split(","))
+        if copied != copy_list:
+            fail(readme, "copy-list-readme",
+                 f"the `cp -R` command copies {copied}, but the canonical "
+                 f"list is {copy_list}")
 
 
 def main() -> int:

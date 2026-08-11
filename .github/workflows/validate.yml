@@ -20,6 +20,14 @@ jobs:
           # shallow fetch has none, and the rule would silently skip.
           fetch-depth: 0
 
+      - name: Set up Node
+        # The copy-list-installer rule loads the installer and asks it what it
+        # would copy. Without Node that rule skips itself, which is the exact
+        # failure mode the copy-list checks exist to prevent.
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Validate kit structure
         run: python3 .github/scripts/validate-kit.py
 

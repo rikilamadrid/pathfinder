@@ -7,26 +7,31 @@
  * kit's content: the real directories are read at install time.
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
 
 /**
  * Everything a destination project receives, and nothing else.
  *
- * Deliberately absent: CHANGELOG.md and README.md (the kit's own history and
- * front page, not the project's), .github/, assets/, site/, packages/, and
- * .features/. A destination project that wants a changelog starts from
- * templates/CHANGELOG.template.md instead.
+ * Read from copy-list.json rather than declared here, so the list is data with
+ * one home instead of a value restated in every file that needs it. The
+ * validator reads the same file and checks the README and npm's `files`
+ * against it; nothing has to parse this source code to learn the list.
+ *
+ * Deliberately absent from it: CHANGELOG.md and README.md (the kit's own
+ * history and front page, not the project's), .github/, assets/, site/,
+ * packages/, and .features/. A destination project that wants a changelog
+ * starts from templates/CHANGELOG.template.md instead.
+ *
+ * Read with readFileSync rather than a JSON import, which still requires an
+ * import attribute on the Node 18 this package supports.
  */
-export const COPY_LIST = Object.freeze([
-  "AGENTS.md",
-  "CLAUDE.md",
-  "context",
-  "prompts",
-  "skills",
-  "templates",
-]);
+export const COPY_LIST = Object.freeze(
+  JSON.parse(readFileSync(join(HERE, "..", "copy-list.json"), "utf8")).entries,
+);
 
 /**
  * Junk that is never part of the kit, matched by basename at any depth.
@@ -44,7 +49,7 @@ export function isExcluded(basename) {
   return EXCLUDED.has(basename) || basename.startsWith("._");
 }
 
-const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const PACKAGE_ROOT = resolve(HERE, "..");
 
 /**
  * Locate the kit directories this tool should copy from.

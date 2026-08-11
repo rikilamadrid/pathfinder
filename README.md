@@ -28,6 +28,12 @@ It is also not an autopilot. Recommendations are proposals, not silent decisions
 
 ## Start a new project
 
+<!-- copy-list:start -->
+<!-- CI checks that this section names every entry in
+     packages/create-pathfinder/copy-list.json, the canonical list. Keep the
+     markers when rewriting the install instructions; without them the check
+     passes vacuously. -->
+
 Copy the reusable files into the destination repository. Nothing is installed, and nothing is built.
 
 ```bash
@@ -39,6 +45,8 @@ cp -R ../pathfinder/{AGENTS.md,CLAUDE.md,context,prompts,skills,templates} .
 ```
 
 Do not copy this kit's root `CHANGELOG.md`; it is the history of Pathfinder itself. Use `templates/CHANGELOG.template.md` only when the destination project chooses a changelog.
+
+<!-- copy-list:end -->
 
 Then run:
 
