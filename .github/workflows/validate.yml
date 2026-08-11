@@ -1,0 +1,37 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Structural checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the kit
+        uses: actions/checkout@v4
+        with:
+          # Tags are needed for the changelog-has-tag rule; the default
+          # shallow fetch has none, and the rule would silently skip.
+          fetch-depth: 0
+
+      - name: Validate kit structure
+        run: python3 .github/scripts/validate-kit.py
+
+      - name: Assert no root manifest
+        # NOT_A_FRAMEWORK.md promises the kit has no runtime and no package
+        # manager. Nested tooling may carry its own manifest; the root may not.
+        run: |
+          for f in package.json package-lock.json pnpm-lock.yaml yarn.lock \
+                   requirements.txt pyproject.toml Gemfile go.mod; do
+            if [ -e "$f" ]; then
+              echo "::error file=$f::$f at the repository root contradicts NOT_A_FRAMEWORK.md"
+              exit 1
+            fi
+          done
+          echo "OK — no manifest at the repository root."
