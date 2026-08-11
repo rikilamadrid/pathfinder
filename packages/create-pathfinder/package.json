@@ -1,0 +1,51 @@
+{
+  "name": "create-pathfinder",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Install the Pathfinder AI-assisted, human-in-the-loop workflow kit into a Git repository.",
+  "keywords": [
+    "pathfinder",
+    "ai",
+    "agent",
+    "claude",
+    "workflow",
+    "skills",
+    "scaffold"
+  ],
+  "license": "MIT",
+  "author": "Ricardo Lamadrid (Lamadrid Labs)",
+  "homepage": "https://github.com/rikilamadrid/pathfinder#readme",
+  "bugs": "https://github.com/rikilamadrid/pathfinder/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rikilamadrid/pathfinder.git",
+    "directory": "packages/create-pathfinder"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "create-pathfinder": "bin/create-pathfinder.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "context",
+    "prompts",
+    "skills",
+    "templates"
+  ],
+  "scripts": {
+    "stage": "node scripts/stage-kit.mjs",
+    "unstage": "node scripts/stage-kit.mjs --clean",
+    "prepack": "node scripts/stage-kit.mjs",
+    "postpack": "node scripts/stage-kit.mjs --clean",
+    "prepublishOnly": "node scripts/publish-guard.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

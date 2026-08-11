@@ -18,6 +18,7 @@ directly rather than pulling in a dependency to read six lines of text.
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -26,6 +27,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS = ROOT / "skills"
 PROMPTS = ROOT / "prompts"
+INSTALLER = ROOT / "packages" / "create-pathfinder"
+
+# Exactly what a destination project receives. Stated here so the three places
+# that must agree — the README quickstart, the installer's COPY_LIST, and the
+# installer's npm `files` allowlist — are checked against one declaration
+# rather than against each other in a chain.
+COPY_LIST = ("AGENTS.md", "CLAUDE.md", "context", "prompts", "skills", "templates")
 
 failures: list[str] = []
 
@@ -179,10 +187,105 @@ def check_changelog() -> None:
              f"most recent tag {tag} has no `[{version}]` entry")
 
 
+def check_no_junk_tracked() -> None:
+    """No OS or editor junk may be tracked, at any depth.
+
+    .gitignore already keeps these out, but an ignore rule is advisory: a
+    single `git add -f` defeats it, and `skills/.DS_Store` was quietly copied
+    into destination projects by the installer before that was caught. This
+    makes the invariant enforced rather than merely intended.
+    """
+    junk = ("*.DS_Store", "Thumbs.db", "._*", "__MACOSX")
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--", *junk],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        print("note: git unavailable, skipping no-junk-tracked")
+        return
+
+    if result.returncode != 0:
+        print("note: git ls-files failed, skipping no-junk-tracked")
+        return
+
+    for tracked in sorted(filter(None, result.stdout.splitlines())):
+        fail(tracked, "no-junk-tracked",
+             "OS/editor junk is tracked; remove it with `git rm --cached`")
+
+
+def check_copy_list() -> None:
+    """Everything that names the copy list must name the same six entries.
+
+    Until this rule existed, the `cp -R` line in the README was the only
+    statement of what a destination project receives, and adding a seventh
+    top-level directory to the kit would have silently failed to ship it. The
+    installer now restates the list twice more — once for the copier, once for
+    npm — and three copies that can drift are worse than one.
+    """
+    for entry in COPY_LIST:
+        if not (ROOT / entry).exists():
+            fail(entry, "copy-list-exists",
+                 "named in the copy list but missing from the repository")
+
+    # README quickstart: cp -R ../pathfinder/{a,b,c} .
+    readme = ROOT / "README.md"
+    match = re.search(r"cp -R [^\s{]*\{([^}]*)\}", readme.read_text(encoding="utf-8"))
+    if match is None:
+        fail(readme, "copy-list-readme",
+             "no `cp -R ...{...}` quickstart line found")
+    else:
+        found = tuple(part.strip() for part in match.group(1).split(","))
+        if found != COPY_LIST:
+            fail(readme, "copy-list-readme",
+                 f"quickstart copies {found}, expected {COPY_LIST}")
+
+    if not INSTALLER.is_dir():
+        return
+
+    # Installer source: export const COPY_LIST = Object.freeze([...])
+    kit_source = INSTALLER / "src" / "kit.mjs"
+    match = re.search(r"COPY_LIST\s*=\s*Object\.freeze\(\[(.*?)\]\)",
+                      kit_source.read_text(encoding="utf-8"), re.DOTALL)
+    if match is None:
+        fail(kit_source, "copy-list-installer",
+             "no `COPY_LIST = Object.freeze([...])` declaration found")
+    else:
+        found = tuple(re.findall(r'"([^"]+)"', match.group(1)))
+        if found != COPY_LIST:
+            fail(kit_source, "copy-list-installer",
+                 f"COPY_LIST is {found}, expected {COPY_LIST}")
+
+    # npm allowlist: the kit entries must all be published, and nothing
+    # kit-external may be listed alongside them.
+    manifest_path = INSTALLER / "package.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        # Reported rather than raised: a traceback names Python's line numbers,
+        # not the file the maintainer has to fix.
+        fail(manifest_path, "copy-list-files", f"could not be read: {error}")
+        return
+
+    files = manifest.get("files", [])
+    for entry in COPY_LIST:
+        if entry not in files:
+            fail(manifest_path, "copy-list-files",
+                 f"`{entry}` is in the copy list but not in `files`, "
+                 "so it would be missing from the published package")
+    for extra in files:
+        if extra not in COPY_LIST and extra not in ("bin", "src"):
+            fail(manifest_path, "copy-list-files",
+                 f"`{extra}` is published but is neither installer code nor "
+                 "part of the copy list")
+
+
 def main() -> int:
     skill_names = check_skills()
     check_prompts(skill_names)
     check_claude_md(skill_names)
+    check_copy_list()
+    check_no_junk_tracked()
     check_changelog()
 
     if failures:
