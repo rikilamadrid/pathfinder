@@ -30,7 +30,14 @@ const WORKFLOW_LOOPS = [
   },
   {
     label: 'Delivery loop',
-    skills: ['to-specs', 'load-feature', 'start-feature', 'review-feature', 'complete-feature'],
+    skills: [
+      'to-specs',
+      'load-feature',
+      'start-feature',
+      'debug-issue',
+      'review-feature',
+      'complete-feature',
+    ],
   },
   {
     label: 'Learning and mentoring loop',

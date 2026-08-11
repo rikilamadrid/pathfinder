@@ -25,6 +25,11 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Added
+
+- **`debug-issue` skill** and its manual launcher, `prompts/15-debug-issue.md`, for diagnosing an observed failure — a failing test, runtime error, regression, incorrect output, or environment-specific behavior — rather than editing until the symptom disappears. It establishes expected versus actual behavior and reproduction status first, tests a small ranked set of hypotheses against discriminating evidence, applies the smallest justified fix, and verifies against the original failure. It has explicit stop conditions: when the evidence runs out, the reproduction is too unstable, or the fix would need an unapproved architectural, dependency, security, or destructive change, it reports what has been ruled out instead of thrashing. A new skill, so this is a MINOR release when cut.
+- README documents where debugging sits relative to the delivery loop, and the boundary between `debug-issue`, `start-feature`, `review-feature`, and `learn-codebase`. `CLAUDE.md`'s skills list and the site sidebar grouping in `site/src/nav.mjs` both include it; the skill count in the README, the installer README, and `CONTRIBUTING.md` moves from nineteen to twenty.
+
 ## [1.3.0] - 2026-08-11
 
 ### Added

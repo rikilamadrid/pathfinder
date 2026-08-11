@@ -20,7 +20,7 @@ It is intentionally stack-agnostic. It does not choose React, Python, mobile, a 
 
 ## What this is, and what it is not
 
-**It is** a workflow and context kit: nineteen skills with defined boundaries, a `context/` folder that holds project truth, and prompts for tools that do not discover local skills on their own. It is for someone who wants an agent to move fast on delivery while product, architecture, and Git decisions stay explicitly theirs — and who wants to understand the result afterward, not just receive it.
+**It is** a workflow and context kit: twenty skills with defined boundaries, a `context/` folder that holds project truth, and prompts for tools that do not discover local skills on their own. It is for someone who wants an agent to move fast on delivery while product, architecture, and Git decisions stay explicitly theirs — and who wants to understand the result afterward, not just receive it.
 
 **It is not** a framework. There is no required runtime, package manager, framework, database, hosting platform, or Git model, and there is no dependency to install. The destination project chooses its own technology, architecture, delivery process, and learning output format. See [`NOT_A_FRAMEWORK.md`](NOT_A_FRAMEWORK.md).
 
@@ -49,7 +49,7 @@ It writes exactly six things:
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
-| `skills/` | Nineteen skills covering discovery, specs, delivery, review, and learning |
+| `skills/` | Twenty skills covering discovery, specs, delivery, debugging, review, and learning |
 | `prompts/` | Manual launchers for tools that do not discover local skills |
 | `templates/` | Starting points the project copies when it needs them |
 
@@ -143,6 +143,30 @@ project context
 ```
 
 Features are intentionally sized for reliable delivery inside a focused LLM context window. They should be small, independently verifiable, and explicit about what the agent should and should not load. See [Context-efficient feature design](#context-efficient-feature-design).
+
+When something is observably broken, the loop pauses and `debug-issue` runs instead of the agent guessing its way forward.
+
+```text
+observed failure
+→ debug-issue
+→ reproduce
+→ hypotheses and discriminating evidence
+→ root cause
+→ smallest justified fix
+→ verify against the original failure
+→ back to the delivery loop
+```
+
+`debug-issue` is for a concrete unexpected behavior — a failing test, a runtime error, a regression, incorrect output, an environment-specific or intermittent failure. It is not for work that is merely hard. The boundary is:
+
+```text
+debug-issue     = an observed failure needs an explanation
+start-feature   = planned construction is difficult
+review-feature  = completed implementation needs inspection for defects
+learn-codebase  = the real question is understanding the repository
+```
+
+It reproduces before repairing, tests hypotheses rather than editing at random, and reports rather than thrashing when the evidence runs out. A symptom disappearing does not count as a root cause, and a fix that would require an unapproved architectural, dependency, security, or destructive change stops for a human decision.
 
 ### Learning and mentoring loop
 
@@ -270,6 +294,7 @@ Six entries get copied into a destination project: `AGENTS.md` and `CLAUDE.md` (
 │   ├── to-specs/
 │   ├── load-feature/
 │   ├── start-feature/
+│   ├── debug-issue/
 │   ├── review-feature/
 │   ├── complete-feature/
 │   ├── learn-feature/

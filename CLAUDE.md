@@ -57,6 +57,7 @@ Ask before actions identified in `context/ai-interaction.md`, especially depende
 - `to-specs` — generate context-sized feature specs
 - `load-feature` — prepare one feature for implementation
 - `start-feature` — implement scoped delivery chunks
+- `debug-issue` — diagnose an observed failure to its root cause, apply the smallest justified fix, and verify it
 - `review-feature` — review against requirements, regressions, and standards
 - `complete-feature` — verify and close a feature cleanly
 - `learn-feature` — create an interactive lesson for a completed feature
