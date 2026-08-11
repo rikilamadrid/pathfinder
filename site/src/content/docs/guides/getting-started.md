@@ -7,8 +7,8 @@ This guide takes you from an empty directory to your first completed feature. Ev
 command here was run against the published package, in a fresh repository, in this
 order.
 
-It takes about ten minutes to install and get through discovery. The first feature
-takes as long as the feature takes.
+Installing takes seconds. Discovery is a conversation, so it takes as long as your
+project needs — and so does the first feature.
 
 ## What you need
 
@@ -136,7 +136,7 @@ writing any of it down. When the choices are clear enough, it fills in
 `CLAUDE.md`, and `AGENTS.md`, then recommends what to run next.
 
 Read `context/project-overview.md` when it is done. It is now the file every later
-session treats as true, and it is short enough to check in a couple of minutes. If
+session treats as true, and it is short enough to read in one sitting. If
 something in it is wrong, fix it now — an error here propagates into every feature
 spec that follows.
 

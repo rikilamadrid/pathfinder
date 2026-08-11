@@ -139,7 +139,8 @@ ideas do the work here: [context boundaries](/concepts/context-boundaries/) and
 [`start-feature`](/skills/start-feature/) restates the goal, the active chunk, the
 files it expects to touch, the risks, its verification plan, and what it considers
 out of scope **before** it writes anything. Read that restatement. It is the cheapest
-place to catch a misunderstanding, and it costs you fifteen seconds.
+place to catch a misunderstanding — cheaper than the review, and far cheaper than the
+merge.
 
 ### When something breaks
 

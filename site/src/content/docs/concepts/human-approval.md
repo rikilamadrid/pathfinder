@@ -52,7 +52,7 @@ are rules written in markdown, and an agent that ignores them will succeed at
 ignoring them.
 
 What the kit gives you is narrower and still useful: the boundary is written down,
-in your repository, in a file you can read in two minutes and change in one. When an
+in your repository, in a file you can read in one sitting and change in one line. When an
 agent crosses it, you have something specific to point at — and pointing at a rule
 is what makes the correction stick for the rest of the session.
 
