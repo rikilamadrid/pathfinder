@@ -1,6 +1,11 @@
 // @ts-check
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import { buildSidebar } from './src/nav.mjs';
+
+const skillsDir = fileURLToPath(new URL('../skills', import.meta.url));
+const contextDir = fileURLToPath(new URL('../context', import.meta.url));
 
 // The site reads the kit from the repository root, one directory up. Astro and
 // Vite both refuse to serve files outside the project root by default, so the
@@ -39,9 +44,11 @@ export default defineConfig({
           href: 'https://github.com/rikilamadrid/pathfinder',
         },
       ],
-      // Navigation is filled in with real skill pages in chunk 3. The shell
-      // deliberately ships with none rather than with placeholder entries.
-      sidebar: [],
+      // Grouped by the five workflow loops the README defines. Built from what
+      // is on disk, so a new skill cannot go missing — see `src/nav.mjs`.
+      // Read at config load, so a skill added while the dev server is running
+      // reaches its page immediately but enters the sidebar on restart.
+      sidebar: buildSidebar({ skillsDir, contextDir }),
     }),
   ],
 });
