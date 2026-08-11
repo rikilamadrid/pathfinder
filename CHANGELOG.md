@@ -17,6 +17,10 @@ The kit follows Semantic Versioning:
 - README `Contributing` and `License` sections.
 - `.github/workflows/validate.yml` and `.github/scripts/validate-kit.py`, a dependency-free structural check of skill frontmatter, skill/launcher coverage, the `CLAUDE.md` skills list, and changelog-to-tag agreement. Runs on every pull request and can be run locally with `python3 .github/scripts/validate-kit.py`.
 
+### Changed
+
+- README restructured so the first screen carries the logo, a positioning line, CI and license badges, a link row, and a `What this is, and what it is not` section, with the quickstart immediately after. The file tree moved below the workflow and into a collapsed block. Every governing rule is retained; the reverse-engineering rules that appeared in both `External reference analysis` and `Reverse-engineering rule` are now stated once, in the latter. No documentation was moved out of the README — there is no site to move it to yet.
+
 ### Fixed
 
 - `CLAUDE.md` listed only 14 of 19 skills. The five mentoring skills added in `606afeb` — `teach-feature`, `teach-architecture`, `quiz-me`, `challenge-me`, and `learning-review` — were never added to the `Available skills` list, so agents in destination projects were not told they existed. Caught by the new validation script on its first run.
