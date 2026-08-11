@@ -61,6 +61,11 @@ Ask before actions identified in `context/ai-interaction.md`, especially depende
 - `complete-feature` — verify and close a feature cleanly
 - `learn-feature` — create an interactive lesson for a completed feature
 - `learn-codebase` — create a modular learning portal for the repository
+- `teach-feature` — teach the verified current feature from its spec, diff, tests, and implementation
+- `teach-architecture` — explain how completed features fit into the wider application and system architecture
+- `quiz-me` — assess understanding of a recently taught feature with evidence-based questions
+- `challenge-me` — create a small transfer exercise applying a learned concept in a changed context
+- `learning-review` — review accumulated lessons, identify gaps, and create a reinforcement plan
 - `reflect` — review completed work, and the reflection itself, and propose reusable workflow improvements for human approval
 - `handoff` — preserve useful state between sessions or tools
 - `skillsmith` — teach and create small local skills
