@@ -56,7 +56,7 @@ Never force-push, never move or delete a published tag, and never rewrite releas
 
 ## Adding a skill
 
-The bar is high on purpose. Pathfinder currently has 19 skills and does not want 40.
+The bar is high on purpose. Pathfinder currently has 20 skills and does not want 40.
 
 Add a new skill only when:
 
