@@ -25,6 +25,13 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Fixed
+
+- **`skills/reverse-engineer/SKILL.md` fences its report template.** The `# Reverse-Engineering Report` block and its sections were live markdown, so the file read as though it contained a report rather than describing the one to produce. Wording unchanged; only the fence is new.
+- **`skills/reflect/SKILL.md` uses one H1.** The `Part 1`, `Part 2`, `Promotion rules`, `Output`, and `Principles` dividers were H1s with H2s beneath them, which every other skill avoids. Each heading from the `Part 1` divider onward drops one level. No prose changed.
+- **`context/project-overview.md` and `templates/project-overview.template.md` are titled `Project Overview`**, with the project's name captured as a `Project:` field in the Status block instead of standing in for the document's own title. The old `# [Project Name] — Project Overview` left a placeholder as the heading of a file that is read far more often than it is filled in.
+- **`context/features/example-feature-spec.md` says what it is.** It is titled `Example Feature Spec` and names `templates/feature-spec.template.md` as the stencil to copy, rather than opening on a bare `# [Feature Name]` placeholder identical to the template. `skills/to-specs/SKILL.md` now points at that template by path instead of at "the example template".
+
 ## [1.4.0] - 2026-08-11
 
 ### Added

@@ -1,9 +1,10 @@
-# [Project Name] — Project Overview
+# Project Overview
 
 > Describe the product, audience, intended feeling, and reason it should exist.
 
 ## Status
 
+- Project: `[Project Name]`
 - Stage: `[idea / prototype / MVP / production / maintenance]`
 - Repo type: `[new / existing / application / library / service / monorepo / other]`
 - Primary goal: `[success definition]`

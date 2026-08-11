@@ -32,7 +32,7 @@ Split a feature when it mixes several systems, requires a repo-wide mental model
 
 ## Output
 
-Create only the coherent MVP roadmap in `context/features/`, using the example template and project-selected naming/delivery policies.
+Create only the coherent MVP roadmap in `context/features/`, using `templates/feature-spec.template.md` and project-selected naming/delivery policies.
 
 Each spec must include Context Boundary, Delivery Chunks, and Learning Targets.
 

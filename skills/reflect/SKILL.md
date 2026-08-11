@@ -50,9 +50,9 @@ And:
 
 ---
 
-# Part 1 — Reflect on the work
+## Part 1 — Reflect on the work
 
-## 1. Reconstruct what happened
+### 1. Reconstruct what happened
 
 Review the relevant work and available evidence.
 
@@ -73,7 +73,7 @@ Do not rely on vague recollection when repository evidence is available.
 
 Distinguish what actually happened from what was intended to happen.
 
-## 2. Identify learning signals
+### 2. Identify learning signals
 
 Look specifically for:
 
@@ -96,11 +96,11 @@ Success alone is not evidence that the workflow was good.
 
 Failure alone is not evidence that the workflow must change.
 
-## 3. Separate local knowledge from reusable learning
+### 3. Separate local knowledge from reusable learning
 
 Classify each finding as one of:
 
-### PROJECT
+#### PROJECT
 
 Specific to this repository, stack, business domain, architecture, environment, or team.
 
@@ -113,7 +113,7 @@ Examples:
 * this service must start before another service
 * a framework-specific workaround is required
 
-### WORKFLOW CANDIDATE
+#### WORKFLOW CANDIDATE
 
 Potentially useful across unrelated projects.
 
@@ -125,7 +125,7 @@ Examples:
 * an undocumented dependency should have been discovered during system analysis
 * the agent repeatedly needed human correction for something the workflow could have surfaced earlier
 
-### NOISE
+#### NOISE
 
 Interesting but not useful enough to preserve.
 
@@ -133,7 +133,7 @@ Discard it.
 
 Not every observation deserves memory.
 
-## 4. Test generality
+### 4. Test generality
 
 For every WORKFLOW CANDIDATE ask:
 
@@ -149,7 +149,7 @@ If the lesson fails these tests, keep it project-specific.
 
 Generalize behavior, not technology.
 
-## 5. Check for existing coverage
+### 5. Check for existing coverage
 
 Before proposing anything new, inspect the existing Pathfinder workflow and skills.
 
@@ -169,41 +169,41 @@ Avoid duplicate skills.
 
 Do not respond to every failure by adding another instruction.
 
-## 6. Require evidence
+### 6. Require evidence
 
 Every proposed Pathfinder improvement must include:
 
-### Observation
+#### Observation
 
 What happened?
 
-### Evidence
+#### Evidence
 
 What concrete part of the execution demonstrates it?
 
-### Generalization
+#### Generalization
 
 Why could this recur outside this project?
 
-### Current gap
+#### Current gap
 
 Why does Pathfinder not already handle it?
 
-### Proposed change
+#### Proposed change
 
 What is the smallest change that would address it?
 
-### Risk
+#### Risk
 
 How could this rule become harmful, redundant, overly restrictive, or too specific?
 
-### Validation
+#### Validation
 
 How could future work demonstrate that the improvement actually helped?
 
 Do not promote intuition into workflow policy without evidence.
 
-## 7. Prefer the smallest durable improvement
+### 7. Prefer the smallest durable improvement
 
 Possible outcomes include:
 
@@ -222,7 +222,7 @@ An improvement should remove more uncertainty than complexity it introduces.
 
 ---
 
-# Part 2 — Reflect on Reflect
+## Part 2 — Reflect on Reflect
 
 Reflect is subject to the same evidence standard it applies to Pathfinder.
 
@@ -234,7 +234,7 @@ Its purpose is not to endlessly rewrite Reflect.
 
 Its purpose is to discover whether Reflect systematically failed to do its own job.
 
-## 8. Evaluate reflection quality
+### 8. Evaluate reflection quality
 
 Ask:
 
@@ -255,11 +255,11 @@ Do not search for a self-improvement merely because this section exists.
 
 "No improvement needed" is a valid and desirable result.
 
-## 9. Identify Reflect improvement candidates
+### 9. Identify Reflect improvement candidates
 
 If the reflection process itself demonstrated a meaningful weakness, classify it as:
 
-### REFLECT IMPROVEMENT CANDIDATE
+#### REFLECT IMPROVEMENT CANDIDATE
 
 This classification is reserved for improvements to `reflect/SKILL.md` itself.
 
@@ -267,23 +267,23 @@ Do not use it for general Pathfinder improvements.
 
 For each candidate provide:
 
-### Observed weakness
+#### Observed weakness
 
 What was inadequate about Reflect's behavior or reasoning?
 
-### Evidence
+#### Evidence
 
 What concrete output, omission, human correction, or repeated failure demonstrates the weakness?
 
-### Root cause
+#### Root cause
 
 What part of the current Reflect process allowed the weakness?
 
-### Proposed change
+#### Proposed change
 
 What is the smallest change to `reflect/SKILL.md` that could improve future reflections?
 
-### Regression risk
+#### Regression risk
 
 Could the change make Reflect:
 
@@ -295,7 +295,7 @@ Could the change make Reflect:
 * excessively conservative
 * more expensive in context or execution time
 
-### Validation
+#### Validation
 
 What future behavior would demonstrate that the modification actually improved Reflect?
 
@@ -303,11 +303,11 @@ Do not recursively optimize stylistic preferences, wording preferences, or isola
 
 Self-improvements must materially improve reflection quality.
 
-## 10. Evidence levels for self-improvement
+### 10. Evidence levels for self-improvement
 
 Treat evidence for changes to Reflect according to three levels:
 
-### Level 1 — Incident
+#### Level 1 — Incident
 
 One reflection exposed a plausible weakness.
 
@@ -315,13 +315,13 @@ This may justify an improvement candidate.
 
 It does not establish a general pattern.
 
-### Level 2 — Pattern
+#### Level 2 — Pattern
 
 The same weakness has appeared across multiple reflections or required repeated human correction.
 
 This provides stronger justification for changing Reflect.
 
-### Level 3 — Validation
+#### Level 3 — Validation
 
 A proposed change addresses the weakness and subsequent reflections demonstrate better behavior without obvious regression.
 
@@ -331,7 +331,7 @@ When history is available, prefer patterns over isolated incidents.
 
 Do not fabricate historical evidence.
 
-## 11. Bound the recursion
+### 11. Bound the recursion
 
 Reflect may perform only one self-evaluation pass per invocation.
 
@@ -355,9 +355,9 @@ Recursive improvement should accumulate evidence across executions, not consume 
 
 ---
 
-# Promotion rules
+## Promotion rules
 
-## Pathfinder improvements
+### Pathfinder improvements
 
 Reflect proposes.
 
@@ -365,7 +365,7 @@ Humans promote.
 
 Do not silently modify Pathfinder's workflow, AGENTS.md, skills, templates, principles, or other durable guidance unless explicitly asked to implement an accepted recommendation.
 
-## Reflect self-improvements
+### Reflect self-improvements
 
 The same rule applies to Reflect itself.
 
@@ -379,21 +379,21 @@ It raises it.
 
 ---
 
-# Output
+## Output
 
 Return only sections that contain meaningful information.
 
 Do not inflate the output to satisfy the template.
 
-## What happened
+### What happened
 
 A concise reconstruction of the relevant execution.
 
-## What we learned
+### What we learned
 
 The important findings and supporting evidence.
 
-## Classification
+### Classification
 
 For each meaningful finding:
 
@@ -403,13 +403,13 @@ For each meaningful finding:
 
 Omit trivial noise when it adds no value.
 
-## Pathfinder gaps
+### Pathfinder gaps
 
 Only genuine gaps not already covered.
 
 If none exist, say so.
 
-## Recommended changes
+### Recommended changes
 
 Rank recommendations from highest to lowest value.
 
@@ -423,11 +423,11 @@ For each recommendation provide:
 * validation approach
 * confidence
 
-## No-change findings
+### No-change findings
 
 Mention important observations that should not modify Pathfinder and explain why.
 
-## Reflect self-evaluation
+### Reflect self-evaluation
 
 Briefly assess whether this reflection process itself performed adequately.
 
@@ -437,7 +437,7 @@ If no material weakness was discovered, state:
 
 Do not invent one.
 
-## Reflect improvement candidates
+### Reflect improvement candidates
 
 Include this section only when evidence supports changing `reflect/SKILL.md`.
 
@@ -454,7 +454,7 @@ For each candidate provide:
 
 ---
 
-# Principles
+## Principles
 
 > Execution is evidence.
 
