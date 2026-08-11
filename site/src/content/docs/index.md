@@ -14,7 +14,7 @@ hero:
     file: ../../../../assets/logo.svg
   actions:
     - text: Start a project
-      link: '#start-a-project'
+      link: /guides/getting-started/
       icon: right-arrow
     - text: View on GitHub
       link: https://github.com/rikilamadrid/pathfinder
@@ -83,6 +83,10 @@ That starts the discovery conversation.
 To adapt an existing repository, run the same two steps inside it. Nothing you
 already have is overwritten, so it is safe in a repository that already has its
 own `CLAUDE.md` or `context/`.
+
+[Getting started](/guides/getting-started/) walks the whole first session — what
+discovery should feel like, what to check before you accept it, and how the first
+feature gets built.
 
 ## The workflow at a glance
 

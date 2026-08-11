@@ -65,6 +65,14 @@ const WORKFLOW_LOOPS = [
 ];
 
 /**
+ * Site-local guides, in reading order. These are the only pages on the site
+ * that are written here rather than sourced from the kit, so unlike the skill
+ * groups below they are listed explicitly — there is no directory to derive
+ * them from and no risk of one going missing unnoticed.
+ */
+const GUIDES = [{ label: 'Getting started', link: '/guides/getting-started/' }];
+
+/**
  * Project-context pages, most useful first rather than alphabetically. Files
  * not listed here still appear, in path order, after the ones that are.
  */
@@ -131,6 +139,7 @@ export function buildSidebar({ skillsDir, contextDir }) {
 
   return [
     { label: 'Overview', items: [{ label: 'Pathfinder', link: '/' }] },
+    { label: 'Guides', items: GUIDES },
     ...groups,
     {
       label: 'Project context',
