@@ -1,7 +1,8 @@
 ---
+
 name: reverse-engineer
 description: Analyze an external product, interface, repository, workflow, or reference implementation and produce an evidence-based reconstruction blueprint without copying protected assets or inventing unsupported details.
----
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 # Reverse Engineer
 
