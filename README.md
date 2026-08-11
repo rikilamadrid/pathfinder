@@ -402,3 +402,13 @@ Before adding a skill, review the existing workflow for overlap.
 `reflect` is the usual source of that evidence, but a reflection recommendation is a proposal. A human decides whether it becomes part of Pathfinder.
 
 When a new skill is justified, use `skillsmith` to define and review its behavior contract.
+
+## Contributing
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the branch, pull request, and versioning conventions, and for the bar a new skill has to clear. Conduct expectations are in [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md); report security concerns privately per [`SECURITY.md`](SECURITY.md).
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
+
+Copy the kit into your own project freely. The kit is licensed; what you build with it is yours.
