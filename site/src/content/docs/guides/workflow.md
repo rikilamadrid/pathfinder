@@ -32,8 +32,9 @@ From an idea, or an existing repository, to project context you approved.
 ```text
 idea, or an existing repository
 
-→ kickstart-pathfinder     ask progressively; classify what it hears
-     ◆ you correct or approve the proposed context before it is written
+→ kickstart-pathfinder     ask progressively; record context once it is clear
+     ◆ unsettled choices stay marked proposed or TBD — correct or approve
+       the recorded context before implementation begins
 
 → debate-me                pressure-test product scope, stack, and workflow
                            every choice labelled `recommended`, never `approved`

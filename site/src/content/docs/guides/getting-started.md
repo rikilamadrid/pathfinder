@@ -129,16 +129,20 @@ conversation. Expect it to:
 - **leave open decisions marked [`TBD`](/concepts/decision-states/)** instead of
   quietly choosing for you.
 
-It presents the proposed context and asks for your corrections or approval before
-writing any of it down. When the choices are clear enough, it fills in
+Once the direction is clear enough, it records the emerging context — filling in
 [`context/project-overview.md`](/context/project-overview/),
 `context/coding-standards.md`, [`context/ai-interaction.md`](/context/ai-interaction/),
-`CLAUDE.md`, and `AGENTS.md`, then recommends what to run next.
+`CLAUDE.md`, and `AGENTS.md` — and then recommends what to run next.
 
-Read `context/project-overview.md` when it is done. It is now the file every later
-session treats as true, and it is short enough to read in one sitting. If
-something in it is wrong, fix it now — an error here propagates into every feature
-spec that follows.
+It does not wait for your approval to write. What it has not settled with you stays
+marked `proposed` or [`TBD`](/concepts/decision-states/) in the file, so a choice
+appearing in `context/` records where the conversation reached, not something you
+agreed to.
+
+Which makes the next step yours. Read `context/project-overview.md` and correct or
+approve it before any implementation begins. It is now the file every later session
+treats as true, and it is short enough to read in one sitting — an error here
+propagates into every feature spec that follows.
 
 Two things it will not do: install packages, and write product code. If it starts
 doing either, stop it and say so. That boundary is the skill's, not your tool's.
