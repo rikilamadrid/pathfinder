@@ -1,0 +1,29 @@
+/* Pathfinder brand accent for Starlight.
+ *
+ * One colour, no theme variants — see `assets/README.md`. Blaze orange
+ * #E0611F is the only hue in the mark because it clears WCAG 3:1 non-text
+ * contrast on both a white page and a dark canvas, so the same value anchors
+ * both themes here. The surrounding steps are lightness variations of it,
+ * which Starlight uses for hover states, borders, and tinted backgrounds. */
+
+:root {
+  --pathfinder-blaze: #e0611f;
+
+  /* Dark theme (Starlight's default). */
+  --sl-color-accent-low: #3a1607;
+  --sl-color-accent: #b34a13;
+  --sl-color-accent-high: #f0a97e;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #fbdcc9;
+  --sl-color-accent: #b34a13;
+  --sl-color-accent-high: #57230a;
+}
+
+/* The wordmark is hand-drawn paths with no font reference, so it needs no
+ * theme handling — but it does need room to breathe in the header. */
+.site-title img {
+  height: 1.5rem;
+  width: auto;
+}
