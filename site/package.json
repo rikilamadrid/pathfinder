@@ -1,0 +1,23 @@
+{
+  "name": "pathfinder-site",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Documentation site for Pathfinder. Sources skill documentation from the kit in place; nothing is copied.",
+  "engines": {
+    "node": ">=18.20.8"
+  },
+  "scripts": {
+    "predev": "node scripts/sync-brand.mjs",
+    "dev": "astro dev",
+    "prebuild": "node scripts/sync-brand.mjs",
+    "build": "astro build",
+    "prepreview": "node scripts/sync-brand.mjs",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.36.1",
+    "astro": "5.16.2"
+  }
+}
