@@ -42,6 +42,10 @@ CANONICAL_COPY_LIST = INSTALLER / "copy-list.json"
 # vacuously at exactly the moment the install path changed.
 README_MARKERS = ("<!-- copy-list:start -->", "<!-- copy-list:end -->")
 
+# What the installer's package.json carries until the first npm publication.
+# Not a version — a marker meaning "never released".
+VERSION_SENTINEL = "0.0.0"
+
 failures: list[str] = []
 
 
@@ -165,6 +169,82 @@ def check_claude_md(skill_names: set[str]) -> None:
     for extra in sorted(listed - skill_names):
         fail(path, "available-skills-match",
              f"`{extra}` is listed but has no directory in skills/")
+
+
+def released_version() -> str | None:
+    """The newest `## [X.Y.Z]` heading in the changelog. `[Unreleased]` is not one."""
+    for match in re.finditer(r"^## \[(\d+\.\d+\.\d+)\]",
+                             (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"),
+                             re.MULTILINE):
+        return match.group(1)
+    return None
+
+
+def check_version_agreement() -> None:
+    """The changelog, the installer manifest, and the release tag must agree.
+
+    The installer mirrors the kit version exactly, so a drift here is
+    user-visible: `npx create-pathfinder@1.3.0` would install something other
+    than the v1.3.0 kit.
+
+    Careful about when this is allowed to fail. Ordinary commits between
+    releases must pass: work accumulates under `[Unreleased]` without a bump,
+    so the manifest legitimately sits at the last released version. Only two
+    things are checked — the manifest matches the newest *released* changelog
+    section, and, when HEAD is a release commit, its tag matches too.
+    """
+    manifest_path = INSTALLER / "package.json"
+    try:
+        version = json.loads(manifest_path.read_text(encoding="utf-8")).get("version")
+    except (OSError, json.JSONDecodeError) as error:
+        fail(manifest_path, "version-agreement", f"could not be read: {error}")
+        return
+
+    changelog_version = released_version()
+    if changelog_version is None:
+        fail("CHANGELOG.md", "version-agreement",
+             "no released `## [X.Y.Z]` section found")
+        return
+
+    # Before the first npm publication the manifest carries a sentinel rather
+    # than a version. Nothing to agree with yet, and the publish guard refuses
+    # to publish it.
+    published = version != VERSION_SENTINEL
+    if not published:
+        print(f"note: create-pathfinder is unpublished ({VERSION_SENTINEL}), "
+              "skipping manifest/changelog agreement")
+    elif version != changelog_version:
+        fail(manifest_path, "version-agreement",
+             f"installer is {version} but the newest released changelog "
+             f"section is {changelog_version}; the installer mirrors the kit "
+             "version exactly. Run .github/scripts/set-release-version.py")
+
+    # A release commit is one that carries a version tag. Between releases
+    # there is no exact-match tag and this check does not apply.
+    try:
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--exact-match"],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        print("note: git unavailable, skipping release-tag agreement")
+        return
+
+    if result.returncode != 0:
+        return
+
+    tag = result.stdout.strip()
+    if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
+        return
+
+    tagged_version = tag.lstrip("v")
+    if tagged_version != changelog_version:
+        fail("CHANGELOG.md", "version-agreement",
+             f"HEAD is tagged {tag} but the newest released section is "
+             f"{changelog_version}")
+    if published and tagged_version != version:
+        fail(manifest_path, "version-agreement",
+             f"HEAD is tagged {tag} but the installer is {version}")
 
 
 def check_changelog() -> None:
@@ -380,6 +460,7 @@ def main() -> int:
     check_claude_md(skill_names)
     check_copy_list()
     check_no_junk_tracked()
+    check_version_agreement()
     check_changelog()
 
     if failures:

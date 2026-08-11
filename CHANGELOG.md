@@ -8,24 +8,47 @@ The kit follows Semantic Versioning:
 - MINOR — a new skill or workflow capability that existing projects can adopt without changes
 - PATCH — clarifications, corrections, and documentation fixes
 
+## What the version covers
+
+The repository holds more than one shippable thing. The version number belongs to the kit — the part a destination project actually consumes:
+
+- **Bumps the version** — `skills/`, `context/`, `prompts/`, `templates/`, and the agent entry files (`AGENTS.md`, `CLAUDE.md`). Also the installer, but only when it changes the documented installation path; an installer bug fix that leaves the path unchanged is a PATCH, and installer refactoring that changes nothing observable is not a release at all.
+- **Does not bump the version** — CI workflows, validation scripts, brand assets, the website, the README, and this repository's own planning files. They change how Pathfinder is built and presented, not what a destination project receives. A site-only change ships continuously and publishes nothing to npm.
+
+## The installer version mirrors the kit exactly
+
+`create-pathfinder` publishes under the kit's version, so `npx create-pathfinder@1.2.1` installs the v1.2.1 kit and means what a reader expects. It has no independent product version.
+
+The trade-off is accepted deliberately: a fix that touches only the installer still ships under a kit version number, which slightly overstates what changed. The alternative — two version lines for one product — costs every future reader more than it saves, and makes `npx create-pathfinder@<something>` ambiguous at the exact moment someone needs it to be clear.
+
+The heading of the most recent released section below is the single source of truth for the release version. The Git tag and the installer's `package.json` are both derived from it; CI fails if they disagree. See the release checklist in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## [Unreleased]
+
+## [1.3.0] - 2026-08-11
 
 ### Added
 
+- **`npx create-pathfinder`.** The kit installs with one command instead of cloning to a sibling directory and running a `cp -R` with brace expansion. The installer has no dependencies, never overwrites — files that already exist are left alone and listed by name, with `--force` to replace them and `--dry-run` to see the plan first — and refuses to run outside a Git repository so that everything it writes is reviewable. It reads the real kit directories rather than embedding a second copy of them.
 - `LICENSE` (MIT). The kit exists to be copied into other repositories, but default copyright granted no permission to do so.
 - `CONTRIBUTING.md`, `SECURITY.md`, and `CODE_OF_CONDUCT.md`, documenting the branch/PR/squash convention, the SemVer policy above, the bar for adding a skill, and how to report a security concern privately.
+- A documented release process in `CONTRIBUTING.md`, covering the kit and the installer together, with the irreversible steps marked as such.
+- `.github/workflows/validate.yml` and `.github/scripts/validate-kit.py`, a dependency-free structural check of skill frontmatter, skill/launcher coverage, the `CLAUDE.md` skills list, changelog-to-tag agreement, copy-list agreement, and version agreement. Runs on every pull request and can be run locally with `python3 .github/scripts/validate-kit.py`.
+- `.github/scripts/set-release-version.py`, which derives the installer's version from this changelog so the number is never typed twice.
 - README `Contributing` and `License` sections.
-- `.github/workflows/validate.yml` and `.github/scripts/validate-kit.py`, a dependency-free structural check of skill frontmatter, skill/launcher coverage, the `CLAUDE.md` skills list, and changelog-to-tag agreement. Runs on every pull request and can be run locally with `python3 .github/scripts/validate-kit.py`.
 
 ### Changed
 
-- README restructured so the first screen carries the logo, a positioning line, CI and license badges, a link row, and a `What this is, and what it is not` section, with the quickstart immediately after. The file tree moved below the workflow and into a collapsed block. Every governing rule is retained; the reverse-engineering rules that appeared in both `External reference analysis` and `Reverse-engineering rule` are now stated once, in the latter. No documentation was moved out of the README — there is no site to move it to yet.
+- **The documented installation path is now `npx create-pathfinder`**, replacing the clone-and-copy instructions. This is what makes the release a MINOR rather than a PATCH.
+- The versioning policy in this file's header now states what the version covers, and that `create-pathfinder` mirrors the kit version exactly rather than carrying an independent one.
+- What a destination project receives is now stated once, in `packages/create-pathfinder/copy-list.json`, and validated against the README and the published package. Previously the `cp -R` line in the README was the only source of truth, and adding a seventh top-level directory would have silently failed to ship it.
+- README restructured so the first screen carries the logo, a positioning line, badges, a link row, and a `What this is, and what it is not` section, with the quickstart immediately after. The file tree moved below the workflow and into a collapsed block. Every governing rule is retained; the reverse-engineering rules that appeared in both `External reference analysis` and `Reverse-engineering rule` are now stated once, in the latter. No documentation was moved out of the README — there is no site to move it to yet.
 
 ### Fixed
 
 - `CLAUDE.md` listed only 14 of 19 skills. The five mentoring skills added in `606afeb` — `teach-feature`, `teach-architecture`, `quiz-me`, `challenge-me`, and `learning-review` — were never added to the `Available skills` list, so agents in destination projects were not told they existed. Caught by the new validation script on its first run.
 
-Aside from the `CLAUDE.md` correction above, no change to `skills/`, `context/`, `prompts/`, `templates/`, or the agent entry files.
+Aside from the `CLAUDE.md` correction above, no change to `skills/`, `context/`, `prompts/`, or `templates/`. The kit content a destination project receives is unchanged; how it gets there is what moved.
 
 ## [1.2.1] - 2026-08-10
 

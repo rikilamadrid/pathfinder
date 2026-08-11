@@ -1,7 +1,6 @@
 {
   "name": "create-pathfinder",
-  "version": "0.0.0",
-  "private": true,
+  "version": "1.3.0",
   "description": "Install the Pathfinder AI-assisted, human-in-the-loop workflow kit into a Git repository.",
   "keywords": [
     "pathfinder",

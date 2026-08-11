@@ -4,7 +4,7 @@
 
 **An AI-assisted, human-in-the-loop workflow for building software — without giving up the decisions.**
 
-[![validate](https://github.com/rikilamadrid/pathfinder/actions/workflows/validate.yml/badge.svg)](https://github.com/rikilamadrid/pathfinder/actions/workflows/validate.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-E0611F)](LICENSE)
+[![npm](https://img.shields.io/npm/v/create-pathfinder?color=E0611F&label=create-pathfinder)](https://www.npmjs.com/package/create-pathfinder) [![validate](https://github.com/rikilamadrid/pathfinder/actions/workflows/validate.yml/badge.svg)](https://github.com/rikilamadrid/pathfinder/actions/workflows/validate.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-E0611F)](LICENSE)
 
 [Changelog](CHANGELOG.md) · [Releases](https://github.com/rikilamadrid/pathfinder/releases) · [Contributing](CONTRIBUTING.md)
 
@@ -34,17 +34,28 @@ It is also not an autopilot. Recommendations are proposals, not silent decisions
      markers when rewriting the install instructions; without them the check
      passes vacuously. -->
 
-Copy the reusable files into the destination repository. Nothing is installed, and nothing is built.
-
 ```bash
-git clone https://github.com/rikilamadrid/pathfinder.git pathfinder
 mkdir my-project
 cd my-project
 git init
-cp -R ../pathfinder/{AGENTS.md,CLAUDE.md,context,prompts,skills,templates} .
+npx create-pathfinder
 ```
 
-Do not copy this kit's root `CHANGELOG.md`; it is the history of Pathfinder itself. Use `templates/CHANGELOG.template.md` only when the destination project chooses a changelog.
+That copies the kit into the repository. Nothing is installed into your project, nothing is built, and no dependency is added — the installer is a file copier that exits.
+
+It writes exactly six things:
+
+| Path | What it is |
+| --- | --- |
+| `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
+| `context/` | Project truth — overview, standards, interaction rules, current feature |
+| `skills/` | Nineteen skills covering discovery, specs, delivery, review, and learning |
+| `prompts/` | Manual launchers for tools that do not discover local skills |
+| `templates/` | Starting points the project copies when it needs them |
+
+It never overwrites. Files you already have are left alone and listed by name; pass `--force` if you actually want them replaced, or `--dry-run` to see the plan without writing. It refuses to run outside a Git repository, so whatever it writes is reviewable and undoable.
+
+This kit's own `CHANGELOG.md` is deliberately not copied; it is the history of Pathfinder itself. Use `templates/CHANGELOG.template.md` if the destination project chooses a changelog.
 
 <!-- copy-list:end -->
 
@@ -58,7 +69,9 @@ That starts the discovery conversation. From there the loop is: debate the direc
 
 ## Adapt an existing repo
 
-Copy the same files into the existing repository, then run `kickstart-pathfinder`. It should inspect the repository lightly, preserve established conventions, and distinguish repository facts from decisions still requiring human input.
+Run `npx create-pathfinder` in the existing repository, then run `kickstart-pathfinder`. It should inspect the repository lightly, preserve established conventions, and distinguish repository facts from decisions still requiring human input.
+
+Nothing you already have is overwritten, so this is safe to run in a repository with its own `CLAUDE.md` or `context/` — the installer reports what it skipped and leaves it untouched.
 
 Use `learn-codebase` when deeper understanding, onboarding, teaching, or architectural explanation of the existing repository is needed.
 
