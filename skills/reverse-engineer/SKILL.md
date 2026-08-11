@@ -183,6 +183,7 @@ Do not silently run or imitate the responsibilities of those skills.
 
 Use only the sections that add value:
 
+```markdown
 # Reverse-Engineering Report
 
 ## Objective
@@ -220,6 +221,7 @@ Complexity, accessibility, performance, maintenance, legal, or fidelity concerns
 ## Recommended Pathfinder Handoff
 
 The appropriate next skill, if any, and why.
+```
 
 ## Rules
 

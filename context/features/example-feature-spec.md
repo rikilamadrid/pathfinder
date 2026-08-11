@@ -1,4 +1,8 @@
-# [Feature Name]
+# Example Feature Spec
+
+> A worked example of the shape `to-specs` writes into this folder. Real
+> specs are new files here, titled with the feature's own name; copy
+> `templates/feature-spec.template.md` to start one.
 
 ## Status
 
