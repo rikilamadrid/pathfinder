@@ -15,8 +15,13 @@ The kit follows Semantic Versioning:
 - `LICENSE` (MIT). The kit exists to be copied into other repositories, but default copyright granted no permission to do so.
 - `CONTRIBUTING.md`, `SECURITY.md`, and `CODE_OF_CONDUCT.md`, documenting the branch/PR/squash convention, the SemVer policy above, the bar for adding a skill, and how to report a security concern privately.
 - README `Contributing` and `License` sections.
+- `.github/workflows/validate.yml` and `.github/scripts/validate-kit.py`, a dependency-free structural check of skill frontmatter, skill/launcher coverage, the `CLAUDE.md` skills list, and changelog-to-tag agreement. Runs on every pull request and can be run locally with `python3 .github/scripts/validate-kit.py`.
 
-No change to `skills/`, `context/`, `prompts/`, `templates/`, or the agent entry files, so destination projects are unaffected.
+### Fixed
+
+- `CLAUDE.md` listed only 14 of 19 skills. The five mentoring skills added in `606afeb` — `teach-feature`, `teach-architecture`, `quiz-me`, `challenge-me`, and `learning-review` — were never added to the `Available skills` list, so agents in destination projects were not told they existed. Caught by the new validation script on its first run.
+
+Aside from the `CLAUDE.md` correction above, no change to `skills/`, `context/`, `prompts/`, `templates/`, or the agent entry files.
 
 ## [1.2.1] - 2026-08-10
 
