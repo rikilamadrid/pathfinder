@@ -74,6 +74,8 @@ Review the existing skills for overlap first. "This is useful" is not sufficient
 
 Every skill needs valid YAML frontmatter with `name` and `description`. Malformed frontmatter makes the skill undiscoverable — this has already happened once, in `2e3d0c6`.
 
+The documentation site reads `skills/` in place, so a new skill's page appears immediately while `site/` is running. Its **sidebar entry appears after a dev-server restart**, because the grouping is read at config load. Until you place it in a workflow loop in `site/src/nav.mjs`, it shows up under `Ungrouped skills` — that is deliberate, so a skill is never silently missing from the navigation.
+
 ## Changing existing skills
 
 Changes to `skills/`, `context/`, `prompts/`, `templates/`, `AGENTS.md`, or `CLAUDE.md` land in every project that adopts the kit next. Say in the PR description what a destination project has to do differently, if anything.
