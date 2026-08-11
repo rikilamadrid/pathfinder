@@ -27,3 +27,13 @@
   height: 1.5rem;
   width: auto;
 }
+
+/* Splash pages carry neither a sidebar nor a table of contents, so Starlight
+ * lets their prose run the full page width — measured at 1200px, that is about
+ * 150 characters a line. Cap the measure, but do not centre it: the hero
+ * heading is left-aligned, and body text that drifts to the middle of the page
+ * stops lining up with the thing it sits under. `data-has-hero` is set on
+ * `<html>` by Starlight, so this reaches only the pages that need it. */
+[data-has-hero] .sl-markdown-content {
+  max-width: 50rem;
+}
