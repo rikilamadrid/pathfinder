@@ -13,6 +13,8 @@ with you.
 npx create-pathfinder
 ```
 
-This site is under construction. Skill documentation renders here directly from
-the kit's own `skills/` directory — see the repository
-[README](https://github.com/rikilamadrid/pathfinder#readme) until the pages land.
+This site is under construction — the guides and landing page come next. The
+skill and project-context pages in the sidebar render directly from the kit's
+own `skills/` and `context/` directories, with no copy step. Until the guides
+exist, the [README](https://github.com/rikilamadrid/pathfinder#readme) is the
+fuller introduction.
