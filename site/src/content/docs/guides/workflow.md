@@ -66,6 +66,7 @@ Deferred   intentionally postponed
 ```
 
 An agent must not quietly resolve a `TBD` while implementing something else.
+[Decision states](/concepts/decision-states/) covers what each one commits you to.
 
 ## External reference analysis
 
@@ -131,7 +132,9 @@ project context
 
 Features are sized for a focused context window, not for ambition. A good one
 creates a single visible or system-verifiable outcome, states what to load and what
-to ignore, and can be verified on its own. "Build the backend" is not a feature.
+to ignore, and can be verified on its own. "Build the backend" is not a feature. Two
+ideas do the work here: [context boundaries](/concepts/context-boundaries/) and
+[delivery chunks](/concepts/delivery-chunks/).
 
 [`start-feature`](/skills/start-feature/) restates the goal, the active chunk, the
 files it expects to touch, the risks, its verification plan, and what it considers
@@ -257,9 +260,12 @@ stops and asks before:
 - commits, merges, releases, and deployments.
 
 The agent may recommend any of these, with reasoning. It does not choose them.
+[Human approval](/concepts/human-approval/) explains where the list lives and how to
+change it.
 
 ## Next
 
 If you have not installed anything yet, [Getting started](/guides/getting-started/)
 runs the first loop end to end in a real repository. If you have, the skill you will
-read most is [`start-feature`](/skills/start-feature/).
+read most is [`start-feature`](/skills/start-feature/), and [all skills](/skills/)
+lists every one of them with its own summary.

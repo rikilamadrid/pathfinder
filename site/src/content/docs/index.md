@@ -168,4 +168,5 @@ what you read here is the file your agent reads.
 Start with [`kickstart-pathfinder`](/skills/kickstart-pathfinder/), the entry
 point for a new project, or
 [`project-overview`](/context/project-overview/), the file that holds project
-truth once you have it.
+truth once you have it. [All skills](/skills/) lists every one of them with its
+own summary, grouped by loop.

@@ -37,8 +37,65 @@ import { extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from '@astrojs/markdown-remark';
 import { docsLoader } from '@astrojs/starlight/loaders';
+import { WORKFLOW_LOOPS } from '../nav.mjs';
 
 const SKILL_FILE = 'SKILL.md';
+
+/** Where the generated skill index lands. `/skills/` — the index of the section. */
+const REFERENCE_ID = 'skills';
+
+/**
+ * The skill index, generated from what was just read off disk.
+ *
+ * The spec asks for a reference "generated from `skills/`, never hand-copied",
+ * and this is the literal form of that: every name, link, and one-line summary
+ * below comes from the frontmatter of the file it names, in the same pass that
+ * built the skill pages themselves. There is no second list to update. A skill
+ * whose description changes changes here; a skill added to the kit appears here
+ * whether or not anyone remembers this file exists.
+ *
+ * What is *not* generated is the loop grouping and the boundary blocks, which
+ * are editorial claims declared in `nav.mjs` — see the note there. Anything a
+ * group does not claim is still listed, under an honestly-named heading, for the
+ * same reason the sidebar does it: a missing skill must be visible, not silent.
+ *
+ * @param {Map<string, { name: string, description: string }>} skills
+ * @returns {string} markdown
+ */
+function buildSkillReference(skills) {
+  const entry = (name) =>
+    `- [\`${name}\`](/skills/${name}/) — ${skills.get(name).description}`;
+
+  const claimed = new Set(WORKFLOW_LOOPS.flatMap((loop) => loop.skills));
+  const unclaimed = [...skills.keys()].filter((name) => !claimed.has(name));
+
+  const sections = WORKFLOW_LOOPS.filter((loop) =>
+    loop.skills.some((name) => skills.has(name))
+  ).map((loop) => {
+    const body = [`## ${loop.label}`, ''];
+    if (loop.boundary) {
+      body.push('```text', ...loop.boundary, '```', '');
+    }
+    body.push(...loop.skills.filter((name) => skills.has(name)).map(entry), '');
+    return body.join('\n');
+  });
+
+  if (unclaimed.length > 0) {
+    sections.push(['## Ungrouped skills', '', ...unclaimed.map(entry), ''].join('\n'));
+  }
+
+  return [
+    'Every skill in the kit, grouped by the loop it runs in. Each summary is the',
+    "skill's own `description`, read from `skills/<name>/SKILL.md` when this page",
+    'was built — the page holds no copy of it. Follow a link for the skill itself,',
+    'which is the file your agent reads.',
+    '',
+    'Where two neighbouring skills are easy to confuse, the boundary between them',
+    'is stated above the group.',
+    '',
+    ...sections,
+  ].join('\n');
+}
 
 /**
  * Every skill opens with an H1 that restates its name — `# Challenge Me` under
@@ -163,6 +220,7 @@ export function kitDocsLoader({ skillsDir, contextDir }) {
        */
       const syncSkills = async () => {
         const present = new Set();
+        const summaries = new Map();
 
         const dirs = (await readdir(skillsRoot, { withFileTypes: true }))
           .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
@@ -192,6 +250,10 @@ export function kitDocsLoader({ skillsDir, contextDir }) {
 
           const id = `skills/${dir}`;
           present.add(id);
+          summaries.set(frontmatter.name, {
+            name: frontmatter.name,
+            description: frontmatter.description,
+          });
           await publish({
             id,
             file,
@@ -202,7 +264,28 @@ export function kitDocsLoader({ skillsDir, contextDir }) {
           });
         }
 
-        return retire('skills', present);
+        // The index is generated in the same pass, from the same frontmatter, so
+        // it cannot describe a kit that is not the one just loaded. Its source is
+        // the directory rather than a file, because that is the truth: it has no
+        // file, and pointing `filePath` at a plausible one would be a small lie
+        // in every error message that mentions it.
+        const reference = buildSkillReference(summaries);
+        present.add(REFERENCE_ID);
+        await publish({
+          id: REFERENCE_ID,
+          file: skillsRoot,
+          raw: reference,
+          title: 'All skills',
+          description:
+            'Every skill in the kit, grouped by workflow loop, summarised from its own frontmatter.',
+          body: reference,
+        });
+
+        retire('skills', present);
+        // The count is the skills, not the store entries — the generated index
+        // is not a twenty-first skill and a log line that implies it is would be
+        // the first thing to mislead someone counting.
+        return summaries.size;
       };
 
       /**

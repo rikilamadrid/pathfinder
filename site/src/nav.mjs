@@ -18,8 +18,24 @@ import { join } from 'node:path';
 /**
  * Mirrors README § "The complete workflow". Each entry is a loop heading and
  * the skills that loop runs through, in the order the README walks them.
+ *
+ * `boundary` is the README's own statement of where the loop's central skill
+ * stops and its neighbours begin, quoted from the block that follows that loop's
+ * diagram. It is declared for the same reason the grouping is: it is an
+ * editorial claim about the workflow, made in the README, and a loop that has
+ * one is the loop a newcomer most often picks the wrong skill inside. The skill
+ * reference renders it above the group — see `buildSkillReference` in
+ * `loaders/kit.mjs`, which is the only consumer.
+ *
+ * These are cross-skill statements, so no single `SKILL.md` owns one. Everything
+ * a *skill* says about itself still comes from the skill: the reference page
+ * takes every name and description straight out of its frontmatter and holds no
+ * copy of either.
+ *
+ * Exported, because both the sidebar and the reference page group by it and two
+ * declarations of the same claim would be one too many.
  */
-const WORKFLOW_LOOPS = [
+export const WORKFLOW_LOOPS = [
   {
     label: 'Discovery and validation',
     skills: ['kickstart-pathfinder', 'debate-me', 'prototype'],
@@ -27,6 +43,13 @@ const WORKFLOW_LOOPS = [
   {
     label: 'External reference analysis',
     skills: ['reverse-engineer'],
+    boundary: [
+      'reverse-engineer = understand an external reference',
+      'learn-codebase   = understand the current codebase',
+      'kickstart        = initialize project context',
+      'prototype        = validate a proposed direction',
+      'to-specs         = convert an approved direction into planned work',
+    ],
   },
   {
     label: 'Delivery loop',
@@ -37,6 +60,12 @@ const WORKFLOW_LOOPS = [
       'debug-issue',
       'review-feature',
       'complete-feature',
+    ],
+    boundary: [
+      'debug-issue     = an observed failure needs an explanation',
+      'start-feature   = planned construction is difficult',
+      'review-feature  = completed implementation needs inspection for defects',
+      'learn-codebase  = the real question is understanding the repository',
     ],
   },
   {
@@ -73,6 +102,18 @@ const WORKFLOW_LOOPS = [
 const GUIDES = [
   { label: 'Getting started', link: '/guides/getting-started/' },
   { label: 'The workflow', link: '/guides/workflow/' },
+];
+
+/**
+ * The four ideas that live above any single skill, in the order a newcomer meets
+ * them. Each page explains one and then points at the kit file that governs it;
+ * none of them restates a skill.
+ */
+const CONCEPTS = [
+  { label: 'Context boundaries', link: '/concepts/context-boundaries/' },
+  { label: 'Delivery chunks', link: '/concepts/delivery-chunks/' },
+  { label: 'Decision states', link: '/concepts/decision-states/' },
+  { label: 'Human approval', link: '/concepts/human-approval/' },
 ];
 
 /**
@@ -143,6 +184,10 @@ export function buildSidebar({ skillsDir, contextDir }) {
   return [
     { label: 'Overview', items: [{ label: 'Pathfinder', link: '/' }] },
     { label: 'Guides', items: GUIDES },
+    { label: 'Concepts', items: CONCEPTS },
+    // The index sits above the groups it summarises, so "which skill do I need?"
+    // is answerable before scrolling twenty names.
+    { label: 'Skill reference', items: [{ label: 'All skills', link: '/skills/' }] },
     ...groups,
     {
       label: 'Project context',

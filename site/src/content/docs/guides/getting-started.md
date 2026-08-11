@@ -126,7 +126,8 @@ conversation. Expect it to:
   established fact rather than a decision to remake;
 - **separate what you decided from what it is recommending**, and say which is
   which;
-- **leave open decisions marked `TBD`** instead of quietly choosing for you.
+- **leave open decisions marked [`TBD`](/concepts/decision-states/)** instead of
+  quietly choosing for you.
 
 It presents the proposed context and asks for your corrections or approval before
 writing any of it down. When the choices are clear enough, it fills in
@@ -193,6 +194,7 @@ following this kit stops and asks before:
 
 That list lives in the project you just installed into, not in the tool. You can
 widen it, narrow it, or pre-approve parts of it — it is a markdown file you own.
+[Human approval](/concepts/human-approval/) covers what that means in practice.
 
 ## When something does not work
 
