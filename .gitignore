@@ -5,3 +5,6 @@ __MACOSX/
 # Destination-project generated learning/prototype output may be ignored locally if desired.
 # prototypes/
 # learning/
+
+# Local planning only — not pushed
+.features/
