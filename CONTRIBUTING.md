@@ -29,6 +29,31 @@ Semantic Versioning, scoped to the kit itself and not to destination projects. T
 
 Add your change under `[Unreleased]` in `CHANGELOG.md`. Do not bump the version yourself; releases are cut separately.
 
+Not every change earns a version. The `CHANGELOG.md` header states the scope: the version tracks `skills/`, `context/`, `prompts/`, `templates/`, and the agent entry files. CI, brand assets, the website, and the README do not bump it, and a change touching only those publishes nothing to npm.
+
+The `create-pathfinder` npm package mirrors the kit version exactly and has no independent version of its own. Its `package.json` is derived from the changelog by tooling — never edited by hand.
+
+## Releasing
+
+The audience for this section is whoever cuts the next release after a long gap. Follow it in order.
+
+**The version comes from one place.** The newest `## [X.Y.Z]` heading in `CHANGELOG.md` is the source of truth. The Git tag and the installer's `package.json` are derived from it, and CI fails if they drift.
+
+Steps 1–5 are reversible. Steps 6 onward are not: a published npm version, a pushed tag, and a GitHub Release are permanent, and a mistake is corrected by superseding it, never by removing it.
+
+1. **Decide the version** using the scope rule above, and confirm validation is green: `python3 .github/scripts/validate-kit.py`.
+2. **Write the changelog entry.** Rename `[Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and add a fresh empty `[Unreleased]` above it.
+3. **Derive the installer version:** `python3 .github/scripts/set-release-version.py`. This rewrites `packages/create-pathfinder/package.json` from the changelog. Do not type the version there yourself.
+4. **First publication only** — remove `"private": true` from `packages/create-pathfinder/package.json`. This is the deliberate boundary before `create-pathfinder` exists publicly and permanently under that name. Do it once, knowingly.
+5. **Commit, open the PR, squash merge**, per the Git workflow above. Re-run validation on `main` afterwards; the version-agreement rule now has something to check.
+6. **Tag the release commit** on `main`, annotated, matching the changelog: `git tag -a vX.Y.Z -m "vX.Y.Z — <summary>"`. Never move or delete a tag that has been pushed.
+7. **Push the tag:** `git push origin vX.Y.Z`.
+8. **Publish the installer**, from `packages/create-pathfinder/`: `PATHFINDER_PUBLISH=yes npm publish`. The guard refuses unless the working tree is clean, HEAD is exactly the matching tag, and the changelog agrees — but it cannot check your judgement about whether this release should exist.
+9. **Create the GitHub Release:** `gh release create vX.Y.Z --verify-tag --title "Pathfinder vX.Y.Z" --notes-file <notes>`, with notes derived from the changelog entry.
+10. **Verify from outside:** `npm view create-pathfinder version`, `gh release view vX.Y.Z`, and an `npx create-pathfinder@X.Y.Z` install into a scratch repository.
+
+Never force-push, never move or delete a published tag, and never rewrite released history.
+
 ## Adding a skill
 
 The bar is high on purpose. Pathfinder currently has 19 skills and does not want 40.

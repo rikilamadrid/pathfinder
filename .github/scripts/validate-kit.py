@@ -18,6 +18,7 @@ directly rather than pulling in a dependency to read six lines of text.
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -26,6 +27,24 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS = ROOT / "skills"
 PROMPTS = ROOT / "prompts"
+INSTALLER = ROOT / "packages" / "create-pathfinder"
+
+# The one statement of what a destination project receives. Everything else
+# that names the list — the README install section, npm's `files` allowlist,
+# the installer at runtime — is checked against this file rather than against
+# each other in a chain. Not restated here: a copy in the validator is just a
+# fourth thing to drift.
+CANONICAL_COPY_LIST = INSTALLER / "copy-list.json"
+
+# Delimit the README's install section. Prose changes; these do not. The
+# quickstart is due to become `npx create-pathfinder` instead of a `cp -R`
+# line, and a rule anchored to the old wording would have started passing
+# vacuously at exactly the moment the install path changed.
+README_MARKERS = ("<!-- copy-list:start -->", "<!-- copy-list:end -->")
+
+# What the installer's package.json carries until the first npm publication.
+# Not a version — a marker meaning "never released".
+VERSION_SENTINEL = "0.0.0"
 
 failures: list[str] = []
 
@@ -152,6 +171,82 @@ def check_claude_md(skill_names: set[str]) -> None:
              f"`{extra}` is listed but has no directory in skills/")
 
 
+def released_version() -> str | None:
+    """The newest `## [X.Y.Z]` heading in the changelog. `[Unreleased]` is not one."""
+    for match in re.finditer(r"^## \[(\d+\.\d+\.\d+)\]",
+                             (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"),
+                             re.MULTILINE):
+        return match.group(1)
+    return None
+
+
+def check_version_agreement() -> None:
+    """The changelog, the installer manifest, and the release tag must agree.
+
+    The installer mirrors the kit version exactly, so a drift here is
+    user-visible: `npx create-pathfinder@1.3.0` would install something other
+    than the v1.3.0 kit.
+
+    Careful about when this is allowed to fail. Ordinary commits between
+    releases must pass: work accumulates under `[Unreleased]` without a bump,
+    so the manifest legitimately sits at the last released version. Only two
+    things are checked — the manifest matches the newest *released* changelog
+    section, and, when HEAD is a release commit, its tag matches too.
+    """
+    manifest_path = INSTALLER / "package.json"
+    try:
+        version = json.loads(manifest_path.read_text(encoding="utf-8")).get("version")
+    except (OSError, json.JSONDecodeError) as error:
+        fail(manifest_path, "version-agreement", f"could not be read: {error}")
+        return
+
+    changelog_version = released_version()
+    if changelog_version is None:
+        fail("CHANGELOG.md", "version-agreement",
+             "no released `## [X.Y.Z]` section found")
+        return
+
+    # Before the first npm publication the manifest carries a sentinel rather
+    # than a version. Nothing to agree with yet, and the publish guard refuses
+    # to publish it.
+    published = version != VERSION_SENTINEL
+    if not published:
+        print(f"note: create-pathfinder is unpublished ({VERSION_SENTINEL}), "
+              "skipping manifest/changelog agreement")
+    elif version != changelog_version:
+        fail(manifest_path, "version-agreement",
+             f"installer is {version} but the newest released changelog "
+             f"section is {changelog_version}; the installer mirrors the kit "
+             "version exactly. Run .github/scripts/set-release-version.py")
+
+    # A release commit is one that carries a version tag. Between releases
+    # there is no exact-match tag and this check does not apply.
+    try:
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--exact-match"],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        print("note: git unavailable, skipping release-tag agreement")
+        return
+
+    if result.returncode != 0:
+        return
+
+    tag = result.stdout.strip()
+    if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
+        return
+
+    tagged_version = tag.lstrip("v")
+    if tagged_version != changelog_version:
+        fail("CHANGELOG.md", "version-agreement",
+             f"HEAD is tagged {tag} but the newest released section is "
+             f"{changelog_version}")
+    if published and tagged_version != version:
+        fail(manifest_path, "version-agreement",
+             f"HEAD is tagged {tag} but the installer is {version}")
+
+
 def check_changelog() -> None:
     """The most recent tag must have a CHANGELOG entry.
 
@@ -179,10 +274,193 @@ def check_changelog() -> None:
              f"most recent tag {tag} has no `[{version}]` entry")
 
 
+def check_no_junk_tracked() -> None:
+    """No OS or editor junk may be tracked, at any depth.
+
+    .gitignore already keeps these out, but an ignore rule is advisory: a
+    single `git add -f` defeats it, and `skills/.DS_Store` was quietly copied
+    into destination projects by the installer before that was caught. This
+    makes the invariant enforced rather than merely intended.
+    """
+    junk = ("*.DS_Store", "Thumbs.db", "._*", "__MACOSX")
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--", *junk],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        print("note: git unavailable, skipping no-junk-tracked")
+        return
+
+    if result.returncode != 0:
+        print("note: git ls-files failed, skipping no-junk-tracked")
+        return
+
+    for tracked in sorted(filter(None, result.stdout.splitlines())):
+        fail(tracked, "no-junk-tracked",
+             "OS/editor junk is tracked; remove it with `git rm --cached`")
+
+
+def load_copy_list() -> tuple[str, ...] | None:
+    """Read the canonical copy list, or report why it could not be read."""
+    try:
+        data = json.loads(CANONICAL_COPY_LIST.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(CANONICAL_COPY_LIST, "copy-list-canonical",
+             f"could not be read: {error}")
+        return None
+
+    entries = data.get("entries")
+    if not isinstance(entries, list) or not entries:
+        fail(CANONICAL_COPY_LIST, "copy-list-canonical",
+             "`entries` must be a non-empty list of top-level names")
+        return None
+
+    for entry in entries:
+        # A path rather than a name would mean the installer copies part of a
+        # directory, which nothing else in the design expects.
+        if not isinstance(entry, str) or "/" in entry or entry in ("", ".", ".."):
+            fail(CANONICAL_COPY_LIST, "copy-list-canonical",
+                 f"{entry!r} is not a plain top-level name")
+            return None
+
+    return tuple(entries)
+
+
+def check_copy_list() -> None:
+    """Everything that names the copy list must agree with copy-list.json.
+
+    Until this rule existed, the `cp -R` line in the README was the only
+    statement of what a destination project receives, and adding a seventh
+    top-level directory to the kit would have silently failed to ship it.
+
+    The README is checked between explicit markers rather than by matching the
+    install command, because the install command is about to change. A rule
+    anchored to `cp -R` would not have failed when that line disappeared — it
+    would have quietly stopped checking anything, which is worse than never
+    having existed.
+    """
+    copy_list = load_copy_list()
+    if copy_list is None:
+        return
+
+    for entry in copy_list:
+        if not (ROOT / entry).exists():
+            fail(entry, "copy-list-exists",
+                 "named in the copy list but missing from the repository")
+
+    check_readme_copy_list(copy_list)
+
+    check_installer_copy_list(copy_list)
+
+    # npm allowlist: the kit entries must all be published, and nothing
+    # kit-external may be listed alongside them.
+    manifest_path = INSTALLER / "package.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        # Reported rather than raised: a traceback names Python's line numbers,
+        # not the file the maintainer has to fix.
+        fail(manifest_path, "copy-list-files", f"could not be read: {error}")
+        return
+
+    files = manifest.get("files", [])
+    for entry in copy_list:
+        if entry not in files:
+            fail(manifest_path, "copy-list-files",
+                 f"`{entry}` is in the copy list but not in `files`, "
+                 "so it would be missing from the published package")
+    for extra in files:
+        if extra not in copy_list and extra not in ("bin", "src", "copy-list.json"):
+            fail(manifest_path, "copy-list-files",
+                 f"`{extra}` is published but is neither installer code nor "
+                 "part of the copy list")
+
+
+def check_installer_copy_list(copy_list: tuple[str, ...]) -> None:
+    """Ask the installer what it would copy, and compare.
+
+    Grepping kit.mjs for `copy-list.json` was the first version of this rule
+    and it was worthless: the string also appears in that file's own comments,
+    so the check passed even when the list had been replaced by a hardcoded
+    array. Importing the module and reading COPY_LIST tests the behaviour
+    rather than the spelling.
+    """
+    script = "import('./src/kit.mjs').then(m => console.log(JSON.stringify(m.COPY_LIST)))"
+    try:
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=INSTALLER, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        print("note: node unavailable, skipping copy-list-installer")
+        return
+
+    if result.returncode != 0:
+        fail("packages/create-pathfinder/src/kit.mjs", "copy-list-installer",
+             f"could not be loaded: {result.stderr.strip().splitlines()[-1:]}")
+        return
+
+    found = tuple(json.loads(result.stdout))
+    if found != copy_list:
+        fail("packages/create-pathfinder/src/kit.mjs", "copy-list-installer",
+             f"the installer would copy {found}, but the canonical list is "
+             f"{copy_list}")
+
+
+def check_readme_copy_list(copy_list: tuple[str, ...]) -> None:
+    """The README's install section must name every entry, between markers.
+
+    Deliberately checks only that each entry is mentioned, not that nothing
+    else is. The section legitimately names files a project must *not* copy —
+    the root CHANGELOG.md — and a rule forbidding kit-external names there
+    would fail on correct prose.
+    """
+    readme = ROOT / "README.md"
+    text = readme.read_text(encoding="utf-8")
+    start_marker, end_marker = README_MARKERS
+
+    start = text.find(start_marker)
+    end = text.find(end_marker)
+    if start == -1 or end == -1:
+        fail(readme, "copy-list-readme",
+             f"install section is not delimited by {start_marker} and "
+             f"{end_marker}; without them nothing checks that the README "
+             "describes the real copy list")
+        return
+    if end < start:
+        fail(readme, "copy-list-readme",
+             f"{end_marker} appears before {start_marker}")
+        return
+
+    section = text[start + len(start_marker):end]
+    for entry in copy_list:
+        if not re.search(rf"(?<![\w./-]){re.escape(entry)}(?![\w-])", section):
+            fail(readme, "copy-list-readme",
+                 f"`{entry}` is in the copy list but the install section "
+                 "never mentions it")
+
+    # When the section still carries a literal `cp -R {a,b,c}` command, check it
+    # exactly — mention-anywhere is too lenient on its own, since a name dropped
+    # from the command usually survives in the surrounding prose. This is
+    # conditional on purpose: when the quickstart becomes `npx create-pathfinder`
+    # the command disappears and the checks above still hold.
+    command = re.search(r"cp -R [^\s{]*\{([^}]*)\}", section)
+    if command is not None:
+        copied = tuple(part.strip() for part in command.group(1).split(","))
+        if copied != copy_list:
+            fail(readme, "copy-list-readme",
+                 f"the `cp -R` command copies {copied}, but the canonical "
+                 f"list is {copy_list}")
+
+
 def main() -> int:
     skill_names = check_skills()
     check_prompts(skill_names)
     check_claude_md(skill_names)
+    check_copy_list()
+    check_no_junk_tracked()
+    check_version_agreement()
     check_changelog()
 
     if failures:

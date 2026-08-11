@@ -1,0 +1,11 @@
+{
+  "description": "The canonical list of what a destination project receives when the Pathfinder kit is installed. This file is the single source of truth. src/kit.mjs reads it at runtime, .github/scripts/validate-kit.py checks every other statement of the list against it, and npm publishes it inside the package so the installer is self-contained. Change the list here and nowhere else; validation will name whatever falls out of step.",
+  "entries": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "context",
+    "prompts",
+    "skills",
+    "templates"
+  ]
+}
