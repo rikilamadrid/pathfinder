@@ -3,7 +3,7 @@ title: The workflow
 description: Pathfinder's five loops as diagrams, with the points where the agent stops and a human decides marked on each one.
 ---
 
-Pathfinder is five loops. One establishes what you are building, one analyses an
+Pathfinder is five loops. One establishes what you are building, one analyzes an
 external reference, one delivers features, one makes sure you understand what was
 built, and one improves the workflow itself.
 
@@ -53,7 +53,7 @@ project needs an experience prototype, a technical proof of concept, an architec
 diagram, or nothing at all, and the cheapest useful format is the right one.
 
 The output of this loop is [`context/project-overview.md`](/context/project-overview/)
-and its neighbours. Everything downstream treats those files as true, which is why
+and its neighbors. Everything downstream treats those files as true, which is why
 the loop ends on your approval rather than on the agent's satisfaction.
 
 Choices that are not yet made are marked rather than guessed:
@@ -71,17 +71,17 @@ An agent must not quietly resolve a `TBD` while implementing something else.
 ## External reference analysis
 
 When the project is inspired by an existing product, interface, repository,
-animation, or implementation, that reference gets analysed before product and
+animation, or implementation, that reference gets analyzed before product and
 architecture decisions are made — not during them.
 
 ```text
 external reference
 
-→ reverse-engineer         separate observed behaviour, inference, and unknowns
+→ reverse-engineer         separate observed behavior, inference, and unknowns
                            extract the transferable pattern
      ◆ you decide which reconstruction choices to adopt
 
-→ prototype                validate the behaviour that matters, if any is uncertain
+→ prototype                validate the behavior that matters, if any is uncertain
      ◆ you approve the direction
 
 → to-specs                 convert the approved direction into planned work
@@ -161,7 +161,7 @@ observed failure
 → back to the delivery loop
 ```
 
-It is for a concrete unexpected behaviour — a failing test, a runtime error, a
+It is for a concrete unexpected behavior — a failing test, a runtime error, a
 regression, incorrect output, an intermittent or environment-specific failure. It is
 not for work that is merely hard:
 
@@ -245,24 +245,27 @@ Neither belongs to a loop, so neither is filed inside one.
 
 ## Where you decide, in one list
 
-Every `◆` above, collected. Unless you have written otherwise into
-[`context/ai-interaction.md`](/context/ai-interaction/), an agent following this kit
-stops and asks before:
+Every `◆` above is one of two different things, and they live in two different
+files. Worth keeping straight, because editing the wrong one changes nothing.
 
-- product and MVP scope,
-- technology stack and architecture,
-- database, authentication, APIs, and infrastructure,
-- prototype direction, and whether prototype code is ever adopted,
-- reconstruction choices derived from external references,
-- Git and delivery workflow,
-- dependency or build-tool changes,
-- destructive commands and file deletion,
-- rewriting Git history,
-- commits, merges, releases, and deployments.
+**Operations that need approval** — the agent would otherwise carry them out, so it
+stops and asks first. Dependencies and build tooling, architecture migrations,
+security-sensitive changes, destructive commands, Git history rewriting, commits and
+releases, and adopting prototype code. Declared in
+[`context/ai-interaction.md`](/context/ai-interaction/), and that file is where you
+widen, narrow, or pre-approve them.
 
-The agent may recommend any of these, with reasoning. It does not choose them.
-[Human approval](/concepts/human-approval/) explains where the list lives and how to
-change it.
+**Decisions that stay yours** — not operations the agent pauses on, but choices it
+never makes. Product and MVP scope, the stack and architecture, infrastructure,
+prototype direction, and the reconstruction choices taken from an external
+reference. The agent recommends, with reasoning; you choose. Editing
+`ai-interaction.md` does not hand any of these over.
+
+Git and delivery workflow is neither: an agent follows what
+[`context/project-overview.md`](/context/project-overview/) documents, and asks when
+that is still `TBD`.
+
+[Human approval](/concepts/human-approval/) covers all three in full.
 
 ## Next
 

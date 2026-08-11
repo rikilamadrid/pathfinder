@@ -58,13 +58,13 @@ what landed.
 ls
 ```
 
-Six things, and nothing else:
+In the empty repository you just created, six things — and nothing else:
 
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
-| `skills/` | Twenty skills covering discovery, specs, delivery, debugging, review, and learning |
+| `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
 | `prompts/` | Manual launchers for tools that do not discover local skills |
 | `templates/` | Starting points the project copies when it needs them |
 
@@ -181,20 +181,19 @@ makes the fix mean something.
 
 ## Where you will be asked to decide
 
-Unless you have written otherwise into `context/ai-interaction.md`, an agent
-following this kit stops and asks before:
+Two kinds of stop, and it is worth knowing which is which before your first
+feature.
 
-- adding dependencies or changing build tooling,
-- architecture migrations,
-- database, auth, payment, secrets, or security-sensitive changes,
-- destructive commands or file deletion,
-- rewriting Git history,
-- commits, merges, releases, and deployments,
-- adopting prototype code into production.
+Some **operations** need approval before the agent carries them out — installing a
+dependency, a destructive command, a commit, a release. That list is
+[`context/ai-interaction.md`](/context/ai-interaction/), now a file in the project
+you just installed into. You can widen it, narrow it, or pre-approve parts of it.
 
-That list lives in the project you just installed into, not in the tool. You can
-widen it, narrow it, or pre-approve parts of it — it is a markdown file you own.
-[Human approval](/concepts/human-approval/) covers what that means in practice.
+Some **decisions** are never the agent's to make at all — product scope, the stack,
+the architecture. Those are not on that list because they are not operations. An
+agent recommends; you choose.
+
+[Human approval](/concepts/human-approval/) sets out both, and where each one lives.
 
 ## When something does not work
 

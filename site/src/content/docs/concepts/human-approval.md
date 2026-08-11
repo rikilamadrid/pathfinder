@@ -3,11 +3,13 @@ title: Human approval
 description: The actions an agent stops and asks about, where that list lives, and why nothing enforces it.
 ---
 
-Pathfinder's central claim is that the agent proposes and you decide. Approval
-boundaries are where that claim becomes specific enough to act on.
+Pathfinder's central claim is that the agent proposes and you decide. That claim
+becomes specific in three places, and they are not the same thing. Confusing them is
+easy, and it matters, because each one is changed by editing a different file.
 
-Unless you have written otherwise, an agent following this kit stops and asks
-before:
+## Operations that require approval
+
+Things the agent would otherwise carry out. It stops and asks first:
 
 - dependencies or build-tool changes,
 - architecture migrations,
@@ -17,23 +19,40 @@ before:
 - commits, merges, releases, and deployments,
 - adopting prototype code into production.
 
-Alongside that, the choices that are yours by default: product and MVP scope,
-technology stack and architecture, infrastructure, prototype direction,
-reconstruction choices taken from an external reference, and the Git and delivery
-workflow.
-
-## The list lives in your repository
-
-It is [`context/ai-interaction.md`](/context/ai-interaction/) — a markdown file the
-installer copied into your project, which you own.
-
-That is the whole design. You can widen the list, narrow it, or pre-approve parts of
-it, and the change takes effect because agents read the file. Nothing has to be
-reconfigured, and no setting lives somewhere you cannot see.
+This list is declared in [`context/ai-interaction.md`](/context/ai-interaction/) — a
+markdown file the installer copied into your project, which you own. That is the
+whole design. Widen it, narrow it, or pre-approve parts of it, and the change takes
+effect because agents read the file. Nothing has to be reconfigured, and no setting
+lives somewhere you cannot see.
 
 If your project pre-approves dependency installs, say so there. If it requires
 approval for anything touching a payment path, say that instead. The default list is
 a starting point, not a policy you inherited.
+
+## Decisions that stay yours
+
+Not operations the agent pauses on — choices it never makes:
+
+- product and MVP scope,
+- technology stack and architecture,
+- database, authentication, APIs, and infrastructure,
+- prototype direction, and whether prototype code is ever adopted,
+- reconstruction choices derived from an external reference,
+- Git and delivery workflow.
+
+These are not governed by `ai-interaction.md`, and editing that file does not hand
+any of them over. They are decisions, recorded in
+[`context/project-overview.md`](/context/project-overview/) once you have made them.
+
+## What the documented workflow governs
+
+Git and delivery sit slightly apart from both lists. You choose the workflow; an
+agent then *follows* what `context/project-overview.md` documents, without asking
+each time — and asks when that policy is still [`TBD`](/concepts/decision-states/)
+rather than picking one.
+
+So a commit still stops for approval, because committing is an operation on the
+first list. Which branch it goes on does not, because you already answered that.
 
 ## Recommendations are proposals, not silent decisions
 

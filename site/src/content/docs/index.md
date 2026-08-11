@@ -35,9 +35,9 @@ database, Git Flow, or any other implementation detail for you.
 
 ## What this is, and what it is not
 
-**It is** a workflow and context kit: twenty skills with defined boundaries, a
-`context/` folder that holds project truth, and prompts for tools that do not
-discover local skills on their own.
+**It is** a workflow and context kit: [a set of skills](/skills/) with defined
+boundaries, a `context/` folder that holds project truth, and prompts for tools
+that do not discover local skills on their own.
 
 **It is not** a framework. There is no required runtime, package manager,
 framework, database, hosting platform, or Git model, and there is no dependency
@@ -68,7 +68,7 @@ It writes exactly six things.
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
-| `skills/` | Twenty skills covering discovery, specs, delivery, debugging, review, and learning |
+| `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
 | `prompts/` | Manual launchers for tools that do not discover local skills |
 | `templates/` | Starting points the project copies when it needs them |
 
@@ -143,9 +143,11 @@ with reasoning. It does not choose them.
 - Destructive operations
 - Commits, merges, and releases
 
-Unresolved decisions are marked, not guessed. `TBD` means a human decision is
-still required, and an agent must not quietly resolve one while implementing a
-feature.
+Unresolved decisions are marked, not guessed. [`TBD`](/concepts/decision-states/)
+means a human decision is still required, and an agent must not quietly resolve one
+while implementing a feature. Separately, a shorter list of *operations* — installs,
+destructive commands, commits, releases — stops for approval before it happens;
+[Human approval](/concepts/human-approval/) sets out both.
 
 ## Who this is not for
 

@@ -20,7 +20,7 @@ import { join } from 'node:path';
  * the skills that loop runs through, in the order the README walks them.
  *
  * `boundary` is the README's own statement of where the loop's central skill
- * stops and its neighbours begin, quoted from the block that follows that loop's
+ * stops and its neighbors begin, quoted from the block that follows that loop's
  * diagram. It is declared for the same reason the grouping is: it is an
  * editorial claim about the workflow, made in the README, and a loop that has
  * one is the loop a newcomer most often picks the wrong skill inside. The skill
@@ -185,7 +185,7 @@ export function buildSidebar({ skillsDir, contextDir }) {
     { label: 'Overview', items: [{ label: 'Pathfinder', link: '/' }] },
     { label: 'Guides', items: GUIDES },
     { label: 'Concepts', items: CONCEPTS },
-    // The index sits above the groups it summarises, so "which skill do I need?"
+    // The index sits above the groups it summarizes, so "which skill do I need?"
     // is answerable before scrolling twenty names.
     { label: 'Skill reference', items: [{ label: 'All skills', link: '/skills/' }] },
     ...groups,

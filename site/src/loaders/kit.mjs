@@ -90,7 +90,7 @@ function buildSkillReference(skills) {
     'was built — the page holds no copy of it. Follow a link for the skill itself,',
     'which is the file your agent reads.',
     '',
-    'Where two neighbouring skills are easy to confuse, the boundary between them',
+    'Where two neighboring skills are easy to confuse, the boundary between them',
     'is stated above the group.',
     '',
     ...sections,
@@ -277,7 +277,7 @@ export function kitDocsLoader({ skillsDir, contextDir }) {
           raw: reference,
           title: 'All skills',
           description:
-            'Every skill in the kit, grouped by workflow loop, summarised from its own frontmatter.',
+            'Every skill in the kit, grouped by workflow loop, summarized from its own frontmatter.',
           body: reference,
         });
 
