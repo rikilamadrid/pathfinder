@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 238 32" width="238" height="32">
+  <title>Pathfinder</title>
+
+  <!-- Mark: cairn -->
+  <g fill="#E0611F">
+    <rect x="4" y="23" width="24" height="6.4" rx="3.2" transform="rotate(-3 16 26.2)"/>
+    <rect x="7" y="14.6" width="18" height="6" rx="3" transform="rotate(4 16 17.6)"/>
+    <rect x="9.6" y="7" width="12.8" height="5.4" rx="2.7" transform="rotate(-6 16 9.7)"/>
+    <rect x="12.4" y="1" width="7.2" height="4.4" rx="2.2" transform="rotate(5 16 3.2)"/>
+  </g>
+
+  <!-- Wordmark: drawn as paths, no font dependency.
+       Cap height 20 (painted y 6-26), stroke 4, geometric monoline. -->
+  <g fill="none" stroke="#6B7280" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="translate(42 0)">
+      <path d="M2 8 V24"/>
+      <path d="M2 8 H9.5 A4.25 4.25 0 0 1 9.5 16.5 H2"/>
+    </g>
+    <g transform="translate(62 0)">
+      <path d="M2 24 L8 8 L14 24"/>
+      <path d="M4.25 18 H11.75"/>
+    </g>
+    <g transform="translate(82 0)">
+      <path d="M2 8 H14"/>
+      <path d="M8 8 V24"/>
+    </g>
+    <g transform="translate(103 0)">
+      <path d="M2 8 V24"/>
+      <path d="M14 8 V24"/>
+      <path d="M2 16 H14"/>
+    </g>
+    <g transform="translate(124 0)">
+      <path d="M2 8 V24"/>
+      <path d="M2 8 H13"/>
+      <path d="M2 15.5 H11"/>
+    </g>
+    <g transform="translate(145 0)">
+      <path d="M2 8 V24"/>
+    </g>
+    <g transform="translate(155 0)">
+      <path d="M2 24 V8"/>
+      <path d="M2 8 L14 24"/>
+      <path d="M14 24 V8"/>
+    </g>
+    <g transform="translate(177 0)">
+      <path d="M2 8 V24"/>
+      <path d="M2 8 H8 A8 8 0 0 1 8 24 H2"/>
+    </g>
+    <g transform="translate(200 0)">
+      <path d="M2 8 V24"/>
+      <path d="M2 8 H13"/>
+      <path d="M2 16 H11"/>
+      <path d="M2 24 H13"/>
+    </g>
+    <g transform="translate(221 0)">
+      <path d="M2 8 V24"/>
+      <path d="M2 8 H9.5 A4.25 4.25 0 0 1 9.5 16.5 H2"/>
+      <path d="M8 16.5 L15 24"/>
+    </g>
+  </g>
+</svg>
