@@ -21,9 +21,11 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Node
-        # The copy-list-installer rule loads the installer and asks it what it
-        # would copy. Without Node that rule skips itself, which is the exact
-        # failure mode the copy-list checks exist to prevent.
+        # Two validator rules run the installer rather than describing it:
+        # copy-list-installer asks it what it would copy, and adapter-freshness
+        # asks its generator whether the committed adapters are current. Without
+        # Node both skip themselves, which is the exact failure mode they exist
+        # to prevent — so this step must stay ahead of the validator.
         uses: actions/setup-node@v4
         with:
           node-version: 20

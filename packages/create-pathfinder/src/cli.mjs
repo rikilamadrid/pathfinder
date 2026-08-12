@@ -594,8 +594,10 @@ function adapterLines({ adapters, harnesses, options }) {
       lines.push("");
       lines.push(
         conflicts.length === 1
-          ? "  Re-run with --force to replace it with a generated adapter."
-          : "  Re-run with --force to replace them with generated adapters.",
+          ? "  Re-run with --force to replace it — note that --force also overwrites"
+          : "  Re-run with --force to replace them — note that --force also overwrites",
+      );
+      lines.push("  Pathfinder kit files you have edited.",
       );
     }
 

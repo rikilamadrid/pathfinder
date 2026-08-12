@@ -260,7 +260,8 @@ describe("the ownership rule, from the outside", () => {
     assert.equal(md5(adapter(cwd, "debug-issue")), before);
     assert.equal(out.includes("1 file left untouched because Pathfinder did not write it:"), true);
     assert.equal(out.includes(".claude/skills/debug-issue/SKILL.md"), true);
-    assert.equal(out.includes("Re-run with --force to replace it with a generated adapter."), true);
+    assert.equal(out.includes("Re-run with --force to replace it — note that --force also"), true);
+    assert.equal(out.includes("Pathfinder kit files you have edited."), true);
     assert.equal(out.includes(`${SKILLS.length - 1} Claude Code skill adapters generated`), true);
   });
 
