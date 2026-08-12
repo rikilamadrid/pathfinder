@@ -60,6 +60,26 @@ They are worth the small discipline of using the exact four words. A file that s
 `TBD` in one place, `?` in another, and leaves a third blank has lost the property
 that made the convention useful.
 
+## Record status is a different question
+
+The four words describe *the decision*. Several tables also carry a `Status` column,
+and that describes *the record* — how far a written-down row has travelled toward
+being yours:
+
+```text
+proposed     written down, not yet approved by you
+accepted     you approved it
+superseded   replaced by a later decision, kept for history
+```
+
+There is no fifth decision state. The two vocabularies answer different questions,
+and a row uses both: `TBD` in the choice column means nobody has decided, while
+`proposed` in the status column means something was recorded for you to approve.
+[`kickstart-pathfinder`](/skills/kickstart-pathfinder/) does not wait for approval to
+write, so a first pass at `context/project-overview.md` can be full of `proposed`
+rows. That is the point — a recorded proposal survives the session and shows up in a
+diff, and it is still not an approved decision.
+
 ## Related
 
 `TBD` marks a decision that is yours to make. [Human approval](/concepts/human-approval/)
