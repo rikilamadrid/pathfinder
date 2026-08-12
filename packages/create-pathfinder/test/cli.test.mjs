@@ -29,10 +29,10 @@ function makeRepository() {
   return root;
 }
 
-function dryRun({ cwd, ...environment }) {
+async function dryRun({ cwd, ...environment }) {
   let out = "";
   let err = "";
-  const code = run(["--dry-run"], {
+  const code = await run(["--dry-run"], {
     cwd,
     out: (text) => (out += text),
     err: (text) => (err += text),
@@ -44,29 +44,29 @@ function dryRun({ cwd, ...environment }) {
 }
 
 describe("run — the findings report", () => {
-  it("is printed to a terminal", () => {
-    const { code, out } = dryRun({ cwd: makeRepository(), stdoutIsTTY: true });
+  it("is printed to a terminal", async () => {
+    const { code, out } = await dryRun({ cwd: makeRepository(), stdoutIsTTY: true });
 
     assert.equal(code, 0);
     assert.match(out, /\+ Git repository detected/);
   });
 
-  it("is absent when stdout is not a terminal", () => {
-    const { code, out } = dryRun({ cwd: makeRepository() });
+  it("is absent when stdout is not a terminal", async () => {
+    const { code, out } = await dryRun({ cwd: makeRepository() });
 
     assert.equal(code, 0);
     assert.doesNotMatch(out, /Git repository detected/);
     assert.match(out, /^Would install the Pathfinder kit into /);
   });
 
-  it("comes before the install summary, not after it", () => {
-    const { out } = dryRun({ cwd: makeRepository(), stdoutIsTTY: true });
+  it("comes before the install summary, not after it", async () => {
+    const { out } = await dryRun({ cwd: makeRepository(), stdoutIsTTY: true });
 
     assert.ok(out.indexOf("Git repository detected") < out.indexOf("Would install"));
   });
 
-  it("uses the decorated marks in a UTF-8 terminal", () => {
-    const { out } = dryRun({
+  it("uses the decorated marks in a UTF-8 terminal", async () => {
+    const { out } = await dryRun({
       cwd: makeRepository(),
       stdoutIsTTY: true,
       env: { LANG: "en_US.UTF-8" },
@@ -75,9 +75,9 @@ describe("run — the findings report", () => {
     assert.match(out, /✓ Git repository detected/);
   });
 
-  it("is not printed when the arguments never got as far as a run", () => {
+  it("is not printed when the arguments never got as far as a run", async () => {
     let out = "";
-    const code = run(["--nonsense"], {
+    const code = await run(["--nonsense"], {
       cwd: makeRepository(),
       out: (text) => (out += text),
       err: () => {},
@@ -90,9 +90,9 @@ describe("run — the findings report", () => {
     assert.equal(out, "");
   });
 
-  it("is not printed by --help", () => {
+  it("is not printed by --help", async () => {
     let out = "";
-    const code = run(["--help"], {
+    const code = await run(["--help"], {
       cwd: makeRepository(),
       out: (text) => (out += text),
       err: () => {},
@@ -107,12 +107,12 @@ describe("run — the findings report", () => {
 });
 
 describe("run — refusals still hold", () => {
-  it("refuses outside a Git repository and writes nothing", () => {
+  it("refuses outside a Git repository and writes nothing", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "pathfinder-cli-"));
     temporaryRoots.push(cwd);
 
     let err = "";
-    const code = run([], {
+    const code = await run([], {
       cwd,
       out: () => {},
       err: (text) => (err += text),
@@ -125,9 +125,9 @@ describe("run — refusals still hold", () => {
     assert.deepEqual(readdirSync(cwd), []);
   });
 
-  it("exits 2 on an unknown flag, naming it", () => {
+  it("exits 2 on an unknown flag, naming it", async () => {
     let err = "";
-    const code = run(["--nonsense"], {
+    const code = await run(["--nonsense"], {
       cwd: makeRepository(),
       out: () => {},
       err: (text) => (err += text),
@@ -139,9 +139,9 @@ describe("run — refusals still hold", () => {
     assert.match(err, /unknown option `--nonsense`/);
   });
 
-  it("writes nothing under --dry-run, not even to a terminal", () => {
+  it("writes nothing under --dry-run, not even to a terminal", async () => {
     const cwd = makeRepository();
-    dryRun({ cwd, stdoutIsTTY: true });
+    await dryRun({ cwd, stdoutIsTTY: true });
 
     assert.deepEqual(readdirSync(cwd), [".git"]);
   });
