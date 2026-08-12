@@ -1,6 +1,6 @@
 # Project Agent Guide
 
-This repository uses an AI-assisted, human-in-the-loop workflow. Project truth lives in `context/`, reusable behaviors live in `skills/`, and manual launchers live in `prompts/`.
+This repository uses an AI-assisted, human-in-the-loop workflow. Project truth lives in `context/`, and reusable behaviors live in `skills/`.
 
 ## Read only what is needed
 

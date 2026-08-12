@@ -4,7 +4,7 @@ This changelog describes the reusable kit itself, not destination projects. A de
 
 The kit follows Semantic Versioning:
 
-- MAJOR — a skill is removed or renamed, or `context/`, `prompts/`, or the agent entry files change in a way that breaks an existing destination project
+- MAJOR — a skill is removed or renamed, or `context/` or the agent entry files change in a way that breaks an existing destination project
 - MINOR — a new skill or workflow capability that existing projects can adopt without changes
 - PATCH — clarifications, corrections, and documentation fixes
 
@@ -12,7 +12,7 @@ The kit follows Semantic Versioning:
 
 The repository holds more than one shippable thing. The version number belongs to the kit — the part a destination project actually consumes:
 
-- **Bumps the version** — `skills/`, `context/`, `prompts/`, `templates/`, and the agent entry files (`AGENTS.md`, `CLAUDE.md`). Also the installer, but only when it changes the documented installation path; an installer bug fix that leaves the path unchanged is a PATCH, and installer refactoring that changes nothing observable is not a release at all.
+- **Bumps the version** — `skills/`, `context/`, `templates/`, and the agent entry files (`AGENTS.md`, `CLAUDE.md`). Also the installer, but only when it changes the documented installation path; an installer bug fix that leaves the path unchanged is a PATCH, and installer refactoring that changes nothing observable is not a release at all.
 - **Does not bump the version** — CI workflows, validation scripts, brand assets, the website, the README, and this repository's own planning files. They change how Pathfinder is built and presented, not what a destination project receives. A site-only change ships continuously and publishes nothing to npm.
 
 ## The installer version mirrors the kit exactly
@@ -51,6 +51,12 @@ Non-interactive output is otherwise unchanged from `1.4.1`: installing into a re
 ### Fixed
 
 - **`context/project-overview.md` and `templates/project-overview.template.md` separate decision state from record status.** The four decision states (`TBD`, `None`, `N/A`, `Deferred`) say whether a decision has been made; a new `Record Status` block declares what the tables' `Status` column already used in the decision log — `proposed`, `accepted`, `superseded` — and states that a recorded proposal is not an approved decision. The technology table's `Choice` column was headed `Approved choice` above a line saying approved choices belong there, which left no legal way to record a choice an agent had written down but the human had not yet approved. Both files now say a row may be recorded as `proposed` and stays that way until it is `accepted`. No fifth decision state, and no change to any skill.
+
+### Removed
+
+- **`prompts/` and its twenty manual launchers.** A fresh install now copies five entries instead of six. Every launcher was a wrapper that delegated by path to `skills/<name>/SKILL.md`, and their stated purpose — a fallback for tools that cannot discover local skills — was never what they did: a tool too weak to find a local skill is not helped by a second local file telling it to open the first one. With native discovery now shipping for Claude Code and Codex, a skill is invoked natively where that works, and everywhere else by one documented line — `Use skills/<name>/SKILL.md and follow it exactly.` — which is what the generated adapters delegate to anyway.
+- **An existing project keeps its `prompts/` directory.** This is a MINOR change, not MAJOR: the installer only ever writes, so re-running it over a 1.4.x project leaves those files byte-for-byte intact, including under `--force`, and they keep working because they point at `skills/`, which still ships. The contract narrows for new installs; nothing breaks for existing ones. There is no migration command, no cleanup step, and no deprecation shim — Pathfinder does not delete your files.
+- **The `check_prompts()` validation rule**, replaced rather than dropped. It enforced that every skill has some way to be invoked; that invariant now lives in `adapter-no-orphans`, which requires every canonical skill to have its expected generated adapter, and the validator records the inheritance where the rule is defined.
 
 ## [1.4.1] - 2026-08-12
 

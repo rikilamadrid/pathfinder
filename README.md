@@ -20,7 +20,7 @@ It is intentionally stack-agnostic. It does not choose React, Python, mobile, a 
 
 ## What this is, and what it is not
 
-**It is** a workflow and context kit: twenty skills with defined boundaries, a `context/` folder that holds project truth, and prompts for tools that do not discover local skills on their own. It is for someone who wants an agent to move fast on delivery while product, architecture, and Git decisions stay explicitly theirs — and who wants to understand the result afterward, not just receive it.
+**It is** a workflow and context kit: twenty skills with defined boundaries, a `context/` folder that holds project truth, and native skill discovery in the tools that support it. It is for someone who wants an agent to move fast on delivery while product, architecture, and Git decisions stay explicitly theirs — and who wants to understand the result afterward, not just receive it.
 
 **It is not** a framework. There is no required runtime, package manager, framework, database, hosting platform, or Git model, and there is no dependency to install. The destination project chooses its own technology, architecture, delivery process, and learning output format. See [`NOT_A_FRAMEWORK.md`](NOT_A_FRAMEWORK.md).
 
@@ -43,14 +43,13 @@ npx create-pathfinder
 
 That copies the kit into the repository. Nothing is installed into your project, nothing is built, and no dependency is added — the installer is a file copier that exits.
 
-It writes exactly six things:
+It writes exactly five things:
 
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
 | `skills/` | Twenty skills covering discovery, specs, delivery, debugging, review, and learning |
-| `prompts/` | Manual launchers for tools that do not discover local skills |
 | `templates/` | Starting points the project copies when it needs them |
 
 It never overwrites. Files you already have are left alone and listed by name; pass `--force` if you actually want them replaced, or `--dry-run` to see the plan without writing. It refuses to run outside a Git repository, so whatever it writes is reviewable and undoable.
@@ -239,20 +238,22 @@ That pass stops there. It does not recurse further, it does not go looking for a
 
 > Self-reference does not lower the evidence threshold. It raises it.
 
-## Skills and prompts
+## Invoking a skill
 
-`skills/` contains durable, reusable behavior. `prompts/` contains short manual launchers for tools that do not discover local skills automatically.
+`skills/` contains durable, reusable behavior, and each skill is a single canonical file: `skills/<name>/SKILL.md`. There is one behavior contract per skill and one way to reach it.
 
-Use one or the other. A prompt does not need to run after the matching skill.
+In a harness with native skill discovery — Claude Code and Codex today — the installer generates a small adapter per skill, so Pathfinder's skills appear in that tool's own skill list and you invoke them the way you invoke any other. Nothing to paste.
+
+In any other tool, give the agent one line:
+
+```text
+Use skills/<name>/SKILL.md and follow it exactly.
+```
+
+That is the whole fallback. It is an invocation form, not a file to generate or a directory to install — and it is exactly what the generated adapters delegate to, so both paths end at the same canonical file.
 
 ```text
 Use skills/kickstart-pathfinder/SKILL.md to initialize this project.
-```
-
-Or:
-
-```text
-Read prompts/01-kickstart-project.md and follow it.
 ```
 
 The same shape works for any skill, and it is worth stating the boundary in the invocation:
@@ -267,7 +268,9 @@ Use skills/reflect/SKILL.md to review this completed work. Propose improvements;
 
 ## What's in the kit
 
-Six entries get copied into a destination project: `AGENTS.md` and `CLAUDE.md` (agent entry points), `context/` (project truth), `skills/` (durable behavior), `prompts/` (manual launchers), and `templates/`.
+Five entries get copied into a destination project: `AGENTS.md` and `CLAUDE.md` (agent entry points), `context/` (project truth), `skills/` (durable behavior), and `templates/`.
+
+A project installed before v1.5.0 also has a `prompts/` directory, which the installer leaves untouched and which keeps working, since those launchers point at `skills/`.
 
 <details>
 <summary>Full layout</summary>
@@ -285,7 +288,6 @@ Six entries get copied into a destination project: `AGENTS.md` and `CLAUDE.md` (
 │   ├── current-feature.md
 │   ├── history.md
 │   └── features/
-├── prompts/                      # manual launchers for the skills
 ├── skills/
 │   ├── kickstart-pathfinder/
 │   ├── debate-me/

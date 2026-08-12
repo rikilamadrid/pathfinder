@@ -7,3 +7,5 @@ Project truth lives in `context/`. Follow the technology and delivery choices do
 Use the smallest relevant context for the active task. Keep each delivery chunk stable, reviewable, and verifiable.
 
 Canonical skills live under `skills/` and are the only behavior contract; anything under `.claude/skills/` or `.agents/skills/` is a generated pointer to one, so edit the canonical file and regenerate the adapter.
+
+If this tool has no native skill discovery, invoke a skill by reading its canonical file directly: `Use skills/<name>/SKILL.md and follow it exactly.` That is the whole fallback — there is no launcher file, and no second copy of a skill to find.

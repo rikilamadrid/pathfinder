@@ -17,14 +17,13 @@ Do not install packages or write product code yet.
 
 ## What it installs
 
-Pathfinder is a kit of context files and skills — not a framework. There is no runtime, no dependency, and nothing to build. The installer copies six things into your repository and nothing else:
+Pathfinder is a kit of context files and skills — not a framework. There is no runtime, no dependency, and nothing to build. The installer copies five things into your repository and nothing else:
 
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
 | `skills/` | Twenty skills covering discovery, specs, delivery, debugging, review, and learning |
-| `prompts/` | Manual launchers for tools that do not discover local skills |
 | `templates/` | Starting points the project copies when it needs them |
 
 It never copies Pathfinder's own `README.md`, `CHANGELOG.md`, CI configuration, or brand assets. Your repository gets the workflow, not the project that maintains it.
