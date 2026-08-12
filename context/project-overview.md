@@ -12,10 +12,22 @@
 
 ## Decision States
 
+These four words describe a decision:
+
 - `TBD` — human decision required
 - `None` — intentionally excluded
 - `N/A` — not applicable
 - `Deferred` — intentionally postponed
+
+## Record Status
+
+A `Status` column describes the record, not the decision:
+
+- `proposed` — written down, not yet approved by the human
+- `accepted` — approved by the human
+- `superseded` — replaced by a later decision, kept for history
+
+The two answer different questions. `TBD` says nobody has decided yet. `proposed` says something was recorded for the human to approve. A recorded proposal is not an approved decision.
 
 ## Product Vision
 
@@ -56,9 +68,9 @@ starting state -> action/process -> useful result -> reason to return or continu
 
 ## Recommended and Approved Technology
 
-Recommendations may be proposed by `debate-me`; approved choices belong here.
+Recommended and approved choices both live here. `debate-me` and `kickstart-pathfinder` may record a choice before the human approves it; that row is marked `proposed` in `Status` and stays that way until it is `accepted`. Leave `Status` empty while the choice is still `TBD`.
 
-| Layer | Approved choice | Reason | Status |
+| Layer | Choice | Reason | Status |
 | --- | --- | --- | --- |
 | Platform/runtime | `TBD` | | |
 | Language(s) | `TBD` | | |

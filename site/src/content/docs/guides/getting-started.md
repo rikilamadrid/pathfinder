@@ -135,9 +135,10 @@ Once the direction is clear enough, it records the emerging context — filling 
 `CLAUDE.md`, and `AGENTS.md` — and then recommends what to run next.
 
 It does not wait for your approval to write. What it has not settled with you stays
-marked `proposed` or [`TBD`](/concepts/decision-states/) in the file, so a choice
-appearing in `context/` records where the conversation reached, not something you
-agreed to.
+visible in the file — a choice nobody has made reads [`TBD`](/concepts/decision-states/),
+and a choice it recorded for you to approve is marked `proposed` in the row's status.
+Either way, a choice appearing in `context/` records where the conversation reached,
+not something you agreed to.
 
 Which makes the next step yours. Read `context/project-overview.md` and correct or
 approve it before any implementation begins. It is now the file every later session
