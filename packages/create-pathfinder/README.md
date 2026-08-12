@@ -45,10 +45,19 @@ Re-running it is safe, and fills in only what is missing.
 Pathfinder's skills are tool-neutral files at `skills/<name>/SKILL.md`. Some coding tools discover skills natively from their own directory, and the installer can generate small adapters there so you get `/reflect` instead of pasting a path.
 
 ```bash
-npx create-pathfinder --agents claude-code
+npx create-pathfinder --agents claude-code,codex
 ```
 
-That writes `.claude/skills/<name>/SKILL.md` for every Pathfinder skill. Each adapter is a few lines long: it carries the skill's name and description, and tells the tool to read the canonical file. The behavior lives in one place, and the adapter never restates it.
+| Id | Writes to | Invoked as |
+| --- | --- | --- |
+| `claude-code` | `.claude/skills/<name>/SKILL.md` | `/reflect` |
+| `codex` | `.agents/skills/<name>/SKILL.md` | `/skills`, or `$reflect` |
+
+Each adapter is a few lines long: it carries the skill's name and description, and tells the tool to read the canonical file. Both harnesses get the same bytes at a different path — the behavior lives in one place, and the adapter never restates it.
+
+Pick one, both, or neither. Choosing one never generates, removes, or claims anything under the other's directory, and Pathfinder never writes to a personal skills directory such as `$HOME/.agents/skills`.
+
+Your tool is not on that list? Pathfinder does not generate files it cannot generate honestly. The kit installs `AGENTS.md` at the repository root, which Codex, Cursor, and several other tools read, and any agent can be given the line the adapters delegate to anyway: `Use skills/<name>/SKILL.md and follow it exactly.`
 
 In a terminal you are asked instead, with the tools found on your machine offered as the default. Nothing is configured unless you choose it — detection only sets the default, and a piped or scripted run configures nothing at all unless `--agents` says so.
 
@@ -65,7 +74,7 @@ Re-running is idempotent: the second run writes the same bytes and reports the a
 
 | Option | Effect |
 | --- | --- |
-| `--agents <ids>` | Generate skill adapters for these tools, comma-separated. Valid ids: `claude-code`. Alias: `--agent` |
+| `--agents <ids>` | Generate skill adapters for these tools, comma-separated. Valid ids: `claude-code`, `codex`. Alias: `--agent` |
 | `--dry-run` | Report what would be written, and any `git init` that would run first; change nothing |
 | `--force` | Overwrite files that already exist, and replace a file you wrote at a path an adapter would occupy |
 | `--git-init` | Run `git init` here if this is not a repository yet |

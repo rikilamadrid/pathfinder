@@ -79,6 +79,11 @@ function adapter(cwd, name) {
   return join(cwd, ".claude", "skills", name, "SKILL.md");
 }
 
+/** The same file for whichever harness, so the two sets can be compared. */
+function adapterIn(cwd, skillsDir, name) {
+  return join(cwd, ...skillsDir.split("/"), name, "SKILL.md");
+}
+
 function md5(path) {
   return createHash("md5").update(readFileSync(path)).digest("hex");
 }
@@ -319,6 +324,146 @@ describe("--dry-run", () => {
   });
 });
 
+/**
+ * The second harness — and with it, the first real test of the abstraction.
+ *
+ * Feature 11 built a registry that claimed to be extensible on the strength of
+ * one implementation. These are the assertions that make the claim checkable:
+ * the two adapter sets differ by path and by nothing else, and a run that
+ * configures one harness is invisible to the other.
+ */
+describe("Codex, and two harnesses at once", () => {
+  it("generates the whole set at .agents/skills/, and says so", async () => {
+    const cwd = makeRepository();
+
+    const { code, out } = await invoke(["--agents", "codex"], { cwd });
+
+    assert.equal(code, 0);
+    assert.equal(readdirSync(join(cwd, ".agents", "skills")).length, SKILLS.length);
+    assert.equal(out.includes(`${SKILLS.length} Codex skill adapters generated`), true);
+    assert.equal(existsSync(join(cwd, ".claude")), false);
+
+    for (const name of SKILLS) {
+      assert.equal(isPathfinderAdapter(readFileSync(adapterIn(cwd, ".agents/skills", name), "utf8")), true);
+    }
+  });
+
+  // The acceptance criterion, asserted on bytes rather than on the renderer
+  // being shared: the two sets are byte-identical, and the only difference
+  // between them is the directory they sit in.
+  it("writes bytes identical to the Claude Code set, apart from the path", async () => {
+    const cwd = makeRepository();
+
+    await invoke(["--agents", "claude-code,codex"], { cwd });
+
+    for (const name of SKILLS) {
+      assert.equal(
+        md5(adapterIn(cwd, ".agents/skills", name)),
+        md5(adapterIn(cwd, ".claude/skills", name)),
+        name,
+      );
+    }
+  });
+
+  it("generates both sets in one run, and counts them separately", async () => {
+    const cwd = makeRepository();
+
+    const { code, out } = await invoke(["--agents", "claude-code,codex"], { cwd });
+
+    assert.equal(code, 0);
+    assert.equal(readdirSync(join(cwd, ".claude", "skills")).length, SKILLS.length);
+    assert.equal(readdirSync(join(cwd, ".agents", "skills")).length, SKILLS.length);
+    assert.equal(out.includes(`${SKILLS.length} Claude Code skill adapters generated`), true);
+    assert.equal(out.includes(`${SKILLS.length} Codex skill adapters generated`), true);
+  });
+
+  it("is idempotent across both, and reports each as already up to date", async () => {
+    const cwd = makeRepository();
+    await invoke(["--agents", "claude-code,codex"], { cwd });
+    const before = treeHash(cwd);
+
+    const { code, out } = await invoke(["--agents", "claude-code,codex"], { cwd });
+
+    assert.equal(code, 0);
+    assert.equal(treeHash(cwd), before);
+    assert.equal(out.includes(`${SKILLS.length} Claude Code adapters already up to date`), true);
+    assert.equal(out.includes(`${SKILLS.length} Codex adapters already up to date`), true);
+  });
+
+  it("adds the second harness to an install that had only the first", async () => {
+    const cwd = makeRepository();
+    await invoke(["--agents", "claude-code"], { cwd });
+    const claudeBefore = SKILLS.map((name) => md5(adapterIn(cwd, ".claude/skills", name)));
+
+    // No --force. Gaining a harness is not overwriting anyone's work.
+    const { code } = await invoke(["--agents", "codex"], { cwd });
+
+    assert.equal(code, 0);
+    assert.equal(readdirSync(join(cwd, ".agents", "skills")).length, SKILLS.length);
+    assert.deepEqual(
+      SKILLS.map((name) => md5(adapterIn(cwd, ".claude/skills", name))),
+      claudeBefore,
+    );
+  });
+
+  // Feature 12's isolation requirement, stated as a hash. Choosing one harness
+  // must not generate, remove, or claim ownership of anything under another's
+  // directory — including a Pathfinder-marked file it would recognize as its own.
+  it("leaves an existing .agents/skills/ entirely untouched when only Claude Code is chosen", async () => {
+    const cwd = makeRepository();
+    await invoke(["--agents", "codex"], { cwd });
+    mkdirSync(join(cwd, ".agents", "skills", "my-own-skill"), { recursive: true });
+    writeFileSync(adapterIn(cwd, ".agents/skills", "my-own-skill"), "Mine.\n");
+    const before = treeHash(join(cwd, ".agents"));
+
+    const { code, out } = await invoke(["--agents", "claude-code"], { cwd });
+
+    assert.equal(code, 0);
+    assert.equal(treeHash(join(cwd, ".agents")), before);
+    assert.equal(out.includes("Codex"), false);
+    assert.equal(out.includes(".agents"), false);
+  });
+
+  it("keeps a conflict in one harness from affecting the other", async () => {
+    const cwd = makeRepository();
+    mkdirSync(join(cwd, ".agents", "skills", "reflect"), { recursive: true });
+    writeFileSync(adapterIn(cwd, ".agents/skills", "reflect"), "Hand-written.\n");
+
+    const { out } = await invoke(["--agents", "claude-code,codex"], { cwd });
+
+    assert.equal(readFileSync(adapterIn(cwd, ".agents/skills", "reflect"), "utf8"), "Hand-written.\n");
+    assert.equal(out.includes(`${SKILLS.length} Claude Code skill adapters generated`), true);
+    assert.equal(out.includes(`${SKILLS.length - 1} Codex skill adapters generated`), true);
+    assert.equal(out.includes(".agents/skills/reflect/SKILL.md"), true);
+    assert.equal(out.includes(".claude/skills/reflect/SKILL.md"), false);
+  });
+
+  it("reports an unwritable .agents rather than crashing on it", async () => {
+    const cwd = makeRepository();
+    // `.agents` is a file. Every path beneath it is unwritable, and the run
+    // must say so per file rather than abort — the same contract the kit copy
+    // has held since 1.0.
+    writeFileSync(join(cwd, ".agents"), "not a directory\n");
+
+    const { code, err } = await invoke(["--agents", "codex"], { cwd });
+
+    assert.equal(code, 1);
+    assert.equal(err.includes(".agents/skills/"), true);
+    assert.equal(statSync(join(cwd, ".agents")).isFile(), true);
+  });
+
+  it("names both valid ids when asked for one that does not exist", async () => {
+    const cwd = makeRepository();
+
+    const { code, err } = await invoke(["--agents", "codecs"], { cwd });
+
+    assert.equal(code, 2);
+    assert.equal(err.includes("unknown agent `codecs`"), true);
+    assert.equal(err.includes("Valid ids: claude-code, codex"), true);
+    assert.equal(existsSync(join(cwd, ".agents")), false);
+  });
+});
+
 describe("the interactive question", () => {
   it("offers every harness, defaulting to the detected ones", async () => {
     const cwd = makeRepository();
@@ -329,11 +474,31 @@ describe("the interactive question", () => {
 
     const [{ question, config }] = prompter.offered;
     assert.equal(question, "Configure Pathfinder for which tools?");
-    assert.equal(config.options.length, 1);
+    assert.equal(config.options.length, 2);
     assert.match(config.options[0].label, /Claude Code\s+-> \.claude\/skills\/\s+\(detected\)/);
+
+    // Offered, and visibly not detected. A harness the user does not have is
+    // still a choice they may make; detection only decides the default.
+    assert.match(config.options[1].label, /Codex\s+-> \.agents\/skills\/$/);
+
     assert.deepEqual(
       config.defaultSelection.map((harness) => harness.id),
       ["claude-code"],
+    );
+  });
+
+  it("defaults to both when both are detected", async () => {
+    const cwd = makeRepository();
+    mkdirSync(join(cwd, ".claude"));
+    mkdirSync(join(cwd, ".agents"));
+    const prompter = scriptedPrompter({ harnesses: [] });
+
+    await invoke([], { cwd, prompter });
+
+    const [{ config }] = prompter.offered;
+    assert.deepEqual(
+      config.defaultSelection.map((harness) => harness.id),
+      ["claude-code", "codex"],
     );
   });
 
