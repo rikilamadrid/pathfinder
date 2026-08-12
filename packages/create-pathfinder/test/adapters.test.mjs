@@ -46,19 +46,45 @@ function makeRepository() {
   return cwd;
 }
 
-/** A prompter that offers the harness question and answers it as told. */
-function scriptedPrompter({ harnesses = [], interactive = true } = {}) {
+/**
+ * A prompter that offers the harness question and answers it as told.
+ *
+ * `harnesses` may be a list, or a function of the offered options — the
+ * "Something else…" entry is a sentinel the test cannot import, so the only
+ * honest way to choose it is to pick it out of the list the CLI actually built.
+ *
+ * `typed` is the queue of answers to the follow-up name question. It runs out
+ * rather than repeating, so a test that forgets to end the loop hits an empty
+ * line and stops instead of hanging.
+ */
+function scriptedPrompter({ harnesses = [], typed = [], interactive = true } = {}) {
   const offered = [];
+  const asked = [];
+  const remaining = [...typed];
+
   return {
     interactive,
     offered,
+    asked,
     confirm: async () => true,
     chooseMany: async (question, config) => {
       offered.push({ question, config });
-      return harnesses;
+      return typeof harnesses === "function" ? harnesses(config.options) : harnesses;
+    },
+    text: async (question) => {
+      asked.push(question);
+      return remaining.length > 0 ? remaining.shift() : "";
     },
     close: () => {},
   };
+}
+
+/** Pick entries out of the offered list by label, sentinel included. */
+function byLabel(...fragments) {
+  return (options) =>
+    fragments.map(
+      (fragment) => options.find((option) => option.label.includes(fragment)).value,
+    );
 }
 
 async function invoke(argv, { cwd, prompter = scriptedPrompter({ interactive: false }) } = {}) {
@@ -474,16 +500,36 @@ describe("the interactive question", () => {
 
     const [{ question, config }] = prompter.offered;
     assert.equal(question, "Configure Pathfinder for which tools?");
-    assert.equal(config.options.length, 2);
+    assert.equal(config.options.length, 3);
     assert.match(config.options[0].label, /Claude Code\s+-> \.claude\/skills\/\s+\(detected\)/);
 
     // Offered, and visibly not detected. A harness the user does not have is
     // still a choice they may make; detection only decides the default.
     assert.match(config.options[1].label, /Codex\s+-> \.agents\/skills\/$/);
 
+    // The third entry says what it writes in the same column as the other two,
+    // because that column is where a reader looks to find out.
+    assert.match(config.options[2].label, /Something else…\s+-> nothing is generated$/);
+
     assert.deepEqual(
       config.defaultSelection.map((harness) => harness.id),
       ["claude-code"],
+    );
+  });
+
+  it("never offers the unsupported-tool entry as a default", async () => {
+    const cwd = makeRepository();
+    mkdirSync(join(cwd, ".claude"));
+    mkdirSync(join(cwd, ".agents"));
+    const prompter = scriptedPrompter({ harnesses: [] });
+
+    await invoke([], { cwd, prompter });
+
+    const [{ config }] = prompter.offered;
+    assert.equal(config.defaultSelection.length, 2);
+    assert.equal(
+      config.defaultSelection.some((entry) => entry.skillsDir === undefined),
+      false,
     );
   });
 
@@ -526,7 +572,206 @@ describe("the interactive question", () => {
     await invoke(["--agents", "claude-code"], { cwd, prompter });
 
     assert.deepEqual(prompter.offered, []);
+    assert.deepEqual(prompter.asked, []);
     assert.equal(existsSync(adapter(cwd, "reflect")), true);
+  });
+});
+
+/**
+ * "Something else…" — the option whose entire value is that it refuses.
+ *
+ * Pathfinder could write `.mdc` files for Cursor, or drop a `SKILL.md` into any
+ * directory a tool might one day read. Every one of those would be a file the
+ * tool ignores under a summary claiming success. These tests pin the opposite
+ * behavior: zero files, an accurate explanation, and exit 0.
+ */
+describe("an unsupported tool", () => {
+  it("installs the kit, generates nothing, names the tool, and exits 0", async () => {
+    const cwd = makeRepository();
+    const prompter = scriptedPrompter({
+      harnesses: byLabel("Something else"),
+      typed: ["Zed"],
+    });
+
+    const { code, out } = await invoke([], { cwd, prompter });
+
+    assert.equal(code, 0);
+    assert.equal(existsSync(join(cwd, "skills", "reflect", "SKILL.md")), true);
+    assert.equal(existsSync(join(cwd, ".claude")), false);
+    assert.equal(existsSync(join(cwd, ".agents")), false);
+
+    assert.equal(out.includes("Pathfinder has no native integration for Zed"), true);
+    assert.equal(out.includes("AGENTS.md at the repository root"), true);
+    assert.equal(out.includes("Use skills/<name>/SKILL.md and follow it exactly."), true);
+
+    // No adapter arithmetic for a harness that was never chosen.
+    assert.equal(/skill adapters? (generated|to generate)/.test(out), false);
+  });
+
+  it("records several names, in the order they were given", async () => {
+    const cwd = makeRepository();
+    const prompter = scriptedPrompter({
+      harnesses: byLabel("Something else"),
+      typed: ["Zed", "Aider", "JetBrains AI", ""],
+    });
+
+    const { out } = await invoke([], { cwd, prompter });
+
+    assert.equal(
+      out.includes("no native integration for Zed, Aider, and JetBrains AI"),
+      true,
+    );
+    assert.equal(out.includes("nothing is generated for them"), true);
+  });
+
+  it("collapses a name repeated in a different case", async () => {
+    const cwd = makeRepository();
+    const prompter = scriptedPrompter({
+      harnesses: byLabel("Something else"),
+      typed: ["Zed", "zed", "ZED"],
+    });
+
+    const { out } = await invoke([], { cwd, prompter });
+
+    assert.equal(out.includes("no native integration for Zed, so"), true);
+    assert.equal(out.includes("nothing is generated for it."), true);
+    assert.equal((out.match(/zed/gi) ?? []).length, 1);
+  });
+
+  // The message is an answer, not an apology and not a roadmap. A summary that
+  // says "not yet" makes a promise nobody in this repository has made.
+  it("neither apologizes nor implies a plan", async () => {
+    const cwd = makeRepository();
+    const prompter = scriptedPrompter({
+      harnesses: byLabel("Something else"),
+      typed: ["Zed"],
+    });
+
+    const { out } = await invoke([], { cwd, prompter });
+
+    for (const word of [
+      "sorry",
+      "unfortunately",
+      "not yet",
+      "for now",
+      "planned",
+      "roadmap",
+      "coming",
+      "future",
+      "support for Zed",
+    ]) {
+      assert.equal(out.toLowerCase().includes(word.toLowerCase()), false, word);
+    }
+  });
+
+  it("offers the real option instead of recording a supported tool twice", async () => {
+    for (const [typed, label, id, dir] of [
+      ["claude", "Claude Code", "claude-code", ".claude/skills"],
+      ["Claude Code", "Claude Code", "claude-code", ".claude/skills"],
+      ["claude-code", "Claude Code", "claude-code", ".claude/skills"],
+      ["CODEX", "Codex", "codex", ".agents/skills"],
+    ]) {
+      const cwd = makeRepository();
+      let printed = "";
+      const prompter = scriptedPrompter({
+        harnesses: byLabel("Something else"),
+        typed: [typed],
+      });
+
+      const { out } = await invoke([], { cwd, prompter });
+      printed = out;
+
+      assert.equal(printed.includes(`${label} is supported`), true, typed);
+      assert.equal(printed.includes(`--agents ${id}`), true, typed);
+      assert.equal(printed.includes(`${dir}/`), true, typed);
+
+      // Named, not recorded — and still not generated, because saying "that one
+      // is real" is not the same as being told to configure it.
+      assert.equal(printed.includes("no native integration"), false, typed);
+      assert.equal(existsSync(join(cwd, ".claude")), false, typed);
+      assert.equal(existsSync(join(cwd, ".agents")), false, typed);
+    }
+  });
+
+  // "code" is almost certainly VS Code, not Codex. A prefix match would refuse
+  // to record it and send the user to the wrong tool.
+  it("does not claim a near-miss for a supported harness", async () => {
+    const cwd = makeRepository();
+    const prompter = scriptedPrompter({
+      harnesses: byLabel("Something else"),
+      typed: ["code"],
+    });
+
+    const { out } = await invoke([], { cwd, prompter });
+
+    assert.equal(out.includes("no native integration for code"), true);
+    assert.equal(out.includes("is supported"), false);
+  });
+
+  it("refuses a name it could not print back faithfully, and keeps asking", async () => {
+    const cwd = makeRepository();
+    const prompter = scriptedPrompter({
+      harnesses: byLabel("Something else"),
+      typed: [
+        "../../etc/passwd",
+        "tool; rm -rf /",
+        "[31mred",
+        "x".repeat(41),
+        "",
+        "Zed",
+      ],
+    });
+
+    const { code, out } = await invoke([], { cwd, prompter });
+
+    assert.equal(code, 0);
+    assert.equal(out.includes("passwd"), false);
+    assert.equal(out.includes("rm -rf"), false);
+    assert.equal(out.includes("["), false);
+    assert.equal(out.includes("x".repeat(41)), false);
+
+    // The empty line ended the loop before `Zed` was reached, so nothing was
+    // recorded at all — and the run still succeeded.
+    assert.equal(out.includes("no native integration"), false);
+  });
+
+  it("stops asking after a bounded number of names", async () => {
+    const cwd = makeRepository();
+    const prompter = scriptedPrompter({
+      harnesses: byLabel("Something else"),
+      typed: Array.from({ length: 40 }, (_, index) => `tool-${index}`),
+    });
+
+    await invoke([], { cwd, prompter });
+
+    assert.equal(prompter.asked.length, 10);
+    assert.equal(prompter.asked.every((question) => question === "Which tool? (Enter when done)"), true);
+  });
+
+  it("generates for the harnesses chosen alongside it, and only those", async () => {
+    const cwd = makeRepository();
+    const prompter = scriptedPrompter({
+      harnesses: byLabel("Codex", "Something else"),
+      typed: ["Zed"],
+    });
+
+    const { code, out } = await invoke([], { cwd, prompter });
+
+    assert.equal(code, 0);
+    assert.equal(readdirSync(join(cwd, ".agents", "skills")).length, SKILLS.length);
+    assert.equal(existsSync(join(cwd, ".claude")), false);
+    assert.equal(out.includes(`${SKILLS.length} Codex skill adapters generated`), true);
+    assert.equal(out.includes("no native integration for Zed"), true);
+  });
+
+  it("asks for no name when the option was not chosen", async () => {
+    const cwd = makeRepository();
+    const prompter = scriptedPrompter({ harnesses: byLabel("Codex") });
+
+    const { out } = await invoke([], { cwd, prompter });
+
+    assert.deepEqual(prompter.asked, []);
+    assert.equal(out.includes("no native integration"), false);
   });
 });
 

@@ -265,3 +265,68 @@ describe("createPrompter — chooseMany", () => {
     prompter.close();
   });
 });
+
+describe("createPrompter — text", () => {
+  it("returns the line, trimmed", async () => {
+    const { prompter } = scripted("  Zed  \n");
+
+    assert.equal(await prompter.text("Which tool?"), "Zed");
+    prompter.close();
+  });
+
+  it("prints the question once, on the line it reads", async () => {
+    const { prompter, written } = scripted("Zed\n");
+
+    await prompter.text("Which tool?");
+
+    assert.equal(written(), "? Which tool? ");
+    prompter.close();
+  });
+
+  // The distinction the caller's loop is built on: "" ends it because someone
+  // said so, null ends it because nobody is there.
+  it("tells an empty answer apart from no answer at all", async () => {
+    const { prompter } = scripted("\n");
+    assert.equal(await prompter.text("Which tool?"), "");
+    prompter.close();
+
+    const ended = scripted(null);
+    const pending = ended.prompter.text("Which tool?");
+    ended.endInput();
+    assert.equal(await pending, null);
+    ended.prompter.close();
+  });
+
+  it("takes answers in order, without losing one typed ahead", async () => {
+    const { prompter } = scripted("Zed\nAider\n\n");
+
+    assert.equal(await prompter.text("Which tool?"), "Zed");
+    assert.equal(await prompter.text("Which tool?"), "Aider");
+    assert.equal(await prompter.text("Which tool?"), "");
+    prompter.close();
+  });
+
+  // No retries here, deliberately: every line is a well-formed answer to "what
+  // is it called", so there is nothing to re-prompt about. Judging a name is
+  // the caller's job, because only the caller knows what makes one unusable.
+  it("accepts whatever was typed, and judges none of it", async () => {
+    const { prompter } = scripted("../../etc/passwd\n");
+
+    assert.equal(await prompter.text("Which tool?"), "../../etc/passwd");
+    prompter.close();
+  });
+
+  it("refuses to ask when it is not interactive", async () => {
+    await assert.rejects(
+      () => nonInteractivePrompter().text("Which tool?"),
+      /refusing to ask "Which tool\?"/,
+    );
+  });
+
+  it("attaches nothing to the input stream until a question is asked", async () => {
+    const { prompter, written } = scripted("Zed\n");
+
+    assert.equal(written(), "");
+    prompter.close();
+  });
+});

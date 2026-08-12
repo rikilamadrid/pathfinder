@@ -65,6 +65,41 @@ export function findHarness(id) {
 }
 
 /**
+ * The harness a person means when they type this, or null.
+ *
+ * Only reached when someone has said their tool is *not* one of the supported
+ * ones, so its whole job is to catch the case where it is after all — typing
+ * "claude" at a question that already offered Claude Code on the line above.
+ * Recording that as an unsupported tool would tell them Pathfinder cannot do
+ * the thing it just offered to do.
+ *
+ * Matching is exact against the names a harness actually goes by: its id, its
+ * label, and the first word of its label. Deliberately not a prefix or
+ * substring search, which would claim "code" for Codex when the person almost
+ * certainly meant VS Code — and refusing to record a name is only defensible
+ * when the alternative really is a duplicate.
+ */
+export function harnessNamed(name) {
+  const typed = normalizeName(name);
+  if (typed === "") return null;
+
+  return (
+    HARNESSES.find((harness) =>
+      [harness.id, harness.label, harness.label.split(" ")[0]]
+        .map(normalizeName)
+        .includes(typed),
+    ) ?? null
+  );
+}
+
+/** Case, spaces, and punctuation are not what distinguishes one tool from another. */
+function normalizeName(name) {
+  return String(name ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+}
+
+/**
  * The harnesses `detect()` found, in registry order.
  *
  * These form the *default* selection and are never applied without

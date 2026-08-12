@@ -57,9 +57,11 @@ Each adapter is a few lines long: it carries the skill's name and description, a
 
 Pick one, both, or neither. Choosing one never generates, removes, or claims anything under the other's directory, and Pathfinder never writes to a personal skills directory such as `$HOME/.agents/skills`.
 
-Your tool is not on that list? Pathfinder does not generate files it cannot generate honestly. The kit installs `AGENTS.md` at the repository root, which Codex, Cursor, and several other tools read, and any agent can be given the line the adapters delegate to anyway: `Use skills/<name>/SKILL.md and follow it exactly.`
+In a terminal you are asked instead of passing the flag — a numbered list, comma-separated, `Enter` for the tools found on your machine, `0` for none. Each option shows the directory it writes to before you choose it.
 
-In a terminal you are asked instead, with the tools found on your machine offered as the default. Nothing is configured unless you choose it — detection only sets the default, and a piped or scripted run configures nothing at all unless `--agents` says so.
+The list has a third entry, **Something else…**, and it generates nothing. Name your tool and the summary says so plainly, because a `.mdc` file Cursor half-reads or a `SKILL.md` in a directory nothing scans would be a file your tool ignores under a summary claiming success. Two things do work for any tool: the kit installs `AGENTS.md` at the repository root, which Codex, Cursor, and several others read, and any agent can be given the line the adapters delegate to anyway — `Use skills/<name>/SKILL.md and follow it exactly.`
+
+Nothing is configured unless you choose it. Detection only sets the default, a piped or scripted run configures nothing at all unless `--agents` says so, and `--agents` accepts only the ids in the table above — an unknown one exits 2 rather than quietly installing nothing.
 
 **What the installer owns, and what it will not touch:**
 

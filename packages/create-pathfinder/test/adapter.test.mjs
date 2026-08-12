@@ -28,7 +28,13 @@ import {
   readSkillMetadata,
   render,
 } from "../src/harnesses/adapter.mjs";
-import { HARNESSES, HARNESS_IDS, detectedHarnesses, findHarness } from "../src/harnesses/index.mjs";
+import {
+  HARNESSES,
+  HARNESS_IDS,
+  detectedHarnesses,
+  findHarness,
+  harnessNamed,
+} from "../src/harnesses/index.mjs";
 import { findKitRoot } from "../src/kit.mjs";
 
 const CLAUDE_CODE = findHarness("claude-code");
@@ -449,6 +455,24 @@ describe("the registry", () => {
   it("treats impoverished findings as nothing detected, never as an error", () => {
     for (const findings of [{}, { tools: [] }, undefined, { tools: [{ id: "vscode", detected: true }] }]) {
       assert.deepEqual(detectedHarnesses(findings), []);
+    }
+  });
+
+  it("recognizes the names a supported harness actually goes by", () => {
+    for (const typed of ["claude-code", "Claude Code", "claude code", "CLAUDE", "claude"]) {
+      assert.equal(harnessNamed(typed), CLAUDE_CODE, typed);
+    }
+    for (const typed of ["codex", "Codex", " CODEX "]) {
+      assert.equal(harnessNamed(typed), CODEX, typed);
+    }
+  });
+
+  // Exact against those names, and nothing looser. A prefix match would claim
+  // "code" for Codex, and refusing to record a name is only defensible when
+  // the alternative really is a duplicate.
+  it("claims nothing it is only nearly called", () => {
+    for (const typed of ["code", "cod", "claude-code-cli", "vs code", "cursor", "", null]) {
+      assert.equal(harnessNamed(typed), null, String(typed));
     }
   });
 

@@ -70,6 +70,9 @@ function forbiddenPrompter() {
     chooseMany: async () => {
       throw new Error("a question was asked with no terminal to answer it");
     },
+    text: async () => {
+      throw new Error("a question was asked with no terminal to answer it");
+    },
     close: () => {},
   };
 }
