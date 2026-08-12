@@ -1,1 +1,0 @@
-Use `skills/prototype/SKILL.md` to validate the most important unresolved assumption with the cheapest useful prototype. Define review criteria, create or iterate the artifact, and do not treat it as production code.
