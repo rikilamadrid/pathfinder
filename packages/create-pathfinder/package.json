@@ -39,6 +39,7 @@
     "templates"
   ],
   "scripts": {
+    "test": "node --test",
     "stage": "node scripts/stage-kit.mjs",
     "unstage": "node scripts/stage-kit.mjs --clean",
     "prepack": "node scripts/stage-kit.mjs",

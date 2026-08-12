@@ -6,8 +6,9 @@
  * identity is "not a framework."
  */
 
-import { findGitRoot, findKitRoot, COPY_LIST } from "./kit.mjs";
+import { findKitRoot, COPY_LIST } from "./kit.mjs";
 import { applyPlan, planInstall } from "./install.mjs";
+import { detect, detectedToolLabels } from "./detect.mjs";
 
 const USAGE = `Usage: npx create-pathfinder [options]
 
@@ -21,7 +22,7 @@ Options:
   -h, --help   Show this message.
 `;
 
-export function run(argv, { cwd, out, err }) {
+export function run(argv, { cwd, out, err, env = {}, platform = process.platform, stdoutIsTTY = false }) {
   const options = parseArguments(argv);
 
   if (options.error) {
@@ -34,10 +35,21 @@ export function run(argv, { cwd, out, err }) {
     return 0;
   }
 
+  // Detection runs before anything is decided and before anything is asked, so
+  // the user reads what the tool found before reading what it wants to do.
+  const findings = detect({ cwd, env, platform });
+
+  // Printed only to a terminal. The report is for a person, and the acceptance
+  // criteria require non-interactive output to stay what 1.4.1 produced — so a
+  // piped run, a CI log, and `> install.txt` all keep the old bytes.
+  if (stdoutIsTTY) {
+    out(formatFindings(findings, { unicode: supportsUnicode(env, platform) }));
+  }
+
   // Refused rather than allowed with a warning: this tool writes several
   // hundred files, and without version control the user has no way to inspect
   // or undo what it did.
-  const gitRoot = findGitRoot(cwd);
+  const gitRoot = findings.git.repositoryRoot;
   if (gitRoot === null) {
     err(
       `create-pathfinder: ${cwd} is not inside a Git repository.\n\n` +
@@ -96,6 +108,65 @@ function parseArguments(argv) {
   }
 
   return options;
+}
+
+/**
+ * Say what was found, before saying what will be done.
+ *
+ * Deliberately short, and deliberately passive. Every line states a fact about
+ * the machine; none of them implies an intention. The parenthetical on the
+ * tools line is load-bearing — a bare list of everything installed on someone's
+ * laptop reads like an announcement that all of it is about to be configured,
+ * which is not true here and will still not be true after Feature 11, where
+ * configuring anything requires an answer to a question.
+ */
+export function formatFindings(findings, { unicode = false } = {}) {
+  const mark = unicode
+    ? { ok: "✓", info: "·", bad: "✗" }
+    : { ok: "+", info: "-", bad: "!" };
+
+  const lines = ["", "Pathfinder", ""];
+
+  if (findings.git.insideRepository) {
+    lines.push(`  ${mark.ok} Git repository detected`);
+  } else if (findings.git.binary) {
+    lines.push(`  ${mark.info} No Git repository here`);
+  } else {
+    lines.push(`  ${mark.bad} No Git repository here, and \`git\` is not on your PATH`);
+  }
+
+  if (findings.pathfinder.installed) {
+    const { skillCount } = findings.pathfinder;
+    lines.push(`  ${mark.ok} Pathfinder already installed (${skillCount} skill${plural(skillCount)})`);
+  }
+
+  const tools = detectedToolLabels(findings);
+  lines.push(
+    tools.length > 0
+      ? `  ${mark.ok} Tools detected: ${tools.join(", ")} (noted, not configured)`
+      : `  ${mark.info} No supported tools detected`,
+  );
+
+  // Trailing blank line: whatever comes next is a different statement — the
+  // install summary, a refusal, or in a later chunk a question — and it must
+  // not read as a sixth finding.
+  return lines.join("\n") + "\n\n";
+}
+
+/**
+ * Can this terminal be trusted with the decorated marks?
+ *
+ * Answered from the environment rather than attempted and hoped for, and biased
+ * hard toward "no": an unanswerable environment gets ASCII, which is readable
+ * everywhere, while a wrong "yes" leaves mojibake in the first output a new
+ * user ever sees from this tool.
+ */
+function supportsUnicode(env, platform) {
+  if (platform === "win32") {
+    return Boolean(env.WT_SESSION) || env.TERM_PROGRAM === "vscode";
+  }
+  const locale = env.LC_ALL || env.LC_CTYPE || env.LANG || "";
+  return /utf-?8/i.test(locale);
 }
 
 /**
