@@ -58,14 +58,13 @@ what landed.
 ls
 ```
 
-In the empty repository you just created, six things — and nothing else:
+In the empty repository you just created, five things — and nothing else:
 
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
-| `prompts/` | Manual launchers for tools that do not discover local skills |
 | `templates/` | Starting points the project copies when it needs them |
 
 Nothing is hidden from you. The installer stages nothing and commits nothing, so
@@ -106,9 +105,10 @@ Open your agent in the project and give it the prompt the installer printed:
 Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this project. Do not install packages or write product code yet.
 ```
 
-If your tool discovers local skills on its own, `kickstart-pathfinder` is enough.
-If it does not, every skill has a ready-made launcher in `prompts/` — this one is
-`prompts/01-kickstart-project.md`. Paste the file's contents.
+If your tool discovers local skills on its own — and the installer will have
+generated the adapters that make Pathfinder's appear there — `kickstart-pathfinder`
+is enough. If it does not, add one line so it knows where to look:
+`Use skills/kickstart-pathfinder/SKILL.md and follow it exactly.`
 
 The second sentence of that prompt is not politeness. `kickstart-pathfinder` stops
 before specs, scaffolding, dependencies, and product code, and saying so up front
@@ -174,7 +174,7 @@ From there, one feature at a time:
 → complete-feature   verify, close, and record it in context/history.md
 ```
 
-Each has a launcher in `prompts/`, numbered in that order. Run them one at a time
+Run them one at a time
 and read what comes back — [`start-feature`](/skills/start-feature/) restates the
 goal, the active chunk, the files it expects to touch, the risks, its verification
 plan, and what it considers out of scope *before* it writes anything. That restatement
@@ -210,9 +210,9 @@ again.
 its job, not an error. Those files already existed. If you genuinely want the kit's
 versions, re-run with `--force`.
 
-**Your agent cannot find the skill** — it does not discover local skills. Open
-`prompts/01-kickstart-project.md` and paste its contents instead. Every skill has
-one.
+**Your agent cannot find the skill** — it does not discover local skills. Tell it
+where to look instead: `Use skills/kickstart-pathfinder/SKILL.md and follow it
+exactly.` The same line works for any skill — swap the name.
 
 **Your agent starts writing product code during discovery** — stop it and point it
 back at the skill's stop condition. `kickstart-pathfinder` is done when project
