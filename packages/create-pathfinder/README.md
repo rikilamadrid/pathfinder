@@ -2,7 +2,7 @@
 
 **An AI-assisted, human-in-the-loop workflow for building software — without giving up the decisions.**
 
-This package installs [Pathfinder](https://github.com/rikilamadrid/pathfinder) into a Git repository you already have.
+This package installs [Pathfinder](https://github.com/rikilamadrid/pathfinder) into a Git repository — one you already have, or one it offers to create for you.
 
 ```bash
 npx create-pathfinder
@@ -34,8 +34,9 @@ It never copies Pathfinder's own `README.md`, `CHANGELOG.md`, CI configuration, 
 This runs once, in real code, so it is deliberately timid:
 
 - **It never overwrites.** Files that already exist are left exactly as they are and listed by name in the summary. Pass `--force` if you actually want them replaced.
-- **It refuses to run outside a Git repository**, so whatever it writes is reviewable and undoable.
-- **`--dry-run` reports the same plan the real install would carry out**, without writing anything.
+- **It will not install outside a Git repository**, so whatever it writes is reviewable and undoable. In an empty directory it offers to run `git init` for you — and that is the only Git command it will ever run. No `add`, no `commit`, no config, no branch. If you say no, nothing is written.
+- **It never touches an existing history.** A directory that is already a repository, or inside one, is never asked about and never initialized.
+- **`--dry-run` reports the same plan the real install would carry out**, including any `git init`, without writing anything.
 
 Re-running it is safe, and fills in only what is missing.
 
@@ -43,13 +44,22 @@ Re-running it is safe, and fills in only what is missing.
 
 | Option | Effect |
 | --- | --- |
-| `--dry-run` | Report what would be written; change nothing |
+| `--dry-run` | Report what would be written, and any `git init` that would run first; change nothing |
 | `--force` | Overwrite files that already exist |
+| `--git-init` | Run `git init` here if this is not a repository yet |
+| `--no-git-init` | Never run `git init`; refuse instead |
+| `--yes`, `--no-input` | Take the defaults and ask nothing. It does not authorize `git init` — pass `--git-init` for that |
 | `-h`, `--help` | Show usage |
+
+Questions are asked only when stdin and stdout are both terminals. Piped, redirected, or in CI, nothing is asked and nothing is prompted for — so a directory that is not a repository needs `--git-init`, or the install is refused.
 
 ## Requirements
 
-Node 18 or newer, and a Git repository. No dependencies — this package installs nothing into your project's `node_modules`, and has none of its own.
+Node 18 or newer, and a Git repository — though the installer will offer to create one for you.
+
+The `git` binary is only needed to *create* that repository. Inside one that already exists, the installer finds it by walking the filesystem for `.git` and never runs Git at all, so it works on a machine where `git` is not on your `PATH`.
+
+No dependencies — this package installs nothing into your project's `node_modules`, and has none of its own.
 
 ## Links
 

@@ -31,6 +31,13 @@ jobs:
       - name: Validate kit structure
         run: python3 .github/scripts/validate-kit.py
 
+      - name: Test the installer
+        # `node --test` is the standard library, so this adds no dependency and
+        # needs no install step — the package has none. Scoped to the installer:
+        # the kit is markdown and is checked by validate-kit.py above.
+        working-directory: packages/create-pathfinder
+        run: npm test
+
       - name: Assert no root manifest
         # NOT_A_FRAMEWORK.md promises the kit has no runtime and no package
         # manager. Nested tooling may carry its own manifest; the root may not.

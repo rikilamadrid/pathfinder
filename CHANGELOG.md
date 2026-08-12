@@ -25,6 +25,23 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Added
+
+- **`create-pathfinder` offers to initialize Git instead of refusing.** In a directory that is not a repository, the installer now explains why version control is required and asks; on approval it runs `git init` — and only `git init`, in the current directory, never in a parent — then installs. Declining writes nothing and exits 1, the same contract as before.
+- **`create-pathfinder` reports what it detected before it does anything.** Git repository presence, `git` on `PATH`, whether Pathfinder is already installed, and which supported tools are available. Findings set defaults and nothing else; the tools line says `(noted, not configured)` because that is the whole of it. The report is printed only to a terminal, so piped and redirected output is unchanged.
+- **New installer flags: `--git-init`, `--no-git-init`, and `--yes` (alias `--no-input`).** `--yes` silences questions and takes defaults but does not authorize `git init`, which needs saying out loud. Contradicting `--git-init` with `--no-git-init` exits 2.
+- **`node --test` covers the installer**, with a `test` script and a CI step. Standard library only; the package still has no dependencies, and `test/` is not published.
+
+### Changed
+
+- **Questions are asked only when stdin and stdout are both terminals.** Piped, redirected, or in CI, the installer asks nothing and prints no prompt, and a directory that is not a repository needs `--git-init` or the install is refused — the 1.4.1 refusal text, plus one line naming the flag.
+
+Non-interactive output is otherwise unchanged from `1.4.1`: installing into a repository, `--dry-run` and `--force` in a repository, the note printed in a subdirectory of a repository, and installing with no `git` binary on `PATH` are all byte-identical. There are four deliberate differences, and these are all of them — the refusal line above, and the three below.
+
+- **`--dry-run` in a directory that is not a repository now reports the `git init` it would run instead of refusing**, and asks nothing. The mode performs nothing either way, so the question would only have authorized an action that was never coming, and the refusal withheld the plan the flag exists to print. It still refuses when `git` is missing or `--no-git-init` was passed, because both are walls the real run would hit. **This is the one difference a script can observe as an exit code: that command exited `1` in `1.4.1` and exits `0` now.** Every other difference is wording on a stream, at an unchanged exit code.
+- **A directory that is not a repository *and* has no `git` on `PATH` now gets different advice.** `1.4.1` printed the standard refusal and told the reader to run `git init` themselves — which could not work, because the binary was missing. That case now says so and links the download instead. This replaces the refusal text rather than extending it, so it is not "the 1.4.1 message plus a line"; the exit code is still `1`.
+- **`--help` gained the new flags and a paragraph on the no-terminal behavior.** The same usage text is printed to stderr beneath an unknown or contradictory flag, so those exit-2 errors changed wording too. The leading `create-pathfinder: unknown option ...` line and the exit code are unchanged.
+
 ### Fixed
 
 - **`context/project-overview.md` and `templates/project-overview.template.md` separate decision state from record status.** The four decision states (`TBD`, `None`, `N/A`, `Deferred`) say whether a decision has been made; a new `Record Status` block declares what the tables' `Status` column already used in the decision log — `proposed`, `accepted`, `superseded` — and states that a recorded proposal is not an approved decision. The technology table's `Choice` column was headed `Approved choice` above a line saying approved choices belong there, which left no legal way to record a choice an agent had written down but the human had not yet approved. Both files now say a row may be recorded as `proposed` and stays that way until it is `accepted`. No fifth decision state, and no change to any skill.
