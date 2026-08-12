@@ -35,7 +35,12 @@ The heading of the most recent released section below is the single source of tr
 ### Changed
 
 - **Questions are asked only when stdin and stdout are both terminals.** Piped, redirected, or in CI, the installer asks nothing and prints no prompt, and a directory that is not a repository needs `--git-init` or the install is refused — the 1.4.1 refusal text, plus one line naming the flag.
-- **`--dry-run` in a directory that is not a repository now reports the `git init` it would run instead of refusing**, and asks nothing. The mode performs nothing either way, so the question would only have authorized an action that was never coming, and the refusal withheld the plan the flag exists to print. It still refuses when `git` is missing or `--no-git-init` was passed, because both are walls the real run would hit. This is the one place where non-interactive output differs from `1.4.1`. **It is also an exit-code change a script can observe: that command exited `1` in `1.4.1` and exits `0` now.**
+
+Non-interactive output is otherwise unchanged from `1.4.1`: installing into a repository, `--dry-run` and `--force` in a repository, the note printed in a subdirectory of a repository, and installing with no `git` binary on `PATH` are all byte-identical. There are four deliberate differences, and these are all of them — the refusal line above, and the three below.
+
+- **`--dry-run` in a directory that is not a repository now reports the `git init` it would run instead of refusing**, and asks nothing. The mode performs nothing either way, so the question would only have authorized an action that was never coming, and the refusal withheld the plan the flag exists to print. It still refuses when `git` is missing or `--no-git-init` was passed, because both are walls the real run would hit. **This is the one difference a script can observe as an exit code: that command exited `1` in `1.4.1` and exits `0` now.** Every other difference is wording on a stream, at an unchanged exit code.
+- **A directory that is not a repository *and* has no `git` on `PATH` now gets different advice.** `1.4.1` printed the standard refusal and told the reader to run `git init` themselves — which could not work, because the binary was missing. That case now says so and links the download instead. This replaces the refusal text rather than extending it, so it is not "the 1.4.1 message plus a line"; the exit code is still `1`.
+- **`--help` gained the new flags and a paragraph on the no-terminal behavior.** The same usage text is printed to stderr beneath an unknown or contradictory flag, so those exit-2 errors changed wording too. The leading `create-pathfinder: unknown option ...` line and the exit code are unchanged.
 
 ### Fixed
 

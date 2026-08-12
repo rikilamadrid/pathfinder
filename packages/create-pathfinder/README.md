@@ -55,7 +55,11 @@ Questions are asked only when stdin and stdout are both terminals. Piped, redire
 
 ## Requirements
 
-Node 18 or newer, and Git. A repository too, though the installer will offer to create one. No dependencies — this package installs nothing into your project's `node_modules`, and has none of its own.
+Node 18 or newer, and a Git repository — though the installer will offer to create one for you.
+
+The `git` binary is only needed to *create* that repository. Inside one that already exists, the installer finds it by walking the filesystem for `.git` and never runs Git at all, so it works on a machine where `git` is not on your `PATH`.
+
+No dependencies — this package installs nothing into your project's `node_modules`, and has none of its own.
 
 ## Links
 
