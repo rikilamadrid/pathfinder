@@ -56,15 +56,28 @@ function makeFakeGitPath() {
   return binary;
 }
 
-/** A prompter that answers as told and records what it was asked. */
-function scriptedPrompter(answer) {
+/**
+ * A prompter that answers as told and records what it was asked.
+ *
+ * `asked` holds the yes/no questions only, so these tests keep asserting about
+ * the Git question and nothing else. The harness question is recorded
+ * separately and answered "none", which is what makes every assertion here
+ * about a run that configures no tools.
+ */
+function scriptedPrompter(answer, { harnesses = [] } = {}) {
   const asked = [];
+  const offered = [];
   return {
     interactive: true,
     asked,
+    offered,
     confirm: async (question) => {
       asked.push(question);
       return answer;
+    },
+    chooseMany: async (question) => {
+      offered.push(question);
+      return harnesses;
     },
     close: () => {},
   };

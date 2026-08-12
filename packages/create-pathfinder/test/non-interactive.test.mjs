@@ -67,6 +67,9 @@ function forbiddenPrompter() {
     confirm: async () => {
       throw new Error("a question was asked with no terminal to answer it");
     },
+    chooseMany: async () => {
+      throw new Error("a question was asked with no terminal to answer it");
+    },
     close: () => {},
   };
 }

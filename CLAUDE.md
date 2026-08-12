@@ -48,6 +48,12 @@ Ask before actions identified in `context/ai-interaction.md`, especially depende
 - Prefer concrete verification over confident narration.
 - Report conflicts between specs, repository reality, and durable context.
 
+## Canonical skills and harness adapters
+
+Canonical Pathfinder skills are tool-neutral and live under `skills/`. Harness-specific representations — `.claude/skills/`, `.agents/skills/` — are generated integration artifacts and must not become independent behavior contracts. Edit the canonical file; regenerate the adapter.
+
+An adapter carries the canonical skill's frontmatter and a pointer to it, and nothing else. If an adapter and its canonical skill disagree, the canonical skill is correct.
+
 ## Available skills
 
 - `kickstart-pathfinder` — discover and initialize project context

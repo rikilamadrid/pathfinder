@@ -74,6 +74,18 @@ Review the existing skills for overlap first. "This is useful" is not sufficient
 
 Every skill needs valid YAML frontmatter with `name` and `description`. Malformed frontmatter makes the skill undiscoverable — this has already happened once, in `2e3d0c6`.
 
+**A new skill needs no adapter work by hand, but the committed adapters must be regenerated.** Harness adapters are generated from a skill's frontmatter, so adding, removing, or renaming a skill — or editing its `description` or `argument-hint` — changes `.claude/skills/`. Run:
+
+```bash
+node packages/create-pathfinder/scripts/generate-adapters.mjs
+```
+
+and commit the result, or CI fails by name on `adapter-freshness`. Editing a skill *body* produces no adapter diff, which is the property that makes committing generated files tolerable.
+
+The generator only rewrites files it wrote itself, identified by a marker comment. If an adapter loses that marker — a hand-edit, a bad merge resolution — the generator reports it as a `conflict`, leaves it alone, and exits non-zero. The recovery is to delete the conflicted file and re-run.
+
+**Pathfinder commits harness adapters only for the harness its own maintainers use.** That is Claude Code today, and it is one directory. Every other harness is generated on demand by users and is git-ignored here. Tracking a second one is a deliberate decision, not something a new harness should acquire by default.
+
 The documentation site reads `skills/` in place, so a new skill's page appears immediately while `site/` is running. Its **sidebar entry appears after a dev-server restart**, because the grouping is read at config load. Until you place it in a workflow loop in `site/src/nav.mjs`, it shows up under `Ungrouped skills` — that is deliberate, so a skill is never silently missing from the navigation.
 
 ## Changing existing skills

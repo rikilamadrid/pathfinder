@@ -142,3 +142,126 @@ describe("createPrompter — confirm", () => {
     prompter.close();
   });
 });
+
+describe("createPrompter — chooseMany", () => {
+  const options = [
+    { label: "Claude Code   -> .claude/skills/", value: "claude-code" },
+    { label: "Codex         -> .agents/skills/", value: "codex" },
+  ];
+
+  it("reads one number", async () => {
+    const { prompter } = scripted("1\n");
+    assert.deepEqual(await prompter.chooseMany("Which tools?", { options }), ["claude-code"]);
+    prompter.close();
+  });
+
+  it("reads several, in list order, ignoring repeats and spacing", async () => {
+    const { prompter } = scripted(" 2 , 1 ,2\n");
+    assert.deepEqual(await prompter.chooseMany("Which tools?", { options }), [
+      "claude-code",
+      "codex",
+    ]);
+    prompter.close();
+  });
+
+  it("treats a bare Enter as the detected default", async () => {
+    const { prompter } = scripted("\n");
+
+    const chosen = await prompter.chooseMany("Which tools?", {
+      options,
+      defaultSelection: ["codex"],
+    });
+
+    assert.deepEqual(chosen, ["codex"]);
+    prompter.close();
+  });
+
+  it("treats Enter with nothing detected as none, not as everything", async () => {
+    const { prompter } = scripted("\n");
+    assert.deepEqual(await prompter.chooseMany("Which tools?", { options }), []);
+    prompter.close();
+  });
+
+  it("reads 0 as none, distinct from the default", async () => {
+    const { prompter } = scripted("0\n");
+
+    const chosen = await prompter.chooseMany("Which tools?", {
+      options,
+      defaultSelection: ["claude-code"],
+    });
+
+    assert.deepEqual(chosen, []);
+    prompter.close();
+  });
+
+  it("prints the list, and says what Enter will do", async () => {
+    const { prompter, written } = scripted("\n");
+
+    await prompter.chooseMany("Which tools?", { options, defaultSelection: ["claude-code"] });
+
+    assert.match(written(), /\? Which tools\?/);
+    assert.match(written(), /    1\. Claude Code {3}-> \.claude\/skills\//);
+    assert.match(written(), /    2\. Codex/);
+    assert.match(written(), /Enter for the detected default \[1\], or 0 for none\./);
+    prompter.close();
+  });
+
+  it("says Enter means none when nothing was detected", async () => {
+    const { prompter, written } = scripted("\n");
+
+    await prompter.chooseMany("Which tools?", { options });
+
+    assert.match(written(), /Numbers, comma-separated\. Enter or 0 for none\./);
+    prompter.close();
+  });
+
+  it("rejects a selection it cannot read in full, rather than taking half of it", async () => {
+    const { prompter, written } = scripted("1,banana\n1\n");
+
+    assert.deepEqual(await prompter.chooseMany("Which tools?", { options }), ["claude-code"]);
+    assert.match(written(), /Please answer with numbers from 1 to 2, or 0 for none\./);
+    prompter.close();
+  });
+
+  it("rejects a number nobody offered, and a none mixed with a choice", async () => {
+    for (const typed of ["3\n1\n", "0,1\n1\n"]) {
+      const { prompter, written } = scripted(typed);
+
+      assert.deepEqual(await prompter.chooseMany("Which tools?", { options }), ["claude-code"]);
+      assert.match(written(), /Please answer with numbers/);
+      prompter.close();
+    }
+  });
+
+  it("gives up after a bounded number of unreadable answers", async () => {
+    const { prompter } = scripted("what\nwhat\nwhat\nwhat\n", { retries: 3 });
+
+    assert.equal(await prompter.chooseMany("Which tools?", { options }), null);
+    prompter.close();
+  });
+
+  it("answers null when the input ends without an answer", async () => {
+    const { prompter, endInput } = scripted(null);
+
+    const pending = prompter.chooseMany("Which tools?", { options });
+    endInput();
+
+    assert.equal(await pending, null);
+    prompter.close();
+  });
+
+  it("refuses to ask when it is not interactive", async () => {
+    await assert.rejects(
+      () => nonInteractivePrompter().chooseMany("Which tools?", { options }),
+      /refusing to ask "Which tools\?"/,
+    );
+  });
+
+  it("asks nothing when there is nothing to choose between", async () => {
+    const { prompter, written } = scripted("");
+
+    assert.deepEqual(await prompter.chooseMany("Which tools?", { options: [] }), []);
+    assert.equal(written(), "");
+    prompter.close();
+  });
+});

@@ -22,12 +22,34 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS = ROOT / "skills"
 PROMPTS = ROOT / "prompts"
 INSTALLER = ROOT / "packages" / "create-pathfinder"
+
+# The one harness whose adapters this repository commits. CONTRIBUTING.md states
+# the scoping rule in prose; this is the same rule in the checker, so adding a
+# second tracked adapter directory has to be a deliberate edit in both places.
+ADAPTERS = ROOT / ".claude" / "skills"
+ADAPTER_GENERATOR = INSTALLER / "scripts" / "generate-adapters.mjs"
+
+# The marker that makes ownership decidable. Written by the installer's
+# renderer; matched here so the validator and the installer cannot disagree
+# about which files are generated.
+ADAPTER_MARKER = re.compile(r"^<!--\s*pathfinder:adapter v(\d+)(?:\s+source=(\S+))?\s*-->$")
+
+# An adapter is metadata plus a pointer. The real defense against behavior
+# leaking into one is `adapter-is-thin` below; this ceiling is the cheap
+# backstop that catches a body pasted in wholesale. The generated files are
+# around 700 bytes, and the largest input is a long description.
+ADAPTER_BYTE_CEILING = 4096
+
+# Lines short enough to collide by coincidence. `---`, a blank line, and a bare
+# heading word appear in both a skill and its adapter without meaning anything.
+THIN_LINE_THRESHOLD = 40
 
 # The one statement of what a destination project receives. Everything else
 # that names the list — the README install section, npm's `files` allowlist,
@@ -169,6 +191,211 @@ def check_claude_md(skill_names: set[str]) -> None:
     for extra in sorted(listed - skill_names):
         fail(path, "available-skills-match",
              f"`{extra}` is listed but has no directory in skills/")
+
+
+def adapter_files() -> dict[str, Path]:
+    """The committed adapters, by skill name."""
+    if not ADAPTERS.is_dir():
+        return {}
+    return {d.name: d / "SKILL.md" for d in sorted(ADAPTERS.iterdir()) if d.is_dir()}
+
+
+def read_tree(root: Path) -> dict[str, bytes]:
+    """Every file under `root`, keyed by its path relative to it."""
+    if not root.is_dir():
+        return {}
+    return {
+        str(path.relative_to(root).as_posix()): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def check_adapters(skill_names: set[str]) -> None:
+    """Validate this repository's committed Claude Code adapters.
+
+    Pathfinder commits harness adapters only for the harness its own maintainers
+    use, and these are generated files: the point of checking them is that a
+    generated file in version control is only tolerable while something proves
+    it still matches its source.
+
+    The rules split deliberately. Everything below reads the committed files
+    directly and needs nothing but Python — so a broken adapter is named even
+    where Node is unavailable. Freshness and determinism need the real renderer
+    and are checked by running it, in `check_adapter_generation`, because
+    re-implementing the renderer here would create the second source of truth
+    the whole adapter design exists to avoid.
+    """
+    adapters = adapter_files()
+
+    # `adapter-no-orphans`: the committed set is exactly the canonical set. A
+    # skill added or removed without regenerating fails here by name, which is
+    # the failure a maintainer is most likely to cause.
+    for missing in sorted(skill_names - adapters.keys()):
+        fail(f".claude/skills/{missing}/SKILL.md", "adapter-no-orphans",
+             f"`{missing}` exists in skills/ but has no committed adapter; "
+             "run packages/create-pathfinder/scripts/generate-adapters.mjs")
+    for extra in sorted(adapters.keys() - skill_names):
+        fail(f".claude/skills/{extra}/SKILL.md", "adapter-no-orphans",
+             f"adapter for `{extra}`, which is not a skill in skills/")
+
+    for name, path in adapters.items():
+        if not path.is_file():
+            fail(f".claude/skills/{name}/", "adapter-file-present",
+                 "directory has no SKILL.md")
+            continue
+
+        text = path.read_text(encoding="utf-8")
+
+        # `adapter-marker`: ownership is decided by the marker and nothing else.
+        # An adapter without one is a file the installer would refuse to
+        # regenerate — it would report it as a conflict in this very repository.
+        marker = next((m for m in (ADAPTER_MARKER.match(ln.strip())
+                                   for ln in text.splitlines()) if m), None)
+        if marker is None:
+            fail(path, "adapter-marker",
+                 "no `pathfinder:adapter` marker; the installer would treat "
+                 "this as a user-authored file and never regenerate it")
+            continue
+
+        # `adapter-target-exists`: the pointer has to point somewhere.
+        source = marker.group(2)
+        if not source:
+            fail(path, "adapter-target-exists", "marker names no source file")
+        elif not (ROOT / source).is_file():
+            fail(path, "adapter-target-exists",
+                 f"delegates to `{source}`, which does not exist")
+
+        canonical = SKILLS / name / "SKILL.md"
+        if not canonical.is_file():
+            continue
+
+        check_adapter_metadata(path, canonical, name)
+        check_adapter_is_thin(path, text, canonical)
+
+
+def check_adapter_metadata(path: Path, canonical: Path, name: str) -> None:
+    """`adapter-metadata-matches`: verbatim, or not at all.
+
+    An adapter carries the canonical `name`, `description`, and `argument-hint`
+    unchanged. Re-wording or truncating a description is the quiet failure this
+    catches: the skill still works when invoked, but the tool's own listing
+    describes it differently from the file that defines it.
+    """
+    adapter_data = parse_frontmatter(path)
+    canonical_data = parse_frontmatter(canonical)
+    if adapter_data is None or canonical_data is None:
+        return
+
+    for key in ("name", "description", "argument-hint"):
+        want = canonical_data.get(key)
+        got = adapter_data.get(key)
+        if want != got:
+            fail(path, "adapter-metadata-matches",
+                 f"`{key}` is {got!r} but skills/{name}/SKILL.md declares {want!r}")
+
+
+def check_adapter_is_thin(path: Path, text: str, canonical: Path) -> None:
+    """`adapter-is-thin`: no behavior may leak into an adapter.
+
+    The architectural invariant, enforced mechanically rather than by
+    discipline. A canonical skill is the single behavior contract; an adapter
+    that reproduces even one substantive line of it has started to become a
+    second one, and the two will drift.
+
+    Compared line by line against the canonical body, ignoring anything short
+    enough to collide by coincidence — `---`, blank lines, a bare heading word.
+
+    Frontmatter is excluded from both sides, and that exclusion is the whole
+    reason the two adapter rules do not contradict each other:
+    `adapter-metadata-matches` *requires* the description line to be identical,
+    so a rule that forbade repeated lines everywhere would fail on every
+    correctly generated file. Metadata is copied on purpose; behavior is not.
+    """
+    size = len(text.encode("utf-8"))
+    if size > ADAPTER_BYTE_CEILING:
+        fail(path, "adapter-is-thin",
+             f"{size} bytes exceeds the {ADAPTER_BYTE_CEILING}-byte ceiling; "
+             "an adapter is metadata and a pointer, not content")
+
+    body = strip_frontmatter(canonical.read_text(encoding="utf-8"))
+    substantive = {ln.strip() for ln in body if len(ln.strip()) > THIN_LINE_THRESHOLD}
+    for line in strip_frontmatter(text):
+        stripped = line.strip()
+        if stripped in substantive:
+            fail(path, "adapter-is-thin",
+                 f"reproduces a line of {canonical.relative_to(ROOT)}: {stripped[:60]!r}")
+            return
+
+
+def strip_frontmatter(text: str) -> list[str]:
+    """The lines after the frontmatter block, or all of them if there is none.
+
+    Tolerant on purpose: this is used by a rule that reports a problem, so a
+    malformed block must not raise here. `parse_frontmatter` is the thing that
+    reports malformed frontmatter, and it has already run by this point.
+    """
+    lines = text.splitlines()
+    if not lines or lines[0].rstrip() != "---":
+        return lines
+    close = next((i for i, ln in enumerate(lines[1:], start=1)
+                  if ln.rstrip() == "---"), None)
+    return lines if close is None else lines[close + 1:]
+
+
+def check_adapter_generation() -> None:
+    """Run the real generator: `adapter-freshness` and `adapter-generation-deterministic`.
+
+    Freshness asks the shipped generator whether the committed files are what it
+    would write now. Determinism renders twice into scratch directories and
+    compares bytes — the property that makes committing generated files
+    tolerable at all, since without it every run would produce a diff.
+
+    Skipped without Node, following the same convention as `copy-list-installer`:
+    the pure-Python rules above still name a broken adapter, and CI has Node.
+    """
+    if not ADAPTER_GENERATOR.is_file():
+        fail("packages/create-pathfinder/scripts/generate-adapters.mjs",
+             "adapter-freshness", "the generator is missing")
+        return
+
+    def generate(*arguments: str) -> subprocess.CompletedProcess[str] | None:
+        try:
+            return subprocess.run(
+                ["node", str(ADAPTER_GENERATOR), *arguments],
+                cwd=ROOT, capture_output=True, text=True, check=False,
+            )
+        except OSError:
+            return None
+
+    result = generate("--check")
+    if result is None:
+        print("note: node unavailable, skipping adapter-freshness")
+        return
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip() or "generator failed"
+        fail(".claude/skills/", "adapter-freshness",
+             "committed adapters are not what the generator would write:\n    "
+             + "\n    ".join(detail.splitlines()))
+
+    with tempfile.TemporaryDirectory() as scratch:
+        first, second = Path(scratch) / "a", Path(scratch) / "b"
+        for out in (first, second):
+            run = generate("--out", str(out))
+            if run is None or run.returncode != 0:
+                fail(".claude/skills/", "adapter-generation-deterministic",
+                     "the generator failed to render into a scratch directory")
+                return
+
+        left, right = read_tree(first), read_tree(second)
+        if left != right:
+            differing = sorted(
+                set(left) ^ set(right)
+                | {name for name in set(left) & set(right) if left[name] != right[name]}
+            )
+            fail(".claude/skills/", "adapter-generation-deterministic",
+                 "two runs produced different output: " + ", ".join(differing))
 
 
 def released_version() -> str | None:
@@ -458,6 +685,8 @@ def main() -> int:
     skill_names = check_skills()
     check_prompts(skill_names)
     check_claude_md(skill_names)
+    check_adapters(skill_names)
+    check_adapter_generation()
     check_copy_list()
     check_no_junk_tracked()
     check_version_agreement()
