@@ -6,14 +6,16 @@
  * asked it to create, or one that quietly hangs a script waiting for an answer
  * that will never come.
  *
- * Most cases use `--dry-run`, which reaches the same decision and then performs
+ * Flag cases use `--dry-run`, which reaches the same decision and then performs
  * none of it: the assertion that the directory is still empty afterwards then
- * covers both the install and the `git init`. The two cases that must prove a
- * real repository appears are marked, and only those run the binary.
+ * covers both the install and the `git init`. The cases about the *question*
+ * cannot, because `--dry-run` does not ask one; they run for real and decline,
+ * which is equally empty afterwards. The two cases that must prove a real
+ * repository appears are marked, and only those run the binary.
  */
 
 import { strict as assert } from "node:assert";
-import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
@@ -31,6 +33,18 @@ after(() => {
 function makeLooseDirectory() {
   const cwd = mkdtempSync(join(tmpdir(), "pathfinder-loose-"));
   temporaryRoots.push(cwd);
+  return cwd;
+}
+
+/**
+ * A directory that already is a repository.
+ *
+ * `findGitRoot` looks for `.git` and never runs the binary, so a bare directory
+ * of that name is a repository as far as every decision here is concerned.
+ */
+function makeRepository() {
+  const cwd = makeLooseDirectory();
+  mkdirSync(join(cwd, ".git"));
   return cwd;
 }
 
@@ -152,21 +166,25 @@ describe("git init — the TTY guard", () => {
     assert.deepEqual(readdirSync(cwd), []);
   });
 
+  // Declining is what makes these two safe to run for real: the question is
+  // asked, the answer is no, and nothing is created. `--dry-run` cannot stand
+  // in here any more, because it no longer reaches the question at all.
   it("asks when there is one", async () => {
     const cwd = makeLooseDirectory();
-    const prompter = scriptedPrompter(true);
+    const prompter = scriptedPrompter(false);
 
-    await invoke(["--dry-run"], { cwd, prompter, stdoutIsTTY: true });
+    await invoke([], { cwd, prompter, stdoutIsTTY: true });
 
     assert.deepEqual(prompter.asked, ["Initialize a Git repository here?"]);
+    assert.deepEqual(readdirSync(cwd), []);
   });
 
   it("explains why before it asks", async () => {
     const cwd = makeLooseDirectory();
 
-    const { out } = await invoke(["--dry-run"], {
+    const { out } = await invoke([], {
       cwd,
-      prompter: scriptedPrompter(true),
+      prompter: scriptedPrompter(false),
       stdoutIsTTY: true,
     });
 
@@ -243,14 +261,67 @@ describe("git init — --dry-run performs nothing", () => {
     assert.deepEqual(readdirSync(cwd), []);
   });
 
-  it("still asks the question, because the answer shapes the plan", async () => {
+  // The question it would otherwise ask exists only to authorize the `git
+  // init`, and no `git init` is coming. The file plan is identical whichever
+  // way it were answered, so asking would buy a report the tool can write on
+  // its own — and refusing instead would withhold the one thing that was asked
+  // for. Reporting is the whole mode.
+  it("asks nothing, even with a terminal on both ends", async () => {
+    const cwd = makeLooseDirectory();
+    const prompter = scriptedPrompter(false);
+
+    const { code, out } = await invoke(["--dry-run"], { cwd, prompter, stdoutIsTTY: true });
+
+    assert.equal(code, 0);
+    assert.deepEqual(prompter.asked, []);
+    assert.match(out, /Would run `git init`/);
+    assert.match(out, /\d+ files to write/);
+    assert.deepEqual(readdirSync(cwd), []);
+  });
+
+  it("reports the same thing without a terminal, so a script sees the plan too", async () => {
+    const cwd = makeLooseDirectory();
+
+    const { code, out } = await invoke(["--dry-run"], { cwd });
+
+    assert.equal(code, 0);
+    assert.match(out, /Would run `git init`/);
+    assert.deepEqual(readdirSync(cwd), []);
+  });
+
+  // Two walls survive the mode, because both are real at the moment the user
+  // drops `--dry-run`. Reporting a plan that cannot run would be the lie the
+  // mode exists to avoid.
+  it("still refuses when the user said never", async () => {
     const cwd = makeLooseDirectory();
     const prompter = scriptedPrompter(true);
 
-    await invoke(["--dry-run"], { cwd, prompter, stdoutIsTTY: true });
+    const { code, err } = await invoke(["--dry-run", "--no-git-init"], { cwd, prompter });
 
-    assert.deepEqual(prompter.asked, ["Initialize a Git repository here?"]);
+    assert.equal(code, 1);
+    assert.match(err, /is not inside a Git repository/);
+    assert.deepEqual(prompter.asked, []);
     assert.deepEqual(readdirSync(cwd), []);
+  });
+
+  it("still refuses when there is no `git` to run", async () => {
+    const cwd = makeLooseDirectory();
+
+    const { code, err } = await invoke(["--dry-run"], { cwd, gitOnPath: false });
+
+    assert.equal(code, 1);
+    assert.match(err, /`git`\n?\s*is not available to create one/);
+    assert.deepEqual(readdirSync(cwd), []);
+  });
+
+  it("changes nothing inside a repository that already exists", async () => {
+    const cwd = makeRepository();
+
+    const { code, out } = await invoke(["--dry-run"], { cwd, stdoutIsTTY: true });
+
+    assert.equal(code, 0);
+    assert.doesNotMatch(out, /Would run `git init`/);
+    assert.deepEqual(readdirSync(cwd), [".git"]);
   });
 });
 

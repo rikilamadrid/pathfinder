@@ -19,13 +19,18 @@ Installs the Pathfinder workflow kit into the current Git repository.
 Copies: ${COPY_LIST.join(", ")}
 
 Options:
-  --dry-run       Report what would be written; change nothing.
+  --dry-run       Report what would be written, and any \`git init\` that would
+                  run first; change nothing and ask nothing.
   --force         Overwrite files that already exist. Off by default.
   --git-init      Run \`git init\` here if this is not a repository yet.
   --no-git-init   Never run \`git init\`; refuse instead.
   --yes           Take the defaults and ask nothing. Alias: --no-input.
                   It does not authorize \`git init\`; pass --git-init for that.
   -h, --help      Show this message.
+
+Without a terminal on both stdin and stdout, nothing is ever asked. In that
+case a directory that is not a Git repository needs --git-init, or the install
+is refused.
 `;
 
 export async function run(
@@ -212,6 +217,15 @@ async function decideGitInit({ findings, options, prompter, cwd, out }) {
 
   if (options.noGitInit) return { approved: false, message: refusal(cwd) };
   if (options.gitInit) return { approved: true };
+
+  // `--dry-run` needs no permission, because there is nothing to permit. The
+  // spec forbids asking a question whose only purpose is to authorize an action
+  // that will not be taken, and this is that question: the file plan is the
+  // same whatever the answer, so the prompt would buy a report the tool could
+  // have written anyway. Reporting the `git init` it *would* run is the whole
+  // point of the mode — telling someone "no" about work nobody was going to do
+  // withholds the one thing they asked for.
+  if (options.dryRun) return { approved: true };
 
   // The TTY guard. Both ends must be a terminal, and `--yes` opts out on the
   // user's behalf. Below this line the tool is scriptable: it asks nothing,
