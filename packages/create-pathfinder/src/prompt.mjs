@@ -34,6 +34,8 @@ const NO = new Set(["n", "no"]);
  *          interactive?: boolean, retries?: number}} options
  * @returns {{interactive: boolean,
  *            confirm: (question: string, options?: {defaultAnswer?: boolean}) => Promise<boolean|null>,
+ *            chooseMany: (question: string, config?: object) => Promise<unknown[]|null>,
+ *            text: (question: string) => Promise<string|null>,
  *            close: () => void}}
  */
 export function createPrompter({ input, output, interactive = false, retries = 3 }) {
@@ -128,6 +130,28 @@ export function createPrompter({ input, output, interactive = false, retries = 3
       }
 
       return null;
+    },
+
+    /**
+     * Ask for a line of free text. Whatever they typed, or null.
+     *
+     * Deliberately the thinnest of the three: no retries, no default, no
+     * validation. There is nothing here to re-prompt *about* — any line is a
+     * well-formed answer to "what is it called" — so judging one is the
+     * caller's job, and only the caller knows what makes a name unusable.
+     *
+     * An empty line comes back as `""` and is a real answer, distinct from the
+     * `null` of a stream that ended. A caller looping for several values reads
+     * the first as "done" and the second as "nobody is there", which happen to
+     * lead to the same place but for different reasons.
+     */
+    async text(question) {
+      if (!interactive) {
+        throw new Error(`refusing to ask "${question}": this prompter is not interactive`);
+      }
+
+      const answer = await ensureReader().ask(`? ${question} `);
+      return answer === null ? null : answer.trim();
     },
 
     close() {

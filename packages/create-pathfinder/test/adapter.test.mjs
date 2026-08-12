@@ -28,10 +28,17 @@ import {
   readSkillMetadata,
   render,
 } from "../src/harnesses/adapter.mjs";
-import { HARNESSES, HARNESS_IDS, detectedHarnesses, findHarness } from "../src/harnesses/index.mjs";
+import {
+  HARNESSES,
+  HARNESS_IDS,
+  detectedHarnesses,
+  findHarness,
+  harnessNamed,
+} from "../src/harnesses/index.mjs";
 import { findKitRoot } from "../src/kit.mjs";
 
 const CLAUDE_CODE = findHarness("claude-code");
+const CODEX = findHarness("codex");
 
 /** A canonical skill file, assembled so a test can vary one part of it. */
 function skillFile({
@@ -386,30 +393,86 @@ describe("classifyAdapter — who owns this path", () => {
 });
 
 describe("the registry", () => {
-  it("registers Claude Code, and nothing else yet", () => {
-    assert.deepEqual(HARNESS_IDS, ["claude-code"]);
+  it("registers Claude Code and Codex, and nothing else", () => {
+    assert.deepEqual(HARNESS_IDS, ["claude-code", "codex"]);
+
     assert.equal(CLAUDE_CODE.label, "Claude Code");
     assert.equal(CLAUDE_CODE.skillsDir, ".claude/skills");
     assert.equal(CLAUDE_CODE.invocation("debug-issue"), "/debug-issue");
     assert.equal(adapterPath(CLAUDE_CODE, "debug-issue"), ".claude/skills/debug-issue/SKILL.md");
+
+    assert.equal(CODEX.label, "Codex");
+    assert.equal(CODEX.skillsDir, ".agents/skills");
+    assert.equal(CODEX.invocation("debug-issue"), "$debug-issue");
+    assert.equal(adapterPath(CODEX, "debug-issue"), ".agents/skills/debug-issue/SKILL.md");
+  });
+
+  // The claim Feature 12 exists to test. If a harness ever needs more than a
+  // path, this assertion is where that finding surfaces first.
+  it("distinguishes its two harnesses by nothing but their directory", () => {
+    const metadata = { name: "reflect", description: "Review completed work." };
+    assert.equal(render(CODEX, metadata), render(CLAUDE_CODE, metadata));
+
+    for (const name of ["handoff", "to-specs", "quiz-me"]) {
+      assert.equal(
+        adapterPath(CODEX, name),
+        adapterPath(CLAUDE_CODE, name).replace(".claude/skills", ".agents/skills"),
+      );
+    }
   });
 
   it("returns null for an unknown id rather than guessing", () => {
     assert.equal(findHarness("cursor"), null);
+    assert.equal(findHarness("agents"), null);
     assert.equal(findHarness(undefined), null);
   });
 
   it("reads detection by id instead of probing again", () => {
-    const detected = { tools: [{ id: "claude-code", label: "Claude Code", detected: true }] };
-    const not = { tools: [{ id: "claude-code", label: "Claude Code", detected: false }] };
+    const both = {
+      tools: [
+        { id: "claude-code", label: "Claude Code", detected: true },
+        { id: "codex", label: "Codex", detected: true },
+      ],
+    };
+    const codexOnly = {
+      tools: [
+        { id: "claude-code", label: "Claude Code", detected: false },
+        { id: "codex", label: "Codex", detected: true },
+      ],
+    };
+    const neither = {
+      tools: [
+        { id: "claude-code", label: "Claude Code", detected: false },
+        { id: "codex", label: "Codex", detected: false },
+      ],
+    };
 
-    assert.deepEqual(detectedHarnesses(detected), [CLAUDE_CODE]);
-    assert.deepEqual(detectedHarnesses(not), []);
+    assert.deepEqual(detectedHarnesses(both), [CLAUDE_CODE, CODEX]);
+    assert.deepEqual(detectedHarnesses(codexOnly), [CODEX]);
+    assert.deepEqual(detectedHarnesses(neither), []);
   });
 
   it("treats impoverished findings as nothing detected, never as an error", () => {
     for (const findings of [{}, { tools: [] }, undefined, { tools: [{ id: "vscode", detected: true }] }]) {
       assert.deepEqual(detectedHarnesses(findings), []);
+    }
+  });
+
+  it("recognizes the names a supported harness actually goes by", () => {
+    for (const typed of ["claude-code", "Claude Code", "claude code", "CLAUDE", "claude"]) {
+      assert.equal(harnessNamed(typed), CLAUDE_CODE, typed);
+    }
+    for (const typed of ["codex", "Codex", " CODEX "]) {
+      assert.equal(harnessNamed(typed), CODEX, typed);
+    }
+  });
+
+  // Exact against those names, and nothing looser. A prefix match would claim
+  // "code" for Codex, and refusing to record a name is only defensible when
+  // the alternative really is a duplicate.
+  it("claims nothing it is only nearly called", () => {
+    for (const typed of ["code", "cod", "claude-code-cli", "vs code", "cursor", "", null]) {
+      assert.equal(harnessNamed(typed), null, String(typed));
     }
   });
 

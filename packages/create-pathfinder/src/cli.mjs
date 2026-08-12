@@ -11,7 +11,13 @@ import { applyAdapterPlan, applyPlan, planAdapters, planInstall } from "./instal
 import { detect, detectedToolLabels } from "./detect.mjs";
 import { initRepository } from "./git.mjs";
 import { nonInteractivePrompter } from "./prompt.mjs";
-import { HARNESSES, HARNESS_IDS, detectedHarnesses, findHarness } from "./harnesses/index.mjs";
+import {
+  HARNESSES,
+  HARNESS_IDS,
+  detectedHarnesses,
+  findHarness,
+  harnessNamed,
+} from "./harnesses/index.mjs";
 
 const USAGE = `Usage: npx create-pathfinder [options]
 
@@ -143,7 +149,7 @@ export async function run(
   // the user before the first file moves. Detection supplies the default and
   // nothing more: a tool being installed on this machine is not permission to
   // write into the project on its behalf.
-  const harnesses = await selectHarnesses({ findings, options, prompter, out });
+  const { harnesses, customTools } = await selectHarnesses({ findings, options, prompter, out });
 
   const plan = planInstall(kitRoot, cwd, { force: options.force });
   const result = applyPlan(plan, { dryRun: options.dryRun });
@@ -153,40 +159,130 @@ export async function run(
   // file that is not there.
   const adapters = generateAdapters({ harnesses, kitRoot, cwd, options, result });
 
-  report({ result, plan, adapters, harnesses, cwd, gitRoot, options, out, err });
+  report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err });
   return result.errors.length > 0 || adapters.result.errors.length > 0 ? 1 : 0;
 }
 
 /**
- * Which harnesses this run configures. Possibly none, which is the default.
+ * The list's last entry, which is not a harness and never becomes one.
+ *
+ * A sentinel rather than a registry row, because everything about a harness —
+ * a path, a detection, a rendered file — is exactly what this option does not
+ * have. Putting it in `HARNESSES` would mean every loop that writes files
+ * needing to remember to skip it, and one that forgot would generate adapters
+ * into a directory named after a tool that cannot read them.
+ */
+const SOMETHING_ELSE = Object.freeze({ label: "Something else…" });
+
+/** How many custom names one run will take before it stops asking. */
+const CUSTOM_TOOL_LIMIT = 10;
+
+/** What a tool may be called here: letters, digits, and the punctuation names use. */
+const CUSTOM_TOOL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._+-]{0,39}$/;
+
+/**
+ * Which harnesses this run configures, and which tools it was told about but
+ * cannot configure. Possibly neither, which is the default.
  *
  * Three ways to answer, in precedence order: `--agents` says it outright, an
  * interactive terminal is asked, and everything else configures nothing. That
  * last one is what keeps a scripted run byte-identical to 1.4.1 — a CI job that
  * has always piped this command sees no new files and no new output.
  *
+ * `--agents` cannot name an unsupported tool: an id the registry does not know
+ * exits 2 rather than being recorded, because a flag is how a script asks for
+ * files and there is no honest way to half-satisfy that. "Something else…"
+ * exists in the question, where a person is there to read the answer.
+ *
  * An unanswered prompt is read as "none", the same conservative reading the
  * Git question gives it.
+ *
+ * @returns {Promise<{harnesses: object[], customTools: string[]}>}
  */
 async function selectHarnesses({ findings, options, prompter, out }) {
-  if (options.agents !== null) return options.agents.map((id) => findHarness(id));
-  if (!prompter.interactive || options.yes) return [];
+  if (options.agents !== null) {
+    return { harnesses: options.agents.map((id) => findHarness(id)), customTools: [] };
+  }
+  if (!prompter.interactive || options.yes) return { harnesses: [], customTools: [] };
 
   const detected = detectedHarnesses(findings);
-  const width = Math.max(...HARNESSES.map((harness) => harness.label.length));
+  const entries = [...HARNESSES, SOMETHING_ELSE];
+  const width = Math.max(...entries.map((entry) => entry.label.length));
 
   const answer = await prompter.chooseMany("Configure Pathfinder for which tools?", {
-    options: HARNESSES.map((harness) => ({
-      value: harness,
+    options: entries.map((entry) => ({
+      value: entry,
       label:
-        `${harness.label.padEnd(width)}  -> ${harness.skillsDir}/` +
-        (detected.includes(harness) ? "   (detected)" : ""),
+        `${entry.label.padEnd(width)}  -> ` +
+        // The path is shown so nobody has to check a box to find out what it
+        // writes. The last entry earns the same courtesy by admitting it
+        // writes nothing, in the column where every other row names a file.
+        (entry === SOMETHING_ELSE
+          ? "nothing is generated"
+          : `${entry.skillsDir}/` + (detected.includes(entry) ? "   (detected)" : "")),
     })),
     defaultSelection: detected,
   });
 
   out("\n");
-  return answer ?? [];
+
+  const chosen = answer ?? [];
+  const harnesses = chosen.filter((entry) => entry !== SOMETHING_ELSE);
+  const customTools = chosen.includes(SOMETHING_ELSE) ? await askCustomTools({ prompter, out }) : [];
+
+  return { harnesses, customTools };
+}
+
+/**
+ * Collect the names of tools Pathfinder does not support.
+ *
+ * Nothing is generated from these and nothing is stored — they exist only so
+ * the summary can name what it is declining to do. That is the whole feature:
+ * an answer a person can act on beats a directory full of files their tool
+ * will never read.
+ *
+ * The loop is bounded three ways: an empty line, an ended stream, and a hard
+ * ceiling. The ceiling is not a guess about how many tools anyone uses; it is
+ * there because a question that repeats itself is a question that can repeat
+ * itself forever on a stream that never closes.
+ */
+async function askCustomTools({ prompter, out }) {
+  out(
+    "Pathfinder generates adapters only for tools it can generate them for.\n" +
+      "Name the others and the summary will say what does work for them.\n\n",
+  );
+
+  const names = [];
+
+  while (names.length < CUSTOM_TOOL_LIMIT) {
+    const answer = await prompter.text("Which tool? (Enter when done)");
+
+    // "" is done and null is nobody there. Both stop, and neither is an error.
+    if (answer === null || answer === "") break;
+
+    const supported = harnessNamed(answer);
+    if (supported !== null) {
+      out(
+        `  ${supported.label} is supported — it is in the list above, and writes to\n` +
+          `  ${supported.skillsDir}/. Choose it there, or pass --agents ${supported.id}.\n\n`,
+      );
+      continue;
+    }
+
+    if (!CUSTOM_TOOL_PATTERN.test(answer)) {
+      // Nothing is built from this name, so the risk is not injection but a
+      // summary that says something other than what was typed. A name this
+      // tool cannot print back faithfully is one it should not accept.
+      out("  Letters, digits, spaces, and . _ + - only, up to 40 characters.\n\n");
+      continue;
+    }
+
+    if (names.some((name) => name.toLowerCase() === answer.toLowerCase())) continue;
+    names.push(answer);
+  }
+
+  if (names.length > 0) out("\n");
+  return names;
 }
 
 /**
@@ -487,7 +583,7 @@ function supportsUnicode(env, platform) {
  * default mode is that it left your work alone, and a bare "42 skipped" does
  * not let anyone check that claim.
  */
-function report({ result, plan, adapters, harnesses, cwd, gitRoot, options, out, err }) {
+function report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err }) {
   const lines = [];
   const verb = options.dryRun ? "Would install" : "Installed";
 
@@ -505,6 +601,7 @@ function report({ result, plan, adapters, harnesses, cwd, gitRoot, options, out,
   }
 
   lines.push(...adapterLines({ adapters, harnesses, options }));
+  lines.push(...customToolLines(customTools));
 
   const skipped = plan.filter((item) => item.status === "skip");
   if (skipped.length > 0) {
@@ -608,6 +705,43 @@ function adapterLines({ adapters, harnesses, options }) {
   }
 
   return lines;
+}
+
+/**
+ * The tools this run was told about and cannot configure.
+ *
+ * The point of the whole option, and the reason it is worth a prompt: it is an
+ * answer rather than a gap. Pathfinder could plausibly write `.mdc` files for
+ * Cursor or drop a `SKILL.md` into any directory a tool might one day read, and
+ * every one of those would be a file the user's tool ignores while their
+ * installer summary claims success.
+ *
+ * So this states three things and stops: what does not exist, and the two
+ * things that already work. No apology, because nothing here went wrong, and
+ * no "yet", "planned", or "for now", because a summary is not the place to
+ * imply a roadmap nobody has committed to.
+ */
+function customToolLines(customTools = []) {
+  if (customTools.length === 0) return [];
+
+  return [
+    "",
+    `  Pathfinder has no native integration for ${joinNames(customTools)}, so`,
+    `  nothing is generated for ${customTools.length === 1 ? "it" : "them"}. Two things already work:`,
+    "",
+    "    - The kit installs AGENTS.md at the repository root, which Codex,",
+    "      Cursor, and several other tools read.",
+    "    - Any agent can be given the line the adapters delegate to anyway:",
+    "",
+    "        Use skills/<name>/SKILL.md and follow it exactly.",
+  ];
+}
+
+/** `a`, `a and b`, `a, b, and c`. */
+function joinNames(names) {
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} and ${names[1]}`;
+  return `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
 }
 
 function plural(count) {

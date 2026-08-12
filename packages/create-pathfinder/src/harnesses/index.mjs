@@ -7,8 +7,10 @@
  * plugin system: a new harness is one object, and there is deliberately no
  * loader, no manifest format, and no way for a user to register their own.
  *
- * Claude Code is the only entry today. Codex is Feature 12 and is one object
- * away, which is the point of the shape.
+ * Two entries today, and the second one cost exactly what this shape promised:
+ * one object. Adding Codex changed no renderer, no ownership rule, no planner,
+ * and no line of `cli.mjs` — the only difference between the harnesses is where
+ * the file goes.
  *
  * Detection is not re-implemented here. `src/detect.mjs` already probes for
  * these tools and reports them by id, and duplicating that would create a
@@ -40,6 +42,18 @@ export const HARNESSES = Object.freeze([
     detect: (findings) => toolDetected(findings, "claude-code"),
     invocation: (name) => `/${name}`,
   }),
+  Object.freeze({
+    id: "codex",
+    label: "Codex",
+    // Codex scans `.agents/skills` in every directory from the working
+    // directory up to the repository root, so one directory at the root is
+    // found from anywhere inside the project. Nothing extra is generated for
+    // subdirectories. The personal scope, `$HOME/.agents/skills`, is a
+    // different place and Pathfinder never writes there.
+    skillsDir: ".agents/skills",
+    detect: (findings) => toolDetected(findings, "codex"),
+    invocation: (name) => `$${name}`,
+  }),
 ]);
 
 /** Valid `--agents` values, in registry order. For error messages and help. */
@@ -48,6 +62,41 @@ export const HARNESS_IDS = Object.freeze(HARNESSES.map((harness) => harness.id))
 /** The harness with this id, or null. Unknown ids are the caller's to report. */
 export function findHarness(id) {
   return HARNESSES.find((harness) => harness.id === id) ?? null;
+}
+
+/**
+ * The harness a person means when they type this, or null.
+ *
+ * Only reached when someone has said their tool is *not* one of the supported
+ * ones, so its whole job is to catch the case where it is after all — typing
+ * "claude" at a question that already offered Claude Code on the line above.
+ * Recording that as an unsupported tool would tell them Pathfinder cannot do
+ * the thing it just offered to do.
+ *
+ * Matching is exact against the names a harness actually goes by: its id, its
+ * label, and the first word of its label. Deliberately not a prefix or
+ * substring search, which would claim "code" for Codex when the person almost
+ * certainly meant VS Code — and refusing to record a name is only defensible
+ * when the alternative really is a duplicate.
+ */
+export function harnessNamed(name) {
+  const typed = normalizeName(name);
+  if (typed === "") return null;
+
+  return (
+    HARNESSES.find((harness) =>
+      [harness.id, harness.label, harness.label.split(" ")[0]]
+        .map(normalizeName)
+        .includes(typed),
+    ) ?? null
+  );
+}
+
+/** Case, spaces, and punctuation are not what distinguishes one tool from another. */
+function normalizeName(name) {
+  return String(name ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 }
 
 /**
