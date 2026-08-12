@@ -1,1 +1,0 @@
-Use `skills/kickstart-pathfinder/SKILL.md` to discover and initialize this new or existing project. Ask progressively, preserve existing repo facts, distinguish recommendations from approved choices, and do not install packages, generate feature specs, or write product code yet.

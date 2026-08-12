@@ -6,7 +6,7 @@ Read [`NOT_A_FRAMEWORK.md`](NOT_A_FRAMEWORK.md) before proposing anything struct
 
 ## What this repository is
 
-Markdown only. `skills/` holds reusable behavior contracts, `context/` holds the templates a destination project fills in, `prompts/` holds manual launchers, and `templates/` holds scaffolding. There is nothing to install and nothing to run.
+Markdown only. `skills/` holds reusable behavior contracts, `context/` holds the templates a destination project fills in, and `templates/` holds scaffolding. There is nothing to install and nothing to run.
 
 ## Git workflow
 
@@ -23,13 +23,13 @@ Commit messages: recent commits use Conventional Commit prefixes (`fix:`, `docs:
 
 Semantic Versioning, scoped to the kit itself and not to destination projects. The policy lives in the [`CHANGELOG.md`](CHANGELOG.md) header and is repeated here for convenience:
 
-- **MAJOR** — a skill is removed or renamed, or `context/`, `prompts/`, or the agent entry files change in a way that breaks an existing destination project.
+- **MAJOR** — a skill is removed or renamed, or `context/` or the agent entry files change in a way that breaks an existing destination project.
 - **MINOR** — a new skill or workflow capability that existing projects can adopt without changes.
 - **PATCH** — clarifications, corrections, and documentation fixes.
 
 Add your change under `[Unreleased]` in `CHANGELOG.md`. Do not bump the version yourself; releases are cut separately.
 
-Not every change earns a version. The `CHANGELOG.md` header states the scope: the version tracks `skills/`, `context/`, `prompts/`, `templates/`, and the agent entry files. CI, brand assets, the website, and the README do not bump it, and a change touching only those publishes nothing to npm.
+Not every change earns a version. The `CHANGELOG.md` header states the scope: the version tracks `skills/`, `context/`, `templates/`, and the agent entry files. CI, brand assets, the website, and the README do not bump it, and a change touching only those publishes nothing to npm.
 
 The `create-pathfinder` npm package mirrors the kit version exactly and has no independent version of its own. Its `package.json` is derived from the changelog by tooling — never edited by hand.
 
@@ -90,7 +90,7 @@ The documentation site reads `skills/` in place, so a new skill's page appears i
 
 ## Changing existing skills
 
-Changes to `skills/`, `context/`, `prompts/`, `templates/`, `AGENTS.md`, or `CLAUDE.md` land in every project that adopts the kit next. Say in the PR description what a destination project has to do differently, if anything.
+Changes to `skills/`, `context/`, `templates/`, `AGENTS.md`, or `CLAUDE.md` land in every project that adopts the kit next. Say in the PR description what a destination project has to do differently, if anything.
 
 ## Reporting problems
 

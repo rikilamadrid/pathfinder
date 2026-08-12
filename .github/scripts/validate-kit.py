@@ -27,7 +27,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS = ROOT / "skills"
-PROMPTS = ROOT / "prompts"
 INSTALLER = ROOT / "packages" / "create-pathfinder"
 
 # The one harness whose adapters this repository commits. CONTRIBUTING.md states
@@ -143,33 +142,6 @@ def check_skills() -> set[str]:
     return names
 
 
-def check_prompts(skill_names: set[str]) -> None:
-    """Every skill needs a launcher; every launcher must point at a real skill.
-
-    Matched on content rather than filename: several launchers are named for
-    the task instead of the skill, for example prompts/01-kickstart-project.md
-    launches kickstart-pathfinder.
-    """
-    prompts = sorted(PROMPTS.glob("*.md"))
-    if not prompts:
-        fail("prompts/", "prompts-present", "no prompt files found")
-        return
-
-    referenced: set[str] = set()
-    for prompt in prompts:
-        text = prompt.read_text(encoding="utf-8")
-        hits = {name for name in skill_names
-                if re.search(rf"\b{re.escape(name)}\b", text)}
-        if not hits:
-            fail(prompt, "launcher-references-skill",
-                 "does not reference any existing skill by name")
-        referenced |= hits
-
-    for orphan in sorted(skill_names - referenced):
-        fail(f"skills/{orphan}/", "skill-has-launcher",
-             f"no file in prompts/ references `{orphan}`")
-
-
 def check_claude_md(skill_names: set[str]) -> None:
     """CLAUDE.md's Available skills list must match the skills directory."""
     path = ROOT / "CLAUDE.md"
@@ -225,6 +197,18 @@ def check_adapters(skill_names: set[str]) -> None:
     and are checked by running it, in `check_adapter_generation`, because
     re-implementing the renderer here would create the second source of truth
     the whole adapter design exists to avoid.
+
+    `adapter-no-orphans` below is also the successor to the retired
+    `check_prompts` rule. That rule enforced "every skill has some way to invoke
+    it" by requiring a launcher in `prompts/`; when `prompts/` was removed in
+    favour of native harness invocation, the invariant did not go away, it moved:
+
+        Every canonical Pathfinder skill must have the expected generated
+        adapter for each registered native harness the repository configuration
+        requires.
+
+    A skill added without an adapter is therefore still caught by name — the
+    same class of failure the launcher rule existed to prevent.
     """
     adapters = adapter_files()
 
@@ -683,7 +667,6 @@ def check_readme_copy_list(copy_list: tuple[str, ...]) -> None:
 
 def main() -> int:
     skill_names = check_skills()
-    check_prompts(skill_names)
     check_claude_md(skill_names)
     check_adapters(skill_names)
     check_adapter_generation()

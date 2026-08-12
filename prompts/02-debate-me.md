@@ -1,1 +1,0 @@
-Use `skills/debate-me/SKILL.md` to pressure-test this idea or project. Recommend an MVP, technology/architecture, delivery workflow, and prototype checkpoint based on the findings. Present them for my acceptance, modification, comparison, or deferral; do not silently approve them for me.

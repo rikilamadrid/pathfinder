@@ -36,8 +36,8 @@ database, Git Flow, or any other implementation detail for you.
 ## What this is, and what it is not
 
 **It is** a workflow and context kit: [a set of skills](/skills/) with defined
-boundaries, a `context/` folder that holds project truth, and prompts for tools
-that do not discover local skills on their own.
+boundaries, a `context/` folder that holds project truth, and native skill
+discovery in the tools that support it.
 
 **It is not** a framework. There is no required runtime, package manager,
 framework, database, hosting platform, or Git model, and there is no dependency
@@ -62,14 +62,13 @@ That copies the kit into the repository and exits. Nothing is installed, nothing
 is built, and no dependency is added — the installer is a file copier. It never
 overwrites: files you already have are left alone and listed by name.
 
-It writes exactly six things.
+It writes exactly five things.
 
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
-| `prompts/` | Manual launchers for tools that do not discover local skills |
 | `templates/` | Starting points the project copies when it needs them |
 
 Then open your agent and say:
