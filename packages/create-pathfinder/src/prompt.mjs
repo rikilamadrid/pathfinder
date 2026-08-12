@@ -75,6 +75,61 @@ export function createPrompter({ input, output, interactive = false, retries = 3
       return null;
     },
 
+    /**
+     * Ask which of a numbered list apply. Several answers, or none.
+     *
+     * Numbers rather than checkboxes, for the same reason `confirm` is a line
+     * and not a keypress handler: no raw mode, no redraw, so it works in a dumb
+     * terminal, over ssh, and inside an editor console. `Enter` takes the
+     * default — which is what keeps the common case one keystroke — and `0` is
+     * an explicit "none of them", distinct from an empty line that means "the
+     * default", because a default of nothing and a choice of nothing should not
+     * have to be told apart by their side effects.
+     *
+     * Returns the chosen options' `value`s in list order, or null when nobody
+     * answered. Null is not an empty selection: the caller decides what an
+     * unanswered question is worth.
+     *
+     * @param {string} question
+     * @param {{options: {label: string, value: unknown}[], defaultSelection?: unknown[]}} config
+     * @returns {Promise<unknown[]|null>}
+     */
+    async chooseMany(question, { options: choices = [], defaultSelection = [] } = {}) {
+      if (!interactive) {
+        throw new Error(`refusing to ask "${question}": this prompter is not interactive`);
+      }
+      if (choices.length === 0) return [];
+
+      const defaults = choices.filter((choice) => defaultSelection.includes(choice.value));
+      const defaultNumbers = defaults.map((choice) => choices.indexOf(choice) + 1);
+
+      const header = [
+        `? ${question}`,
+        ...choices.map((choice, index) => `    ${index + 1}. ${choice.label}`),
+        defaultNumbers.length > 0
+          ? `  Numbers, comma-separated. Enter for the detected default [${defaultNumbers.join(",")}], or 0 for none.`
+          : "  Numbers, comma-separated. Enter or 0 for none.",
+        "",
+      ].join("\n");
+
+      output.write(header);
+
+      for (let attempt = 0; attempt < retries; attempt += 1) {
+        const answer = await ensureReader().ask("> ");
+        if (answer === null) return null;
+
+        const normalized = answer.trim();
+        if (normalized === "") return defaults.map((choice) => choice.value);
+
+        const selected = parseSelection(normalized, choices.length);
+        if (selected !== null) return selected.map((index) => choices[index].value);
+
+        output.write(`  Please answer with numbers from 1 to ${choices.length}, or 0 for none.\n`);
+      }
+
+      return null;
+    },
+
     close() {
       if (reader !== null) {
         reader.close();
@@ -82,6 +137,27 @@ export function createPrompter({ input, output, interactive = false, retries = 3
       }
     },
   };
+}
+
+/**
+ * Read a comma-separated list of numbers, or null if any part of it is not one.
+ *
+ * All-or-nothing on purpose. Taking the valid half of `1,banana` would act on a
+ * selection the user did not make, and this question decides what gets written
+ * into their project. Duplicates collapse and order follows the list, so `2,1`
+ * and `1,2,2` mean the same thing.
+ *
+ * `0` means none, and only on its own: `0,1` is a contradiction, not a subset.
+ */
+function parseSelection(input, count) {
+  const parts = input.split(",").map((part) => part.trim());
+  if (parts.some((part) => !/^\d+$/.test(part))) return null;
+
+  const numbers = parts.map(Number);
+  if (numbers.includes(0)) return numbers.every((number) => number === 0) ? [] : null;
+  if (numbers.some((number) => number > count)) return null;
+
+  return [...new Set(numbers)].sort((a, b) => a - b).map((number) => number - 1);
 }
 
 /**

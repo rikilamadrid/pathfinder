@@ -22,7 +22,8 @@
  * file. No planning, no writing, no CLI: those are Chunk 2's.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 
 /** The marker token, and the format version this build writes and owns. */
 export const MARKER_TOKEN = "pathfinder:adapter";
@@ -137,9 +138,35 @@ export function parseSkillFrontmatter(text, { source = "SKILL.md" } = {}) {
   };
 }
 
-/** Read one canonical skill's metadata. The only filesystem access here. */
+/** Read one canonical skill's metadata. */
 export function readSkillMetadata(path, { source = path } = {}) {
   return parseSkillFrontmatter(readFileSync(path, "utf8"), { source });
+}
+
+/**
+ * Every skill this version of the kit ships, in name order.
+ *
+ * Read from the kit rather than from the destination project, because the kit
+ * is what defines the set: a stale directory left behind in someone's project
+ * must not be able to add itself to the list of things Pathfinder claims to
+ * own. It is also what makes an orphan detectable at all.
+ *
+ * @returns {{name: string, description: string, argumentHint: string|null}[]}
+ */
+export function readCanonicalSkills(kitRoot) {
+  const skillsRoot = join(kitRoot, "skills");
+  if (!existsSync(skillsRoot)) return [];
+
+  return readdirSync(skillsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort()
+    .filter((name) => existsSync(join(skillsRoot, name, "SKILL.md")))
+    .map((name) =>
+      readSkillMetadata(join(skillsRoot, name, "SKILL.md"), {
+        source: canonicalPath(name),
+      }),
+    );
 }
 
 /**

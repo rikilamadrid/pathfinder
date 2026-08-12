@@ -7,10 +7,11 @@
  */
 
 import { findKitRoot, COPY_LIST } from "./kit.mjs";
-import { applyPlan, planInstall } from "./install.mjs";
+import { applyAdapterPlan, applyPlan, planAdapters, planInstall } from "./install.mjs";
 import { detect, detectedToolLabels } from "./detect.mjs";
 import { initRepository } from "./git.mjs";
 import { nonInteractivePrompter } from "./prompt.mjs";
+import { HARNESSES, HARNESS_IDS, detectedHarnesses, findHarness } from "./harnesses/index.mjs";
 
 const USAGE = `Usage: npx create-pathfinder [options]
 
@@ -19,14 +20,23 @@ Installs the Pathfinder workflow kit into the current Git repository.
 Copies: ${COPY_LIST.join(", ")}
 
 Options:
+  --agents <ids>  Generate skill adapters for these tools, comma-separated.
+                  Valid ids: ${HARNESS_IDS.join(", ")}. Alias: --agent.
+                  Without it, nothing is configured unless you are asked and
+                  say so.
   --dry-run       Report what would be written, and any \`git init\` that would
                   run first; change nothing and ask nothing.
-  --force         Overwrite files that already exist. Off by default.
+  --force         Overwrite files that already exist, and replace a file you
+                  wrote at a path an adapter would occupy. Off by default.
   --git-init      Run \`git init\` here if this is not a repository yet.
   --no-git-init   Never run \`git init\`; refuse instead.
   --yes           Take the defaults and ask nothing. Alias: --no-input.
-                  It does not authorize \`git init\`; pass --git-init for that.
+                  It does not authorize \`git init\` or configure any tool;
+                  pass --git-init and --agents for those.
   -h, --help      Show this message.
+
+Adapters are generated files Pathfinder owns and regenerates without --force.
+A file it did not generate is never replaced, at any path, without --force.
 
 Without a terminal on both stdin and stdout, nothing is ever asked. In that
 case a directory that is not a Git repository needs --git-init, or the install
@@ -129,11 +139,74 @@ export async function run(
     }
   }
 
+  // Asked before anything is written, so every question this run has is behind
+  // the user before the first file moves. Detection supplies the default and
+  // nothing more: a tool being installed on this machine is not permission to
+  // write into the project on its behalf.
+  const harnesses = await selectHarnesses({ findings, options, prompter, out });
+
   const plan = planInstall(kitRoot, cwd, { force: options.force });
   const result = applyPlan(plan, { dryRun: options.dryRun });
 
-  report({ result, plan, cwd, gitRoot, options, out, err });
-  return result.errors.length > 0 ? 1 : 0;
+  // Deliberately after the copy. An adapter delegates to a canonical file, so
+  // generating one beside a copy that failed would point the user's tool at a
+  // file that is not there.
+  const adapters = generateAdapters({ harnesses, kitRoot, cwd, options, result });
+
+  report({ result, plan, adapters, harnesses, cwd, gitRoot, options, out, err });
+  return result.errors.length > 0 || adapters.result.errors.length > 0 ? 1 : 0;
+}
+
+/**
+ * Which harnesses this run configures. Possibly none, which is the default.
+ *
+ * Three ways to answer, in precedence order: `--agents` says it outright, an
+ * interactive terminal is asked, and everything else configures nothing. That
+ * last one is what keeps a scripted run byte-identical to 1.4.1 — a CI job that
+ * has always piped this command sees no new files and no new output.
+ *
+ * An unanswered prompt is read as "none", the same conservative reading the
+ * Git question gives it.
+ */
+async function selectHarnesses({ findings, options, prompter, out }) {
+  if (options.agents !== null) return options.agents.map((id) => findHarness(id));
+  if (!prompter.interactive || options.yes) return [];
+
+  const detected = detectedHarnesses(findings);
+  const width = Math.max(...HARNESSES.map((harness) => harness.label.length));
+
+  const answer = await prompter.chooseMany("Configure Pathfinder for which tools?", {
+    options: HARNESSES.map((harness) => ({
+      value: harness,
+      label:
+        `${harness.label.padEnd(width)}  -> ${harness.skillsDir}/` +
+        (detected.includes(harness) ? "   (detected)" : ""),
+    })),
+    defaultSelection: detected,
+  });
+
+  out("\n");
+  return answer ?? [];
+}
+
+/**
+ * Generate the adapters for the selected harnesses, or explain why not.
+ *
+ * Returns the plan and the result together so the report can distinguish "no
+ * harness was chosen" from "a harness was chosen and produced nothing", which
+ * are the same zero and mean opposite things.
+ */
+function generateAdapters({ harnesses, kitRoot, cwd, options, result }) {
+  const none = { plan: [], result: applyAdapterPlan([]), blocked: false };
+
+  if (harnesses.length === 0) return none;
+
+  // The copy failed part-way. Reporting adapters as generated on top of that
+  // would be a success message about a broken install.
+  if (result.errors.length > 0) return { ...none, blocked: true };
+
+  const plan = planAdapters(harnesses, { kitRoot, targetRoot: cwd, force: options.force });
+  return { plan, result: applyAdapterPlan(plan, { dryRun: options.dryRun }), blocked: false };
 }
 
 function parseArguments(argv) {
@@ -144,10 +217,35 @@ function parseArguments(argv) {
     gitInit: false,
     noGitInit: false,
     yes: false,
+    // null means "not said", which is not the same as "none". Only the first
+    // suppresses the question.
+    agents: null,
     error: null,
   };
 
-  for (const argument of argv) {
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+
+    const isAgents =
+      argument === "--agents" ||
+      argument === "--agent" ||
+      argument.startsWith("--agents=") ||
+      argument.startsWith("--agent=");
+
+    if (isAgents) {
+      const equals = argument.indexOf("=");
+      const value = equals === -1 ? argv[++index] : argument.slice(equals + 1);
+      const parsed = parseAgents(value);
+
+      if (parsed.error) {
+        options.error = parsed.error;
+        return options;
+      }
+
+      options.agents = [...new Set([...(options.agents ?? []), ...parsed.ids])];
+      continue;
+    }
+
     switch (argument) {
       case "--dry-run":
         options.dryRun = true;
@@ -184,6 +282,36 @@ function parseArguments(argv) {
   }
 
   return options;
+}
+
+/**
+ * Read `--agents claude-code,codex`.
+ *
+ * An unknown id is a refusal, not a warning that drops it: someone who typed
+ * `--agents claud-code` wants adapters, and quietly installing none while
+ * exiting 0 would tell them it worked. The valid ids are named in the message,
+ * because the whole list is short enough to be the answer.
+ */
+function parseAgents(value) {
+  if (value === undefined || value.startsWith("-")) {
+    return { error: "`--agents` needs a value, such as `--agents " + HARNESS_IDS[0] + "`" };
+  }
+
+  const ids = value
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => id !== "");
+
+  if (ids.length === 0) {
+    return { error: "`--agents` needs a value, such as `--agents " + HARNESS_IDS[0] + "`" };
+  }
+
+  const unknown = ids.find((id) => findHarness(id) === null);
+  if (unknown !== undefined) {
+    return { error: `unknown agent \`${unknown}\`. Valid ids: ${HARNESS_IDS.join(", ")}` };
+  }
+
+  return { ids };
 }
 
 /**
@@ -359,7 +487,7 @@ function supportsUnicode(env, platform) {
  * default mode is that it left your work alone, and a bare "42 skipped" does
  * not let anyone check that claim.
  */
-function report({ result, plan, cwd, gitRoot, options, out, err }) {
+function report({ result, plan, adapters, harnesses, cwd, gitRoot, options, out, err }) {
   const lines = [];
   const verb = options.dryRun ? "Would install" : "Installed";
 
@@ -375,6 +503,8 @@ function report({ result, plan, cwd, gitRoot, options, out, err }) {
   if (result.overwritten > 0) {
     lines.push(`  ${result.overwritten} file${plural(result.overwritten)} overwritten (--force)`);
   }
+
+  lines.push(...adapterLines({ adapters, harnesses, options }));
 
   const skipped = plan.filter((item) => item.status === "skip");
   if (skipped.length > 0) {
@@ -397,12 +527,85 @@ function report({ result, plan, cwd, gitRoot, options, out, err }) {
 
   out(lines.join("\n") + "\n");
 
-  if (result.errors.length > 0) {
-    const failures = result.errors
-      .map((error) => `  ${error.relativePath}: ${error.message}`)
-      .join("\n");
-    err(`\ncreate-pathfinder: ${result.errors.length} file${plural(result.errors.length)} could not be written:\n${failures}\n`);
+  const failures = [...result.errors, ...adapters.result.errors];
+  if (failures.length > 0) {
+    const detail = failures.map((error) => `  ${error.relativePath}: ${error.message}`).join("\n");
+    err(`\ncreate-pathfinder: ${failures.length} file${plural(failures.length)} could not be written:\n${detail}\n`);
   }
+}
+
+/**
+ * The adapter half of the summary.
+ *
+ * Three counts, kept apart because they answer three different worries: what
+ * was generated, what was already right, and what was left alone. The third is
+ * the one that matters to someone re-running this over a project they have
+ * worked in, so conflicts are listed by name — a bare count would ask them to
+ * take it on faith that their file survived.
+ *
+ * Empty when no harness was chosen, which is the default and must stay
+ * invisible: a scripted 1.4.1-era run prints exactly what it always did.
+ */
+function adapterLines({ adapters, harnesses, options }) {
+  if (harnesses.length === 0) return [];
+
+  if (adapters.blocked) {
+    return [
+      "",
+      "  No adapters were generated, because the kit copy did not finish.",
+      "  An adapter delegates to a canonical skill file, and pointing your tool",
+      "  at a file that was not written would be worse than generating nothing.",
+    ];
+  }
+
+  const failed = new Set(adapters.result.errors.map((error) => error.relativePath));
+  const lines = [];
+
+  for (const harness of harnesses) {
+    const mine = adapters.plan.filter(
+      (item) => item.harness === harness && !failed.has(item.relativePath),
+    );
+    const count = (action) => mine.filter((item) => item.action === action).length;
+
+    const generated = count("write");
+    const replaced = count("replace");
+    const unchanged = count("up-to-date");
+    const conflicts = mine.filter((item) => item.action === "conflict");
+    const orphans = mine.filter((item) => item.action === "orphan");
+
+    lines.push(
+      `  ${generated} ${harness.label} skill adapter${plural(generated)} ` +
+        (options.dryRun ? "to generate" : "generated"),
+    );
+
+    if (replaced > 0) {
+      lines.push(`  ${replaced} ${harness.label} adapter${plural(replaced)} replaced (--force)`);
+    }
+
+    if (unchanged > 0) {
+      lines.push(`  ${unchanged} ${harness.label} adapter${plural(unchanged)} already up to date`);
+    }
+
+    if (conflicts.length > 0) {
+      lines.push(
+        `  ${conflicts.length} file${plural(conflicts.length)} left untouched because Pathfinder did not write ${conflicts.length === 1 ? "it" : "them"}:`,
+      );
+      for (const item of conflicts) lines.push(`      ${item.relativePath}`);
+      lines.push("");
+      lines.push(
+        conflicts.length === 1
+          ? "  Re-run with --force to replace it with a generated adapter."
+          : "  Re-run with --force to replace them with generated adapters.",
+      );
+    }
+
+    for (const item of orphans) {
+      lines.push(`  ${item.relativePath} delegates to a skill this version no longer`);
+      lines.push("  ships. It was left in place; delete it yourself if you want it gone.");
+    }
+  }
+
+  return lines;
 }
 
 function plural(count) {
