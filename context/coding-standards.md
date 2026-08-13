@@ -53,6 +53,25 @@ Choose tests by behavior and risk:
 
 Avoid tests that only reproduce implementation detail.
 
+## Verification Evidence
+
+These apply to any claim that something works — a test, a manual check, or a
+verification step in a feature's acceptance criteria.
+
+- **Exercise the artifact a user receives, the way a user exercises it.** A
+  hand-written sample of generated output, a local imitation of an external
+  system, or the working tree in place of the built and published thing is
+  evidence about the stand-in, not about the artifact. Prefer one check against
+  the real artifact over several against convenient substitutes.
+- **When a mechanism can fail by doing nothing, observe that the right thing
+  happened.** A clean exit says the command ran. It does not say the effect
+  occurred, and a step that silently does nothing usually reports success.
+- **Beware a check whose every input it supplied itself.** If the test chose the
+  fixtures, the environment, and the trigger, it has confirmed its own
+  assumptions. Name which inputs came from the real system.
+- State what was verified and what was only reasoned about. An unobserved
+  criterion is recorded as unobserved, not as passed.
+
 ## Dependencies
 
 Before adding one, assess necessity, maintenance, security, runtime cost, licensing, portability, and simpler alternatives. Follow the approval policy in `context/ai-interaction.md`.
