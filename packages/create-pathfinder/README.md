@@ -71,6 +71,28 @@ Nothing is configured unless you choose it. Detection only sets the default, a p
 
 Re-running is idempotent: the second run writes the same bytes and reports the adapters as already up to date.
 
+## The Kickstart prompt, and your clipboard
+
+Every install ends by printing the one prompt that starts a session, and the prompt follows the tool you chose:
+
+| Configured | Prompt |
+| --- | --- |
+| `claude-code` | `/kickstart-pathfinder` |
+| `codex` | `$kickstart-pathfinder` |
+| both, or neither | `Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this project. Do not install packages or write product code yet.` |
+
+Two harnesses fall back to the neutral form because one clipboard cannot hold two syntaxes, and picking a favorite would quietly decide which of your tools is the real one.
+
+In a terminal you are then asked whether to copy it. The question says what it replaces, because your clipboard is yours:
+
+```text
+? Copy that prompt to your clipboard? This replaces what is on it now. [Y/n]
+```
+
+- **Nothing is copied without an explicit yes.** Declining, an unanswered question, `--no-clipboard`, `--yes`, `--dry-run`, and any run without a terminal on both ends all leave your clipboard exactly as it was.
+- **The prompt is printed either way.** Copying is a convenience, never the only way to get it, which is what lets every failure be a non-event.
+- **No dependency, and no clipboard is ever read.** The copy uses whatever your system already has — `pbcopy`, `clip.exe` including under WSL, or `wl-copy`, `xclip`, or `xsel` — chosen by what is actually installed rather than by your platform's name. If none of them is there, or one of them fails, the installer says so in one line and still exits 0.
+
 ## Options
 
 | Option | Effect |
@@ -80,10 +102,11 @@ Re-running is idempotent: the second run writes the same bytes and reports the a
 | `--force` | Overwrite files that already exist, and replace a file you wrote at a path an adapter would occupy |
 | `--git-init` | Run `git init` here if this is not a repository yet |
 | `--no-git-init` | Never run `git init`; refuse instead |
-| `--yes`, `--no-input` | Take the defaults and ask nothing. It does not authorize `git init` or configure any tool — pass `--git-init` and `--agents` for those |
+| `--no-clipboard` | Never offer to copy the Kickstart prompt. The prompt is printed either way |
+| `--yes`, `--no-input` | Take the defaults and ask nothing. It does not authorize `git init`, configure any tool, or touch your clipboard — pass `--git-init` and `--agents` for the first two |
 | `-h`, `--help` | Show usage |
 
-Questions are asked only when stdin and stdout are both terminals. Piped, redirected, or in CI, nothing is asked and nothing is prompted for — so a directory that is not a repository needs `--git-init`, or the install is refused, and no tool is configured without `--agents`.
+Questions are asked only when stdin and stdout are both terminals. Piped, redirected, or in CI, nothing is asked and nothing is prompted for — so a directory that is not a repository needs `--git-init`, or the install is refused, no tool is configured without `--agents`, and the clipboard is never touched at all.
 
 ## Requirements
 
