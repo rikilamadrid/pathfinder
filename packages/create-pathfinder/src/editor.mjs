@@ -75,13 +75,22 @@ export async function openInEditor(
 
   // `code` and `cursor` are `.cmd` shims on Windows, which Node refuses to
   // execute directly, so there it goes through the command processor. The
-  // quoting is ours rather than the shell's — `windowsVerbatimArguments` hands
-  // this line through untouched — which is what keeps a project path with
-  // spaces in it a single argument. Everywhere else it is an argument array
-  // with no shell at all.
+  // quoting is ours rather than the shell's, because `windowsVerbatimArguments`
+  // hands this line through untouched — and it needs one more pair of quotes
+  // than looks right.
+  //
+  // `cmd /s /c` strips the first and last quote of everything after `/c`,
+  // unconditionally. Passing `"code" "C:\my project"` therefore loses the quote
+  // before `code` and the one after the path, leaving `code" "C:\my project` —
+  // a broken command line, and a silently unopened editor. Wrapping the whole
+  // thing in an outer pair spends those two quotes on the wrapper, so what
+  // survives the strip is the command line actually meant: the executable
+  // quoted, and a project path with spaces in it still a single argument.
+  //
+  // Everywhere else it is an argument array with no shell at all.
   const command = windows ? env.ComSpec || env.COMSPEC || "cmd.exe" : editor.command;
   const args = windows
-    ? ["/d", "/s", "/c", `"${editor.command}" "${directory}"`]
+    ? ["/d", "/s", "/c", `""${editor.command}" "${directory}""`]
     : [directory];
 
   let child;
