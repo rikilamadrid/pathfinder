@@ -646,7 +646,12 @@ def check_readme_copy_list(copy_list: tuple[str, ...]) -> None:
 
     section = text[start + len(start_marker):end]
     for entry in copy_list:
-        if not re.search(rf"(?<![\w./-]){re.escape(entry)}(?![\w-])", section):
+        # The entry must appear as itself — `templates` or `templates/` — and not
+        # merely as the first segment of a deeper path. Before this was tightened,
+        # deleting the `templates/` row from the table still passed, because
+        # `templates/CHANGELOG.template.md` further down the section satisfied the
+        # match. The rule read as if it checked the table and did not.
+        if not re.search(rf"(?<![\w./-]){re.escape(entry)}/?(?![\w./-])", section):
             fail(readme, "copy-list-readme",
                  f"`{entry}` is in the copy list but the install section "
                  "never mentions it")
@@ -665,12 +670,88 @@ def check_readme_copy_list(copy_list: tuple[str, ...]) -> None:
                  f"list is {copy_list}")
 
 
+def check_help_text() -> None:
+    """`--help` must document every flag the parser accepts, and every harness.
+
+    This rule belongs to no single feature, which is why it went unwritten while
+    four features in a row added flags. Each one documented its own additions
+    correctly; the risk is the fifth.
+
+    The help text is captured by running `--help` rather than by reading the
+    USAGE constant, because what a user sees is the output, not the variable.
+    The accepted flags are read from the parser's own `case` labels — the
+    switch is the definition of what the tool accepts, so a flag added there
+    and nowhere else is exactly the drift being caught.
+    """
+    cli_source_path = INSTALLER / "src" / "cli.mjs"
+    try:
+        cli_source = cli_source_path.read_text(encoding="utf-8")
+    except OSError as error:
+        fail(cli_source_path, "help-text", f"could not be read: {error}")
+        return
+
+    try:
+        help_result = subprocess.run(
+            ["node", "bin/create-pathfinder.mjs", "--help"],
+            cwd=INSTALLER, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        print("note: node unavailable, skipping help-text")
+        return
+
+    if help_result.returncode != 0:
+        fail(cli_source_path, "help-text",
+             f"`--help` exited {help_result.returncode}")
+        return
+
+    help_text = help_result.stdout
+
+    # Every long flag the parser switches on. `-h` is matched by `--help`'s
+    # entry in the same table, so short forms are not required separately.
+    accepted = sorted(set(re.findall(r'case "(--[a-z-]+)":', cli_source)))
+    if not accepted:
+        fail(cli_source_path, "help-text",
+             "no `case \"--flag\":` labels found in the argument parser; this "
+             "rule cannot see what the tool accepts and would pass vacuously")
+        return
+
+    for flag in accepted:
+        if flag not in help_text:
+            fail(cli_source_path, "help-text",
+                 f"`{flag}` is accepted by the parser but never named in "
+                 "`--help`, so it is an undocumented flag")
+
+    # The harness list in the help text must come from the registry. It is
+    # interpolated today; this fails if someone types it out and the two drift.
+    script = ("import('./src/harnesses/index.mjs')"
+              ".then(m => console.log(JSON.stringify(m.HARNESS_IDS)))")
+    try:
+        registry = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=INSTALLER, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        return
+
+    if registry.returncode != 0:
+        fail("packages/create-pathfinder/src/harnesses/index.mjs", "help-text",
+             "HARNESS_IDS could not be loaded")
+        return
+
+    for harness_id in json.loads(registry.stdout):
+        if harness_id not in help_text:
+            fail(cli_source_path, "help-text",
+                 f"harness `{harness_id}` is in HARNESS_IDS but is not named "
+                 "in `--help`, so `--agents` accepts a value the help omits")
+
+
 def main() -> int:
     skill_names = check_skills()
     check_claude_md(skill_names)
     check_adapters(skill_names)
     check_adapter_generation()
     check_copy_list()
+    check_help_text()
     check_no_junk_tracked()
     check_version_agreement()
     check_changelog()

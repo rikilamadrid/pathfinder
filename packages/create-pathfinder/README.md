@@ -26,6 +26,12 @@ Pathfinder is a kit of context files and skills — not a framework. There is no
 | `skills/` | Twenty skills covering discovery, specs, delivery, debugging, review, and learning |
 | `templates/` | Starting points the project copies when it needs them |
 
+On request it also writes one thing it does not copy:
+
+| Path | What it is |
+| --- | --- |
+| `.claude/skills/`, `.agents/skills/` | **Generated** — a small adapter per skill, derived from `skills/` at install time, so your coding tool discovers them natively. Not part of the five above; see [Native skills for your coding tool](#native-skills-for-your-coding-tool) |
+
 It never copies Pathfinder's own `README.md`, `CHANGELOG.md`, CI configuration, or brand assets. Your repository gets the workflow, not the project that maintains it.
 
 ## What it will not do to your repository
@@ -36,8 +42,9 @@ This runs once, in real code, so it is deliberately timid:
 - **It will not install outside a Git repository**, so whatever it writes is reviewable and undoable. In an empty directory it offers to run `git init` for you — and that is the only Git command it will ever run. No `add`, no `commit`, no config, no branch. If you say no, nothing is written.
 - **It never touches an existing history.** A directory that is already a repository, or inside one, is never asked about and never initialized.
 - **`--dry-run` reports the same plan the real install would carry out**, including any `git init`, without writing anything.
+- **It owns a generated adapter, and nothing else in your tool's directory.** A file at `.claude/skills/<name>/SKILL.md` or `.agents/skills/<name>/SKILL.md` belongs to the installer only if that name is a Pathfinder skill *and* the file carries the `pathfinder:adapter` marker it wrote. Your `settings.json`, `settings.local.json`, agents, commands, hooks, and any skill of your own are never read and never written, a file you wrote at an adapter path is left alone and named in the summary, and nothing is ever deleted.
 
-Re-running it is safe, and fills in only what is missing.
+**Re-running `npx create-pathfinder` in a project that already has Pathfinder is safe, requires no flags, and is idempotent.** Canonical files you have edited are skipped and listed; files new in this version are written; adapters are regenerated, byte-identical if nothing changed; anything you own is untouched. That is how a project installed before v1.5.0 gains adapters — one ordinary run, no migration command.
 
 ## Native skills for your coding tool
 
