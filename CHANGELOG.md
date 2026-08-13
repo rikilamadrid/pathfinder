@@ -25,6 +25,8 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-08-13
+
 ### Changed
 
 - **`context/coding-standards.md` says where verification evidence has to come from.** A new `Verification Evidence` section: exercise the artifact a user receives the way a user exercises it, because a hand-written sample of generated output or the working tree in place of the published build is evidence about the stand-in; observe that the right thing happened when a mechanism can fail by doing nothing, since a clean exit says only that the command ran; be suspicious of a check whose every input it supplied itself; and record an unobserved criterion as unobserved rather than as passed. Drawn from two real failures in this repository's own history, not from principle.
