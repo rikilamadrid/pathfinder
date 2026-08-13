@@ -19,7 +19,19 @@ const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const assets = resolve(siteRoot, '..', 'assets');
 const publicDir = join(siteRoot, 'public');
 
-const files = ['favicon.svg', 'favicon-32.png'];
+// The PWA icons are here for the same reason as the favicons: a manifest and an
+// `apple-touch-icon` are fetched by URL, so the bytes have to sit under
+// `publicDir`. They are rasterised from `assets/logo.svg` by
+// `scripts/generate-icons.mjs`, which runs by hand when the mark changes — not
+// as part of the build, which only ever copies.
+const files = [
+  'favicon.svg',
+  'favicon-32.png',
+  'icon-192.png',
+  'icon-512.png',
+  'icon-maskable-512.png',
+  'apple-touch-icon-180.png',
+];
 
 await mkdir(publicDir, { recursive: true });
 await Promise.all(files.map((file) => copyFile(join(assets, file), join(publicDir, file))));

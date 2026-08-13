@@ -12,12 +12,17 @@
     "dev": "astro dev",
     "prebuild": "node scripts/sync-brand.mjs",
     "build": "astro build",
+    "postbuild": "node scripts/check-manifest.mjs",
     "prepreview": "node scripts/sync-brand.mjs",
     "preview": "astro preview",
+    "icons": "node scripts/generate-icons.mjs",
     "astro": "astro"
   },
   "dependencies": {
     "@astrojs/starlight": "0.36.1",
     "astro": "5.16.2"
+  },
+  "devDependencies": {
+    "sharp": "0.34.5"
   }
 }

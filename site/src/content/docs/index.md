@@ -7,6 +7,14 @@ template: splash
 # under a page that already ends with its own call to action.
 prev: false
 next: false
+# Starlight joins every page title to the site title, which on the one page
+# whose title *is* the site title reads "Pathfinder | Pathfinder". A head entry
+# of the same tag replaces Starlight's own, so this is the framework's
+# supported override rather than a rewrite of built HTML. Deep pages are
+# untouched and keep their "Page | Pathfinder" form.
+head:
+  - tag: title
+    content: Pathfinder
 hero:
   tagline: An AI-assisted, human-in-the-loop workflow for building software — without giving up the decisions.
   image:
