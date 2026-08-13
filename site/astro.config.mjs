@@ -12,6 +12,12 @@ const contextDir = fileURLToPath(new URL('../context', import.meta.url));
 // parent is allowed explicitly. This is what lets `logo.src` below — and, from
 // chunk 2, the skills content loader — point at real files instead of copies.
 export default defineConfig({
+  // The deployed origin. Starlight's bundled sitemap integration skips itself
+  // without this and says so on every build, and canonical URLs need an origin
+  // to be absolute against. This is the production alias, not the per-deployment
+  // URL Vercel also assigns — a preview build emits canonical links pointing at
+  // production, which is the correct answer for a preview of production content.
+  site: 'https://pathfinder-kit.vercel.app',
   srcDir: './src',
   vite: {
     server: {
@@ -37,6 +43,12 @@ export default defineConfig({
         },
       ],
       customCss: ['./src/styles/brand.css'],
+      // Wraps Starlight's own footer rather than replacing it — see the
+      // component. A reader who lands on a deep page from a search result
+      // otherwise has no link back to the repository the site is generated from.
+      components: {
+        Footer: './src/components/Footer.astro',
+      },
       social: [
         {
           icon: 'github',

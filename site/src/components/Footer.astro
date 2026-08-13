@@ -1,0 +1,58 @@
+---
+// Starlight's own footer, plus one row linking back to the repository.
+//
+// The site is generated from the repository and says so in several places, but
+// every one of those is inside prose someone has to be reading. A reader who
+// arrives on a deep skill page from a search result has no path back to the
+// source without one. These three are the destinations that page is actually
+// about: the code, what shipped, and the terms it ships under.
+//
+// Default is Starlight's component, not a reimplementation — edit links,
+// last-updated, pagination, and the credit all keep working, and a Starlight
+// upgrade that changes any of them changes them here too.
+import Default from '@astrojs/starlight/components/Footer.astro';
+
+const REPO = 'https://github.com/rikilamadrid/pathfinder';
+
+const links = [
+  { href: REPO, label: 'Repository' },
+  { href: `${REPO}/releases`, label: 'Releases' },
+  { href: `${REPO}/blob/main/LICENSE`, label: 'MIT License' },
+];
+---
+
+<Default><slot /></Default>
+
+<nav class="repo-links" aria-label="Project links">
+  {
+    links.map((link) => (
+      <a href={link.href} rel="noopener">
+        {link.label}
+      </a>
+    ))
+  }
+</nav>
+
+<style>
+  .repo-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    justify-content: center;
+    /* Sits under Starlight's own credit line, which carries its own auto
+       margins, so this only needs to close the gap beneath it. */
+    margin-block: 0 1.5rem;
+    font-size: var(--sl-text-xs);
+  }
+
+  .repo-links a {
+    color: var(--sl-color-gray-3);
+    text-decoration: none;
+  }
+
+  .repo-links a:hover,
+  .repo-links a:focus-visible {
+    color: var(--sl-color-white);
+    text-decoration: underline;
+  }
+</style>

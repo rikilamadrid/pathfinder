@@ -96,6 +96,26 @@ The documentation site reads `skills/` in place, so a new skill's page appears i
 
 Changes to `skills/`, `context/`, `templates/`, `AGENTS.md`, or `CLAUDE.md` land in every project that adopts the kit next. Say in the PR description what a destination project has to do differently, if anything.
 
+## The documentation site
+
+The site lives in [`site/`](site/) and deploys to <https://pathfinder-kit.vercel.app> from `main`. Every pull request gets its own preview URL. Neither is part of the kit: the site is unversioned, publishes nothing to npm, and a destination project never receives it.
+
+**The build reads the kit in place.** Nothing under `site/` is a copy. The skill reference is generated from `skills/`, the concepts pages read `context/`, and the logo and favicons come from `assets/`. That is why the build-skip rule in [`site/vercel.json`](site/vercel.json) watches four paths and not just one:
+
+```sh
+[ "$VERCEL_GIT_COMMIT_REF" = "main" ] && git diff --quiet HEAD^ HEAD -- :/site :/skills :/context :/assets
+```
+
+Vercel reads the exit code backwards from a test: **0 skips the build, non-zero runs it.** `git diff --quiet` already answers in exactly that shape — no changes in those four paths means nothing the site renders has moved, so there is nothing to rebuild. A commit touching only `packages/`, `templates/`, `.github/`, `.claude/`, or a root document does not deploy. A commit touching a skill body does, because that text is on a page.
+
+**The rule only skips on `main`, and that restriction is load-bearing.** `HEAD^` is a safe basis for comparison exactly when a push advances the branch by one commit, which is guaranteed on `main` by the squash-merge workflow above and guaranteed nowhere else. On a pull request branch the test fails on the first clause, the command exits non-zero, and the build always runs.
+
+The first version of this rule did not have that restriction, and it published a stale site within the hour: a two-commit push whose first commit changed `site/` and whose second changed only `README.md` was skipped, because `HEAD^..HEAD` saw only the README. Comparing against `VERCEL_GIT_PREVIOUS_SHA` instead does not fix it — that variable does not resolve to the last deployed commit in this project's builds, and the fallback silently returns to `HEAD^`. Preview builds are cheap; a preview that lies about what is on the branch is not.
+
+`:/` anchors each path at the repository root, so the rule does not depend on the command's working directory.
+
+**The build's Node version is pinned in the Vercel project settings** (currently `24.x`), not in `site/package.json`. The `engines.node` range there says which versions the site is known to work on, which is a wider and different statement — writing the pin into it would claim that newer versions are unsupported, which is not true. If you change the pin, change it in the project settings.
+
 ## Reporting problems
 
 Open an issue for bugs, unclear instructions, or a skill that misfires. Include the skill involved and what you expected it to do. For anything security-related, see [`SECURITY.md`](SECURITY.md) instead.

@@ -6,7 +6,7 @@
 
 [![npm](https://img.shields.io/npm/v/create-pathfinder?color=E0611F&label=create-pathfinder)](https://www.npmjs.com/package/create-pathfinder) [![validate](https://github.com/rikilamadrid/pathfinder/actions/workflows/validate.yml/badge.svg)](https://github.com/rikilamadrid/pathfinder/actions/workflows/validate.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-E0611F)](LICENSE)
 
-[Changelog](CHANGELOG.md) · [Releases](https://github.com/rikilamadrid/pathfinder/releases) · [Contributing](CONTRIBUTING.md)
+[Documentation](https://pathfinder-kit.vercel.app) · [Changelog](CHANGELOG.md) · [Releases](https://github.com/rikilamadrid/pathfinder/releases) · [Contributing](CONTRIBUTING.md)
 
 <sub>by Lamadrid Labs</sub>
 
