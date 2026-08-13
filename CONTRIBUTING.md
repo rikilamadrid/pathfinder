@@ -96,6 +96,20 @@ The documentation site reads `skills/` in place, so a new skill's page appears i
 
 Changes to `skills/`, `context/`, `templates/`, `AGENTS.md`, or `CLAUDE.md` land in every project that adopts the kit next. Say in the PR description what a destination project has to do differently, if anything.
 
+## Where documentation lives
+
+Pathfinder has three documentation surfaces, and each one owns a different job. Before adding an explanation, find the surface that owns it and put it there once; every other surface links to it.
+
+| Surface | Owns |
+| --- | --- |
+| [`README.md`](README.md) | **The landing page.** What Pathfinder is and is not, the quickstart, an overview of the workflow, and links out. Not the reference manual. |
+| [`site/`](site/) | **The canonical detailed documentation.** Concepts, guides, and the generated skill reference. |
+| [`packages/create-pathfinder/README.md`](packages/create-pathfinder/README.md) | **CLI and package usage.** Invocation, flags, what the installer writes, requirements. Not the workflow tutorial. |
+
+A fact repeated on two surfaces has two chances to go stale and no way to tell which copy is current. The exceptions are deliberate and few: the install command, the five-entry copy-list table, the Kickstart prompt, and the never-overwrites guarantee appear on more than one surface because each is the first thing a reader of that surface needs. The five-entry table in `README.md` additionally sits between `<!-- copy-list:start -->` and `<!-- copy-list:end -->` markers, and `validate-kit.py` checks that block against `copy-list.json` — moving or unwrapping it makes the check pass vacuously.
+
+**The site publishes what a destination project receives — `context/` and `skills/` — plus the authored guides and concepts. Repository governance stays on GitHub.** [`LICENSE`](LICENSE), this file, [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md), [`SECURITY.md`](SECURITY.md), and [`NOT_A_FRAMEWORK.md`](NOT_A_FRAMEWORK.md) are read by contributors and by GitHub's own community-profile tooling, none of them is in the copy list, and none has a site page. Link to them at their GitHub path.
+
 ## The documentation site
 
 The site lives in [`site/`](site/) and deploys to <https://pathfinder-kit.vercel.app> from `main`. Every pull request gets its own preview URL. Neither is part of the kit: the site is unversioned, publishes nothing to npm, and a destination project never receives it.
