@@ -57,28 +57,41 @@ function makeFakeGitPath() {
 }
 
 /**
- * A prompter that answers as told and records what it was asked.
+ * A prompter that answers the Git question as told and declines everything else.
  *
  * `asked` holds the yes/no questions only, so these tests keep asserting about
  * the Git question and nothing else. The harness question is recorded
  * separately and answered "none", which is what makes every assertion here
  * about a run that configures no tools.
+ *
+ * The scoping is deliberate and was a real bug for about an hour. A prompter
+ * that answered `true` to every confirm authorized the clipboard offer too, so
+ * a suite run on a Linux machine with `xclip` installed would have overwritten
+ * the developer's own clipboard — the exact harm the offer exists to prevent,
+ * inflicted by the tests for an unrelated feature. Saying yes to one question
+ * is not saying yes to the next one, here as much as in the CLI.
  */
 function scriptedPrompter(answer, { harnesses = [] } = {}) {
   const asked = [];
   const offered = [];
+  const GIT_QUESTION = "Initialize a Git repository here?";
   return {
     interactive: true,
     asked,
     offered,
     confirm: async (question) => {
       asked.push(question);
-      return answer;
+      return question === GIT_QUESTION ? answer : false;
     },
     chooseMany: async (question) => {
       offered.push(question);
       return harnesses;
     },
+    // These tests pass a real PATH, so a machine with `code` or `cursor` on it
+    // reaches the editor offer. Answering it with "nothing" is the same
+    // precaution the per-question `confirm` above is: a test about `git init`
+    // must not open a window on the developer's screen.
+    chooseOne: async () => null,
     close: () => {},
   };
 }
@@ -379,7 +392,10 @@ describe("git init — the real thing", () => {
     const { code, out } = await invoke([], { cwd, env: { PATH: process.env.PATH }, prompter });
 
     assert.equal(code, 0);
-    assert.deepEqual(prompter.asked, []);
+    // The Git question specifically, not "no questions at all": a second run
+    // still ends by offering to copy the Kickstart prompt, which is a different
+    // question about a directory that is already a repository.
+    assert.equal(prompter.asked.includes("Initialize a Git repository here?"), false);
     assert.doesNotMatch(out, /git init/);
   });
 });

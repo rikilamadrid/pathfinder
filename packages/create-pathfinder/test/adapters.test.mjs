@@ -66,7 +66,11 @@ function scriptedPrompter({ harnesses = [], typed = [], interactive = true } = {
     interactive,
     offered,
     asked,
-    confirm: async () => true,
+    // These tests are about what adapters put on disk. The only yes/no question
+    // a run in an existing repository reaches is the clipboard offer, and it is
+    // declined so nothing here depends on, or disturbs, a real clipboard.
+    confirm: async () => false,
+    chooseOne: async () => null,
     chooseMany: async (question, config) => {
       offered.push({ question, config });
       return typeof harnesses === "function" ? harnesses(config.options) : harnesses;

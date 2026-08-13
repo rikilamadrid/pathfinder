@@ -266,6 +266,72 @@ describe("createPrompter — chooseMany", () => {
   });
 });
 
+describe("createPrompter — chooseOne", () => {
+  const options = [
+    { value: "cursor", label: "Cursor" },
+    { value: "vscode", label: "VS Code" },
+    { value: null, label: "Don't open" },
+  ];
+
+  it("returns the numbered choice", async () => {
+    const { prompter } = scripted("2\n");
+
+    assert.equal(await prompter.chooseOne("Open?", { options, defaultValue: "cursor" }), "vscode");
+    prompter.close();
+  });
+
+  it("takes the default on an empty line", async () => {
+    const { prompter } = scripted("\n");
+
+    assert.equal(await prompter.chooseOne("Open?", { options, defaultValue: "cursor" }), "cursor");
+    prompter.close();
+  });
+
+  it("names the default in the question, so one keystroke is enough", async () => {
+    const { prompter, written } = scripted("\n");
+
+    await prompter.chooseOne("Open?", { options, defaultValue: "vscode" });
+
+    assert.match(written(), /^\? Open\?\n {4}1\. Cursor\n {4}2\. VS Code\n {4}3\. Don't open\n/);
+    assert.match(written(), /A number, or Enter for \[2\]\./);
+    // One answer, so the question must not offer a list of them.
+    assert.doesNotMatch(written(), /comma/);
+    prompter.close();
+  });
+
+  it("re-asks an answer that is not one of the numbers, then gives up", async () => {
+    const { prompter, written } = scripted("banana\n9\n1,2\n");
+
+    assert.equal(await prompter.chooseOne("Open?", { options }), null);
+    assert.equal(written().match(/Please answer with a number from 1 to 3\./g).length, 3);
+    prompter.close();
+  });
+
+  it("returns null when the stream ends", async () => {
+    const ended = scripted(null);
+    const pending = ended.prompter.chooseOne("Open?", { options });
+    ended.endInput();
+
+    assert.equal(await pending, null);
+    ended.prompter.close();
+  });
+
+  it("refuses to ask when it is not interactive", async () => {
+    await assert.rejects(
+      () => nonInteractivePrompter().chooseOne("Open?", { options }),
+      /refusing to ask "Open\?"/,
+    );
+  });
+
+  it("asks nothing when there is nothing to choose between", async () => {
+    const { prompter, written } = scripted("");
+
+    assert.equal(await prompter.chooseOne("Open?", { options: [] }), null);
+    assert.equal(written(), "");
+    prompter.close();
+  });
+});
+
 describe("createPrompter — text", () => {
   it("returns the line, trimmed", async () => {
     const { prompter } = scripted("  Zed  \n");

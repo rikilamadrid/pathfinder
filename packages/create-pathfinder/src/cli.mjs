@@ -11,6 +11,9 @@ import { applyAdapterPlan, applyPlan, planAdapters, planInstall } from "./instal
 import { detect, detectedToolLabels } from "./detect.mjs";
 import { initRepository } from "./git.mjs";
 import { nonInteractivePrompter } from "./prompt.mjs";
+import { copyToClipboard } from "./clipboard.mjs";
+import { detectEditors, openInEditor } from "./editor.mjs";
+import { kickstartPrompt, kickstartPromptLines } from "./kickstart-prompt.mjs";
 import {
   HARNESSES,
   HARNESS_IDS,
@@ -36,6 +39,9 @@ Options:
                   wrote at a path an adapter would occupy. Off by default.
   --git-init      Run \`git init\` here if this is not a repository yet.
   --no-git-init   Never run \`git init\`; refuse instead.
+  --no-clipboard  Never offer to copy the Kickstart prompt. The prompt is
+                  printed either way.
+  --no-open       Never offer to open the project in an editor.
   --yes           Take the defaults and ask nothing. Alias: --no-input.
                   It does not authorize \`git init\` or configure any tool;
                   pass --git-init and --agents for those.
@@ -46,7 +52,8 @@ A file it did not generate is never replaced, at any path, without --force.
 
 Without a terminal on both stdin and stdout, nothing is ever asked. In that
 case a directory that is not a Git repository needs --git-init, or the install
-is refused.
+is refused, and neither your clipboard nor an editor is touched — --yes does
+not authorize either one.
 `;
 
 export async function run(
@@ -160,6 +167,15 @@ export async function run(
   const adapters = generateAdapters({ harnesses, kitRoot, cwd, options, result });
 
   report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err });
+
+  // After the report, because the first offer is about the prompt the report
+  // just printed — and because a question above the summary would make the user
+  // answer before seeing what happened. Every run that gets this far printed a
+  // prompt, including one that wrote no files, so there is nothing to guard on.
+  await offerOnboardingActions({ harnesses, cwd, options, prompter, out, env, platform });
+
+  // Neither offer can change this. An install that wrote every file succeeded
+  // whether or not the machine has `pbcopy` or an editor on it.
   return result.errors.length > 0 || adapters.result.errors.length > 0 ? 1 : 0;
 }
 
@@ -312,6 +328,8 @@ function parseArguments(argv) {
     help: false,
     gitInit: false,
     noGitInit: false,
+    noClipboard: false,
+    noOpen: false,
     yes: false,
     // null means "not said", which is not the same as "none". Only the first
     // suppresses the question.
@@ -354,6 +372,12 @@ function parseArguments(argv) {
         break;
       case "--no-git-init":
         options.noGitInit = true;
+        break;
+      case "--no-clipboard":
+        options.noClipboard = true;
+        break;
+      case "--no-open":
+        options.noOpen = true;
         break;
       // `--yes` silences questions. It does not answer the Git one: authorizing
       // the creation of a repository is the single thing in this tool that has
@@ -614,13 +638,18 @@ function report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, 
   if (written === 0 && skipped.length === plan.length) {
     lines.push("");
     lines.push("The kit is already installed here.");
-  } else {
-    lines.push("");
-    lines.push("Next step — give your agent this prompt:");
-    lines.push("");
-    lines.push("  Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this");
-    lines.push("  project. Do not install packages or write product code yet.");
   }
+
+  // The prompt is printed here, always — including on a re-run that wrote
+  // nothing. A second run is how someone configures a harness they skipped, or
+  // simply comes back for the invocation they have forgotten, and both of those
+  // want the same line. It is also what makes the clipboard a convenience on
+  // top of this block rather than the only channel, which is what lets every
+  // clipboard failure be a non-event.
+  lines.push("");
+  lines.push("Next step — give your agent this prompt:");
+  lines.push("");
+  lines.push(...kickstartPromptLines(harnesses));
 
   out(lines.join("\n") + "\n");
 
@@ -629,6 +658,115 @@ function report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, 
     const detail = failures.map((error) => `  ${error.relativePath}: ${error.message}`).join("\n");
     err(`\ncreate-pathfinder: ${failures.length} file${plural(failures.length)} could not be written:\n${detail}\n`);
   }
+}
+
+/**
+ * The last two lines of a successful install: the clipboard, then the editor.
+ *
+ * The guards they share live here because they are one rule, not two. Both are
+ * skipped without a terminal because nothing may be asked there; both are
+ * skipped under `--yes` because silence is not consent to overwrite what
+ * someone is carrying around in their clipboard, nor to take over their screen;
+ * and both are skipped under `--dry-run` because a mode whose promise is
+ * "changes nothing" cannot make an exception for the state that lives outside
+ * the directory.
+ *
+ * Returns nothing and reports nothing upward on purpose. There is no outcome
+ * here that an install should be judged by, so there is no value for the exit
+ * code to be computed from.
+ */
+async function offerOnboardingActions({ harnesses, cwd, options, prompter, out, env, platform }) {
+  if (!prompter.interactive || options.yes) return;
+
+  const suppressed = options.noClipboard && options.noOpen;
+
+  if (options.dryRun) {
+    // Said rather than silently skipped, because the flag's whole job is to
+    // describe the run — and "it would have asked about your clipboard" is
+    // exactly the kind of thing someone runs a dry run to find out. Nothing is
+    // said when both flags already ruled both offers out; there is no run being
+    // described at that point.
+    if (!suppressed) {
+      out("\nOnboarding actions are not offered in a dry run; nothing was copied or opened.\n");
+    }
+    return;
+  }
+
+  if (!options.noClipboard) await offerClipboard({ harnesses, options, prompter, out, env, platform });
+  if (!options.noOpen) await offerEditor({ cwd, prompter, out, env, platform });
+}
+
+/**
+ * Offer to put the printed prompt on the clipboard. Never take it.
+ */
+async function offerClipboard({ harnesses, options, prompter, out, env, platform }) {
+  const answer = await prompter.confirm(
+    "Copy that prompt to your clipboard? This replaces what is on it now.",
+    { defaultAnswer: true },
+  );
+
+  // `false` is a decline and `null` is nobody there. Neither is a yes, and only
+  // a yes may touch the clipboard.
+  if (answer !== true) return;
+
+  // No trailing newline, deliberately. Both harnesses treat a pasted newline as
+  // Enter, so appending one would submit the prompt the instant it is pasted —
+  // a surprise, not a convenience, and the opposite of leaving the user in
+  // control of when their session starts.
+  const copied = copyToClipboard(kickstartPrompt(harnesses), { env, platform });
+
+  out(
+    copied.ok
+      ? "  Copied.\n"
+      : `  Not copied — ${copied.reason}. The prompt is printed above.\n`,
+  );
+}
+
+/**
+ * Offer to open the project in an editor that is already installed here.
+ *
+ * The question exists only when there is something to answer it with. No editor
+ * on PATH means no question at all, rather than a question whose honest answer
+ * is "then don't" — an installer that asks about software you do not have is
+ * asking to be told about itself.
+ *
+ * One editor is a yes/no; several are a numbered list with an explicit way out.
+ * Neither shape can be answered by not answering: a decline, an unanswered
+ * question, and "Don't open" all land on the same nothing.
+ */
+async function offerEditor({ cwd, prompter, out, env, platform }) {
+  const editors = detectEditors({ env, platform });
+  if (editors.length === 0) return;
+
+  const chosen =
+    editors.length === 1
+      ? (await prompter.confirm(`Open this project in ${editors[0].label}?`, {
+          defaultAnswer: true,
+        })) === true
+        ? editors[0]
+        : null
+      : await prompter.chooseOne("Open this project in an editor?", {
+          options: [
+            ...editors.map((editor) => ({ value: editor, label: editor.label })),
+            // Last, and a real row rather than a rule about the empty answer,
+            // so declining costs the same one keystroke as accepting.
+            { value: null, label: "Don't open" },
+          ],
+          defaultValue: editors[0],
+        });
+
+  if (chosen === null) return;
+
+  const opened = await openInEditor(chosen, cwd, { env, platform });
+
+  // "Opening", not "Opened". The launch is detached, so what this line can
+  // truthfully report is that the editor was started, not that it has drawn a
+  // window — and a failure after that point is the editor's to explain.
+  out(
+    opened.ok
+      ? `  Opening ${chosen.label}.\n`
+      : `  Not opened — ${opened.reason}. The install is complete; open ${cwd} yourself.\n`,
+  );
 }
 
 /**
