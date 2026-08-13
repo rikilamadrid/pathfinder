@@ -24,7 +24,7 @@ It is intentionally stack-agnostic. It does not choose React, Python, mobile, a 
 
 **It is not** a framework. There is no required runtime, package manager, framework, database, hosting platform, or Git model, and there is no dependency to install. The destination project chooses its own technology, architecture, delivery process, and learning output format. See [`NOT_A_FRAMEWORK.md`](NOT_A_FRAMEWORK.md).
 
-It is also not an autopilot. Recommendations are proposals, not silent decisions — see [Human control](#human-control).
+It is also not an autopilot. Recommendations are proposals, not silent decisions — see [Human approval](https://pathfinder-kit.vercel.app/concepts/human-approval/).
 
 ## Start a new project
 
@@ -102,42 +102,6 @@ idea
 
 A prototype is optional. `debate-me` recommends whether the project needs an experience prototype, technical proof of concept, architecture diagram, or no prototype at all. An unapproved prototype must not quietly become production code.
 
-### External reference analysis
-
-When a project is inspired by an existing product, interface, repository, workflow, animation, or technical implementation, Pathfinder can analyze the reference before making product or architectural decisions.
-
-```text
-external reference
-→ reverse-engineer
-→ identify observed behavior, inferences, and unknowns
-→ extract transferable patterns
-→ debate reconstruction choices
-→ prototype the important behavior
-→ approve direction
-→ to-specs
-```
-
-`reverse-engineer` is intentionally separate from project discovery and implementation. It analyzes an external reference and produces an evidence-based reconstruction blueprint; the rules it works under are in [Reverse-engineering rule](#reverse-engineering-rule).
-
-The skill may recommend a Pathfinder handoff, but it must not silently perform the responsibilities of another skill. Typical handoffs include:
-
-* `kickstart-pathfinder` when the analysis is becoming a new project
-* `debate-me` when important product or technical choices remain
-* `prototype` when a behavior or assumption needs validation
-* `to-specs` when the direction is approved and ready for feature planning
-* `load-feature` when the analysis applies to an existing planned feature
-* `learn-codebase` when the real goal is understanding the user's own repository
-
-The boundary is:
-
-```text
-reverse-engineer = understand an external reference
-learn-codebase   = understand the current codebase
-kickstart        = initialize project context
-prototype        = validate a proposed direction
-to-specs         = convert an approved direction into planned work
-```
-
 ### Delivery loop
 
 ```text
@@ -150,102 +114,19 @@ project context
 → history
 ```
 
-Features are intentionally sized for reliable delivery inside a focused LLM context window. They should be small, independently verifiable, and explicit about what the agent should and should not load. See [Context-efficient feature design](#context-efficient-feature-design).
+Features are intentionally sized for reliable delivery inside a focused LLM context window. They should be small, independently verifiable, and explicit about what the agent should and should not load. See [Context boundaries](https://pathfinder-kit.vercel.app/concepts/context-boundaries/).
 
-When something is observably broken, the loop pauses and `debug-issue` runs instead of the agent guessing its way forward.
+When something is observably broken, the loop pauses and `debug-issue` runs instead of the agent guessing its way forward. It reproduces before repairing, tests hypotheses rather than editing at random, and reports rather than thrashing when the evidence runs out. See [When something breaks](https://pathfinder-kit.vercel.app/guides/workflow/#when-something-breaks).
 
-```text
-observed failure
-→ debug-issue
-→ reproduce
-→ hypotheses and discriminating evidence
-→ root cause
-→ smallest justified fix
-→ verify against the original failure
-→ back to the delivery loop
-```
+### The other three loops
 
-`debug-issue` is for a concrete unexpected behavior — a failing test, a runtime error, a regression, incorrect output, an environment-specific or intermittent failure. It is not for work that is merely hard. The boundary is:
+Three more loops sit alongside these two:
 
-```text
-debug-issue     = an observed failure needs an explanation
-start-feature   = planned construction is difficult
-review-feature  = completed implementation needs inspection for defects
-learn-codebase  = the real question is understanding the repository
-```
+* [External reference analysis](https://pathfinder-kit.vercel.app/guides/workflow/#external-reference-analysis) — analyze an existing product, interface, or repository into an evidence-based reconstruction blueprint before deciding anything.
+* [Learning and mentoring](https://pathfinder-kit.vercel.app/guides/workflow/#learning-and-mentoring-loop) — teach, quiz, and challenge the human owner on what the AI helped build.
+* [Workflow reflection](https://pathfinder-kit.vercel.app/guides/workflow/#workflow-reflection-loop) — the other loops improve the project; this one improves the workflow. Reflect proposes, humans promote.
 
-It reproduces before repairing, tests hypotheses rather than editing at random, and reports rather than thrashing when the evidence runs out. A symptom disappearing does not count as a root cause, and a fix that would require an unapproved architectural, dependency, security, or destructive change stops for a human decision.
-
-### Learning and mentoring loop
-
-Learning is part of the workflow, not an afterthought. The goal is for the human owner to understand the architecture, implementation, tests, tradeoffs, and extension points of what the AI helped build.
-
-```text
-feature review
-→ teach-feature
-→ quiz-me
-→ challenge-me (when valuable)
-→ teach-architecture (at milestones)
-→ learning-review (periodically)
-→ complete feature
-```
-
-The mentoring skills complement the delivery workflow without replacing it.
-
-* **learn-feature** turns a completed feature into an interactive lesson.
-* **teach-feature** explains the verified implementation, tradeoffs, testing, accessibility, performance, and interview takeaways.
-* **quiz-me** measures understanding with varied question types.
-* **challenge-me** creates transfer exercises so concepts are applied in new contexts.
-* **teach-architecture** connects completed features to the larger system architecture.
-* **learning-review** periodically reviews demonstrated knowledge, interview readiness, and reinforcement priorities.
-
-### Workflow reflection loop
-
-The other loops improve the project. This one improves the workflow.
-
-```text
-discover
-→ challenge
-→ prototype / specify
-→ build
-→ review / verify
-→ complete
-→ reflect
-   └── proposed workflow improvement (human decides)
-```
-
-`reflect` reviews work that is already finished. It reconstructs what actually happened, separates knowledge that belongs to the project from lessons that could help unrelated projects, and proposes the smallest durable improvement — often none.
-
-It does not change Pathfinder, `AGENTS.md`, or any skill on its own.
-
-> Projects produce lessons. Pathfinder keeps the reusable ones.
->
-> Reflect proposes. Humans promote.
-
-Reflection is not a mandatory step after every change. It earns its cost after:
-
-* a meaningful completion, such as a feature, migration, refactor, or project phase
-* difficult debugging
-* repeated human corrections
-* a surprising discovery about the system or the workflow
-* substantial workflow friction or repeated manual intervention
-
-Skip it for trivial or routine work.
-
-A finding is only a Pathfinder candidate if it still holds in another language, framework, and business domain. Everything else stays with the project.
-
-Reflection also checks itself. After reviewing the work, `reflect` makes a single bounded pass over its own performance — did it miss a visible signal, overgeneralize, or propose something already covered? — and may recommend a change to its own skill definition.
-
-```text
-work
-→ reflect on the work
-→ reflect on reflect
-→ stop
-```
-
-That pass stops there. It does not recurse further, it does not go looking for a problem because the section exists, and "no improvement needed" is the expected result. A self-improvement follows the same promotion rule as any other proposal.
-
-> Self-reference does not lower the evidence threshold. It raises it.
+[The workflow guide](https://pathfinder-kit.vercel.app/guides/workflow/) draws all five loops in full, with every human decision point marked.
 
 ## Invoking a skill
 
@@ -259,7 +140,7 @@ In any other tool, give the agent one line:
 Use skills/<name>/SKILL.md and follow it exactly.
 ```
 
-That is the whole fallback. It is an invocation form, not a file to generate or a directory to install — and it is exactly what the generated adapters delegate to, so both paths end at the same canonical file.
+That is the whole fallback. It is an invocation form, not a file to generate or a directory to install — and it is exactly what the generated adapters delegate to, so both paths end at the same canonical file. Filled in, it reads:
 
 ```text
 Use skills/kickstart-pathfinder/SKILL.md to initialize this project.
@@ -322,124 +203,6 @@ A project installed before v1.5.0 also has a `prompts/` directory, which the ins
 ```
 
 </details>
-
-## Human control
-
-The user chooses or approves:
-
-* product and MVP scope
-* technology stack and architecture
-* database, authentication, APIs, and infrastructure
-* prototype direction
-* reconstruction choices derived from external references
-* Git and delivery workflow
-* dependency changes
-* destructive operations
-* commits, merges, and releases
-
-The AI may recommend choices based on the product, constraints, learning goals, team, budget, existing repository, and available evidence.
-
-Recommendations are proposals, not silent decisions.
-
-## Decision states
-
-Use these consistently:
-
-* `TBD` — a human decision is still required
-* `None` — intentionally excluded
-* `N/A` — not applicable
-* `Deferred` — intentionally postponed
-
-Agents must not silently resolve `TBD` items while implementing a feature.
-
-## Context-efficient feature design
-
-A good feature:
-
-* fits one focused implementation session
-* has a clear context boundary
-* touches a coherent set of systems
-* can be verified independently
-* creates a visible or meaningful result
-* states dependencies and assumptions
-* can be split into stable delivery chunks
-
-Avoid features such as “build the backend”, “add all components”, “polish everything”, or “recreate the entire reference product”. Split work by user-visible or system-verifiable outcomes.
-
-External reference analysis should inform feature design, but a reverse-engineering report is not itself a feature specification. Use `to-specs` to convert an approved reconstruction direction into small, verifiable features.
-
-## Prototype rule
-
-Prototype only what needs validation. Choose the cheapest useful format:
-
-* wireframe or flow diagram
-* static visual mockup
-* interactive HTML/CSS/JS prototype
-* existing-stack prototype
-* technical proof of concept
-* architecture or data-flow diagram
-
-Prototype code is disposable unless a later feature explicitly adopts and hardens it.
-
-A reconstruction blueprint produced by `reverse-engineer` is not production code. When uncertain behavior, fidelity, feasibility, or technical risk remains, validate it through `prototype` before converting it into feature specifications.
-
-## Reverse-engineering rule
-
-Reverse-engineer only what is necessary to understand or reproduce the requested outcome.
-
-The skill must clearly distinguish directly observed behavior, strong inferences, possible implementation approaches, and unknown or unverifiable details. Beyond that, it must:
-
-* define the target and analysis boundary
-* inspect only relevant evidence
-* state unknowns honestly
-* extract transferable product, design, interaction, or engineering patterns
-* recommend an implementation appropriate for the user's project
-* avoid claiming knowledge of private or server-side implementation details
-* avoid copying proprietary code, protected assets, branding, or content
-* avoid bypassing authentication, authorization, paywalls, technical controls, or private systems
-* recommend the correct Pathfinder handoff when further work is needed
-
-It should reproduce useful patterns and outcomes rather than copy proprietary code, assets, branding, content, or private implementation details. The preferred goal is:
-
-```text
-understand the pattern
-→ reconstruct the behavior
-→ adapt it to the project
-```
-
-Not:
-
-```text
-copy the original product exactly
-```
-
-## Learning outputs
-
-`learn-feature` should default to a lightweight, self-contained HTML/CSS/JS lesson unless the destination repository already supports MDX or another appropriate documentation format.
-
-`learn-codebase` may inspect broadly, but should generate modular lessons rather than one giant page. It is best used at milestones, for onboarding, or for interview preparation — not after every small change.
-
-A reverse-engineering report may explain transferable concepts, but it should not replace the structured teaching and assessment responsibilities of `teach-feature`, `teach-architecture`, `quiz-me`, `challenge-me`, and `learning-review`.
-
-## Add more only after real pain
-
-Do not turn this into a giant framework.
-
-Add a new skill only when:
-
-* a repeated task keeps going wrong
-* an existing skill does not already own the responsibility
-* the new skill has a narrow and clearly defined trigger
-* it produces a concrete, verifiable result
-* its inputs and outputs are explicit
-* its boundaries with neighboring skills are documented
-* it improves the workflow without silently expanding Pathfinder's scope
-
-Before adding a skill, review the existing workflow for overlap.
-
-`reflect` is the usual source of that evidence, but a reflection recommendation is a proposal. A human decides whether it becomes part of Pathfinder.
-
-When a new skill is justified, use `skillsmith` to define and review its behavior contract.
 
 ## Contributing
 
