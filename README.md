@@ -37,7 +37,6 @@ It is also not an autopilot. Recommendations are proposals, not silent decisions
 ```bash
 mkdir my-project
 cd my-project
-git init
 npx create-pathfinder
 ```
 
@@ -52,7 +51,7 @@ It writes exactly five things:
 | `skills/` | Twenty skills covering discovery, specs, delivery, debugging, review, and learning |
 | `templates/` | Starting points the project copies when it needs them |
 
-It never overwrites. Files you already have are left alone and listed by name; pass `--force` if you actually want them replaced, or `--dry-run` to see the plan without writing. It refuses to run outside a Git repository, so whatever it writes is reviewable and undoable.
+It never overwrites. Files you already have are left alone and listed by name; pass `--force` if you actually want them replaced, or `--dry-run` to see the plan without writing. It installs only into a Git repository, so whatever it writes is reviewable and undoable — in a directory that is not one yet, it explains why and offers to run `git init` for you. Decline and nothing is written.
 
 This kit's own `CHANGELOG.md` is deliberately not copied; it is the history of Pathfinder itself. Use `templates/CHANGELOG.template.md` if the destination project chooses a changelog.
 
@@ -66,11 +65,21 @@ Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this project. Do no
 
 That starts the discovery conversation. From there the loop is: debate the direction, prototype the risky part, convert the approved direction into small features, then build them one at a time.
 
+### Native to your tools
+
+**One workflow. Native to your tools.** Before it writes anything, the installer reports what it found: whether this is a Git repository, whether `git` is on your `PATH`, whether Pathfinder is already installed, and which supported coding tools are available. Findings set the defaults for the questions and nothing else.
+
+The question that follows is which tools to configure. Claude Code and Codex discover skills natively, so the installer can generate a small adapter per skill — `.claude/skills/<name>/SKILL.md`, `.agents/skills/<name>/SKILL.md`, or both — and Pathfinder's skills appear in that tool's own list. In a terminal you are asked, with the detected tools as the default; without one, `--agents claude-code,codex` says it explicitly. Nothing is configured unless you choose it, and choosing one tool never touches the other's directory.
+
+**Adapters are generated artifacts, not copy-list entries.** The five paths in the table above are the kit; adapters are derived from `skills/` at install time, regenerated on every run without `--force`, and never added to `copy-list.json`. Each carries a skill's name and description and delegates to the canonical file — so the behavior contract stays in exactly one place, whichever tool you are in.
+
 ## Adapt an existing repo
 
 Run `npx create-pathfinder` in the existing repository, then run `kickstart-pathfinder`. It should inspect the repository lightly, preserve established conventions, and distinguish repository facts from decisions still requiring human input.
 
 Nothing you already have is overwritten, so this is safe to run in a repository with its own `CLAUDE.md` or `context/` — the installer reports what it skipped and leaves it untouched.
+
+Existing `.claude/` and `.agents/` configuration is preserved the same way. The ownership rule is one sentence: the installer owns a file at an adapter path only if the name is a Pathfinder skill *and* the file carries the `pathfinder:adapter` marker it wrote. Everything else there — your `settings.json`, agents, commands, hooks, and any skill of your own — is never read and never written, a file you wrote at an adapter path is left alone and named in the summary, and nothing is ever deleted. Re-running an older install is how it gains adapters: no flag, no migration step.
 
 Use `learn-codebase` when deeper understanding, onboarding, teaching, or architectural explanation of the existing repository is needed.
 
