@@ -14,7 +14,7 @@
 // install that omits devDependencies — `sharp` is the icon *generator's*
 // dependency, and nothing at build time should need it.
 
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -107,6 +107,59 @@ if (!landing.includes('rel="manifest"')) {
   fail('the built landing page does not link the manifest');
 }
 
+// A reader can install from any page, not only the landing page, and iOS names
+// the Web Clip from the page it was added from — from the document title unless
+// `apple-mobile-web-app-title` is present. That is why every page is checked and
+// not a sample: the defect this replaces was metadata fixed in one place while
+// every other page still proposed "Page | Pathfinder". A sample would also have
+// to answer which page it sampled, and the answer would differ between a clean
+// CI build and a developer's older `dist/`.
+async function htmlPages(dir) {
+  const pages = [];
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    if (entry.name.startsWith('_')) continue;
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) pages.push(...(await htmlPages(path)));
+    else if (entry.name.endsWith('.html')) pages.push(path);
+  }
+  return pages;
+}
+
+const pages = await htmlPages(dist);
+if (pages.length === 0) fail('dist/ contains no HTML pages');
+
+const missingName = [];
+const wrongName = [];
+const missingAppleIcon = [];
+
+for (const page of pages) {
+  const html = await readFile(page, 'utf8');
+  const name = html.match(/<meta name="apple-mobile-web-app-title" content="([^"]+)"/)?.[1];
+  if (!name) missingName.push(page);
+  else if (name !== manifest.short_name) wrongName.push(`${page} ("${name}")`);
+  if (!/rel="apple-touch-icon"/.test(html)) missingAppleIcon.push(page);
+}
+
+// Reported as counts with examples: a site-wide regression would otherwise
+// print one line per page and bury everything else.
+const summarise = (paths) =>
+  `${paths.length} of ${pages.length} pages, e.g. ${paths
+    .slice(0, 3)
+    .map((path) => path.slice(dist.length + 1))
+    .join(', ')}`;
+
+if (missingName.length > 0) {
+  fail(`<meta name="apple-mobile-web-app-title"> missing — ${summarise(missingName)}`);
+}
+if (wrongName.length > 0) {
+  fail(
+    `apple-mobile-web-app-title disagrees with the manifest's short_name "${manifest.short_name}" — ${summarise(wrongName)}`,
+  );
+}
+if (missingAppleIcon.length > 0) {
+  fail(`apple-touch-icon link missing — ${summarise(missingAppleIcon)}`);
+}
+
 const appleIcon = landing.match(/<link[^>]+rel="apple-touch-icon"[^>]+href="([^"]+)"/)?.[1];
 if (!appleIcon) {
   fail('the built landing page has no apple-touch-icon link');
@@ -132,5 +185,6 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `check-manifest: manifest valid, ${icons.length} icons plus the apple-touch-icon resolve in dist/`,
+  `check-manifest: manifest valid, ${icons.length} icons plus the apple-touch-icon resolve in dist/, ` +
+    `iOS name and icon metadata present on all ${pages.length} pages`,
 );

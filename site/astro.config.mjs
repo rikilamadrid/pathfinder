@@ -61,6 +61,14 @@ export default defineConfig({
         // manifest is white, matching the ground the opaque icons are drawn on,
         // so the splash screen and the icon on it share one surface.
         { tag: 'meta', attrs: { name: 'theme-color', content: '#E0611F' } },
+        // The name iOS proposes in Add to Home Screen. Without it Safari falls
+        // back to the document title of whatever page the reader happened to be
+        // on, so adding from a deep page proposes "Getting started |
+        // Pathfinder". Fixing the landing page's title only fixed the landing
+        // page; this is site-wide and is what iOS actually reads. It must agree
+        // with the manifest's `short_name`, and the postbuild check asserts it
+        // on a deep page as well as the landing page.
+        { tag: 'meta', attrs: { name: 'apple-mobile-web-app-title', content: 'Pathfinder' } },
       ],
       customCss: ['./src/styles/brand.css'],
       // Wraps Starlight's own footer rather than replacing it — see the
