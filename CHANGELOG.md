@@ -25,6 +25,8 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-08-13
+
 ### Added
 
 - **The Kickstart prompt now matches the tool you configured, and the installer offers to copy it.** Configure Claude Code and the printed next step is `/kickstart-pathfinder`; configure Codex and it is `$kickstart-pathfinder`. Configure both, or neither, and it stays the harness-neutral `Use skills/kickstart-pathfinder/SKILL.md …` line, because one clipboard cannot serve two syntaxes and choosing between your tools is not the installer's call.
@@ -54,6 +56,8 @@ Non-interactive output is otherwise unchanged from `1.4.1`: installing into a re
 - **A directory that is not a repository *and* has no `git` on `PATH` now gets different advice.** `1.4.1` printed the standard refusal and told the reader to run `git init` themselves — which could not work, because the binary was missing. That case now says so and links the download instead. This replaces the refusal text rather than extending it, so it is not "the 1.4.1 message plus a line"; the exit code is still `1`.
 - **A re-run that writes nothing now ends with the Kickstart prompt too.** It used to stop at `The kit is already installed here.` with no next step. Both lines are printed now, because a second run is how someone configures a harness they skipped the first time, or comes back for the invocation they have forgotten. The exit code is unchanged, and this is the only scenario whose non-interactive output gained lines rather than changing them.
 - **`--help` gained the new flags and a paragraph on the no-terminal behavior.** The same usage text is printed to stderr beneath an unknown or contradictory flag, so those exit-2 errors changed wording too. The leading `create-pathfinder: unknown option ...` line and the exit code are unchanged.
+- **The documented install path matches the tool again.** The README quickstart no longer runs `git init` before `npx create-pathfinder`, and the claim that the installer "refuses to run outside a Git repository" is replaced by what it now does — explain, offer, and write nothing if you decline. A new subsection covers what the installer detects and how harnesses are chosen, and states that adapters are generated artifacts and never copy-list entries. The installer's npm page gains a generated-adapters row, the ownership rule, and the upgrade contract in full: re-running in a project that already has Pathfinder is safe, requires no flags, and is idempotent.
+- **`CONTRIBUTING.md` and `NOT_A_FRAMEWORK.md` distinguish the kit from the repository that maintains it.** The kit is still Markdown only and a destination project still installs nothing and runs nothing; the repository holds the installer, its tests, the validation script, the adapter generator, and the site. The release checklist's final verification now covers adapter generation and an idempotent re-run.
 
 ### Fixed
 
@@ -64,6 +68,11 @@ Non-interactive output is otherwise unchanged from `1.4.1`: installing into a re
 - **`prompts/` and its twenty manual launchers.** A fresh install now copies five entries instead of six. Every launcher was a wrapper that delegated by path to `skills/<name>/SKILL.md`, and their stated purpose — a fallback for tools that cannot discover local skills — was never what they did: a tool too weak to find a local skill is not helped by a second local file telling it to open the first one. With native discovery now shipping for Claude Code and Codex, a skill is invoked natively where that works, and everywhere else by one documented line — `Use skills/<name>/SKILL.md and follow it exactly.` — which is what the generated adapters delegate to anyway.
 - **An existing project keeps its `prompts/` directory.** This is a MINOR change, not MAJOR: the installer only ever writes, so re-running it over a 1.4.x project leaves those files byte-for-byte intact, including under `--force`, and they keep working because they point at `skills/`, which still ships. The contract narrows for new installs; nothing breaks for existing ones. There is no migration command, no cleanup step, and no deprecation shim — Pathfinder does not delete your files.
 - **The `check_prompts()` validation rule**, replaced rather than dropped. It enforced that every skill has some way to be invoked; that invariant now lives in `adapter-no-orphans`, which requires every canonical skill to have its expected generated adapter, and the validator records the inheritance where the rule is defined.
+
+### Validation
+
+- **A new `help-text` rule keeps `--help` honest.** Every flag the argument parser accepts, and every harness id in the registry, must appear in the help output — which the rule captures by running `--help` rather than by reading the source constant. Four consecutive features added flags; each documented its own correctly, and the rule exists for the fifth.
+- **`copy-list-readme` no longer passes vacuously.** It matched a copy-list entry as the first segment of any deeper path, so deleting the `templates/` row from the README's install table still satisfied it — `templates/CHANGELOG.template.md` further down the section was enough. It now matches an entry as itself.
 
 ## [1.4.1] - 2026-08-12
 
