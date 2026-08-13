@@ -12,8 +12,10 @@ project needs — and so does the first feature.
 
 ## What you need
 
-- **Git**, and a repository to install into. The installer refuses to run outside
-  one.
+- **Git.** Pathfinder installs into version control; if this directory is not a
+  repository yet, the installer offers to run `git init` for you. The `git` binary
+  is only needed to *create* one — inside a repository that already exists, the
+  installer never runs Git at all.
 - **Node 18 or newer**, to run `npx` once. Nothing stays installed afterwards.
 - **An AI coding agent that can read files in your project** — Claude Code, or any
   agent you can point at a path.
@@ -23,34 +25,64 @@ Pathfinder is markdown.
 
 ## Install
 
-Start a repository, or `cd` into one you already have.
+Make a directory, or `cd` into a repository you already have.
 
 ```bash
 mkdir my-project
 cd my-project
-git init
 npx create-pathfinder
 ```
 
 The installer copies files and exits. It adds no dependency, writes no
 `package.json`, and leaves nothing behind in `node_modules`.
 
-On a fresh repository it reports where it installed, what it wrote, and the prompt
-to run next:
+In an empty directory it opens by reporting what it found, then asks two
+questions before writing anything — whether to create the repository, and which
+coding tools to configure:
 
 ```text
+Pathfinder
+
+  - No Git repository here
+  + Tools detected: Claude Code, Codex, VS Code, Cursor (noted, not configured)
+
+Pathfinder installs into version control so you can review what it wrote
+and undo it. It will not touch an existing history.
+
+? Initialize a Git repository here? [Y/n] y
+  + git init - initialized an empty repository in /path/to/my-project
+
+? Configure Pathfinder for which tools?
+    1. Claude Code      -> .claude/skills/   (detected)
+    2. Codex            -> .agents/skills/   (detected)
+    3. Something else…  -> nothing is generated
+  Numbers, comma-separated. Enter for the detected default [1,2], or 0 for none.
+> 1
+
 Installed the Pathfinder kit into /path/to/my-project
 
-  56 files written
+  36 files written
+  20 Claude Code skill adapters generated
 
 Next step — give your agent this prompt:
 
-  Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this
-  project. Do not install packages or write product code yet.
+  /kickstart-pathfinder
 ```
+
+Detection sets the defaults and nothing else — the tools line says
+`(noted, not configured)` because that is the whole of it. Nothing is configured
+unless you choose it, and declining the first question writes nothing at all.
+
+Two more questions follow: whether to copy that prompt to your clipboard, and
+whether to open the project in an editor already on your `PATH`. Both are
+conveniences — say no to either and the install is unaffected.
 
 The exact file count moves as the kit grows. What does not move is the shape of
 what landed.
+
+Questions are asked only when stdin and stdout are both terminals. Piped,
+redirected, or in CI, nothing is asked: pass `--git-init` and
+`--agents claude-code,codex` to get the same result without prompts.
 
 ## Confirm what landed
 
@@ -58,7 +90,7 @@ what landed.
 ls
 ```
 
-In the empty repository you just created, five things — and nothing else:
+In the empty repository you just created, five things:
 
 | Path | What it is |
 | --- | --- |
@@ -67,10 +99,16 @@ In the empty repository you just created, five things — and nothing else:
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
 | `templates/` | Starting points the project copies when it needs them |
 
+Plus a `.claude/` or `.agents/` directory if you asked for adapters. Those hold one
+generated pointer per skill, rendered from `skills/` at install time rather than
+copied — which is why they are not part of the five, and why editing a skill
+changes behavior while editing an adapter does not.
+
 Nothing is hidden from you. The installer stages nothing and commits nothing, so
 `git status` reports everything it added as untracked — `git status -uall` lists it
 file by file — and `git clean -fd` removes all of it in one command. That is why it
-insists on a repository.
+insists on a repository, and why it offers to create one rather than proceeding
+without.
 
 Pathfinder's own `README.md`, `CHANGELOG.md`, CI configuration, and brand assets are
 never copied. Your repository gets the workflow, not the project that maintains it.
@@ -85,14 +123,30 @@ npx create-pathfinder
 
 It never overwrites. Files you already have are left exactly as they are and listed
 by name, so a repository with its own `CLAUDE.md` or `context/` keeps them and
-receives only what is missing. Re-running is safe and fills in the gaps.
+receives only what is missing.
 
-Two options are worth knowing before you run it anywhere real:
+Re-running in a project that already has Pathfinder is safe, requires no flags, and
+is idempotent: edited files are skipped and listed, files new in this version are
+written, and adapters are regenerated byte-identically if nothing changed. That is
+how a project installed before v1.5.0 gains adapters — one ordinary run, no
+migration step.
+
+Your tool's own configuration is not Pathfinder's to touch. It owns a file under
+`.claude/skills/` or `.agents/skills/` only if the name is a Pathfinder skill *and*
+the file carries the marker it wrote. Your `settings.json`, agents, commands, hooks,
+and any skill of your own are never read and never written, and nothing is ever
+deleted.
+
+Options worth knowing before you run it anywhere real:
 
 | Option | Effect |
 | --- | --- |
 | `--dry-run` | Report the same plan the real install would carry out, and write nothing |
 | `--force` | Overwrite files that already exist. Off by default |
+| `--agents <ids>` | Generate adapters for `claude-code`, `codex`, or both, without being asked |
+| `--git-init` | Run `git init` here if this is not a repository yet |
+| `--yes` | Take the defaults and ask nothing. It does not authorize `git init` or configure any tool |
+| `--no-clipboard`, `--no-open` | Skip the clipboard offer and the editor offer |
 
 `--dry-run` runs the real planner, so what it reports is what would happen — not a
 separate description of it.
@@ -105,10 +159,12 @@ Open your agent in the project and give it the prompt the installer printed:
 Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this project. Do not install packages or write product code yet.
 ```
 
-If your tool discovers local skills on its own — and the installer will have
-generated the adapters that make Pathfinder's appear there — `kickstart-pathfinder`
-is enough. If it does not, add one line so it knows where to look:
-`Use skills/kickstart-pathfinder/SKILL.md and follow it exactly.`
+If you configured Claude Code or Codex, the installer generated the adapters that
+make Pathfinder's skills appear in that tool's own list, and the prompt it printed
+is the native one — `/kickstart-pathfinder` or `$kickstart-pathfinder`. Anywhere
+else, one line tells the agent where to look:
+`Use skills/kickstart-pathfinder/SKILL.md and follow it exactly.` That is the whole
+fallback, and it is what the adapters delegate to anyway.
 
 The second sentence of that prompt is not politeness. `kickstart-pathfinder` stops
 before specs, scaffolding, dependencies, and product code, and saying so up front
@@ -203,8 +259,10 @@ agent recommends; you choose.
 ## When something does not work
 
 **`is not inside a Git repository`** — the installer stopped before writing
-anything. Run `git init` here, or `cd` into an existing repository, and run it
-again.
+anything. In a terminal it would have offered to run `git init`, so seeing this
+means either you declined, or nothing was there to ask: piped, redirected, and CI
+runs never prompt. Pass `--git-init` to authorize it, run `git init` yourself, or
+`cd` into an existing repository.
 
 **Files were listed as left untouched** — that is the non-destructive default doing
 its job, not an error. Those files already existed. If you genuinely want the kit's
