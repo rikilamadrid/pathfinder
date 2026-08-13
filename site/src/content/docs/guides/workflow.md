@@ -94,6 +94,24 @@ It states unknowns as unknowns, reproduces patterns rather than copying propriet
 code, assets, or branding, and does not claim to know a private or server-side
 implementation from surface evidence.
 
+The whole loop is aimed at one shape:
+
+```text
+understand the pattern
+→ reconstruct the behavior
+→ adapt it to the project
+```
+
+Not:
+
+```text
+copy the original product exactly
+```
+
+The difference is not only a legal one. A reconstruction you understand can be
+changed later; a copy you do not understand is a dependency on a product you do
+not control.
+
 It may recommend a handoff. It must not quietly perform one:
 
 ```text
@@ -197,6 +215,12 @@ feature into a self-contained interactive lesson you keep, rather than a
 conversation you lose. [`learn-codebase`](/skills/learn-codebase/) works at
 repository scale and is best used for onboarding, milestones, or interview
 preparation — not after every change.
+
+A [reverse-engineering](/skills/reverse-engineer/) report does not enter this loop
+either. It may explain a transferable concept well, and it is still analysis of
+someone else's product — it does not stand in for `teach-feature`,
+`teach-architecture`, `quiz-me`, `challenge-me`, or `learning-review`, which teach
+and assess what *your* project actually implemented.
 
 There is no `◆` in this loop. Nothing here changes your project.
 

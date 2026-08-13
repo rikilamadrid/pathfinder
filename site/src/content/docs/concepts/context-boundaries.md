@@ -52,6 +52,21 @@ If a feature's required context cannot be described briefly, the feature is too 
 That is not a documentation problem to write around — it is the spec telling you to
 split it.
 
+You can usually see it in the title before you see it in the boundary:
+
+```text
+build the backend
+add all components
+polish everything
+recreate the entire reference product
+```
+
+None of those has a boundary, because none of them has an outcome. "Build the
+backend" is finished when someone decides it is. A feature is sized by the result a
+person can look at or a machine can check — one visible behavior, one verifiable
+system change — and the reading list follows from that. Titles like these get split
+by outcome, not trimmed by wording.
+
 [`load-feature`](/skills/load-feature/) checks this before implementation starts and
 will recommend splitting rather than proceeding. [`to-specs`](/skills/to-specs/)
 tries to avoid producing such a feature in the first place, by sizing each one to a
