@@ -41,6 +41,26 @@ export default defineConfig({
           tag: 'link',
           attrs: { rel: 'icon', href: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
         },
+        // What actually makes the site installable. The manifest is hand-written
+        // and committed at `public/manifest.webmanifest` — unlike the brand
+        // files beside it, it is not a copy of anything in `assets/`, so it is
+        // the one tracked file in that directory. Its paths are root-relative,
+        // which is what lets a preview deployment serve a manifest that is
+        // correct for its own origin.
+        { tag: 'link', attrs: { rel: 'manifest', href: '/manifest.webmanifest' } },
+        // iOS reads neither the manifest's icons nor an SVG favicon. Without
+        // this line an add-to-home-screen gets a screenshot of the page.
+        {
+          tag: 'link',
+          attrs: { rel: 'apple-touch-icon', href: '/apple-touch-icon-180.png', sizes: '180x180' },
+        },
+        // Must agree with `theme_color` in the manifest, and does. Blaze orange
+        // is the mark's colour and the only brand value that is not one of the
+        // two page grounds, so it reads as identity in both themes instead of
+        // impersonating the background of one of them. `background_color` in the
+        // manifest is white, matching the ground the opaque icons are drawn on,
+        // so the splash screen and the icon on it share one surface.
+        { tag: 'meta', attrs: { name: 'theme-color', content: '#E0611F' } },
       ],
       customCss: ['./src/styles/brand.css'],
       // Wraps Starlight's own footer rather than replacing it — see the
