@@ -87,6 +87,11 @@ function scriptedPrompter(answer, { harnesses = [] } = {}) {
       offered.push(question);
       return harnesses;
     },
+    // These tests pass a real PATH, so a machine with `code` or `cursor` on it
+    // reaches the editor offer. Answering it with "nothing" is the same
+    // precaution the per-question `confirm` above is: a test about `git init`
+    // must not open a window on the developer's screen.
+    chooseOne: async () => null,
     close: () => {},
   };
 }

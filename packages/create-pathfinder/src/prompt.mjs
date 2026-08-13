@@ -35,6 +35,7 @@ const NO = new Set(["n", "no"]);
  * @returns {{interactive: boolean,
  *            confirm: (question: string, options?: {defaultAnswer?: boolean}) => Promise<boolean|null>,
  *            chooseMany: (question: string, config?: object) => Promise<unknown[]|null>,
+ *            chooseOne: (question: string, config?: object) => Promise<unknown|null>,
  *            text: (question: string) => Promise<string|null>,
  *            close: () => void}}
  */
@@ -127,6 +128,60 @@ export function createPrompter({ input, output, interactive = false, retries = 3
         if (selected !== null) return selected.map((index) => choices[index].value);
 
         output.write(`  Please answer with numbers from 1 to ${choices.length}, or 0 for none.\n`);
+      }
+
+      return null;
+    },
+
+    /**
+     * Ask which one of a numbered list. Exactly one, or none.
+     *
+     * The same lines-and-numbers shape as `chooseMany`, and separate from it on
+     * purpose: a question with one answer must not print "comma-separated" and
+     * must not have to decide what `1,2` meant. A caller that wants "none" as a
+     * possibility supplies it as an option, because a list of editors and a
+     * decision not to open one read better as three rows than as a rule.
+     *
+     * Returns the chosen option's `value`, or null when nobody answered. An
+     * option whose value is null and an unanswered question are indistinguishable
+     * here, which is correct for every question worth asking this way: both mean
+     * nothing should happen.
+     *
+     * @param {string} question
+     * @param {{options: {label: string, value: unknown}[], defaultValue?: unknown}} config
+     * @returns {Promise<unknown|null>}
+     */
+    async chooseOne(question, { options: choices = [], defaultValue } = {}) {
+      if (!interactive) {
+        throw new Error(`refusing to ask "${question}": this prompter is not interactive`);
+      }
+      if (choices.length === 0) return null;
+
+      const fallback = choices.find((choice) => choice.value === defaultValue) ?? choices[0];
+      const defaultNumber = choices.indexOf(fallback) + 1;
+
+      output.write(
+        [
+          `? ${question}`,
+          ...choices.map((choice, index) => `    ${index + 1}. ${choice.label}`),
+          `  A number, or Enter for [${defaultNumber}].`,
+          "",
+        ].join("\n"),
+      );
+
+      for (let attempt = 0; attempt < retries; attempt += 1) {
+        const answer = await ensureReader().ask("> ");
+        if (answer === null) return null;
+
+        const normalized = answer.trim();
+        if (normalized === "") return fallback.value;
+
+        if (/^\d+$/.test(normalized)) {
+          const number = Number(normalized);
+          if (number >= 1 && number <= choices.length) return choices[number - 1].value;
+        }
+
+        output.write(`  Please answer with a number from 1 to ${choices.length}.\n`);
       }
 
       return null;

@@ -93,6 +93,21 @@ In a terminal you are then asked whether to copy it. The question says what it r
 - **The prompt is printed either way.** Copying is a convenience, never the only way to get it, which is what lets every failure be a non-event.
 - **No dependency, and no clipboard is ever read.** The copy uses whatever your system already has — `pbcopy`, `clip.exe` including under WSL, or `wl-copy`, `xclip`, or `xsel` — chosen by what is actually installed rather than by your platform's name. If none of them is there, or one of them fails, the installer says so in one line and still exits 0.
 
+## Opening the project
+
+The last question is whether to open the project, and it is only ever about an editor you already have. The installer looks for `code` (VS Code) and `cursor` (Cursor) on your `PATH`:
+
+- **One found** — a yes/no naming it: `? Open this project in VS Code? [Y/n]`
+- **Several found** — a numbered list, alphabetical, ending in `Don't open`
+- **None found** — no question at all
+
+Neither editor is a Pathfinder requirement, and the alphabetical order is not a recommendation. Nothing else can be launched: there is no way to name an editor or pass a path, because an editor the installer did not find is one it cannot honestly offer.
+
+The launch is detached — the installer hands over the project directory and exits immediately, so it never waits for your editor and never prints your editor's output as its own.
+
+- **Nothing is launched without an explicit yes.** Declining, an unanswered question, `Don't open`, `--no-open`, `--yes`, `--dry-run`, and any run without a terminal on both ends all leave your screen alone.
+- **A failed launch is not a failed install.** If the binary is there but cannot be run, the installer says so in one line, tells you the directory to open yourself, and still exits 0. The install already succeeded; opening it was a convenience.
+
 ## Options
 
 | Option | Effect |
@@ -103,10 +118,11 @@ In a terminal you are then asked whether to copy it. The question says what it r
 | `--git-init` | Run `git init` here if this is not a repository yet |
 | `--no-git-init` | Never run `git init`; refuse instead |
 | `--no-clipboard` | Never offer to copy the Kickstart prompt. The prompt is printed either way |
-| `--yes`, `--no-input` | Take the defaults and ask nothing. It does not authorize `git init`, configure any tool, or touch your clipboard — pass `--git-init` and `--agents` for the first two |
+| `--no-open` | Never offer to open the project in an editor |
+| `--yes`, `--no-input` | Take the defaults and ask nothing. It does not authorize `git init`, configure any tool, touch your clipboard, or open an editor — pass `--git-init` and `--agents` for the first two |
 | `-h`, `--help` | Show usage |
 
-Questions are asked only when stdin and stdout are both terminals. Piped, redirected, or in CI, nothing is asked and nothing is prompted for — so a directory that is not a repository needs `--git-init`, or the install is refused, no tool is configured without `--agents`, and the clipboard is never touched at all.
+Questions are asked only when stdin and stdout are both terminals. Piped, redirected, or in CI, nothing is asked and nothing is prompted for — so a directory that is not a repository needs `--git-init`, or the install is refused, no tool is configured without `--agents`, the clipboard is never touched at all, and no editor is ever launched.
 
 ## Requirements
 

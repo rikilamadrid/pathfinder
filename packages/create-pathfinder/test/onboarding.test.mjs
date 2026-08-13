@@ -28,6 +28,7 @@ import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
 import { run } from "../src/cli.mjs";
+import { kickstartPrompt } from "../src/kickstart-prompt.mjs";
 
 const temporaryRoots = [];
 
@@ -62,14 +63,63 @@ function fakeClipboard() {
   const sink = join(directory, "clipboard-contents");
   const tool = join(directory, "pbcopy");
 
-  writeFileSync(tool, `#!/bin/sh\ncat > ${JSON.stringify(sink)}\n`);
+  // `/bin/cat` by absolute path, so the synthesized PATH can be this directory
+  // and nothing else. That matters more than it looks: PATH is now also what
+  // decides whether an editor is detected, and a suite that inherited the real
+  // one would ask about the editors installed on whichever machine ran it.
+  writeFileSync(tool, `#!/bin/sh\n/bin/cat > ${JSON.stringify(sink)}\n`);
   chmodSync(tool, 0o755);
 
   return {
     sink,
-    // The system directories follow, because the stub runs `cat`.
-    path: `${directory}:${process.env.PATH ?? ""}`,
+    directory,
+    path: directory,
     contents: () => (existsSync(sink) ? readFileSync(sink, "utf8") : null),
+  };
+}
+
+/**
+ * A fake editor launcher that records the arguments it was given.
+ *
+ * Named `code` or `cursor` and dropped on the synthesized PATH, so detection
+ * finds exactly the editors a test asked for and no more. It writes its
+ * arguments one per line, which is what makes "a project path with a space in
+ * it arrived as one argument" a checkable claim rather than a hope.
+ */
+function fakeEditor(name, { directory = scratch("pathfinder-onboarding-editors-"), script } = {}) {
+  const sink = join(directory, `${name}-args`);
+  const tool = join(directory, name);
+
+  writeFileSync(
+    tool,
+    script ?? `#!/bin/sh\nfor argument in "$@"; do echo "$argument"; done > ${JSON.stringify(sink)}\n`,
+  );
+  chmodSync(tool, 0o755);
+
+  const read = () =>
+    existsSync(sink) ? readFileSync(sink, "utf8").trimEnd().split("\n") : null;
+
+  return {
+    directory,
+    path: directory,
+    arguments: read,
+    /**
+     * The arguments, once they exist.
+     *
+     * Polled rather than awaited, because the launch is detached on purpose:
+     * the CLI returns as soon as the process exists, so a test that read the
+     * file immediately would be asserting on a race it wrote itself. Giving up
+     * returns null, which reads as "it never ran" at the assertion.
+     */
+    waitForArguments: async (timeoutMs = 2000) => {
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const value = read();
+        if (value !== null) return value;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      return null;
+    },
   };
 }
 
@@ -83,32 +133,67 @@ function scriptedPrompter({
   interactive = true,
   git = true,
   clipboard = false,
+  editor = false,
+  choice = null,
   harnesses = [],
 } = {}) {
   const asked = [];
+  const offered = [];
   return {
     interactive,
     asked,
+    offered,
     confirm: async (question) => {
       asked.push(question);
       if (question.startsWith("Initialize a Git repository")) return git;
       if (question.startsWith("Copy that prompt")) return clipboard;
+      if (question.startsWith("Open this project in")) return editor;
       throw new Error(`unexpected question: ${question}`);
     },
     chooseMany: async () => harnesses,
+    /** Picks by label, because the editor objects are not the test's to build. */
+    chooseOne: async (question, config) => {
+      asked.push(question);
+      offered.push(config.options.map((option) => option.label));
+      const picked = config.options.find((option) => option.label === choice);
+      return picked === undefined ? null : picked.value;
+    },
     text: async () => "",
     close: () => {},
   };
 }
 
-async function invoke(argv, { cwd, clipboardPath = "", prompter, platform = "darwin" } = {}) {
+/**
+ * A directory holding a `git` that is never run.
+ *
+ * Detection asks only whether the name is on PATH, and these tests synthesize
+ * PATH entry by entry, so a run that must reach the `git init` question has to
+ * be told that `git` exists at all.
+ */
+function fakeGitPath() {
+  const directory = scratch("pathfinder-onboarding-git-");
+  writeFileSync(join(directory, "git"), "");
+  return directory;
+}
+
+async function invoke(
+  argv,
+  {
+    cwd,
+    clipboardPath = "",
+    editorPath = null,
+    gitPath = null,
+    prompter,
+    platform = "darwin",
+  } = {},
+) {
   let out = "";
   let err = "";
   const code = await run(argv, {
     cwd,
     out: (text) => (out += text),
     err: (text) => (err += text),
-    env: { PATH: clipboardPath },
+    env: { PATH: [clipboardPath, editorPath, gitPath].filter(Boolean).join(":") },
     platform,
     prompter: prompter ?? scriptedPrompter(),
   });
@@ -286,7 +371,7 @@ describe("the clipboard offer — when it is not made at all", () => {
     assert.equal(code, 0);
     assert.deepEqual(prompter.asked, []);
     assert.equal(clipboard.contents(), null);
-    assert.match(out, /Onboarding actions are not offered in a dry run; nothing was copied\./);
+    assert.match(out, /Onboarding actions are not offered in a dry run; nothing was copied or opened\./);
   });
 
   it("is not reached when the install was refused", async () => {
@@ -294,7 +379,12 @@ describe("the clipboard offer — when it is not made at all", () => {
     const clipboard = fakeClipboard();
     const prompter = scriptedPrompter({ git: false, clipboard: true });
 
-    const { code } = await invoke([], { cwd, clipboardPath: clipboard.path, prompter });
+    const { code } = await invoke([], {
+      cwd,
+      clipboardPath: clipboard.path,
+      gitPath: fakeGitPath(),
+      prompter,
+    });
 
     assert.equal(code, 1);
     assert.deepEqual(prompter.asked, ["Initialize a Git repository here?"]);
@@ -395,18 +485,292 @@ describe("the prompt follows the harness that was chosen", () => {
   });
 });
 
-describe("--no-clipboard as a flag", () => {
-  it("is documented in --help", async () => {
+describe("the flags", () => {
+  it("documents both in --help", async () => {
     const { code, out } = await invoke(["--help"], { cwd: makeRepository() });
     assert.equal(code, 0);
     assert.match(out, /--no-clipboard/);
+    assert.match(out, /--no-open/);
   });
 
-  it("does not imply --no-open, which this version does not have", async () => {
-    // Chunk 2 adds the editor offer and its flag together. Documenting a flag
-    // before anything honors it would make this version lie about itself.
-    const { code, err } = await invoke(["--no-open"], { cwd: makeRepository() });
-    assert.equal(code, 2);
-    assert.match(err, /unknown option `--no-open`/);
+  it("keeps them independent of each other", async () => {
+    const cwd = makeRepository();
+    const clipboard = fakeClipboard();
+    const editor = fakeEditor("code");
+
+    // --no-open leaves the clipboard offer standing, and the copy still happens.
+    const prompter = scriptedPrompter({ clipboard: true, editor: true });
+    const { code } = await invoke(["--no-open"], {
+      cwd,
+      clipboardPath: clipboard.path,
+      editorPath: editor.path,
+      prompter,
+    });
+
+    assert.equal(code, 0);
+    assert.deepEqual(prompter.asked, [CLIPBOARD_QUESTION]);
+    assert.equal(clipboard.contents(), kickstartPrompt([]));
+    assert.equal(editor.arguments(), null);
+  });
+});
+
+/** The single-editor question, as the user reads it. */
+const OPEN_QUESTION = "Open this project in VS Code?";
+
+describe("the editor offer — what is asked, and of whom", () => {
+  it("asks nothing when no editor is on PATH", async () => {
+    const cwd = makeRepository();
+    const clipboard = fakeClipboard();
+    const prompter = scriptedPrompter({ editor: true });
+
+    const { code } = await invoke([], { cwd, clipboardPath: clipboard.path, prompter });
+
+    assert.equal(code, 0);
+    assert.deepEqual(prompter.asked, [CLIPBOARD_QUESTION]);
+  });
+
+  it("asks a yes/no naming the one editor it found", async () => {
+    const cwd = makeRepository();
+    const clipboard = fakeClipboard();
+    const editor = fakeEditor("code");
+    const prompter = scriptedPrompter({ editor: false });
+
+    const { code } = await invoke([], {
+      cwd,
+      clipboardPath: clipboard.path,
+      editorPath: editor.path,
+      prompter,
+    });
+
+    assert.equal(code, 0);
+    assert.deepEqual(prompter.asked, [CLIPBOARD_QUESTION, OPEN_QUESTION]);
+    assert.equal(editor.arguments(), null, "declining launched nothing");
+  });
+
+  it("offers a numbered list with a way out when several are found", async () => {
+    const cwd = makeRepository();
+    const clipboard = fakeClipboard();
+    const editors = scratch("pathfinder-onboarding-both-");
+    fakeEditor("code", { directory: editors });
+    fakeEditor("cursor", { directory: editors });
+    const prompter = scriptedPrompter({ choice: null });
+
+    const { code } = await invoke([], {
+      cwd,
+      clipboardPath: clipboard.path,
+      editorPath: editors,
+      prompter,
+    });
+
+    assert.equal(code, 0);
+    assert.deepEqual(prompter.asked, [CLIPBOARD_QUESTION, "Open this project in an editor?"]);
+    // Alphabetical, and VS Code is not first. The order is a fact about the
+    // alphabet rather than a claim about which editor Pathfinder expects.
+    assert.deepEqual(prompter.offered, [["Cursor", "VS Code", "Don't open"]]);
+  });
+
+  it("launches nothing when the numbered list is answered with Don't open", async () => {
+    const cwd = makeRepository();
+    const clipboard = fakeClipboard();
+    const editors = scratch("pathfinder-onboarding-declined-");
+    const code = fakeEditor("code", { directory: editors });
+    const cursor = fakeEditor("cursor", { directory: editors });
+
+    const result = await invoke([], {
+      cwd,
+      clipboardPath: clipboard.path,
+      editorPath: editors,
+      prompter: scriptedPrompter({ choice: "Don't open" }),
+    });
+
+    assert.equal(result.code, 0);
+    assert.equal(code.arguments(), null);
+    assert.equal(cursor.arguments(), null);
+    assert.doesNotMatch(result.out, /Opening/);
+  });
+});
+
+describe("the editor offer — the launch", () => {
+  it("opens the project directory when the offer is accepted", async () => {
+    const cwd = makeRepository();
+    const clipboard = fakeClipboard();
+    const editor = fakeEditor("code");
+
+    const { code, out } = await invoke([], {
+      cwd,
+      clipboardPath: clipboard.path,
+      editorPath: editor.path,
+      prompter: scriptedPrompter({ editor: true }),
+    });
+
+    assert.equal(code, 0);
+    assert.match(out, /  Opening VS Code\.\n/);
+    assert.deepEqual(await editor.waitForArguments(), [cwd]);
+  });
+
+  it("passes a path with spaces in it as one argument", async () => {
+    const parent = scratch("pathfinder-onboarding-spaced-");
+    const cwd = join(parent, "my project files");
+    mkdirSync(join(cwd, ".git"), { recursive: true });
+    const clipboard = fakeClipboard();
+    const editor = fakeEditor("code");
+
+    const { code } = await invoke([], {
+      cwd,
+      clipboardPath: clipboard.path,
+      editorPath: editor.path,
+      prompter: scriptedPrompter({ editor: true }),
+    });
+
+    assert.equal(code, 0);
+    assert.deepEqual(await editor.waitForArguments(), [cwd]);
+  });
+
+  it("does not wait for the editor to exit", async () => {
+    // The stub sleeps far longer than this test may take. A CLI that waited
+    // would fail by timing out rather than by an assertion, which is the point:
+    // the only way to pass is to have returned while it was still running.
+    const cwd = makeRepository();
+    const clipboard = fakeClipboard();
+    const editor = fakeEditor("code", { script: "#!/bin/sh\nsleep 30\n" });
+
+    const started = Date.now();
+    const { code, out } = await invoke([], {
+      cwd,
+      clipboardPath: clipboard.path,
+      editorPath: editor.path,
+      prompter: scriptedPrompter({ editor: true }),
+    });
+
+    assert.equal(code, 0);
+    assert.match(out, /Opening VS Code\./);
+    assert.ok(Date.now() - started < 5000, "the install did not wait for the editor");
+  });
+
+  it("reports a launch that fails and still exits 0", async () => {
+    const cwd = makeRepository();
+    const clipboard = fakeClipboard();
+    // Present on PATH, and not executable — `code` is there, and running it
+    // fails. The install must survive that, because it already succeeded.
+    const directory = scratch("pathfinder-onboarding-broken-editor-");
+    writeFileSync(join(directory, "code"), "not an executable\n");
+    chmodSync(join(directory, "code"), 0o644);
+
+    const { code, out } = await invoke([], {
+      cwd,
+      clipboardPath: clipboard.path,
+      editorPath: directory,
+      prompter: scriptedPrompter({ editor: true }),
+    });
+
+    assert.equal(code, 0);
+    assert.match(out, /  Not opened — code could not be run/);
+    assert.match(out, new RegExp(`open ${cwd} yourself`));
+    assert.ok(existsSync(join(cwd, "skills")), "the kit was still installed");
+  });
+});
+
+describe("the editor offer — when it is not made at all", () => {
+  it("is suppressed by --no-open", async () => {
+    const cwd = makeRepository();
+    const clipboard = fakeClipboard();
+    const editor = fakeEditor("code");
+    const prompter = scriptedPrompter({ editor: true });
+
+    const { code, out } = await invoke(["--no-open"], {
+      cwd,
+      clipboardPath: clipboard.path,
+      editorPath: editor.path,
+      prompter,
+    });
+
+    assert.equal(code, 0);
+    assert.equal(prompter.asked.includes(OPEN_QUESTION), false);
+    assert.equal(editor.arguments(), null);
+    // The flag suppresses the offer, not the install.
+    assert.match(out, /Installed the Pathfinder kit into /);
+  });
+
+  it("is never offered without a terminal", async () => {
+    const cwd = makeRepository();
+    const clipboard = fakeClipboard();
+    const editor = fakeEditor("code");
+    const prompter = scriptedPrompter({ interactive: false, editor: true });
+
+    const { code } = await invoke([], {
+      cwd,
+      clipboardPath: clipboard.path,
+      editorPath: editor.path,
+      prompter,
+    });
+
+    assert.equal(code, 0);
+    assert.deepEqual(prompter.asked, []);
+    assert.equal(editor.arguments(), null);
+  });
+
+  it("is not performed under --yes, because silence is not consent", async () => {
+    const cwd = makeRepository();
+    const clipboard = fakeClipboard();
+    const editor = fakeEditor("code");
+    const prompter = scriptedPrompter({ editor: true });
+
+    const { code } = await invoke(["--yes"], {
+      cwd,
+      clipboardPath: clipboard.path,
+      editorPath: editor.path,
+      prompter,
+    });
+
+    assert.equal(code, 0);
+    assert.deepEqual(prompter.asked, []);
+    assert.equal(editor.arguments(), null);
+  });
+
+  it("launches nothing in a dry run, and says so once for both actions", async () => {
+    const cwd = makeRepository();
+    const clipboard = fakeClipboard();
+    const editor = fakeEditor("code");
+    const prompter = scriptedPrompter({ clipboard: true, editor: true });
+
+    const { code, out } = await invoke(["--dry-run"], {
+      cwd,
+      clipboardPath: clipboard.path,
+      editorPath: editor.path,
+      prompter,
+    });
+
+    assert.equal(code, 0);
+    assert.deepEqual(prompter.asked, []);
+    assert.equal(editor.arguments(), null);
+    assert.equal(clipboard.contents(), null);
+    assert.match(out, /nothing was copied or opened\./);
+  });
+
+  it("says nothing about a dry run when both flags already ruled both out", async () => {
+    const cwd = makeRepository();
+    const { out } = await invoke(["--dry-run", "--no-clipboard", "--no-open"], {
+      cwd,
+      prompter: scriptedPrompter(),
+    });
+
+    assert.doesNotMatch(out, /Onboarding actions/);
+  });
+
+  it("is not reached when the install was refused", async () => {
+    const cwd = makeLooseDirectory();
+    const editor = fakeEditor("code");
+    const prompter = scriptedPrompter({ git: false, editor: true });
+
+    const { code } = await invoke([], {
+      cwd,
+      editorPath: editor.path,
+      gitPath: fakeGitPath(),
+      prompter,
+    });
+
+    assert.equal(code, 1);
+    assert.deepEqual(prompter.asked, ["Initialize a Git repository here?"]);
+    assert.equal(editor.arguments(), null);
   });
 });
