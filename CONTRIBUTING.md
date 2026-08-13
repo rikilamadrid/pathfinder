@@ -2,11 +2,13 @@
 
 Thanks for your interest. Pathfinder is a small, deliberately bounded workflow kit. The most useful contributions sharpen what is already here; the least useful expand its scope.
 
-Read [`NOT_A_FRAMEWORK.md`](NOT_A_FRAMEWORK.md) before proposing anything structural. This repository has no runtime, package manager, or build step, and it is meant to stay that way.
+Read [`NOT_A_FRAMEWORK.md`](NOT_A_FRAMEWORK.md) before proposing anything structural. The kit has no runtime, package manager, or build step, and it is meant to stay that way.
 
 ## What this repository is
 
-Markdown only. `skills/` holds reusable behavior contracts, `context/` holds the templates a destination project fills in, and `templates/` holds scaffolding. There is nothing to install and nothing to run.
+**The kit is Markdown only.** `skills/` holds reusable behavior contracts, `context/` holds the templates a destination project fills in, and `templates/` holds scaffolding. A destination project installs nothing and runs nothing — that promise is about what Pathfinder ships, and it is unchanged.
+
+**The repository that maintains the kit is not.** It also holds the installer (`packages/create-pathfinder/`, a dependency-free Node package with its own tests), the validation script and adapter generator you are expected to run before opening a PR, the committed Claude Code adapters generated from `skills/`, and the documentation site. These are how Pathfinder is built and published, and none of them is copied into your project. The repository root itself stays manifest-free, and CI asserts it.
 
 ## Git workflow
 
@@ -50,7 +52,7 @@ Steps 1–5 are reversible. Steps 6 onward are not: a published npm version, a p
 7. **Push the tag:** `git push origin vX.Y.Z`.
 8. **Publish the installer**, from `packages/create-pathfinder/`: `PATHFINDER_PUBLISH=yes npm publish`. The guard refuses unless the working tree is clean, HEAD is exactly the matching tag, and the changelog agrees — but it cannot check your judgement about whether this release should exist.
 9. **Create the GitHub Release:** `gh release create vX.Y.Z --verify-tag --title "Pathfinder vX.Y.Z" --notes-file <notes>`, with notes derived from the changelog entry.
-10. **Verify from outside:** `npm view create-pathfinder version`, `gh release view vX.Y.Z`, and an `npx create-pathfinder@X.Y.Z` install into a scratch repository.
+10. **Verify from outside:** `npm view create-pathfinder version`, `gh release view vX.Y.Z`, and an `npx create-pathfinder@X.Y.Z` install into a scratch repository. Install from the published package, not from a local checkout — the point is to exercise what a user gets. In that scratch repository, confirm that adapters are generated (`npx create-pathfinder@X.Y.Z --agents claude-code`) and that a second identical run is idempotent: it writes the same bytes, reports the adapters as already up to date, and leaves the tree unchanged.
 
 Never force-push, never move or delete a published tag, and never rewrite released history.
 
