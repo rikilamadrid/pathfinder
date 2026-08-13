@@ -43,6 +43,8 @@ The audience for this section is whoever cuts the next release after a long gap.
 
 Steps 1–5 are reversible. Steps 6 onward are not: a published npm version, a pushed tag, and a GitHub Release are permanent, and a mistake is corrected by superseding it, never by removing it.
 
+**Check that you can publish before you make anything permanent.** Step 7 pushes a tag; step 8 is the first step that can discover you cannot finish. Both previous releases hit this: `v1.4.1` stopped at npm's one-time-password prompt *after* the tag was already public, and `v1.5.0` found an expired token. Run `npm whoami` before step 6 and confirm it names an account entitled to publish `create-pathfinder`. If it errors, authenticate first. An agent cannot satisfy an interactive OTP prompt, so if the account requires one, expect step 8 to be run by a human.
+
 1. **Decide the version** using the scope rule above, and confirm validation is green: `python3 .github/scripts/validate-kit.py`.
 2. **Write the changelog entry.** Rename `[Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and add a fresh empty `[Unreleased]` above it.
 3. **Derive the installer version:** `python3 .github/scripts/set-release-version.py`. This rewrites `packages/create-pathfinder/package.json` from the changelog. Do not type the version there yourself.
