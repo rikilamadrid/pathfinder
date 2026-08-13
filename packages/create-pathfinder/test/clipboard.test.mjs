@@ -163,8 +163,17 @@ test("shell metacharacters in the prompt are data, not commands", (t) => {
 test("a tool that exits non-zero is a reported failure, quoting the tool", (t) => {
   if (process.platform === "win32") return t.skip("POSIX shell scripts");
 
+  // The stub drains stdin before it complains. A script that exits without
+  // reading closes the pipe under the parent mid-write, and the parent then
+  // reports EPIPE rather than the child's exit status — which is still a
+  // correct "not copied", but it is the wrong failure for a test named after
+  // the tool's own message. Whether the race is lost depends on the kernel and
+  // the runner: this passed on macOS and failed on Linux CI.
   const env = {
-    PATH: pathWithScript("xclip", "echo \"Error: Can't open display: (null)\" >&2\nexit 1"),
+    PATH: pathWithScript(
+      "xclip",
+      "cat > /dev/null\necho \"Error: Can't open display: (null)\" >&2\nexit 1",
+    ),
   };
 
   const result = copyToClipboard("prompt", { env, platform: "linux" });
@@ -175,7 +184,9 @@ test("a tool that exits non-zero is a reported failure, quoting the tool", (t) =
 test("a tool that fails silently still reports a reason", (t) => {
   if (process.platform === "win32") return t.skip("POSIX shell scripts");
 
-  const env = { PATH: pathWithScript("xsel", "exit 3") };
+  // Drained for the same reason as above: this test is about a tool that exits
+  // non-zero saying nothing, not about a tool that hung up early.
+  const env = { PATH: pathWithScript("xsel", "cat > /dev/null\nexit 3") };
   const result = copyToClipboard("prompt", { env, platform: "linux" });
   assert.deepEqual(result, { ok: false, reason: "xsel failed" });
 });
