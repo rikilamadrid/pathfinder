@@ -12,6 +12,7 @@
     "dev": "astro dev",
     "prebuild": "node scripts/sync-brand.mjs",
     "build": "astro build",
+    "postbuild": "node scripts/check-manifest.mjs",
     "prepreview": "node scripts/sync-brand.mjs",
     "preview": "astro preview",
     "icons": "node scripts/generate-icons.mjs",
