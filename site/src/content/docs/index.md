@@ -54,13 +54,16 @@ of it that does not suit your project.
 ```bash
 mkdir my-project
 cd my-project
-git init
 npx create-pathfinder
 ```
 
 That copies the kit into the repository and exits. Nothing is installed, nothing
 is built, and no dependency is added — the installer is a file copier. It never
 overwrites: files you already have are left alone and listed by name.
+
+Pathfinder installs into version control, so in a directory that is not a
+repository yet the installer offers to run `git init` for you. Decline and
+nothing is written.
 
 It writes exactly five things.
 
@@ -71,7 +74,16 @@ It writes exactly five things.
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
 | `templates/` | Starting points the project copies when it needs them |
 
-Then open your agent and say:
+It also asks which coding tools to configure. Claude Code and Codex discover
+skills natively, so it can generate a small adapter per skill — under
+`.claude/skills/`, `.agents/skills/`, or both — and Pathfinder's skills appear in
+that tool's own list. Those adapters are generated from `skills/` at install
+time, not copied, which is why they are not among the five. Nothing is configured
+unless you choose it.
+
+The installer ends by printing the prompt that starts your first session, matched
+to what you configured — `/kickstart-pathfinder` in Claude Code,
+`$kickstart-pathfinder` in Codex, and otherwise the line that works anywhere:
 
 ```text
 Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this project. Do not install packages or write product code yet.
@@ -79,9 +91,10 @@ Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this project. Do no
 
 That starts the discovery conversation.
 
-To adapt an existing repository, run the same two steps inside it. Nothing you
+To adapt an existing repository, run the same command inside it. Nothing you
 already have is overwritten, so it is safe in a repository that already has its
-own `CLAUDE.md` or `context/`.
+own `CLAUDE.md` or `context/` — or its own `.claude/` configuration, which the
+installer leaves alone.
 
 [Getting started](/guides/getting-started/) walks the whole first session — what
 discovery should feel like, what to check before you accept it, and how the first
