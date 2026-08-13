@@ -43,6 +43,12 @@ export default defineConfig({
         },
       ],
       customCss: ['./src/styles/brand.css'],
+      // Wraps Starlight's own footer rather than replacing it — see the
+      // component. A reader who lands on a deep page from a search result
+      // otherwise has no link back to the repository the site is generated from.
+      components: {
+        Footer: './src/components/Footer.astro',
+      },
       social: [
         {
           icon: 'github',
