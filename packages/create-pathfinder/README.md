@@ -2,11 +2,13 @@
 
 **An AI-assisted, human-in-the-loop workflow for building software — without giving up the decisions.**
 
-This package installs [Pathfinder](https://github.com/rikilamadrid/pathfinder) into a Git repository — one you already have, or one it offers to create for you.
+This package installs [Pathfinder](https://pathfinder-kit.vercel.app) into a Git repository — one you already have, or one it offers to create for you.
 
 ```bash
 npx create-pathfinder
 ```
+
+That is the whole invocation. This is a scaffolding CLI you run once, not a dependency: `npm i create-pathfinder` would add it to your project's `package.json` and `node_modules` without installing anything into your repository. If you would rather not use `npx`, `npm exec create-pathfinder` is equivalent, and a global install (`npm i -g create-pathfinder`) gives you a `create-pathfinder` command that behaves identically.
 
 Then give your agent this prompt:
 
@@ -15,9 +17,11 @@ Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this project.
 Do not install packages or write product code yet.
 ```
 
+Everything below is what the command does. **What Pathfinder is, how the workflow runs, and what each skill does are documented at [pathfinder-kit.vercel.app](https://pathfinder-kit.vercel.app).**
+
 ## What it installs
 
-Pathfinder is a kit of context files and skills — not a framework. There is no runtime, no dependency, and nothing to build. The installer copies five things into your repository and nothing else:
+The installer copies five things into your repository and nothing else:
 
 | Path | What it is |
 | --- | --- |
@@ -59,24 +63,13 @@ npx create-pathfinder --agents claude-code,codex
 | `claude-code` | `.claude/skills/<name>/SKILL.md` | `/reflect` |
 | `codex` | `.agents/skills/<name>/SKILL.md` | `/skills`, or `$reflect` |
 
-Each adapter is a few lines long: it carries the skill's name and description, and tells the tool to read the canonical file. Both harnesses get the same bytes at a different path — the behavior lives in one place, and the adapter never restates it.
+Each adapter carries the skill's name and description and tells the tool to read the canonical file — the behavior lives in one place, and the adapter never restates it.
 
 Pick one, both, or neither. Choosing one never generates, removes, or claims anything under the other's directory, and Pathfinder never writes to a personal skills directory such as `$HOME/.agents/skills`.
 
-In a terminal you are asked instead of passing the flag — a numbered list, comma-separated, `Enter` for the tools found on your machine, `0` for none. Each option shows the directory it writes to before you choose it.
-
-The list has a third entry, **Something else…**, and it generates nothing. Name your tool and the summary says so plainly, because a `.mdc` file Cursor half-reads or a `SKILL.md` in a directory nothing scans would be a file your tool ignores under a summary claiming success. Two things do work for any tool: the kit installs `AGENTS.md` at the repository root, which Codex, Cursor, and several others read, and any agent can be given the line the adapters delegate to anyway — `Use skills/<name>/SKILL.md and follow it exactly.`
+In a terminal you are asked instead of passing the flag — a numbered list, comma-separated, `Enter` for the tools found on your machine, `0` for none. Each option shows the directory it writes to before you choose it. A third entry, **Something else…**, generates nothing and says so: the kit still installs `AGENTS.md` at the repository root, which Codex, Cursor, and several others read, and any agent can be given the line the adapters delegate to — `Use skills/<name>/SKILL.md and follow it exactly.`
 
 Nothing is configured unless you choose it. Detection only sets the default, a piped or scripted run configures nothing at all unless `--agents` says so, and `--agents` accepts only the ids in the table above — an unknown one exits 2 rather than quietly installing nothing.
-
-**What the installer owns, and what it will not touch:**
-
-- **It owns a file at `<tool>/skills/<name>/SKILL.md` only if that name is a Pathfinder skill *and* the file carries the `pathfinder:adapter` marker it wrote.** Those it regenerates freely, with no flag — that is how an older install gains adapters by re-running.
-- **A file you wrote at one of those paths is left alone** and listed by name in the summary. `--force` replaces it; nothing else does.
-- **Everything else under that directory is never read and never written** — your `settings.json`, `settings.local.json`, agents, commands, hooks, and any skill of your own.
-- **Nothing is ever deleted.** An adapter for a skill a newer version no longer ships is reported and left in place.
-
-Re-running is idempotent: the second run writes the same bytes and reports the adapters as already up to date.
 
 ## The Kickstart prompt, and your clipboard
 
@@ -88,16 +81,14 @@ Every install ends by printing the one prompt that starts a session, and the pro
 | `codex` | `$kickstart-pathfinder` |
 | both, or neither | `Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this project. Do not install packages or write product code yet.` |
 
-Two harnesses fall back to the neutral form because one clipboard cannot hold two syntaxes, and picking a favorite would quietly decide which of your tools is the real one.
-
-In a terminal you are then asked whether to copy it. The question says what it replaces, because your clipboard is yours:
+In a terminal you are then asked whether to copy it, in a question that says what it replaces:
 
 ```text
 ? Copy that prompt to your clipboard? This replaces what is on it now. [Y/n]
 ```
 
 - **Nothing is copied without an explicit yes.** Declining, an unanswered question, `--no-clipboard`, `--yes`, `--dry-run`, and any run without a terminal on both ends all leave your clipboard exactly as it was.
-- **The prompt is printed either way.** Copying is a convenience, never the only way to get it, which is what lets every failure be a non-event.
+- **The prompt is printed either way.** Copying is a convenience, never the only way to get it.
 - **No dependency, and no clipboard is ever read.** The copy uses whatever your system already has — `pbcopy`, `clip.exe` including under WSL, or `wl-copy`, `xclip`, or `xsel` — chosen by what is actually installed rather than by your platform's name. If none of them is there, or one of them fails, the installer says so in one line and still exits 0.
 
 ## Opening the project
@@ -108,12 +99,10 @@ The last question is whether to open the project, and it is only ever about an e
 - **Several found** — a numbered list, alphabetical, ending in `Don't open`
 - **None found** — no question at all
 
-Neither editor is a Pathfinder requirement, and the alphabetical order is not a recommendation. Nothing else can be launched: there is no way to name an editor or pass a path, because an editor the installer did not find is one it cannot honestly offer.
-
-The launch is detached — the installer hands over the project directory and exits immediately, so it never waits for your editor and never prints your editor's output as its own.
+Neither editor is a Pathfinder requirement, and the alphabetical order is not a recommendation. There is no way to name an editor or pass a path. The launch is detached: the installer hands over the project directory and exits immediately.
 
 - **Nothing is launched without an explicit yes.** Declining, an unanswered question, `Don't open`, `--no-open`, `--yes`, `--dry-run`, and any run without a terminal on both ends all leave your screen alone.
-- **A failed launch is not a failed install.** If the binary is there but cannot be run, the installer says so in one line, tells you the directory to open yourself, and still exits 0. The install already succeeded; opening it was a convenience.
+- **A failed launch is not a failed install.** If the binary is there but cannot be run, the installer says so in one line, tells you the directory to open yourself, and still exits 0.
 
 ## Options
 
@@ -141,7 +130,8 @@ No dependencies — this package installs nothing into your project's `node_modu
 
 ## Links
 
-- [Repository and full documentation](https://github.com/rikilamadrid/pathfinder)
+- [Documentation](https://pathfinder-kit.vercel.app)
+- [Repository](https://github.com/rikilamadrid/pathfinder)
 - [Why this is not a framework](https://github.com/rikilamadrid/pathfinder/blob/main/NOT_A_FRAMEWORK.md)
 - [Changelog](https://github.com/rikilamadrid/pathfinder/blob/main/CHANGELOG.md)
 

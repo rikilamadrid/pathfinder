@@ -1,9 +1,10 @@
-// The sidebar, grouped by the five workflow loops the README already defines.
+// The sidebar, grouped by the five workflow loops.
 //
 // The grouping is declared here rather than derived, because it is editorial:
-// which loop a skill belongs to is a statement about the workflow, and the
-// README is where that statement is made. `WORKFLOW_LOOPS` below mirrors the
-// "The complete workflow" section, in its order.
+// which loop a skill belongs to is a statement about the workflow, and
+// `guides/workflow.md` is where that statement is made — the README carries an
+// overview of two loops and links out for the rest. `WORKFLOW_LOOPS` below
+// mirrors that guide's loop names and order.
 //
 // What is *not* hardcoded is the set of skills. The groups list slugs, and
 // anything on disk that no group claims is collected into a final group

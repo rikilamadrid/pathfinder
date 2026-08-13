@@ -25,6 +25,11 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Changed
+
+- **`AGENTS.md` no longer names a "launcher".** The fallback invocation line is unchanged; it just stops referring to a file a fresh install has never had. `prompts/` was retired in v1.5.0.
+- **`create-pathfinder`'s `homepage` is the documentation site** rather than the GitHub README anchor, and its README is scoped to CLI and package usage. Both reach npmjs.com on the next publish.
+
 ## [1.5.1] - 2026-08-13
 
 ### Changed

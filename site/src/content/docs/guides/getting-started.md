@@ -230,11 +230,11 @@ From there, one feature at a time:
 → complete-feature   verify, close, and record it in context/history.md
 ```
 
-Run them one at a time
-and read what comes back — [`start-feature`](/skills/start-feature/) restates the
-goal, the active chunk, the files it expects to touch, the risks, its verification
-plan, and what it considers out of scope *before* it writes anything. That restatement
-is your cheapest chance to catch a misunderstanding.
+Run them one at a time and read what comes back —
+[`start-feature`](/skills/start-feature/) restates the goal, the active chunk, the
+files it expects to touch, the risks, its verification plan, and what it considers out
+of scope *before* it writes anything. That restatement is your cheapest chance to
+catch a misunderstanding.
 
 If something breaks along the way, [`debug-issue`](/skills/debug-issue/) interrupts
 the loop. It reproduces the failure before repairing it, which is the part that
