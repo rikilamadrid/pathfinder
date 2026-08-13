@@ -25,6 +25,12 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Changed
+
+- **`context/coding-standards.md` says where verification evidence has to come from.** A new `Verification Evidence` section: exercise the artifact a user receives the way a user exercises it, because a hand-written sample of generated output or the working tree in place of the published build is evidence about the stand-in; observe that the right thing happened when a mechanism can fail by doing nothing, since a clean exit says only that the command ran; be suspicious of a check whose every input it supplied itself; and record an unobserved criterion as unobserved rather than as passed. Drawn from two real failures in this repository's own history, not from principle.
+- **`complete-feature` records the outcome while completing the feature, not afterwards** — and when a feature was merged without the skill running, it still writes the entry and says that the entry came later. A history written from memory weeks on is a different artifact from one written at the boundary, and the difference should be visible to whoever reads it.
+- **`complete-feature`'s delivery step now covers what happens after the merge:** verify the merged mainline and clean up the merged branch, as the project's own workflow requires. Both were already habit in practice and absent from the skill.
+
 ## [1.5.0] - 2026-08-13
 
 ### Added
