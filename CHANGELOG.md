@@ -12,8 +12,10 @@ The kit follows Semantic Versioning:
 
 The repository holds more than one shippable thing. The version number belongs to the kit — the part a destination project actually consumes:
 
-- **Bumps the version** — `skills/`, `context/`, `templates/`, and the agent entry files (`AGENTS.md`, `CLAUDE.md`). Also the installer, but only when it changes the documented installation path; an installer bug fix that leaves the path unchanged is a PATCH, and installer refactoring that changes nothing observable is not a release at all.
+- **Bumps the version** — `skills/`, `context/`, `templates/`, and the agent entry files (`AGENTS.md`, `CLAUDE.md`). Also the installer, whenever someone running it would see the difference: what it installs, what it asks, or how a run presents itself. A new installer capability is a MINOR; an installer fix or correction is a PATCH; installer refactoring that changes nothing observable is not a release at all.
 - **Does not bump the version** — CI workflows, validation scripts, brand assets, the website, the README, and this repository's own planning files. They change how Pathfinder is built and presented, not what a destination project receives. A site-only change ships continuously and publishes nothing to npm.
+
+*The installer rule above previously read "only when it changes the documented installation path". That test was written when the installer only ever copied files, and v1.6.0 is what found its edge: an installer release that rewrites how every run looks, while the command, the questions, and the installed files all stay exactly as documented. Read literally, the old wording said that was not a release at all. The test is now what a user would notice, which is the thing SemVer was always about.*
 
 ## The installer version mirrors the kit exactly
 
@@ -24,6 +26,8 @@ The trade-off is accepted deliberately: a fix that touches only the installer st
 The heading of the most recent released section below is the single source of truth for the release version. The Git tag and the installer's `package.json` are both derived from it; CI fails if they disagree. See the release checklist in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## [Unreleased]
+
+## [1.6.0] - 2026-08-14
 
 ### Added
 

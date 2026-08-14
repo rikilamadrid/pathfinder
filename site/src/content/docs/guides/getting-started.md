@@ -42,7 +42,7 @@ coding tools to configure:
 
 ```text
      ━━━
-    ━━━━━      P A T H F I N D E R  v1.5.1
+    ━━━━━      P A T H F I N D E R  v1.6.0
    ━━━━━━━     trail markers for AI-assisted work
   ━━━━━━━━━
 
