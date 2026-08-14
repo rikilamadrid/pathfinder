@@ -784,6 +784,100 @@ describe("the editor offer — when it is not made at all", () => {
 });
 
 /**
+ * The blank line above the questions, Feature 21.
+ *
+ * A real captured run showed the first question butted straight against the
+ * last line of the printed prompt, which made the two read as one block — the
+ * prompt looked like it continued into a question. The separator is asserted at
+ * ask time rather than on the finished transcript, because by the end the
+ * answers and the sign-off have been printed over the top of the thing being
+ * pinned.
+ */
+describe("the questions are separated from the prompt they follow", () => {
+  /** Records what had been printed at the moment each question was asked. */
+  function snapshottingPrompter(readOutput, { editor = false } = {}) {
+    const seen = [];
+    return {
+      interactive: true,
+      seen,
+      confirm: async (question) => {
+        seen.push({ question, before: readOutput() });
+        if (question.startsWith("Copy that prompt")) return false;
+        if (question.startsWith("Open this project in")) return editor;
+        throw new Error(`unexpected question: ${question}`);
+      },
+      chooseMany: async () => [],
+      chooseOne: async () => null,
+      text: async () => "",
+      close: () => {},
+    };
+  }
+
+  async function runWith(argv, { cwd, editorPath = null, prompter: build }) {
+    let out = "";
+    const prompter = build(() => out);
+    const code = await run(argv, {
+      cwd,
+      out: (text) => (out += text),
+      err: () => {},
+      env: { PATH: [fakeClipboard().path, editorPath].filter(Boolean).join(":"), LANG: "en_US.UTF-8" },
+      platform: "darwin",
+      prompter,
+    });
+    return { code, out, prompter };
+  }
+
+  it("prints one blank line between the prompt block and the first question", async () => {
+    const cwd = makeRepository();
+
+    const { code, prompter } = await runWith([], {
+      cwd,
+      prompter: (readOutput) => snapshottingPrompter(readOutput),
+    });
+
+    assert.equal(code, 0);
+    const [first] = prompter.seen;
+    assert.equal(first.question, CLIPBOARD_QUESTION);
+    // The prompt's own last line, then exactly one empty line, and nothing else.
+    assert.match(first.before, /Do not install packages or write product code yet\.\n\n$/);
+  });
+
+  it("separates the questions once, not once each", async () => {
+    const cwd = makeRepository();
+    const editor = fakeEditor("code");
+
+    const { prompter } = await runWith([], {
+      cwd,
+      editorPath: editor.path,
+      prompter: (readOutput) => snapshottingPrompter(readOutput),
+    });
+
+    assert.deepEqual(
+      prompter.seen.map((entry) => entry.question),
+      [CLIPBOARD_QUESTION, OPEN_QUESTION],
+    );
+    // Declining the clipboard prints nothing, so the second question sees the
+    // same bytes the first did — one separator, shared, with the two questions
+    // adjacent underneath it.
+    assert.equal(prompter.seen[1].before, prompter.seen[0].before);
+  });
+
+  it("prints no separator when nothing will be asked", async () => {
+    const cwd = makeRepository();
+
+    // `--no-clipboard` rules out the one question that is always available, and
+    // an empty PATH means no editor to offer, so this run asks nothing at all.
+    const { out, prompter } = await runWith(["--no-clipboard"], {
+      cwd,
+      prompter: (readOutput) => snapshottingPrompter(readOutput),
+    });
+
+    assert.deepEqual(prompter.seen, []);
+    assert.match(out, /Do not install packages or write product code yet\.\n$/);
+  });
+});
+
+/**
  * The ASCII corrections, Feature 20.
  *
  * The other three of the seven literals that used to print as Unicode whatever

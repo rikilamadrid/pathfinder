@@ -6,7 +6,7 @@
  * whose identity is "not a framework."
  */
 
-import { findKitRoot, COPY_LIST } from "./kit.mjs";
+import { findKitRoot, COPY_LIST, VERSION } from "./kit.mjs";
 import { applyAdapterPlan, applyPlan, planAdapters, planInstall } from "./install.mjs";
 import { detect, detectedToolLabels } from "./detect.mjs";
 import { initRepository } from "./git.mjs";
@@ -15,6 +15,7 @@ import { copyToClipboard } from "./clipboard.mjs";
 import { detectEditors, openInEditor } from "./editor.mjs";
 import { kickstartPrompt, kickstartPromptLines } from "./kickstart-prompt.mjs";
 import { createTheme } from "./theme.mjs";
+import { createProgress } from "./progress.mjs";
 import {
   HARNESSES,
   HARNESS_IDS,
@@ -92,10 +93,20 @@ export async function run(
   const theme = createTheme({ env, platform, isTTY: stdoutIsTTY });
   const mark = theme.glyph;
 
-  // Printed only to a terminal. The report is for a person, and the acceptance
-  // criteria require non-interactive output to stay what 1.4.1 produced — so a
-  // piped run, a CI log, and `> install.txt` all keep the old bytes.
-  if (stdoutIsTTY) {
+  // The one branch in this file that chooses between whole presentations, and
+  // the reason the theme exposes `tier` at all.
+  //
+  // `contract` is a promise, not a fallback: a piped run, a CI log, and
+  // `> install.txt` get the bytes 1.4.1 produced, and no amount of ambition in
+  // this feature reaches them. Written as a tier test rather than as
+  // `if (stdoutIsTTY)` — the two are the same value by construction, but only
+  // one of them says why, and the next person to add a decorated block here
+  // needs to read the reason and not rediscover it.
+  //
+  // The identity block rides on the same test. `--help` never reaches this line
+  // (it returns above), which is how it keeps its plain reference form.
+  if (theme.tier !== "contract") {
+    out(formatIdentity({ theme }));
     out(formatFindings(findings, { theme }));
   }
 
@@ -171,12 +182,75 @@ export async function run(
   });
 
   const plan = planInstall(kitRoot, cwd, { force: options.force });
-  const result = applyPlan(plan, { dryRun: options.dryRun });
 
-  // Deliberately after the copy. An adapter delegates to a canonical file, so
-  // generating one beside a copy that failed would point the user's tool at a
-  // file that is not there.
-  const adapters = generateAdapters({ harnesses, kitRoot, cwd, options, result });
+  // Both plans are computed before anything is written, which is what lets the
+  // progress bar state a real denominator instead of discovering its own total
+  // as it goes.
+  //
+  // Planning adapters this early is safe, and specifically because of what the
+  // copy list contains: AGENTS.md, CLAUDE.md, context, skills, and templates.
+  // No entry writes into `.claude/` or `.agents/`, so the copy cannot change
+  // the answer `planAdapters` gives about an adapter path, and the canonical
+  // skills it reads come from the kit rather than from the destination. If a
+  // future entry ever does write to an adapter path, this has to move back.
+  //
+  // Applying them stays where it was, after the copy: an adapter delegates to a
+  // canonical file, so generating one beside a copy that failed would point the
+  // user's tool at a file that is not there.
+  const adapterPlan =
+    harnesses.length > 0
+      ? planAdapters(harnesses, { kitRoot, targetRoot: cwd, force: options.force })
+      : [];
+
+  // Zero on a dry run, which disables the bar. A dry run carries nothing out,
+  // and a bar filling for work that is not happening would be the exact species
+  // of theatre this treatment was designed to avoid.
+  const progress = createProgress({
+    theme,
+    total: options.dryRun ? 0 : plan.length + adapterPlan.length,
+    out,
+  });
+
+  if (!options.dryRun && theme.tier !== "contract") {
+    out(`  ${mark.box}  ${theme.bold("INSTALLING")}\n`);
+  }
+
+  const result = applyPlan(plan, {
+    dryRun: options.dryRun,
+    onProgress: (unit) => progress.advance(unit),
+  });
+
+  progress.milestone(
+    result.errors.length > 0
+      ? railed(theme, theme.warn(`${mark.warn} Kit files`) + ` ${mark.dash} ${result.errors.length} could not be written`)
+      : railed(
+          theme,
+          countWritten(result, plan, options) > 0
+            ? theme.ok(`${mark.ok} Kit files`) + ` ${mark.dash} ${theme.bold(countWritten(result, plan, options))} copied`
+            : theme.info(`${mark.info} Kit files`) + ` ${mark.dash} already in place`,
+        ),
+  );
+
+  const adapters = generateAdapters({
+    plan: adapterPlan,
+    harnesses,
+    options,
+    result,
+    onProgress: (unit) => progress.advance(unit),
+    onHarnessDone: (harness, counts) =>
+      progress.milestone(
+        railed(
+          theme,
+          counts.conflicts > 0
+            ? theme.warn(`${mark.warn} ${harness.label}`) +
+                ` ${mark.dash} ${counts.done} adapters, ${counts.conflicts} left alone`
+            : theme.ok(`${mark.ok} ${harness.label}`) + ` ${mark.dash} ${theme.bold(counts.done)} adapters`,
+        ),
+      ),
+  });
+
+  progress.finish();
+  if (!options.dryRun && theme.tier !== "contract") out("\n");
 
   report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err, theme });
 
@@ -186,9 +260,22 @@ export async function run(
   // prompt, including one that wrote no files, so there is nothing to guard on.
   await offerOnboardingActions({ harnesses, cwd, options, prompter, out, env, platform, theme });
 
+  // The last line of the run, and the reason it is here rather than in the
+  // report: the report is followed by two questions, so anything printed there
+  // would not be last. Before this, a successful first run ended on
+  // "Opening VS Code." — the tool installed several hundred files and then
+  // signed off with a subordinate clause about somebody else's editor.
+  //
+  // Not printed when anything failed. A sign-off over an error is a tool that
+  // did not read its own output.
+  const failed = result.errors.length > 0 || adapters.result.errors.length > 0;
+  if (theme.tier !== "contract" && !failed) {
+    out(`\n  ${theme.dim(SIGN_OFF)}\n`);
+  }
+
   // Neither offer can change this. An install that wrote every file succeeded
   // whether or not the machine has `pbcopy` or an editor on it.
-  return result.errors.length > 0 || adapters.result.errors.length > 0 ? 1 : 0;
+  return failed ? 1 : 0;
 }
 
 /**
@@ -330,17 +417,121 @@ async function askCustomTools({ prompter, out, theme }) {
  * harness was chosen" from "a harness was chosen and produced nothing", which
  * are the same zero and mean opposite things.
  */
-function generateAdapters({ harnesses, kitRoot, cwd, options, result }) {
+function generateAdapters({ plan, harnesses, options, result, onProgress, onHarnessDone }) {
   const none = { plan: [], result: applyAdapterPlan([]), blocked: false };
 
   if (harnesses.length === 0) return none;
 
   // The copy failed part-way. Reporting adapters as generated on top of that
   // would be a success message about a broken install.
+  //
+  // The progress bar is deliberately left short here rather than topped up.
+  // These units were planned and never carried out, and a bar that reached 100%
+  // anyway would be the one thing it must never do — agree with itself while
+  // disagreeing with the error the user is about to read.
   if (result.errors.length > 0) return { ...none, blocked: true };
 
-  const plan = planAdapters(harnesses, { kitRoot, targetRoot: cwd, force: options.force });
-  return { plan, result: applyAdapterPlan(plan, { dryRun: options.dryRun }), blocked: false };
+  // A milestone per harness, emitted when that harness's last unit resolves
+  // rather than after the whole phase, so the lines appear as the work happens.
+  // The plan is grouped by harness because `planAdapters` walks the harnesses in
+  // order, so a change of harness is the boundary — no second pass needed.
+  let current = null;
+  let counts = { done: 0, conflicts: 0 };
+
+  const flush = () => {
+    if (current) onHarnessDone?.(current, counts);
+  };
+
+  const applied = applyAdapterPlan(plan, {
+    dryRun: options.dryRun,
+    onProgress: (unit) => {
+      if (current && unit.item.harness !== current) {
+        flush();
+        counts = { done: 0, conflicts: 0 };
+      }
+      current = unit.item.harness;
+      if (unit.item.action === "conflict") counts.conflicts += 1;
+      else if (unit.ok) counts.done += 1;
+      onProgress?.(unit);
+    },
+  });
+
+  flush();
+
+  return { plan, result: applied, blocked: false };
+}
+
+/**
+ * The one line under the closing headline: what this run actually did.
+ *
+ * Counts rather than adjectives, because "success" is not information and the
+ * person reading has just watched a bar fill. A re-run that wrote nothing says
+ * so plainly instead of inventing an achievement.
+ */
+function endingHeadline({ theme, written, adapters, attention, options }) {
+  const mark = theme.glyph;
+  const built = adapters.result.generated + adapters.result.replaced;
+
+  // Something wants a human. Still ready — it is — but this is not the moment
+  // for confetti over somebody's conflicted file.
+  if (attention > 0) return theme.ok(`${mark.ok} READY`);
+
+  // Nothing to do, and nothing wrong. A tool that throws a party for doing no
+  // work is a tool whose party means nothing.
+  if (written === 0 && built === 0 && !options.dryRun) {
+    return theme.ok(`${mark.ok} ALREADY UP TO DATE`);
+  }
+
+  // The emotional peak, and the only place it is earned.
+  return `${mark.party}  ${theme.brand(options.dryRun ? "READY WHEN YOU ARE" : "YOU'RE ALL SET")}`;
+}
+
+/**
+ * The one line under the closing headline: what this run actually did.
+ *
+ * Counts rather than adjectives, because "success" is not information and the
+ * person reading has just watched a bar fill. A run that changed nothing says
+ * so plainly instead of inventing an achievement out of the harnesses it did
+ * not have to configure.
+ */
+function endingDetail({ written, adapters, harnesses, attention, options }) {
+  const parts = [];
+  const built = adapters.result.generated + adapters.result.replaced;
+
+  if (written > 0) parts.push(`${written} file${plural(written)}`);
+  if (built > 0) parts.push(`${built} adapter${plural(built)}`);
+  if (built > 0 && harnesses.length > 0) {
+    parts.push(joinNames(harnesses.map((harness) => harness.label)));
+  }
+
+  if (parts.length === 0) {
+    parts.push(options.dryRun ? "nothing to write" : "everything was already in place");
+  }
+
+  if (attention > 0) parts.push(`${attention} thing${plural(attention)} to look at above`);
+
+  return parts.join(", ");
+}
+
+/** `ok` for a count that did something, `info` for one that did not. */
+function tally(theme, count) {
+  return count > 0 ? theme.ok : theme.info;
+}
+
+/** One line inside a phase block, hung off the gutter. */
+function railed(theme, text) {
+  return `  ${theme.dim(theme.glyph.gutter)}  ${text}`;
+}
+
+/**
+ * How many files the copy put down, phrased for whichever mode this is.
+ *
+ * A dry run has no `result.written` worth reporting, so the plan is counted
+ * instead — the same number the summary underneath will state.
+ */
+function countWritten(result, plan, options) {
+  if (options.dryRun) return plan.filter((item) => item.status === "write").length;
+  return result.written + result.overwritten;
 }
 
 function parseArguments(argv) {
@@ -555,14 +746,151 @@ function indent(text) {
 }
 
 /**
+ * The Pathfinder mark, transcribed from `assets/logo.svg` into cells.
+ *
+ * The real mark is four rounded horizontal strokes, centred on one axis and
+ * tapering upward — a trail blaze, the paint splash on a rock that tells you
+ * you are still on the path. Its widths in the 32-unit grid are 24, 18, 12.8,
+ * and 7.2 from the bottom up, all centred on x=16.
+ *
+ * Those proportions are what is preserved here, not the pixels: scaled to a
+ * nine-cell base and rounded, 24:18:12.8:7.2 becomes 9:7:5:3, and centring each
+ * row on the base gives the indents 0, 1, 2, 3. The slight rotation on each
+ * stroke in the SVG is the one feature that does not survive — a terminal cell
+ * grid has no way to express three degrees, and faking it by stepping a row
+ * sideways would read as a mistake rather than as a tilt.
+ *
+ * Every number here is authored, not measured. Nothing in this file asks how
+ * wide a rendered string is; these are the constants a designer would hand you,
+ * and they are the reason the block is stable under any terminal width.
+ */
+const MARK_ROWS = Object.freeze([
+  Object.freeze({ indent: 3, width: 3 }),
+  Object.freeze({ indent: 2, width: 5 }),
+  Object.freeze({ indent: 1, width: 7 }),
+  Object.freeze({ indent: 0, width: 9 }),
+]);
+
+/** Where the text column starts, counted in the mark's own authored cells. */
+const TEXT_COLUMN = 13;
+
+/**
+ * What the tool is, in five words.
+ *
+ * Reviewed against the finished run and kept. It earns its place by being the
+ * only line that says what Pathfinder *is* rather than what it just did, and
+ * "markers" is load-bearing: this project's whole argument is that it is not a
+ * framework, and a marker is the least presumptuous thing you can leave on a
+ * trail. Somebody still has to walk it.
+ */
+const TAGLINE = "trail markers for AI-assisted work";
+
+/**
+ * The last thing the run says.
+ *
+ * Warm, and stops. No exhortation, no link, and specifically no request to star
+ * anything — a tool that has just written several hundred files into somebody's
+ * repository has taken enough of their attention, and asking for a favour on the
+ * way out would spend the goodwill this whole feature exists to build.
+ */
+const SIGN_OFF = "Trail's marked. The rest is yours.";
+
+/**
+ * Who is running, said once, at the top.
+ *
+ * The requirement is that a reader recognises this tool before parsing the word
+ * "Pathfinder", so recognition is carried by form and colour: the actual mark,
+ * drawn, in the actual brand orange when the terminal can render it, beside
+ * letterspacing no other scaffolder's output has. Someone who ran three
+ * installers this afternoon can tell which one this was from the shape alone —
+ * which is the test, and it is why the mark is a transcription of the logo
+ * rather than an emoji that merely gestures at the same idea.
+ *
+ * The colour degrades and the mark does not. At 24-bit the strokes are
+ * `#E0611F` exactly; at 256 they are its nearest cube neighbour; at 16 they are
+ * the one warm accent ANSI offers; with colour off they are still unmistakably
+ * four tapering strokes. That ordering is deliberate — form is the part that
+ * survives every terminal, so form is what the identity rests on.
+ *
+ * Every device here is anchored on the left. There is no border and nothing
+ * closes on the right, because that would require knowing the printed width of
+ * a decorated string. The prototype that inspired this block had a box, and its
+ * right edge did not line up — not a bug in the prototype, just what happens.
+ *
+ * Not printed for `--help`, which is reference output someone pipes to `less`,
+ * and not printed for the `contract` tier, which has a byte promise to keep.
+ * Both of those decisions live at the call site, where the tier is known.
+ */
+function markBlock(theme, beside = []) {
+  const stroke = theme.glyph.rule;
+
+  return MARK_ROWS.map((row, index) => {
+    const drawn = " ".repeat(row.indent) + stroke.repeat(row.width);
+    const text = beside[index] ?? "";
+
+    // Padding to a constant from two constants. The decorated text is appended
+    // after the padding is already decided, so no escape sequence is ever part
+    // of a length this function computes.
+    const pad = " ".repeat(TEXT_COLUMN - row.indent - row.width);
+    return `  ${theme.brand(drawn)}${text ? pad + text : ""}`;
+  });
+}
+
+export function formatIdentity({ theme = createTheme(), version = VERSION } = {}) {
+  // The two text lines sit beside the mark's middle rows, so the wordmark lands
+  // level with the widest part of the blaze rather than floating above it.
+  return (
+    [
+      "",
+      ...markBlock(theme, [
+        "",
+        `${theme.brand("P A T H F I N D E R")}  ${theme.dim(`v${version}`)}`,
+        theme.dim(TAGLINE),
+        "",
+      ]),
+    ].join("\n") + "\n"
+  );
+}
+
+/**
+ * The end of a successful run, and the one place the mark appears twice.
+ *
+ * The requirement is that this reads as an arrival rather than a receipt, and
+ * the device that does the work is the bookend: the run opens with the blaze
+ * and closes with it, and no phase in between draws the mark at all. A reader
+ * who sees it a second time knows the run is over before reading a word — the
+ * same recognition-before-reading test the startup block has to pass.
+ *
+ * Three endings, because claiming one of them for another would be a lie:
+ *
+ * - **Clean.** Nothing was skipped, nothing conflicted, nothing failed. This is
+ *   the emotional peak of the tool and is allowed to behave like it.
+ * - **Ready, with notes.** The install did its job and something above wants a
+ *   look. It still says you are ready, because you are, and it does not throw
+ *   confetti over a conflict.
+ * - **Nothing at all.** A run with write failures gets no ending block. The
+ *   error is the ending, and a celebration above it would be the output
+ *   disagreeing with itself.
+ */
+function readyBlock({ theme, headline, detail }) {
+  return markBlock(theme, ["", headline, theme.dim(detail), ""]);
+}
+
+/**
  * Say what was found, before saying what will be done.
  *
  * Deliberately short, and deliberately passive. Every line states a fact about
  * the machine; none of them implies an intention. The parenthetical on the
  * tools line is load-bearing — a bare list of everything installed on someone's
  * laptop reads like an announcement that all of it is about to be configured,
- * which is not true here and will still not be true after Feature 11, where
- * configuring anything requires an answer to a question.
+ * which is not true here, and configuring anything requires an answer to a
+ * question.
+ *
+ * This is also the run's first phase, and it is rendered as one: a heading that
+ * names it, and a gutter down the left of everything that belongs to it. The
+ * gutter is what makes the phase a block rather than a paragraph — it survives
+ * with colour off, it survives in ASCII, and it costs no width maths, which is
+ * the whole reason it was chosen over a box.
  */
 export function formatFindings(findings, { theme = createTheme() } = {}) {
   // The default is the theme an empty environment produces: ASCII, no colour.
@@ -571,31 +899,53 @@ export function formatFindings(findings, { theme = createTheme() } = {}) {
   // rather than a guess about a terminal it never described.
   const mark = theme.glyph;
 
-  const lines = ["", "Pathfinder", ""];
+  // Every finding line hangs off the same gutter, so the block reads as one
+  // thing rather than as three sentences that happen to be adjacent.
+  const rail = railed(theme, "");
+
+  // A severity span covers the glyph *and* the words it qualifies, never the
+  // glyph alone. Two reasons, and the second is the one that bites: a coloured
+  // glyph beside plain text reads as a bullet with a tint rather than as a
+  // statement with a level, and painting only the glyph puts a reset in the
+  // middle of the sentence — so `✓ Git repository detected` stops existing as
+  // contiguous bytes, and every assertion about what this line says has to
+  // learn the escape codes to find it. Emphasis inside a line still gets its
+  // own span; it just starts after the statement's own words have ended.
+  const lines = ["", `  ${mark.scan}  ${theme.bold("ENVIRONMENT")}`];
 
   if (findings.git.insideRepository) {
-    lines.push(`  ${mark.ok} Git repository detected`);
+    lines.push(`${rail}${theme.ok(`${mark.ok} Git repository detected`)}`);
   } else if (findings.git.binary) {
-    lines.push(`  ${mark.info} No Git repository here`);
+    lines.push(`${rail}${theme.info(`${mark.info} No Git repository here`)}`);
   } else {
-    lines.push(`  ${mark.bad} No Git repository here, and \`git\` is not on your PATH`);
+    lines.push(
+      `${rail}${theme.bad(`${mark.bad} No Git repository here, and \`git\` is not on your PATH`)}`,
+    );
   }
 
   if (findings.pathfinder.installed) {
     const { skillCount } = findings.pathfinder;
-    lines.push(`  ${mark.ok} Pathfinder already installed (${skillCount} skill${plural(skillCount)})`);
+    lines.push(
+      `${rail}${theme.ok(`${mark.ok} Pathfinder already installed`)} ` +
+        `(${theme.bold(skillCount)} skill${plural(skillCount)})`,
+    );
   }
 
+  // The tool names are emphasised and the caveat is dimmed, which is the
+  // hierarchy the sentence always had and the flat rendering threw away. What
+  // the reader wants from this line is the list; what they need from it is the
+  // parenthetical, exactly once.
   const tools = detectedToolLabels(findings);
   lines.push(
     tools.length > 0
-      ? `  ${mark.ok} Tools detected: ${tools.join(", ")} (noted, not configured)`
-      : `  ${mark.info} No supported tools detected`,
+      ? `${rail}${theme.ok(`${mark.ok} Tools detected:`)} ${theme.bold(tools.join(", "))} ` +
+          `${theme.dim("(noted, not configured)")}`
+      : `${rail}${theme.info(`${mark.info} No supported tools detected`)}`,
   );
 
   // Trailing blank line: whatever comes next is a different statement — the
-  // install summary, a refusal, or in a later chunk a question — and it must
-  // not read as a sixth finding.
+  // install summary, a refusal, or a question — and it must not read as one
+  // more finding.
   return lines.join("\n") + "\n\n";
 }
 
@@ -606,7 +956,30 @@ export function formatFindings(findings, { theme = createTheme() } = {}) {
  * default mode is that it left your work alone, and a bare "42 skipped" does
  * not let anyone check that claim.
  */
-function report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err, theme }) {
+function report(args) {
+  // Two renderings, kept adjacent on purpose.
+  //
+  // The duplication below is a known, accepted cost rather than an oversight.
+  // `contractReport` owes byte-for-byte what 1.4.1 printed, to scripts that
+  // parse it; `expressiveReport` owes a person a legible hierarchy. Merging
+  // them would mean one function whose every line carries a conditional, and
+  // the first wording improvement would silently break somebody's grep.
+  //
+  // They are written next to each other so that editing one is an obvious
+  // prompt to consider the other. Anything that changes what is *reported* —
+  // as opposed to how it looks — has to be made twice, and that is the point.
+  if (args.theme.tier === "contract") return contractReport(args);
+  return expressiveReport(args);
+}
+
+/**
+ * The rendering that is a promise, not a design.
+ *
+ * Unchanged since 1.4.1 and deliberately frozen. Every byte here is pinned by
+ * `test/non-interactive.test.mjs` and by a capture-and-compare against the
+ * published package, because a script somewhere is reading it.
+ */
+function contractReport({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err, theme }) {
   const lines = [];
   const verb = options.dryRun ? "Would install" : "Installed";
 
@@ -623,7 +996,7 @@ function report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, 
     lines.push(`  ${result.overwritten} file${plural(result.overwritten)} overwritten (--force)`);
   }
 
-  lines.push(...adapterLines({ adapters, harnesses, options, theme }));
+  lines.push(...contractAdapterLines({ adapters, harnesses, options, theme }));
   lines.push(...customToolLines(customTools));
 
   const skipped = plan.filter((item) => item.status === "skip");
@@ -691,10 +1064,23 @@ async function offerOnboardingActions({ harnesses, cwd, options, prompter, out, 
     return;
   }
 
+  // The report ends on the prompt block, which is the one thing on screen the
+  // user is meant to act on. A question butted straight against its last line
+  // reads as part of that block rather than as something being asked, so the
+  // questions get the same leading blank every other device in this run gets —
+  // separation is led here, never trailed.
+  //
+  // Printed only when a question actually follows, which is why the editors are
+  // detected here rather than inside `offerEditor`: a machine with no editor on
+  // PATH and `--no-clipboard` asks nothing, and must not be given a separator
+  // for it.
+  const editors = options.noOpen ? [] : detectEditors({ env, platform });
+  if (!options.noClipboard || editors.length > 0) out("\n");
+
   if (!options.noClipboard) {
     await offerClipboard({ harnesses, options, prompter, out, env, platform, theme });
   }
-  if (!options.noOpen) await offerEditor({ cwd, prompter, out, env, platform, theme });
+  if (editors.length > 0) await offerEditor({ editors, cwd, prompter, out, env, platform, theme });
 }
 
 /**
@@ -729,14 +1115,15 @@ async function offerClipboard({ harnesses, options, prompter, out, env, platform
  * The question exists only when there is something to answer it with. No editor
  * on PATH means no question at all, rather than a question whose honest answer
  * is "then don't" — an installer that asks about software you do not have is
- * asking to be told about itself.
+ * asking to be told about itself. That decision is made by the caller and the
+ * detected list handed down, because the caller has to know whether anything
+ * will be asked before it prints the blank line above the questions.
  *
  * One editor is a yes/no; several are a numbered list with an explicit way out.
  * Neither shape can be answered by not answering: a decline, an unanswered
  * question, and "Don't open" all land on the same nothing.
  */
-async function offerEditor({ cwd, prompter, out, env, platform, theme }) {
-  const editors = detectEditors({ env, platform });
+async function offerEditor({ editors, cwd, prompter, out, env, platform, theme }) {
   if (editors.length === 0) return;
 
   const chosen =
@@ -782,7 +1169,7 @@ async function offerEditor({ cwd, prompter, out, env, platform, theme }) {
  * Empty when no harness was chosen, which is the default and must stay
  * invisible: a scripted 1.4.1-era run prints exactly what it always did.
  */
-function adapterLines({ adapters, harnesses, options, theme }) {
+function contractAdapterLines({ adapters, harnesses, options, theme }) {
   if (harnesses.length === 0) return [];
 
   if (adapters.blocked) {
@@ -874,6 +1261,317 @@ function customToolLines(customTools = []) {
     "",
     "        Use skills/<name>/SKILL.md and follow it exactly.",
   ];
+}
+
+/**
+ * The rendering a person reads.
+ *
+ * The problem it exists to solve is the re-run screen, which is the screen
+ * experienced users see most and was the weakest thing this tool printed: a
+ * conflict, an orphan, eight skipped files and twenty generated adapters all
+ * arrived as prose at one indent level, so nothing about the shape of the
+ * output told you whether anything needed your attention.
+ *
+ * Three rules hold it together:
+ *
+ * - **Every severity is a colour, a glyph, and a word.** `warn` is never the
+ *   only signal — the line also carries `mark.warn` and opens with a category
+ *   word, so the hierarchy survives `NO_COLOR`, ASCII, a screen reader, and a
+ *   colour-blind reader identically.
+ * - **Summary lines are decorated; payload is not.** Counts sit on the gutter
+ *   and get colour. The paths underneath get neither, for the reason below.
+ * - **Diagnostics stay pasteable.** See `pathList`.
+ */
+function expressiveReport({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err, theme }) {
+  const mark = theme.glyph;
+  const lines = [];
+  const verb = options.dryRun ? "Would install" : "Installed";
+
+  lines.push(`  ${mark.clipboard}  ${theme.bold(options.dryRun ? "DRY RUN" : "SUMMARY")}`);
+  lines.push(railed(theme, `${verb} the Pathfinder kit into ${theme.bold(cwd)}`));
+
+  if (gitRoot !== cwd) {
+    lines.push(
+      railed(theme, theme.info(`${mark.info} The repository root is ${gitRoot}, not this directory.`)),
+    );
+  }
+
+  const written = options.dryRun ? plan.filter((i) => i.status === "write").length : result.written;
+  // A zero is reported, never celebrated. `✓ 0 files written` is a tick over
+  // nothing happening, which is the kind of detail that makes a whole summary
+  // feel automated rather than read.
+  lines.push(
+    railed(
+      theme,
+      tally(theme, written)(
+        `${written > 0 ? mark.ok : mark.info} ${written} file${plural(written)} ${options.dryRun ? "to write" : "written"}`,
+      ),
+    ),
+  );
+
+  // `--force` overwriting is `info`, not `warn`. It is exactly what the flag
+  // was asked to do, and marking a requested action as a warning is how a tool
+  // teaches people to ignore its warnings. The files it replaced are still
+  // worth stating plainly, which is what `info` is for.
+  if (result.overwritten > 0) {
+    lines.push(
+      railed(
+        theme,
+        theme.info(`${mark.info} ${result.overwritten} file${plural(result.overwritten)} overwritten (--force)`),
+      ),
+    );
+  }
+
+  lines.push(...expressiveAdapterLines({ adapters, harnesses, options, theme }));
+
+  const skipped = plan.filter((item) => item.status === "skip");
+  if (skipped.length > 0) {
+    lines.push(
+      railed(
+        theme,
+        theme.warn(`${mark.warn} ${skipped.length} file${plural(skipped.length)} left untouched`) +
+          theme.dim(" (they already exist)"),
+      ),
+    );
+  }
+
+  if (customTools.length > 0) {
+    lines.push(
+      railed(theme, theme.info(`${mark.info} No native integration for ${joinNames(customTools)}`)),
+    );
+  }
+
+  // The detail blocks, below the summary rather than inside it. A reader who
+  // only wants to know whether anything needs them stops at the gutter; a
+  // reader who needs the paths scrolls once and finds them undecorated.
+  if (skipped.length > 0) {
+    lines.push(
+      ...warnBlock({
+        theme,
+        word: "Skipped",
+        summary: `${skipped.length} file${plural(skipped.length)} already exist${skipped.length === 1 ? "s" : ""} and ${skipped.length === 1 ? "was" : "were"} left untouched`,
+        paths: skipped.map((item) => item.relativePath),
+        advice: ["Nothing above was modified. Re-run with --force to replace them."],
+      }),
+    );
+  }
+
+  lines.push(...expressiveAdapterBlocks({ adapters, harnesses, theme }));
+
+  if (customTools.length > 0) lines.push(...customToolLines(customTools));
+
+  const failureCount = result.errors.length + adapters.result.errors.length;
+  // What actually wants a human: a contested path, or an adapter pointing at a
+  // skill that is gone. Skipped files are deliberately *not* counted here.
+  // A re-run over an existing install skips every file by design, and calling
+  // thirty-six routine skips "things to look at" would turn the one number that
+  // should mean something into noise nobody reads twice.
+  const attention = adapters.blocked
+    ? 0
+    : adapters.plan.filter((item) => item.action === "conflict" || item.action === "orphan").length;
+
+  if (failureCount === 0) {
+    lines.push("");
+    lines.push(
+      ...readyBlock({
+        theme,
+        headline: endingHeadline({ theme, written, adapters, attention, options }),
+        detail: endingDetail({ written, adapters, harnesses, attention, options }),
+      }),
+    );
+  }
+
+  // The prompt is printed here, always — including on a re-run that wrote
+  // nothing, and including a run that ends on an error. A second run is how
+  // someone configures a harness they skipped, or simply comes back for the
+  // invocation they have forgotten, and both of those want the same line. It is
+  // also what makes the clipboard a convenience on top of this block rather
+  // than the only channel, which is what lets every clipboard failure be a
+  // non-event.
+  lines.push("");
+  lines.push(`  ${theme.bold("Hand your agent this prompt to begin:")}`);
+  lines.push("");
+
+  // The one piece of text on screen the user is meant to act on, so it gets the
+  // strongest emphasis in the run and its own indent. Colour is safe here in a
+  // way it is not for a diagnostic path: selecting text in a terminal copies
+  // the characters, not the escapes.
+  for (const line of kickstartPromptLines(harnesses)) {
+    lines.push(line.trim() === "" ? line : `    ${theme.info(theme.bold(line.trim()))}`);
+  }
+
+  out(lines.join("\n") + "\n");
+
+  const failures = [...result.errors, ...adapters.result.errors];
+  if (failures.length > 0) {
+    // `bad`, not `warn`, and the distinction is the whole point of having both:
+    // everything above is an outcome somebody may want to know about, and this
+    // is the install failing to do what it said it would.
+    const heading = theme.bad(
+      `${mark.bad} ${failures.length} file${plural(failures.length)} could not be written:`,
+    );
+    const detail = failures.map((error) => `  ${error.relativePath}: ${error.message}`).join("\n");
+    err(`\ncreate-pathfinder: ${heading}\n${detail}\n`);
+  }
+}
+
+/**
+ * One warning, as a heading a reader can skim and a payload they can paste.
+ *
+ * The split is the requirement. The heading is decorated — colour, glyph, and
+ * a leading category word — because its job is to be noticed. The paths are
+ * printed plain, one per line, never wrapped, never truncated, never coloured,
+ * and never hung off the gutter, because their job is to survive a
+ * copy-and-paste into a GitHub issue. A box character or an ANSI escape in
+ * that list means somebody has to hand-edit every line they pasted.
+ */
+function warnBlock({ theme, word, summary, paths, advice }) {
+  const mark = theme.glyph;
+
+  return [
+    "",
+    `  ${theme.warn(`${mark.warn} ${word}`)} ${mark.dash} ${summary}:`,
+    "",
+    ...pathList(paths),
+    "",
+    ...advice.map((line) => `    ${theme.dim(line)}`),
+  ];
+}
+
+/**
+ * Paths, and nothing else.
+ *
+ * Indented for alignment and otherwise untouched: no glyph, no colour, no
+ * gutter, no truncation, no wrapping at any width. Leading spaces are the only
+ * decoration, and they are the one kind that survives a paste — a reader who
+ * selects these lines gets the paths, and a reader who pastes them into a
+ * Markdown issue body gets a code block for free.
+ */
+function pathList(paths) {
+  return paths.map((path) => `      ${path}`);
+}
+
+/** The per-harness summary counts, on the gutter, each at its own severity. */
+function expressiveAdapterLines({ adapters, harnesses, options, theme }) {
+  const mark = theme.glyph;
+  if (harnesses.length === 0) return [];
+
+  if (adapters.blocked) {
+    return [
+      railed(theme, theme.bad(`${mark.bad} No adapters were generated`) + theme.dim(" (the kit copy did not finish)")),
+    ];
+  }
+
+  const failed = new Set(adapters.result.errors.map((error) => error.relativePath));
+  const lines = [];
+
+  for (const harness of harnesses) {
+    const mine = adapters.plan.filter(
+      (item) => item.harness === harness && !failed.has(item.relativePath),
+    );
+    const count = (action) => mine.filter((item) => item.action === action).length;
+
+    const generated = count("write");
+    const replaced = count("replace");
+    const unchanged = count("up-to-date");
+
+    lines.push(
+      railed(
+        theme,
+        tally(theme, generated)(
+          `${generated > 0 ? mark.ok : mark.info} ${generated} ${harness.label} skill adapter${plural(generated)} ` +
+            (options.dryRun ? "to generate" : "generated"),
+        ),
+      ),
+    );
+
+    if (replaced > 0) {
+      lines.push(
+        railed(theme, theme.info(`${mark.info} ${replaced} ${harness.label} adapter${plural(replaced)} replaced (--force)`)),
+      );
+    }
+
+    if (unchanged > 0) {
+      lines.push(
+        railed(theme, theme.dim(`${mark.info} ${unchanged} ${harness.label} adapter${plural(unchanged)} already up to date`)),
+      );
+    }
+
+    const conflicts = mine.filter((item) => item.action === "conflict");
+    const orphans = mine.filter((item) => item.action === "orphan");
+
+    if (conflicts.length > 0) {
+      lines.push(
+        railed(
+          theme,
+          theme.warn(`${mark.warn} ${conflicts.length} ${harness.label} file${plural(conflicts.length)} left untouched`) +
+            theme.dim(conflicts.length === 1 ? " (Pathfinder did not write it)" : " (Pathfinder did not write them)"),
+        ),
+      );
+    }
+
+    if (orphans.length > 0) {
+      lines.push(
+        railed(
+          theme,
+          theme.warn(`${mark.warn} ${orphans.length} ${harness.label} orphan adapter${plural(orphans.length)}`) +
+            theme.dim(orphans.length === 1 ? " (the skill it points at was retired)" : " (the skills they point at were retired)"),
+        ),
+      );
+    }
+  }
+
+  return lines;
+}
+
+/** The conflict and orphan detail blocks, with their paths kept pasteable. */
+function expressiveAdapterBlocks({ adapters, harnesses, theme }) {
+  if (harnesses.length === 0 || adapters.blocked) return [];
+
+  const failed = new Set(adapters.result.errors.map((error) => error.relativePath));
+  const blocks = [];
+
+  for (const harness of harnesses) {
+    const mine = adapters.plan.filter(
+      (item) => item.harness === harness && !failed.has(item.relativePath),
+    );
+
+    const conflicts = mine.filter((item) => item.action === "conflict");
+    const orphans = mine.filter((item) => item.action === "orphan");
+
+    if (conflicts.length > 0) {
+      const one = conflicts.length === 1;
+      blocks.push(
+        ...warnBlock({
+          theme,
+          word: "Conflict",
+          summary: `${conflicts.length} ${harness.label} file${plural(conflicts.length)} at ${one ? "a path an adapter wants" : "paths adapters want"}, which Pathfinder did not write`,
+          paths: conflicts.map((item) => item.relativePath),
+          advice: [
+            `Re-run with --force to replace ${one ? "it" : "them"} ${theme.glyph.dash} note that --force also`,
+            "overwrites Pathfinder kit files you have edited.",
+          ],
+        }),
+      );
+    }
+
+    if (orphans.length > 0) {
+      const one = orphans.length === 1;
+      blocks.push(
+        ...warnBlock({
+          theme,
+          word: "Orphan",
+          summary: `${orphans.length} ${harness.label} adapter${plural(orphans.length)} delegat${one ? "es" : "e"} to a skill this version no longer ships`,
+          paths: orphans.map((item) => item.relativePath),
+          advice: [
+            `Left in place. Delete ${one ? "it" : "them"} yourself if you want ${one ? "it" : "them"} gone.`,
+          ],
+        }),
+      );
+    }
+  }
+
+  return blocks;
 }
 
 /** `a`, `a and b`, `a, b, and c`. */
