@@ -15,6 +15,7 @@ import { copyToClipboard } from "./clipboard.mjs";
 import { detectEditors, openInEditor } from "./editor.mjs";
 import { kickstartPrompt, kickstartPromptLines } from "./kickstart-prompt.mjs";
 import { createTheme } from "./theme.mjs";
+import { createProgress } from "./progress.mjs";
 import {
   HARNESSES,
   HARNESS_IDS,
@@ -181,12 +182,70 @@ export async function run(
   });
 
   const plan = planInstall(kitRoot, cwd, { force: options.force });
-  const result = applyPlan(plan, { dryRun: options.dryRun });
 
-  // Deliberately after the copy. An adapter delegates to a canonical file, so
-  // generating one beside a copy that failed would point the user's tool at a
-  // file that is not there.
-  const adapters = generateAdapters({ harnesses, kitRoot, cwd, options, result });
+  // Both plans are computed before anything is written, which is what lets the
+  // progress bar state a real denominator instead of discovering its own total
+  // as it goes.
+  //
+  // Planning adapters this early is safe, and specifically because of what the
+  // copy list contains: AGENTS.md, CLAUDE.md, context, skills, and templates.
+  // No entry writes into `.claude/` or `.agents/`, so the copy cannot change
+  // the answer `planAdapters` gives about an adapter path, and the canonical
+  // skills it reads come from the kit rather than from the destination. If a
+  // future entry ever does write to an adapter path, this has to move back.
+  //
+  // Applying them stays where it was, after the copy: an adapter delegates to a
+  // canonical file, so generating one beside a copy that failed would point the
+  // user's tool at a file that is not there.
+  const adapterPlan =
+    harnesses.length > 0
+      ? planAdapters(harnesses, { kitRoot, targetRoot: cwd, force: options.force })
+      : [];
+
+  // Zero on a dry run, which disables the bar. A dry run carries nothing out,
+  // and a bar filling for work that is not happening would be the exact species
+  // of theatre this treatment was designed to avoid.
+  const progress = createProgress({
+    theme,
+    total: options.dryRun ? 0 : plan.length + adapterPlan.length,
+    out,
+  });
+
+  if (!options.dryRun && theme.tier !== "contract") {
+    out(`  ${mark.box}  ${theme.bold("INSTALLING")}\n`);
+  }
+
+  const result = applyPlan(plan, {
+    dryRun: options.dryRun,
+    onProgress: (unit) => progress.advance(unit),
+  });
+
+  progress.milestone(
+    result.errors.length > 0
+      ? railed(theme, theme.warn(`${mark.warn} Kit files`) + ` ${mark.dash} ${result.errors.length} could not be written`)
+      : railed(theme, theme.ok(`${mark.ok} Kit files`) + ` ${mark.dash} ${theme.bold(countWritten(result, plan, options))} copied`),
+  );
+
+  const adapters = generateAdapters({
+    plan: adapterPlan,
+    harnesses,
+    options,
+    result,
+    onProgress: (unit) => progress.advance(unit),
+    onHarnessDone: (harness, counts) =>
+      progress.milestone(
+        railed(
+          theme,
+          counts.conflicts > 0
+            ? theme.warn(`${mark.warn} ${harness.label}`) +
+                ` ${mark.dash} ${counts.done} adapters, ${counts.conflicts} left alone`
+            : theme.ok(`${mark.ok} ${harness.label}`) + ` ${mark.dash} ${theme.bold(counts.done)} adapters`,
+        ),
+      ),
+  });
+
+  progress.finish();
+  if (!options.dryRun && theme.tier !== "contract") out("\n");
 
   report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err, theme });
 
@@ -340,17 +399,64 @@ async function askCustomTools({ prompter, out, theme }) {
  * harness was chosen" from "a harness was chosen and produced nothing", which
  * are the same zero and mean opposite things.
  */
-function generateAdapters({ harnesses, kitRoot, cwd, options, result }) {
+function generateAdapters({ plan, harnesses, options, result, onProgress, onHarnessDone }) {
   const none = { plan: [], result: applyAdapterPlan([]), blocked: false };
 
   if (harnesses.length === 0) return none;
 
   // The copy failed part-way. Reporting adapters as generated on top of that
   // would be a success message about a broken install.
+  //
+  // The progress bar is deliberately left short here rather than topped up.
+  // These units were planned and never carried out, and a bar that reached 100%
+  // anyway would be the one thing it must never do — agree with itself while
+  // disagreeing with the error the user is about to read.
   if (result.errors.length > 0) return { ...none, blocked: true };
 
-  const plan = planAdapters(harnesses, { kitRoot, targetRoot: cwd, force: options.force });
-  return { plan, result: applyAdapterPlan(plan, { dryRun: options.dryRun }), blocked: false };
+  // A milestone per harness, emitted when that harness's last unit resolves
+  // rather than after the whole phase, so the lines appear as the work happens.
+  // The plan is grouped by harness because `planAdapters` walks the harnesses in
+  // order, so a change of harness is the boundary — no second pass needed.
+  let current = null;
+  let counts = { done: 0, conflicts: 0 };
+
+  const flush = () => {
+    if (current) onHarnessDone?.(current, counts);
+  };
+
+  const applied = applyAdapterPlan(plan, {
+    dryRun: options.dryRun,
+    onProgress: (unit) => {
+      if (current && unit.item.harness !== current) {
+        flush();
+        counts = { done: 0, conflicts: 0 };
+      }
+      current = unit.item.harness;
+      if (unit.item.action === "conflict") counts.conflicts += 1;
+      else if (unit.ok) counts.done += 1;
+      onProgress?.(unit);
+    },
+  });
+
+  flush();
+
+  return { plan, result: applied, blocked: false };
+}
+
+/** One line inside a phase block, hung off the gutter. */
+function railed(theme, text) {
+  return `  ${theme.dim(theme.glyph.gutter)}  ${text}`;
+}
+
+/**
+ * How many files the copy put down, phrased for whichever mode this is.
+ *
+ * A dry run has no `result.written` worth reporting, so the plan is counted
+ * instead — the same number the summary underneath will state.
+ */
+function countWritten(result, plan, options) {
+  if (options.dryRun) return plan.filter((item) => item.status === "write").length;
+  return result.written + result.overwritten;
 }
 
 function parseArguments(argv) {
@@ -666,10 +772,9 @@ export function formatFindings(findings, { theme = createTheme() } = {}) {
   // rather than a guess about a terminal it never described.
   const mark = theme.glyph;
 
-  // Every finding line begins with this, so the block reads as one thing. The
-  // gutter is dim rather than coloured: it is structure, and colour inside this
-  // block is reserved for what the structure contains.
-  const rail = `  ${theme.dim(mark.gutter)}  `;
+  // Every finding line hangs off the same gutter, so the block reads as one
+  // thing rather than as three sentences that happen to be adjacent.
+  const rail = railed(theme, "");
 
   // A severity span covers the glyph *and* the words it qualifies, never the
   // glyph alone. Two reasons, and the second is the one that bites: a coloured

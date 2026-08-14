@@ -161,8 +161,11 @@ describe("createTheme — glyphs", () => {
       dash: "—",
       ellipsis: "…",
       scan: "🔍",
+      box: "📦",
       rule: "━",
       gutter: "│",
+      barFull: "█",
+      barEmpty: "░",
     });
   });
 
@@ -177,8 +180,11 @@ describe("createTheme — glyphs", () => {
       dash: "-",
       ellipsis: "...",
       scan: "(o)",
+      box: "(=)",
       rule: "=",
       gutter: "|",
+      barFull: "#",
+      barEmpty: ".",
     });
   });
 

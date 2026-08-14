@@ -65,15 +65,28 @@ export function planInstall(kitRoot, targetRoot, { force = false } = {}) {
  * itself alongside everything that did succeed instead of aborting the run
  * halfway with no summary. Entries marked `skip` are never opened.
  *
+ * `onProgress` is called once per plan item, after that item has resolved, with
+ * the item and whether it succeeded. It exists so a caller can report real
+ * progress without this function knowing what a progress bar is — there is no
+ * timer here, no rate, and no percentage, because a completion event is the
+ * only thing this layer actually knows. Omit it and nothing changes: the
+ * callback is the only difference between this and the version that had no
+ * parameter at all.
+ *
+ * A failed write reports `ok: false` rather than being skipped silently. A
+ * caller that counted only calls, and not outcomes, could otherwise render a
+ * complete bar over a partly failed install.
+ *
  * @returns {{written: number, skipped: number, overwritten: number,
  *            errors: {relativePath: string, message: string}[]}}
  */
-export function applyPlan(plan, { dryRun = false } = {}) {
+export function applyPlan(plan, { dryRun = false, onProgress } = {}) {
   const result = { written: 0, skipped: 0, overwritten: 0, errors: [] };
 
   for (const item of plan) {
     if (item.status === "skip") {
       result.skipped += 1;
+      onProgress?.({ item, ok: true });
       continue;
     }
 
@@ -86,12 +99,14 @@ export function applyPlan(plan, { dryRun = false } = {}) {
           relativePath: item.relativePath,
           message: error.message,
         });
+        onProgress?.({ item, ok: false });
         continue;
       }
     }
 
     if (item.status === "overwrite") result.overwritten += 1;
     else result.written += 1;
+    onProgress?.({ item, ok: true });
   }
 
   return result;
@@ -205,26 +220,37 @@ function actionFor(state, force) {
  * Conflicts and orphans are outcomes, not errors: nothing went wrong, and the
  * files they name are the ones this tool successfully left alone.
  *
+ * `onProgress` behaves exactly as it does in `applyPlan`, and for the same
+ * reason: one call per plan item, after it resolves, carrying the item and
+ * whether it succeeded. Conflicts, orphans, and up-to-date adapters all report
+ * `ok: true` — nothing went wrong in any of those cases, and each one is an
+ * enumerated unit of a plan the user is watching being carried out. Only an
+ * unreadable file and a failed write report `ok: false`.
+ *
  * @returns {{generated: number, replaced: number, unchanged: number,
  *            conflicts: string[], orphans: string[],
  *            errors: {relativePath: string, message: string}[]}}
  */
-export function applyAdapterPlan(plan, { dryRun = false } = {}) {
+export function applyAdapterPlan(plan, { dryRun = false, onProgress } = {}) {
   const result = { generated: 0, replaced: 0, unchanged: 0, conflicts: [], orphans: [], errors: [] };
 
   for (const item of plan) {
     switch (item.action) {
       case "up-to-date":
         result.unchanged += 1;
+        onProgress?.({ item, ok: true });
         continue;
       case "conflict":
         result.conflicts.push(item.relativePath);
+        onProgress?.({ item, ok: true });
         continue;
       case "orphan":
         result.orphans.push(item.relativePath);
+        onProgress?.({ item, ok: true });
         continue;
       case "unreadable":
         result.errors.push({ relativePath: item.relativePath, message: item.message });
+        onProgress?.({ item, ok: false });
         continue;
       default:
         break;
@@ -236,12 +262,14 @@ export function applyAdapterPlan(plan, { dryRun = false } = {}) {
         writeFileSync(item.destination, item.contents, "utf8");
       } catch (error) {
         result.errors.push({ relativePath: item.relativePath, message: error.message });
+        onProgress?.({ item, ok: false });
         continue;
       }
     }
 
     if (item.action === "replace") result.replaced += 1;
     else result.generated += 1;
+    onProgress?.({ item, ok: true });
   }
 
   return result;

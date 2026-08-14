@@ -91,9 +91,16 @@ const BRAND = Object.freeze({
  * work because there is no colour beside it.
  *
  * The second group is structural rather than severity: the marks a run's
- * identity and phases are built from. `scan` is an emoji in the decorated
- * alphabet, which is a deliberate product decision and not a drift, and its
- * ASCII counterpart is a lens that survives the fallback with its sense intact.
+ * identity and phases are built from. `scan` and `box` are emoji in the
+ * decorated alphabet, which is a deliberate product decision and not a drift,
+ * and each has an ASCII counterpart that survives the fallback with its sense
+ * intact - a lens, and a crate.
+ *
+ * `barFull` and `barEmpty` are the progress bar's two cells. They only ever
+ * render in the expressive tier, since `dynamic` is false everywhere else and
+ * the bar draws nothing there - but they carry ASCII counterparts anyway, so
+ * that the alphabets stay the same size and the fallback stays a property of
+ * this table rather than a fact about who happens to call it.
  *
  * `rule` is both the stroke the Pathfinder mark is drawn from and the character
  * any other horizontal device would use. `gutter` hangs a block together down
@@ -113,8 +120,11 @@ const GLYPHS = Object.freeze({
     dash: "—",
     ellipsis: "…",
     scan: "🔍",
+    box: "📦",
     rule: "━",
     gutter: "│",
+    barFull: "█",
+    barEmpty: "░",
   }),
   ascii: Object.freeze({
     ok: "+",
@@ -124,8 +134,11 @@ const GLYPHS = Object.freeze({
     dash: "-",
     ellipsis: "...",
     scan: "(o)",
+    box: "(=)",
     rule: "=",
     gutter: "|",
+    barFull: "#",
+    barEmpty: ".",
   }),
 });
 
