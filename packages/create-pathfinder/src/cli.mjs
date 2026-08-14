@@ -14,6 +14,7 @@ import { nonInteractivePrompter } from "./prompt.mjs";
 import { copyToClipboard } from "./clipboard.mjs";
 import { detectEditors, openInEditor } from "./editor.mjs";
 import { kickstartPrompt, kickstartPromptLines } from "./kickstart-prompt.mjs";
+import { createTheme } from "./theme.mjs";
 import {
   HARNESSES,
   HARNESS_IDS,
@@ -83,14 +84,19 @@ export async function run(
   // Detection runs before anything is decided and before anything is asked, so
   // the user reads what the tool found before reading what it wants to do.
   const findings = detect({ cwd, env, platform });
-  const unicode = supportsUnicode(env, platform);
-  const mark = marks(unicode);
+
+  // Every capability question this run will ask is answered once, here, from
+  // the three things this function was handed. Threaded downward as an argument
+  // rather than reached for: a module-level theme would be a second opinion
+  // about the terminal that no test could disagree with.
+  const theme = createTheme({ env, platform, isTTY: stdoutIsTTY });
+  const mark = theme.glyph;
 
   // Printed only to a terminal. The report is for a person, and the acceptance
   // criteria require non-interactive output to stay what 1.4.1 produced — so a
   // piped run, a CI log, and `> install.txt` all keep the old bytes.
   if (stdoutIsTTY) {
-    out(formatFindings(findings, { unicode }));
+    out(formatFindings(findings, { theme }));
   }
 
   // Refused rather than allowed with a warning: this tool writes several
@@ -156,7 +162,13 @@ export async function run(
   // the user before the first file moves. Detection supplies the default and
   // nothing more: a tool being installed on this machine is not permission to
   // write into the project on its behalf.
-  const { harnesses, customTools } = await selectHarnesses({ findings, options, prompter, out });
+  const { harnesses, customTools } = await selectHarnesses({
+    findings,
+    options,
+    prompter,
+    out,
+    theme,
+  });
 
   const plan = planInstall(kitRoot, cwd, { force: options.force });
   const result = applyPlan(plan, { dryRun: options.dryRun });
@@ -166,13 +178,13 @@ export async function run(
   // file that is not there.
   const adapters = generateAdapters({ harnesses, kitRoot, cwd, options, result });
 
-  report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err });
+  report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err, theme });
 
   // After the report, because the first offer is about the prompt the report
   // just printed — and because a question above the summary would make the user
   // answer before seeing what happened. Every run that gets this far printed a
   // prompt, including one that wrote no files, so there is nothing to guard on.
-  await offerOnboardingActions({ harnesses, cwd, options, prompter, out, env, platform });
+  await offerOnboardingActions({ harnesses, cwd, options, prompter, out, env, platform, theme });
 
   // Neither offer can change this. An install that wrote every file succeeded
   // whether or not the machine has `pbcopy` or an editor on it.
@@ -188,7 +200,7 @@ export async function run(
  * needing to remember to skip it, and one that forgot would generate adapters
  * into a directory named after a tool that cannot read them.
  */
-const SOMETHING_ELSE = Object.freeze({ label: "Something else…" });
+const SOMETHING_ELSE = Object.freeze({ label: "Something else" });
 
 /** How many custom names one run will take before it stops asking. */
 const CUSTOM_TOOL_LIMIT = 10;
@@ -215,7 +227,7 @@ const CUSTOM_TOOL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._+-]{0,39}$/;
  *
  * @returns {Promise<{harnesses: object[], customTools: string[]}>}
  */
-async function selectHarnesses({ findings, options, prompter, out }) {
+async function selectHarnesses({ findings, options, prompter, out, theme }) {
   if (options.agents !== null) {
     return { harnesses: options.agents.map((id) => findHarness(id)), customTools: [] };
   }
@@ -223,13 +235,21 @@ async function selectHarnesses({ findings, options, prompter, out }) {
 
   const detected = detectedHarnesses(findings);
   const entries = [...HARNESSES, SOMETHING_ELSE];
-  const width = Math.max(...entries.map((entry) => entry.label.length));
+
+  // The sentinel's trailing ellipsis is the theme's, not a character baked into
+  // the label — and because it is the longest row, it also decides the column
+  // the arrows line up in. So the width is measured on the rendered label
+  // rather than the stored one: an ASCII terminal spends three characters on
+  // `...` where a UTF-8 one spends one, and the arrows must follow.
+  const labelOf = (entry) =>
+    entry === SOMETHING_ELSE ? `${entry.label}${theme.glyph.ellipsis}` : entry.label;
+  const width = Math.max(...entries.map((entry) => labelOf(entry).length));
 
   const answer = await prompter.chooseMany("Configure Pathfinder for which tools?", {
     options: entries.map((entry) => ({
       value: entry,
       label:
-        `${entry.label.padEnd(width)}  -> ` +
+        `${labelOf(entry).padEnd(width)}  -> ` +
         // The path is shown so nobody has to check a box to find out what it
         // writes. The last entry earns the same courtesy by admitting it
         // writes nothing, in the column where every other row names a file.
@@ -244,7 +264,9 @@ async function selectHarnesses({ findings, options, prompter, out }) {
 
   const chosen = answer ?? [];
   const harnesses = chosen.filter((entry) => entry !== SOMETHING_ELSE);
-  const customTools = chosen.includes(SOMETHING_ELSE) ? await askCustomTools({ prompter, out }) : [];
+  const customTools = chosen.includes(SOMETHING_ELSE)
+    ? await askCustomTools({ prompter, out, theme })
+    : [];
 
   return { harnesses, customTools };
 }
@@ -262,7 +284,7 @@ async function selectHarnesses({ findings, options, prompter, out }) {
  * there because a question that repeats itself is a question that can repeat
  * itself forever on a stream that never closes.
  */
-async function askCustomTools({ prompter, out }) {
+async function askCustomTools({ prompter, out, theme }) {
   out(
     "Pathfinder generates adapters only for tools it can generate them for.\n" +
       "Name the others and the summary will say what does work for them.\n\n",
@@ -279,7 +301,7 @@ async function askCustomTools({ prompter, out }) {
     const supported = harnessNamed(answer);
     if (supported !== null) {
       out(
-        `  ${supported.label} is supported — it is in the list above, and writes to\n` +
+        `  ${supported.label} is supported ${theme.glyph.dash} it is in the list above, and writes to\n` +
           `  ${supported.skillsDir}/. Choose it there, or pass --agents ${supported.id}.\n\n`,
       );
       continue;
@@ -542,8 +564,12 @@ function indent(text) {
  * which is not true here and will still not be true after Feature 11, where
  * configuring anything requires an answer to a question.
  */
-export function formatFindings(findings, { unicode = false } = {}) {
-  const mark = marks(unicode);
+export function formatFindings(findings, { theme = createTheme() } = {}) {
+  // The default is the theme an empty environment produces: ASCII, no colour.
+  // Not a convenience — it is the same answer this function gave before it took
+  // a theme at all, so a caller that forgets one gets the readable alphabet
+  // rather than a guess about a terminal it never described.
+  const mark = theme.glyph;
 
   const lines = ["", "Pathfinder", ""];
 
@@ -574,40 +600,13 @@ export function formatFindings(findings, { unicode = false } = {}) {
 }
 
 /**
- * The line markers, in whichever alphabet this terminal can be trusted with.
- *
- * One table, so a finding and an action it leads to are marked the same way.
- */
-function marks(unicode) {
-  return unicode
-    ? { ok: "✓", info: "·", bad: "✗", dash: "—" }
-    : { ok: "+", info: "-", bad: "!", dash: "-" };
-}
-
-/**
- * Can this terminal be trusted with the decorated marks?
- *
- * Answered from the environment rather than attempted and hoped for, and biased
- * hard toward "no": an unanswerable environment gets ASCII, which is readable
- * everywhere, while a wrong "yes" leaves mojibake in the first output a new
- * user ever sees from this tool.
- */
-function supportsUnicode(env, platform) {
-  if (platform === "win32") {
-    return Boolean(env.WT_SESSION) || env.TERM_PROGRAM === "vscode";
-  }
-  const locale = env.LC_ALL || env.LC_CTYPE || env.LANG || "";
-  return /utf-?8/i.test(locale);
-}
-
-/**
  * Say what happened, in full.
  *
  * Skipped files are listed individually, not counted. The whole promise of the
  * default mode is that it left your work alone, and a bare "42 skipped" does
  * not let anyone check that claim.
  */
-function report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err }) {
+function report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err, theme }) {
   const lines = [];
   const verb = options.dryRun ? "Would install" : "Installed";
 
@@ -624,7 +623,7 @@ function report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, 
     lines.push(`  ${result.overwritten} file${plural(result.overwritten)} overwritten (--force)`);
   }
 
-  lines.push(...adapterLines({ adapters, harnesses, options }));
+  lines.push(...adapterLines({ adapters, harnesses, options, theme }));
   lines.push(...customToolLines(customTools));
 
   const skipped = plan.filter((item) => item.status === "skip");
@@ -647,7 +646,7 @@ function report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, 
   // top of this block rather than the only channel, which is what lets every
   // clipboard failure be a non-event.
   lines.push("");
-  lines.push("Next step — give your agent this prompt:");
+  lines.push(`Next step ${theme.glyph.dash} give your agent this prompt:`);
   lines.push("");
   lines.push(...kickstartPromptLines(harnesses));
 
@@ -675,7 +674,7 @@ function report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, 
  * here that an install should be judged by, so there is no value for the exit
  * code to be computed from.
  */
-async function offerOnboardingActions({ harnesses, cwd, options, prompter, out, env, platform }) {
+async function offerOnboardingActions({ harnesses, cwd, options, prompter, out, env, platform, theme }) {
   if (!prompter.interactive || options.yes) return;
 
   const suppressed = options.noClipboard && options.noOpen;
@@ -692,14 +691,16 @@ async function offerOnboardingActions({ harnesses, cwd, options, prompter, out, 
     return;
   }
 
-  if (!options.noClipboard) await offerClipboard({ harnesses, options, prompter, out, env, platform });
-  if (!options.noOpen) await offerEditor({ cwd, prompter, out, env, platform });
+  if (!options.noClipboard) {
+    await offerClipboard({ harnesses, options, prompter, out, env, platform, theme });
+  }
+  if (!options.noOpen) await offerEditor({ cwd, prompter, out, env, platform, theme });
 }
 
 /**
  * Offer to put the printed prompt on the clipboard. Never take it.
  */
-async function offerClipboard({ harnesses, options, prompter, out, env, platform }) {
+async function offerClipboard({ harnesses, options, prompter, out, env, platform, theme }) {
   const answer = await prompter.confirm(
     "Copy that prompt to your clipboard? This replaces what is on it now.",
     { defaultAnswer: true },
@@ -718,7 +719,7 @@ async function offerClipboard({ harnesses, options, prompter, out, env, platform
   out(
     copied.ok
       ? "  Copied.\n"
-      : `  Not copied — ${copied.reason}. The prompt is printed above.\n`,
+      : `  Not copied ${theme.glyph.dash} ${copied.reason}. The prompt is printed above.\n`,
   );
 }
 
@@ -734,7 +735,7 @@ async function offerClipboard({ harnesses, options, prompter, out, env, platform
  * Neither shape can be answered by not answering: a decline, an unanswered
  * question, and "Don't open" all land on the same nothing.
  */
-async function offerEditor({ cwd, prompter, out, env, platform }) {
+async function offerEditor({ cwd, prompter, out, env, platform, theme }) {
   const editors = detectEditors({ env, platform });
   if (editors.length === 0) return;
 
@@ -765,7 +766,7 @@ async function offerEditor({ cwd, prompter, out, env, platform }) {
   out(
     opened.ok
       ? `  Opening ${chosen.label}.\n`
-      : `  Not opened — ${opened.reason}. The install is complete; open ${cwd} yourself.\n`,
+      : `  Not opened ${theme.glyph.dash} ${opened.reason}. The install is complete; open ${cwd} yourself.\n`,
   );
 }
 
@@ -781,7 +782,7 @@ async function offerEditor({ cwd, prompter, out, env, platform }) {
  * Empty when no harness was chosen, which is the default and must stay
  * invisible: a scripted 1.4.1-era run prints exactly what it always did.
  */
-function adapterLines({ adapters, harnesses, options }) {
+function adapterLines({ adapters, harnesses, options, theme }) {
   if (harnesses.length === 0) return [];
 
   if (adapters.blocked) {
@@ -829,8 +830,8 @@ function adapterLines({ adapters, harnesses, options }) {
       lines.push("");
       lines.push(
         conflicts.length === 1
-          ? "  Re-run with --force to replace it — note that --force also overwrites"
-          : "  Re-run with --force to replace them — note that --force also overwrites",
+          ? `  Re-run with --force to replace it ${theme.glyph.dash} note that --force also overwrites`
+          : `  Re-run with --force to replace them ${theme.glyph.dash} note that --force also overwrites`,
       );
       lines.push("  Pathfinder kit files you have edited.",
       );

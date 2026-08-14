@@ -185,6 +185,7 @@ async function invoke(
     gitPath = null,
     prompter,
     platform = "darwin",
+    locale = "en_US.UTF-8",
   } = {},
 ) {
   let out = "";
@@ -193,7 +194,14 @@ async function invoke(
     cwd,
     out: (text) => (out += text),
     err: (text) => (err += text),
-    env: { PATH: [clipboardPath, editorPath, gitPath].filter(Boolean).join(":") },
+    // A UTF-8 locale, because these tests are about what the offers do, not
+    // about the alphabet they are written in. Stating it keeps their assertions
+    // readable now that the punctuation comes from the theme; the ASCII forms
+    // are asserted on purpose in `describe("the ASCII corrections")` below.
+    env: {
+      PATH: [clipboardPath, editorPath, gitPath].filter(Boolean).join(":"),
+      LANG: locale,
+    },
     platform,
     prompter: prompter ?? scriptedPrompter(),
   });
@@ -772,5 +780,82 @@ describe("the editor offer — when it is not made at all", () => {
     assert.equal(code, 1);
     assert.deepEqual(prompter.asked, ["Initialize a Git repository here?"]);
     assert.equal(editor.arguments(), null);
+  });
+});
+
+/**
+ * The ASCII corrections, Feature 20.
+ *
+ * The other three of the seven literals that used to print as Unicode whatever
+ * the terminal could show. Both failure lines carry an em dash, and a failure
+ * message rendered as mojibake is the worst possible moment for it: the user is
+ * already being told something did not work.
+ */
+describe("the ASCII corrections", () => {
+  it("writes the clipboard failure with an ASCII dash", async () => {
+    const cwd = makeRepository();
+
+    const { out } = await invoke([], {
+      cwd,
+      clipboardPath: scratch("pathfinder-onboarding-ascii-empty-"),
+      prompter: scriptedPrompter({ clipboard: true }),
+      locale: "C",
+    });
+
+    assert.match(out, /Not copied - no clipboard tool is available here\./);
+    assert.doesNotMatch(out, /—/);
+  });
+
+  it("writes the editor failure with an ASCII dash", async () => {
+    const cwd = makeRepository();
+    const clipboard = fakeClipboard();
+    const directory = scratch("pathfinder-onboarding-ascii-editor-");
+    writeFileSync(join(directory, "code"), "not an executable\n");
+    chmodSync(join(directory, "code"), 0o644);
+
+    const { out } = await invoke([], {
+      cwd,
+      clipboardPath: clipboard.path,
+      editorPath: directory,
+      prompter: scriptedPrompter({ editor: true }),
+      locale: "C",
+    });
+
+    assert.match(out, / {2}Not opened - code could not be run/);
+  });
+
+  it("writes the next-step line with an ASCII dash", async () => {
+    const cwd = makeRepository();
+
+    const { out } = await invoke([], { cwd, locale: "C" });
+
+    assert.match(out, /Next step - give your agent this prompt:/);
+  });
+
+  it("leaves no character above U+007F anywhere in an ASCII run", async () => {
+    const cwd = makeRepository();
+
+    const { out, err } = await invoke([], {
+      cwd,
+      clipboardPath: scratch("pathfinder-onboarding-ascii-clean-"),
+      prompter: scriptedPrompter({ clipboard: true }),
+      locale: "C",
+    });
+
+    // eslint-disable-next-line no-control-regex
+    assert.match(out + err, /^[\x00-\x7F]*$/);
+  });
+
+  it("still writes the decorated forms in a UTF-8 terminal", async () => {
+    const cwd = makeRepository();
+
+    const { out } = await invoke([], {
+      cwd,
+      clipboardPath: scratch("pathfinder-onboarding-utf8-"),
+      prompter: scriptedPrompter({ clipboard: true }),
+    });
+
+    assert.match(out, /Not copied — no clipboard tool is available here\./);
+    assert.match(out, /Next step — give your agent this prompt:/);
   });
 });

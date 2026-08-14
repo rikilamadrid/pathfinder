@@ -25,6 +25,10 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Fixed
+
+- **`create-pathfinder` now writes ASCII punctuation on terminals that asked for ASCII.** Seven strings printed an em dash or an ellipsis regardless of what the terminal could render, bypassing the fallback that already governed the tick and cross marks. A UTF-8 terminal sees exactly what it saw in 1.5.1; a terminal with a non-UTF-8 locale — `LANG=C`, and a Windows console that is neither Windows Terminal nor VS Code — now reads `Next step - give your agent this prompt:`, `Something else...`, `Not copied - …`, `Not opened - …`, `X is supported - …`, and `Re-run with --force to replace it/them - …` instead of mojibake. The tool-selection list's arrows shift two columns in ASCII mode to follow the widened `Something else...` row.
+
 ### Changed
 
 - **`AGENTS.md` no longer names a "launcher".** The fallback invocation line is unchanged; it just stops referring to a file a fresh install has never had. `prompts/` was retired in v1.5.0.
