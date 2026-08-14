@@ -91,14 +91,17 @@ function byLabel(...fragments) {
     );
 }
 
-async function invoke(argv, { cwd, prompter = scriptedPrompter({ interactive: false }) } = {}) {
+async function invoke(argv, { cwd, prompter = scriptedPrompter({ interactive: false }), env } = {}) {
   let out = "";
   let err = "";
   const code = await run(argv, {
     cwd,
     out: (text) => (out += text),
     err: (text) => (err += text),
-    env: {},
+    // A UTF-8 locale by default, so these tests keep asserting the decorated
+    // text they were written against. The alphabet is the subject of exactly
+    // two tests below, and those pass their own environment.
+    env: env ?? { LANG: "en_US.UTF-8" },
     platform: "linux",
     prompter,
   });
@@ -795,5 +798,88 @@ describe("when the kit copy fails", () => {
     assert.equal(out.includes("No adapters were generated, because the kit copy did not finish."), true);
     assert.equal(err.includes("CLAUDE.md"), true);
     assert.equal(statSync(join(cwd, "CLAUDE.md")).isDirectory(), true);
+  });
+});
+
+/**
+ * The ASCII corrections, Feature 20.
+ *
+ * Four of the seven literals that used to be printed as Unicode regardless of
+ * what the terminal could show. A `LANG=C` run used to receive an em dash and
+ * an ellipsis it had already been told it could not render; it now receives the
+ * ASCII forms, and these tests are where that promise is written down.
+ *
+ * The UTF-8 forms are covered by every other test in this file, all of which
+ * run under a UTF-8 locale and none of which changed.
+ */
+describe("the ASCII corrections", () => {
+  const ascii = { LANG: "C" };
+
+  it("writes the sentinel's ellipsis in ASCII, and moves the arrows to match", async () => {
+    const cwd = makeRepository();
+    const prompter = scriptedPrompter({ harnesses: [] });
+
+    await invoke([], { cwd, prompter, env: ascii });
+
+    const [{ config }] = prompter.offered;
+    assert.match(config.options[2].label, /Something else\.\.\.\s+-> nothing is generated$/);
+
+    // The sentinel is the longest row, so its width decides the column every
+    // arrow lands in. Asserted across all three rows rather than on the one
+    // that changed, because a column that only mostly lines up is the defect.
+    const columns = config.options.map((option) => option.label.indexOf("->"));
+    assert.deepEqual(columns, [columns[0], columns[0], columns[0]]);
+  });
+
+  it("keeps the UTF-8 column where it was", async () => {
+    const cwd = makeRepository();
+    const prompter = scriptedPrompter({ harnesses: [] });
+
+    await invoke([], { cwd, prompter });
+
+    const [{ config }] = prompter.offered;
+    assert.match(config.options[2].label, /Something else…\s+-> nothing is generated$/);
+  });
+
+  it("writes the supported-tool notice with an ASCII dash", async () => {
+    const cwd = makeRepository();
+    const prompter = scriptedPrompter({
+      harnesses: byLabel("Something else"),
+      typed: ["codex"],
+    });
+
+    const { out } = await invoke([], { cwd, prompter, env: ascii });
+
+    assert.equal(out.includes("Codex is supported - it is in the list above"), true);
+    assert.equal(out.includes("—"), false);
+  });
+
+  it("writes the conflict advice with an ASCII dash", async () => {
+    const cwd = makeRepository();
+    mkdirSync(join(cwd, ".claude", "skills", "debug-issue"), { recursive: true });
+    writeFileSync(adapter(cwd, "debug-issue"), "---\nname: debug-issue\n---\n\nMy own.\n");
+
+    const { out } = await invoke(["--agents", "claude-code"], { cwd, env: ascii });
+
+    assert.equal(out.includes("Re-run with --force to replace it - note that --force also"), true);
+  });
+
+  it("writes the next-step line with an ASCII dash", async () => {
+    const cwd = makeRepository();
+
+    const { out } = await invoke(["--agents", "claude-code"], { cwd, env: ascii });
+
+    assert.equal(out.includes("Next step - give your agent this prompt:"), true);
+  });
+
+  it("leaves no character above U+007F anywhere in an ASCII run", async () => {
+    const cwd = makeRepository();
+    mkdirSync(join(cwd, ".claude", "skills", "debug-issue"), { recursive: true });
+    writeFileSync(adapter(cwd, "debug-issue"), "---\nname: debug-issue\n---\n\nMy own.\n");
+
+    const { out, err } = await invoke(["--agents", "claude-code"], { cwd, env: ascii });
+
+    // eslint-disable-next-line no-control-regex
+    assert.match(out + err, /^[\x00-\x7F]*$/);
   });
 });
