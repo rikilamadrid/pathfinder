@@ -153,13 +153,45 @@ describe("createTheme — glyphs", () => {
   it("uses the decorated table when Unicode is trusted", () => {
     const { glyph } = createTheme(utf8Tty);
 
-    assert.deepEqual(glyph, { ok: "✓", info: "·", warn: "▲", bad: "✗", dash: "—", ellipsis: "…" });
+    assert.deepEqual(glyph, {
+      ok: "✓",
+      info: "·",
+      warn: "▲",
+      bad: "✗",
+      dash: "—",
+      ellipsis: "…",
+      scan: "🔍",
+      rule: "━",
+      gutter: "│",
+    });
   });
 
   it("uses the ASCII table otherwise", () => {
     const { glyph } = createTheme({ ...utf8Tty, env: { LANG: "C" } });
 
-    assert.deepEqual(glyph, { ok: "+", info: "-", warn: "*", bad: "!", dash: "-", ellipsis: "..." });
+    assert.deepEqual(glyph, {
+      ok: "+",
+      info: "-",
+      warn: "*",
+      bad: "!",
+      dash: "-",
+      ellipsis: "...",
+      scan: "(o)",
+      rule: "=",
+      gutter: "|",
+    });
+  });
+
+  it("names the same glyphs in both alphabets, so no call site can lose one in ASCII", () => {
+    // The deepEqual pair above pins the values; this pins the *keys* being the
+    // same set. Without it, adding an emoji to the decorated table and
+    // forgetting its counterpart yields `undefined` printed into an ASCII
+    // terminal, which is precisely the failure the fallback exists to prevent
+    // and precisely the one a value-by-value test does not catch.
+    const decorated = createTheme(utf8Tty).glyph;
+    const ascii = createTheme({ ...utf8Tty, env: { LANG: "C" } }).glyph;
+
+    assert.deepEqual(Object.keys(decorated).sort(), Object.keys(ascii).sort());
   });
 
   it("keeps every ASCII glyph inside ASCII", () => {

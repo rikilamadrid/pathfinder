@@ -52,6 +52,22 @@ export function isExcluded(basename) {
 const PACKAGE_ROOT = resolve(HERE, "..");
 
 /**
+ * This installer's own version, for the identity block to state.
+ *
+ * Read from the package manifest for the same reason the copy list is: the
+ * number has one home, and a constant declared here would be a second one that
+ * `npm version` does not know to update. Read once at module load, because a
+ * file that is part of the running package cannot change underneath a single
+ * run, and because a failure to read it should surface at import rather than
+ * halfway through a report.
+ *
+ * Not exported through `findKitRoot`'s resolution: the manifest sits beside
+ * this source in both layouts, published and checkout alike, so there is
+ * nothing to search for.
+ */
+export const VERSION = JSON.parse(readFileSync(join(PACKAGE_ROOT, "package.json"), "utf8")).version;
+
+/**
  * Locate the kit directories this tool should copy from.
  *
  * Two layouts are possible and both are checked, nearest first:

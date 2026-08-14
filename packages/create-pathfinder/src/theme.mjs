@@ -31,9 +31,10 @@
 /**
  * SGR codes, written out rather than depended on.
  *
- * Eight ANSI colours, bold, and dim. No truecolor and no 256-colour: the
- * terminals that would benefit already render these, and the terminals that
- * would not are exactly the ones this module is careful with.
+ * Eight ANSI colours, bold, and dim. Every *severity* in this module is one of
+ * these and will stay one of these: they render identically everywhere, and a
+ * level that means "this went wrong" must never depend on a colour that some
+ * terminal renders as something else.
  */
 const SGR = Object.freeze({
   reset: "\u001B[0m",
@@ -43,6 +44,36 @@ const SGR = Object.freeze({
   green: "\u001B[32m",
   yellow: "\u001B[33m",
   cyan: "\u001B[36m",
+});
+
+/**
+ * Blaze orange, `#E0611F`, in as many alphabets as terminals actually speak.
+ *
+ * This is the one colour in the CLI that is an *identity* rather than a level,
+ * and it is the only reason this module knows what a colour depth is. The
+ * severity paints are untouched by all of it, which is the containment that
+ * makes the extra depth affordable: a terminal that lies about its capability
+ * costs the brand its exact hue, and costs meaning nothing.
+ *
+ * Three renderings, best first:
+ *
+ * - **24-bit** - the real value, exactly. Nothing is approximated.
+ * - **256** - index 166, `#D75F00`. Chosen by computing the nearest cell of the
+ *   6x6x6 cube rather than by eye: `#E0611F` is (224, 97, 31), the cube's
+ *   levels are 0/95/135/175/215/255, and (215, 95, 0) is nearest by squared
+ *   distance at 1046 - well clear of the obvious rival 208 `#FF8700` at 3366.
+ * - **16** - bold yellow, and only here. This is the floor, never the
+ *   preference: it is the only warm accent the eight ANSI values offer, so at
+ *   this depth alone do the brand and `warn` share a hue. The collision is
+ *   contained rather than waved away - at this depth the identity is carried by
+ *   the mark's form, its letterspacing, and its position, and a warning is
+ *   always additionally a glyph and a word. Closing that overlap is precisely
+ *   what the two depths above are for.
+ */
+const BRAND = Object.freeze({
+  24: "\u001B[38;2;224;97;31m",
+  8: "\u001B[38;5;166m",
+  4: `${SGR.bold}${SGR.yellow}`,
 });
 
 /**
@@ -58,6 +89,20 @@ const SGR = Object.freeze({
  * obvious `!`, because `!` already means `bad` — and a collision between the
  * two would land precisely in the plain tier, where the glyph is doing the most
  * work because there is no colour beside it.
+ *
+ * The second group is structural rather than severity: the marks a run's
+ * identity and phases are built from. `scan` is an emoji in the decorated
+ * alphabet, which is a deliberate product decision and not a drift, and its
+ * ASCII counterpart is a lens that survives the fallback with its sense intact.
+ *
+ * `rule` is both the stroke the Pathfinder mark is drawn from and the character
+ * any other horizontal device would use. `gutter` hangs a block together down
+ * its left edge. Both are drawn left to right from a fixed count and neither
+ * closes on the right, so no caller ever has to know the printed width of a
+ * decorated string. That is why there is no corner, no box, and no border
+ * character in this table — a closed box cannot be aligned without width maths
+ * that emoji defeat, which the prototype demonstrated by failing to close its
+ * own.
  */
 const GLYPHS = Object.freeze({
   unicode: Object.freeze({
@@ -67,6 +112,9 @@ const GLYPHS = Object.freeze({
     bad: "✗",
     dash: "—",
     ellipsis: "…",
+    scan: "🔍",
+    rule: "━",
+    gutter: "│",
   }),
   ascii: Object.freeze({
     ok: "+",
@@ -75,6 +123,9 @@ const GLYPHS = Object.freeze({
     bad: "!",
     dash: "-",
     ellipsis: "...",
+    scan: "(o)",
+    rule: "=",
+    gutter: "|",
   }),
 });
 
@@ -122,6 +173,54 @@ function detectColor(env, isTTY) {
 }
 
 /**
+ * How many colours this terminal has *said* it can render: 0, 4, 8, or 24 bits.
+ *
+ * A third axis beside colour and Unicode, and deliberately not a fourth tier.
+ * The tier answers "what kind of presentation is this", and every tier already
+ * works at every depth — so a depth is a refinement of one colour, never a
+ * different rendering. Exactly one consumer exists, `brand`, and if a severity
+ * ever reads this value something has gone wrong upstream.
+ *
+ * Answered only from what the environment volunteers. Nothing is probed, no
+ * escape sequence is written and read back, and no reply is waited for: a
+ * capability query is a round trip with a terminal that may never answer, and
+ * this module is not allowed to block or to hold state.
+ *
+ * The order is a sequence of claims, strongest first, ending in the floor:
+ *
+ * 1. `FORCE_COLOR` at 2 or 3 is someone stating a depth outright. This is the
+ *    convention the ecosystem settled on, and it is also the only way to
+ *    exercise the upper depths in a test without pretending to be a terminal.
+ * 2. `COLORTERM` of `truecolor` or `24bit` is the de-facto announcement, set by
+ *    every terminal that means it.
+ * 3. A `TERM` ending in `-direct` is the terminfo spelling of the same claim.
+ * 4. A `TERM` containing `256color` is the older, narrower claim.
+ * 5. Otherwise 4 — the floor, and the answer for every terminal that said
+ *    nothing.
+ *
+ * Biased toward under-claiming, exactly as `detectUnicode` is, but the stakes
+ * are far lower here and worth stating plainly: a wrong "yes" about Unicode
+ * leaves mojibake in someone's first impression, whereas a wrong "yes" here
+ * renders one wordmark in an unintended colour or, on a terminal that ignores
+ * the sequence entirely, in the default one. `COLORTERM` does leak across ssh,
+ * tmux, and sudo, so being wrong is realistic — it is simply cheap.
+ */
+function detectColorDepth(env, color) {
+  if (!color) return 0;
+  if (env.FORCE_COLOR === "3") return 24;
+  if (env.FORCE_COLOR === "2") return 8;
+
+  const colorterm = env.COLORTERM || "";
+  if (/^(truecolor|24bit)$/i.test(colorterm)) return 24;
+
+  const term = env.TERM || "";
+  if (/-direct$/i.test(term)) return 24;
+  if (/256color/i.test(term)) return 8;
+
+  return 4;
+}
+
+/**
  * Which presentation tier this run gets.
  *
  * Decided once, here, as a documented function of capability — the alternative
@@ -161,6 +260,7 @@ function selectTier({ isTTY, color, unicode }) {
 export function createTheme({ env = {}, platform = "linux", isTTY = false } = {}) {
   const unicode = detectUnicode(env, platform);
   const color = detectColor(env, isTTY);
+  const colorDepth = detectColorDepth(env, color);
   const tier = selectTier({ isTTY, color, unicode });
 
   // May this run repaint a line it has already written? Only where someone is
@@ -174,9 +274,13 @@ export function createTheme({ env = {}, platform = "linux", isTTY = false } = {}
    *
    * The reset is unconditional rather than a matching "off" code, because a
    * caller may nest and the cheap correct thing is to end every span the same
-   * way.
+   * way. Several codes may be given, which is how emphasis combines with a
+   * colour without a call site nesting two paints and emitting two resets.
    */
-  const paint = (code) => (text) => (color ? `${code}${text}${SGR.reset}` : `${text}`);
+  const paint =
+    (...codes) =>
+    (text) =>
+      color ? `${codes.join("")}${text}${SGR.reset}` : `${text}`;
 
   const glyph = unicode ? GLYPHS.unicode : GLYPHS.ascii;
 
@@ -206,6 +310,26 @@ export function createTheme({ env = {}, platform = "linux", isTTY = false } = {}
     // went wrong" cannot be confused for one another at a call site.
     bold: paint(SGR.bold),
     dim: paint(SGR.dim),
+
+    // What depth the brand got, exposed for the same reason `tier` is: tests
+    // need to assert it, and a reviewer needs to be able to ask.
+    colorDepth,
+
+    // Identity, and the only place a colour is chosen to mean "Pathfinder"
+    // rather than to mean a level.
+    //
+    // Written against BRAND rather than through `paint`, because this is the
+    // one paint whose escape sequence is chosen at run time from what the
+    // terminal claimed. Everything else in this module has exactly one code for
+    // its whole life, and keeping those two facts in separate functions is what
+    // stops a future severity from quietly acquiring a depth.
+    //
+    // Note what is *not* here: any attempt to reproduce #E0611F on a terminal
+    // that did not say it could. At depth 4 the brand degrades to the warm
+    // accent the eight ANSI values offer and the mark's form carries the rest,
+    // which is the whole reason the mark is a drawing of the logo and not a
+    // coloured word.
+    brand: (text) => (colorDepth === 0 ? `${text}` : `${BRAND[colorDepth]}${text}${SGR.reset}`),
 
     // The only escape sequences that are not colour, and the reason they live
     // here: a progress renderer that hand-rolled its own would be a second

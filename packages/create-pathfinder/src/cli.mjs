@@ -6,7 +6,7 @@
  * whose identity is "not a framework."
  */
 
-import { findKitRoot, COPY_LIST } from "./kit.mjs";
+import { findKitRoot, COPY_LIST, VERSION } from "./kit.mjs";
 import { applyAdapterPlan, applyPlan, planAdapters, planInstall } from "./install.mjs";
 import { detect, detectedToolLabels } from "./detect.mjs";
 import { initRepository } from "./git.mjs";
@@ -92,10 +92,20 @@ export async function run(
   const theme = createTheme({ env, platform, isTTY: stdoutIsTTY });
   const mark = theme.glyph;
 
-  // Printed only to a terminal. The report is for a person, and the acceptance
-  // criteria require non-interactive output to stay what 1.4.1 produced — so a
-  // piped run, a CI log, and `> install.txt` all keep the old bytes.
-  if (stdoutIsTTY) {
+  // The one branch in this file that chooses between whole presentations, and
+  // the reason the theme exposes `tier` at all.
+  //
+  // `contract` is a promise, not a fallback: a piped run, a CI log, and
+  // `> install.txt` get the bytes 1.4.1 produced, and no amount of ambition in
+  // this feature reaches them. Written as a tier test rather than as
+  // `if (stdoutIsTTY)` — the two are the same value by construction, but only
+  // one of them says why, and the next person to add a decorated block here
+  // needs to read the reason and not rediscover it.
+  //
+  // The identity block rides on the same test. `--help` never reaches this line
+  // (it returns above), which is how it keeps its plain reference form.
+  if (theme.tier !== "contract") {
+    out(formatIdentity({ theme }));
     out(formatFindings(findings, { theme }));
   }
 
@@ -555,14 +565,99 @@ function indent(text) {
 }
 
 /**
+ * The Pathfinder mark, transcribed from `assets/logo.svg` into cells.
+ *
+ * The real mark is four rounded horizontal strokes, centred on one axis and
+ * tapering upward — a trail blaze, the paint splash on a rock that tells you
+ * you are still on the path. Its widths in the 32-unit grid are 24, 18, 12.8,
+ * and 7.2 from the bottom up, all centred on x=16.
+ *
+ * Those proportions are what is preserved here, not the pixels: scaled to a
+ * nine-cell base and rounded, 24:18:12.8:7.2 becomes 9:7:5:3, and centring each
+ * row on the base gives the indents 0, 1, 2, 3. The slight rotation on each
+ * stroke in the SVG is the one feature that does not survive — a terminal cell
+ * grid has no way to express three degrees, and faking it by stepping a row
+ * sideways would read as a mistake rather than as a tilt.
+ *
+ * Every number here is authored, not measured. Nothing in this file asks how
+ * wide a rendered string is; these are the constants a designer would hand you,
+ * and they are the reason the block is stable under any terminal width.
+ */
+const MARK_ROWS = Object.freeze([
+  Object.freeze({ indent: 3, width: 3 }),
+  Object.freeze({ indent: 2, width: 5 }),
+  Object.freeze({ indent: 1, width: 7 }),
+  Object.freeze({ indent: 0, width: 9 }),
+]);
+
+/** Where the text column starts, counted in the mark's own authored cells. */
+const TEXT_COLUMN = 13;
+
+/** What the tool is, in six words, for the one place that has room to say it. */
+const TAGLINE = "trail markers for AI-assisted work";
+
+/**
+ * Who is running, said once, at the top.
+ *
+ * The requirement is that a reader recognises this tool before parsing the word
+ * "Pathfinder", so recognition is carried by form and colour: the actual mark,
+ * drawn, in the actual brand orange when the terminal can render it, beside
+ * letterspacing no other scaffolder's output has. Someone who ran three
+ * installers this afternoon can tell which one this was from the shape alone —
+ * which is the test, and it is why the mark is a transcription of the logo
+ * rather than an emoji that merely gestures at the same idea.
+ *
+ * The colour degrades and the mark does not. At 24-bit the strokes are
+ * `#E0611F` exactly; at 256 they are its nearest cube neighbour; at 16 they are
+ * the one warm accent ANSI offers; with colour off they are still unmistakably
+ * four tapering strokes. That ordering is deliberate — form is the part that
+ * survives every terminal, so form is what the identity rests on.
+ *
+ * Every device here is anchored on the left. There is no border and nothing
+ * closes on the right, because that would require knowing the printed width of
+ * a decorated string. The prototype that inspired this block had a box, and its
+ * right edge did not line up — not a bug in the prototype, just what happens.
+ *
+ * Not printed for `--help`, which is reference output someone pipes to `less`,
+ * and not printed for the `contract` tier, which has a byte promise to keep.
+ * Both of those decisions live at the call site, where the tier is known.
+ */
+export function formatIdentity({ theme = createTheme(), version = VERSION } = {}) {
+  const stroke = theme.glyph.rule;
+
+  // The two text lines sit beside the mark's middle rows, so the wordmark lands
+  // level with the widest part of the blaze rather than floating above it.
+  const beside = ["", `${theme.brand("P A T H F I N D E R")}  ${theme.dim(`v${version}`)}`, theme.dim(TAGLINE), ""];
+
+  const lines = MARK_ROWS.map((row, index) => {
+    const drawn = " ".repeat(row.indent) + stroke.repeat(row.width);
+    const text = beside[index];
+
+    // Padding to a constant from two constants. The decorated text is appended
+    // after the padding is already decided, so no escape sequence is ever part
+    // of a length this function computes.
+    const pad = " ".repeat(TEXT_COLUMN - row.indent - row.width);
+    return `  ${theme.brand(drawn)}${text ? pad + text : ""}`;
+  });
+
+  return ["", ...lines].join("\n") + "\n";
+}
+
+/**
  * Say what was found, before saying what will be done.
  *
  * Deliberately short, and deliberately passive. Every line states a fact about
  * the machine; none of them implies an intention. The parenthetical on the
  * tools line is load-bearing — a bare list of everything installed on someone's
  * laptop reads like an announcement that all of it is about to be configured,
- * which is not true here and will still not be true after Feature 11, where
- * configuring anything requires an answer to a question.
+ * which is not true here, and configuring anything requires an answer to a
+ * question.
+ *
+ * This is also the run's first phase, and it is rendered as one: a heading that
+ * names it, and a gutter down the left of everything that belongs to it. The
+ * gutter is what makes the phase a block rather than a paragraph — it survives
+ * with colour off, it survives in ASCII, and it costs no width maths, which is
+ * the whole reason it was chosen over a box.
  */
 export function formatFindings(findings, { theme = createTheme() } = {}) {
   // The default is the theme an empty environment produces: ASCII, no colour.
@@ -571,31 +666,54 @@ export function formatFindings(findings, { theme = createTheme() } = {}) {
   // rather than a guess about a terminal it never described.
   const mark = theme.glyph;
 
-  const lines = ["", "Pathfinder", ""];
+  // Every finding line begins with this, so the block reads as one thing. The
+  // gutter is dim rather than coloured: it is structure, and colour inside this
+  // block is reserved for what the structure contains.
+  const rail = `  ${theme.dim(mark.gutter)}  `;
+
+  // A severity span covers the glyph *and* the words it qualifies, never the
+  // glyph alone. Two reasons, and the second is the one that bites: a coloured
+  // glyph beside plain text reads as a bullet with a tint rather than as a
+  // statement with a level, and painting only the glyph puts a reset in the
+  // middle of the sentence — so `✓ Git repository detected` stops existing as
+  // contiguous bytes, and every assertion about what this line says has to
+  // learn the escape codes to find it. Emphasis inside a line still gets its
+  // own span; it just starts after the statement's own words have ended.
+  const lines = ["", `  ${mark.scan}  ${theme.bold("ENVIRONMENT")}`];
 
   if (findings.git.insideRepository) {
-    lines.push(`  ${mark.ok} Git repository detected`);
+    lines.push(`${rail}${theme.ok(`${mark.ok} Git repository detected`)}`);
   } else if (findings.git.binary) {
-    lines.push(`  ${mark.info} No Git repository here`);
+    lines.push(`${rail}${theme.info(`${mark.info} No Git repository here`)}`);
   } else {
-    lines.push(`  ${mark.bad} No Git repository here, and \`git\` is not on your PATH`);
+    lines.push(
+      `${rail}${theme.bad(`${mark.bad} No Git repository here, and \`git\` is not on your PATH`)}`,
+    );
   }
 
   if (findings.pathfinder.installed) {
     const { skillCount } = findings.pathfinder;
-    lines.push(`  ${mark.ok} Pathfinder already installed (${skillCount} skill${plural(skillCount)})`);
+    lines.push(
+      `${rail}${theme.ok(`${mark.ok} Pathfinder already installed`)} ` +
+        `(${theme.bold(skillCount)} skill${plural(skillCount)})`,
+    );
   }
 
+  // The tool names are emphasised and the caveat is dimmed, which is the
+  // hierarchy the sentence always had and the flat rendering threw away. What
+  // the reader wants from this line is the list; what they need from it is the
+  // parenthetical, exactly once.
   const tools = detectedToolLabels(findings);
   lines.push(
     tools.length > 0
-      ? `  ${mark.ok} Tools detected: ${tools.join(", ")} (noted, not configured)`
-      : `  ${mark.info} No supported tools detected`,
+      ? `${rail}${theme.ok(`${mark.ok} Tools detected:`)} ${theme.bold(tools.join(", "))} ` +
+          `${theme.dim("(noted, not configured)")}`
+      : `${rail}${theme.info(`${mark.info} No supported tools detected`)}`,
   );
 
   // Trailing blank line: whatever comes next is a different statement — the
-  // install summary, a refusal, or in a later chunk a question — and it must
-  // not read as a sixth finding.
+  // install summary, a refusal, or a question — and it must not read as one
+  // more finding.
   return lines.join("\n") + "\n\n";
 }
 
