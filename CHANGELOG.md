@@ -37,15 +37,12 @@ The heading of the most recent released section below is the single source of tr
 - **Diagnostic paths are printed plain and stay pasteable.** The file lists under a skipped, conflict, or orphan warning carry no glyph, no colour, no gutter, no truncation, and no wrapping, so selecting them and pasting them into an issue yields paths a maintainer can act on unedited.
 - **The installer's terminal output is now a presentation, and its non-interactive output is not.** Piped, redirected, and `NO_COLOR` runs are byte-identical to what `1.5.1` produced for every pre-existing scenario, verified by running this build beside the published `create-pathfinder@1.5.1` and comparing captured bytes. The decorated rendering and the byte-compatible one live side by side in the source for that reason. A terminal that reports no Unicode still gets the full structure in ASCII.
 - **`--help` is unchanged.** It stays plain reference output with no identity block, because it is read mid-task and piped to a pager.
+- **`AGENTS.md` no longer names a "launcher".** The fallback invocation line is unchanged; it just stops referring to a file a fresh install has never had. `prompts/` was retired in v1.5.0.
+- **`create-pathfinder`'s `homepage` is the documentation site** rather than the GitHub README anchor, and its README is scoped to CLI and package usage. Both reach npmjs.com on the next publish.
 
 ### Fixed
 
 - **`create-pathfinder` now writes ASCII punctuation on terminals that asked for ASCII.** Seven strings printed an em dash or an ellipsis regardless of what the terminal could render, bypassing the fallback that already governed the tick and cross marks. A UTF-8 terminal sees exactly what it saw in 1.5.1; a terminal with a non-UTF-8 locale — `LANG=C`, and a Windows console that is neither Windows Terminal nor VS Code — now reads `Next step - give your agent this prompt:`, `Something else...`, `Not copied - …`, `Not opened - …`, `X is supported - …`, and `Re-run with --force to replace it/them - …` instead of mojibake. The tool-selection list's arrows shift two columns in ASCII mode to follow the widened `Something else...` row.
-
-### Changed
-
-- **`AGENTS.md` no longer names a "launcher".** The fallback invocation line is unchanged; it just stops referring to a file a fresh install has never had. `prompts/` was retired in v1.5.0.
-- **`create-pathfinder`'s `homepage` is the documentation site** rather than the GitHub README anchor, and its README is scoped to CLI and package usage. Both reach npmjs.com on the next publish.
 
 ## [1.5.1] - 2026-08-13
 
