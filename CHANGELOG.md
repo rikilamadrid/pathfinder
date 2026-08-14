@@ -25,6 +25,19 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Added
+
+- **`create-pathfinder` looks and sounds like Pathfinder.** In a terminal, a run now opens with the Pathfinder mark drawn from `assets/logo.svg` — four strokes tapering upward, in blaze orange `#E0611F` — beside a letterspaced wordmark, the version, and a tagline. The run is then divided into named phases with a gutter down the left of each: `ENVIRONMENT`, `INSTALLING`, and `SUMMARY`. It ends on a completion state that repeats the mark as a bookend and signs off, replacing an ending that used to be a subordinate clause about whichever editor had just launched.
+- **A determinate progress bar during the install.** The denominator is the number of units in the file-copy and adapter plans, both of which are computed in full before a single byte is written; the numerator is units that actually completed. Nothing is estimated, no percentage is synthesised, and there is no timer anywhere in the package — the bar advances on completion events alone, so an install that finishes in one tick shows a full bar in one tick and moves on. A failed write leaves the bar visibly short rather than rounding up to a clean 100%.
+- **The brand colour renders at whatever depth the terminal advertises.** A terminal claiming truecolor (`COLORTERM`, or a `-direct` `TERM`) gets `#E0611F` exactly; one claiming 256 colours gets index 166, the nearest cell of the colour cube; anything else gets the one warm accent the eight ANSI values offer. With colour off, the mark's shape carries the identity on its own. Colour depth affects that one colour and nothing else — every severity stays on the eight ANSI values, and no depth can change what a run prints.
+- **Warnings are told apart from successes at a glance.** Skipped files, adapter conflicts, and orphan adapters each render at the `warn` level with their own glyph and a leading category word — `Skipped`, `Conflict`, `Orphan` — so the hierarchy survives with colour disabled, in ASCII, and for a colour-blind reader. Adapters already up to date and `--force` overwrites are reported without being raised to warnings.
+
+### Changed
+
+- **Diagnostic paths are printed plain and stay pasteable.** The file lists under a skipped, conflict, or orphan warning carry no glyph, no colour, no gutter, no truncation, and no wrapping, so selecting them and pasting them into an issue yields paths a maintainer can act on unedited.
+- **The installer's terminal output is now a presentation, and its non-interactive output is not.** Piped, redirected, and `NO_COLOR` runs are byte-identical to what `1.5.1` produced for every pre-existing scenario, verified by running this build beside the published `create-pathfinder@1.5.1` and comparing captured bytes. The decorated rendering and the byte-compatible one live side by side in the source for that reason. A terminal that reports no Unicode still gets the full structure in ASCII.
+- **`--help` is unchanged.** It stays plain reference output with no identity block, because it is read mid-task and piped to a pager.
+
 ### Fixed
 
 - **`create-pathfinder` now writes ASCII punctuation on terminals that asked for ASCII.** Seven strings printed an em dash or an ellipsis regardless of what the terminal could render, bypassing the fallback that already governed the tick and cross marks. A UTF-8 terminal sees exactly what it saw in 1.5.1; a terminal with a non-UTF-8 locale — `LANG=C`, and a Windows console that is neither Windows Terminal nor VS Code — now reads `Next step - give your agent this prompt:`, `Something else...`, `Not copied - …`, `Not opened - …`, `X is supported - …`, and `Re-run with --force to replace it/them - …` instead of mojibake. The tool-selection list's arrows shift two columns in ASCII mode to follow the widened `Something else...` row.

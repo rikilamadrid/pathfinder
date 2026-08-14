@@ -1064,10 +1064,23 @@ async function offerOnboardingActions({ harnesses, cwd, options, prompter, out, 
     return;
   }
 
+  // The report ends on the prompt block, which is the one thing on screen the
+  // user is meant to act on. A question butted straight against its last line
+  // reads as part of that block rather than as something being asked, so the
+  // questions get the same leading blank every other device in this run gets —
+  // separation is led here, never trailed.
+  //
+  // Printed only when a question actually follows, which is why the editors are
+  // detected here rather than inside `offerEditor`: a machine with no editor on
+  // PATH and `--no-clipboard` asks nothing, and must not be given a separator
+  // for it.
+  const editors = options.noOpen ? [] : detectEditors({ env, platform });
+  if (!options.noClipboard || editors.length > 0) out("\n");
+
   if (!options.noClipboard) {
     await offerClipboard({ harnesses, options, prompter, out, env, platform, theme });
   }
-  if (!options.noOpen) await offerEditor({ cwd, prompter, out, env, platform, theme });
+  if (editors.length > 0) await offerEditor({ editors, cwd, prompter, out, env, platform, theme });
 }
 
 /**
@@ -1102,14 +1115,15 @@ async function offerClipboard({ harnesses, options, prompter, out, env, platform
  * The question exists only when there is something to answer it with. No editor
  * on PATH means no question at all, rather than a question whose honest answer
  * is "then don't" — an installer that asks about software you do not have is
- * asking to be told about itself.
+ * asking to be told about itself. That decision is made by the caller and the
+ * detected list handed down, because the caller has to know whether anything
+ * will be asked before it prints the blank line above the questions.
  *
  * One editor is a yes/no; several are a numbered list with an explicit way out.
  * Neither shape can be answered by not answering: a decline, an unanswered
  * question, and "Don't open" all land on the same nothing.
  */
-async function offerEditor({ cwd, prompter, out, env, platform, theme }) {
-  const editors = detectEditors({ env, platform });
+async function offerEditor({ editors, cwd, prompter, out, env, platform, theme }) {
   if (editors.length === 0) return;
 
   const chosen =

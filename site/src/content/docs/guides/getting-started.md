@@ -41,16 +41,20 @@ questions before writing anything — whether to create the repository, and whic
 coding tools to configure:
 
 ```text
-Pathfinder
+     ━━━
+    ━━━━━      P A T H F I N D E R  v1.5.1
+   ━━━━━━━     trail markers for AI-assisted work
+  ━━━━━━━━━
 
-  - No Git repository here
-  + Tools detected: Claude Code, Codex, VS Code, Cursor (noted, not configured)
+  🔍  ENVIRONMENT
+  │  · No Git repository here
+  │  ✓ Tools detected: Claude Code, Codex, VS Code, Cursor (noted, not configured)
 
 Pathfinder installs into version control so you can review what it wrote
 and undo it. It will not touch an existing history.
 
 ? Initialize a Git repository here? [Y/n] y
-  + git init - initialized an empty repository in /path/to/my-project
+  ✓ git init — initialized an empty repository in /path/to/my-project
 
 ? Configure Pathfinder for which tools?
     1. Claude Code      -> .claude/skills/   (detected)
@@ -59,23 +63,46 @@ and undo it. It will not touch an existing history.
   Numbers, comma-separated. Enter for the detected default [1,2], or 0 for none.
 > 1
 
-Installed the Pathfinder kit into /path/to/my-project
+  📦  INSTALLING
+  │  ✓ Kit files — 36 copied
+  │  ✓ Claude Code — 20 adapters
 
-  36 files written
-  20 Claude Code skill adapters generated
+  📋  SUMMARY
+  │  Installed the Pathfinder kit into /path/to/my-project
+  │  ✓ 36 files written
+  │  ✓ 20 Claude Code skill adapters generated
 
-Next step — give your agent this prompt:
+     ━━━
+    ━━━━━      🎉  YOU'RE ALL SET
+   ━━━━━━━     36 files, 20 adapters, Claude Code
+  ━━━━━━━━━
 
-  /kickstart-pathfinder
+  Hand your agent this prompt to begin:
+
+    /kickstart-pathfinder
+
+? Copy that prompt to your clipboard? This replaces what is on it now. [Y/n] n
+? Open this project in VS Code? [Y/n] n
+
+  Trail's marked. The rest is yours.
 ```
+
+That transcript is a real run, captured with colour switched off, because a
+Markdown code block can show the glyphs and the layout but not the colour. In a
+colour terminal the same run adds Pathfinder's orange to the mark, green to the
+successful counts, and yellow to anything that wants your attention — and it
+draws a progress bar through the install phase, which appears only where a
+terminal is being watched live. Piped or redirected, the output is plainer still
+and is unchanged from earlier versions, so anything already parsing it keeps
+working.
 
 Detection sets the defaults and nothing else — the tools line says
 `(noted, not configured)` because that is the whole of it. Nothing is configured
 unless you choose it, and declining the first question writes nothing at all.
 
-Two more questions follow: whether to copy that prompt to your clipboard, and
-whether to open the project in an editor already on your `PATH`. Both are
-conveniences — say no to either and the install is unaffected.
+The last two questions are conveniences: whether to copy that prompt to your
+clipboard, and whether to open the project in an editor already on your `PATH`.
+Say no to either and the install is unaffected.
 
 The exact file count moves as the kit grows. What does not move is the shape of
 what landed.
