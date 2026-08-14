@@ -14,6 +14,7 @@ import { nonInteractivePrompter } from "./prompt.mjs";
 import { copyToClipboard } from "./clipboard.mjs";
 import { detectEditors, openInEditor } from "./editor.mjs";
 import { kickstartPrompt, kickstartPromptLines } from "./kickstart-prompt.mjs";
+import { createTheme } from "./theme.mjs";
 import {
   HARNESSES,
   HARNESS_IDS,
@@ -83,14 +84,19 @@ export async function run(
   // Detection runs before anything is decided and before anything is asked, so
   // the user reads what the tool found before reading what it wants to do.
   const findings = detect({ cwd, env, platform });
-  const unicode = supportsUnicode(env, platform);
-  const mark = marks(unicode);
+
+  // Every capability question this run will ask is answered once, here, from
+  // the three things this function was handed. Threaded downward as an argument
+  // rather than reached for: a module-level theme would be a second opinion
+  // about the terminal that no test could disagree with.
+  const theme = createTheme({ env, platform, isTTY: stdoutIsTTY });
+  const mark = theme.glyph;
 
   // Printed only to a terminal. The report is for a person, and the acceptance
   // criteria require non-interactive output to stay what 1.4.1 produced — so a
   // piped run, a CI log, and `> install.txt` all keep the old bytes.
   if (stdoutIsTTY) {
-    out(formatFindings(findings, { unicode }));
+    out(formatFindings(findings, { theme }));
   }
 
   // Refused rather than allowed with a warning: this tool writes several
@@ -542,8 +548,12 @@ function indent(text) {
  * which is not true here and will still not be true after Feature 11, where
  * configuring anything requires an answer to a question.
  */
-export function formatFindings(findings, { unicode = false } = {}) {
-  const mark = marks(unicode);
+export function formatFindings(findings, { theme = createTheme() } = {}) {
+  // The default is the theme an empty environment produces: ASCII, no colour.
+  // Not a convenience — it is the same answer this function gave before it took
+  // a theme at all, so a caller that forgets one gets the readable alphabet
+  // rather than a guess about a terminal it never described.
+  const mark = theme.glyph;
 
   const lines = ["", "Pathfinder", ""];
 
@@ -571,33 +581,6 @@ export function formatFindings(findings, { unicode = false } = {}) {
   // install summary, a refusal, or in a later chunk a question — and it must
   // not read as a sixth finding.
   return lines.join("\n") + "\n\n";
-}
-
-/**
- * The line markers, in whichever alphabet this terminal can be trusted with.
- *
- * One table, so a finding and an action it leads to are marked the same way.
- */
-function marks(unicode) {
-  return unicode
-    ? { ok: "✓", info: "·", bad: "✗", dash: "—" }
-    : { ok: "+", info: "-", bad: "!", dash: "-" };
-}
-
-/**
- * Can this terminal be trusted with the decorated marks?
- *
- * Answered from the environment rather than attempted and hoped for, and biased
- * hard toward "no": an unanswerable environment gets ASCII, which is readable
- * everywhere, while a wrong "yes" leaves mojibake in the first output a new
- * user ever sees from this tool.
- */
-function supportsUnicode(env, platform) {
-  if (platform === "win32") {
-    return Boolean(env.WT_SESSION) || env.TERM_PROGRAM === "vscode";
-  }
-  const locale = env.LC_ALL || env.LC_CTYPE || env.LANG || "";
-  return /utf-?8/i.test(locale);
 }
 
 /**

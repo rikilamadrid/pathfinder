@@ -10,6 +10,7 @@ import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
 
 import { formatFindings } from "../src/cli.mjs";
+import { createTheme } from "../src/theme.mjs";
 
 function findings({ git = {}, pathfinder = {}, tools = [] } = {}) {
   return {
@@ -112,7 +113,7 @@ describe("formatFindings — shape", () => {
 
   it("uses the decorated marks only when asked", () => {
     const report = formatFindings(findings({ git: { insideRepository: true } }), {
-      unicode: true,
+      theme: createTheme({ env: { LANG: "en_US.UTF-8" }, platform: "linux", isTTY: true }),
     });
 
     assert.match(report, /✓ Git repository detected/);
