@@ -52,6 +52,15 @@ Options:
 Adapters are generated files Pathfinder owns and regenerates without --force.
 A file it did not generate is never replaced, at any path, without --force.
 
+Environment:
+  PATHFINDER_PROMPT=classic
+                  Ask every question as a numbered list and y/n instead of an
+                  arrow-key selector. Both are supported; use this for screen
+                  readers, for scripts, or simply if you prefer typing. It is
+                  also what a terminal narrower than 49 columns and TERM=dumb
+                  select on their own.
+  NO_COLOR        Print no colour. It does not disable the selector.
+
 Without a terminal on both stdin and stdout, nothing is ever asked. In that
 case a directory that is not a Git repository needs --git-init, or the install
 is refused, and neither your clipboard nor an editor is touched — --yes does
@@ -67,6 +76,7 @@ export async function run(
     env = {},
     platform = process.platform,
     stdoutIsTTY = false,
+    theme: injectedTheme = null,
     prompter = nonInteractivePrompter(),
   },
 ) {
@@ -86,11 +96,18 @@ export async function run(
   // the user reads what the tool found before reading what it wants to do.
   const findings = detect({ cwd, env, platform });
 
-  // Every capability question this run will ask is answered once, here, from
-  // the three things this function was handed. Threaded downward as an argument
-  // rather than reached for: a module-level theme would be a second opinion
-  // about the terminal that no test could disagree with.
-  const theme = createTheme({ env, platform, isTTY: stdoutIsTTY });
+  // Every capability question this run will ask is answered once and threaded
+  // downward as an argument rather than reached for: a module-level theme would
+  // be a second opinion about the terminal that no test could disagree with.
+  //
+  // Built here when nobody supplied one, which is every test and every caller
+  // that has nothing to say about stdin. `bin/` supplies one because it knows
+  // things this function is never handed — whether stdin is a terminal, whether
+  // it can be put into raw mode, how wide the window is — and those are exactly
+  // the three the selection capability is decided from. Accepting it keeps the
+  // property this comment has always claimed: one theme per run, not one per
+  // module that wants an opinion.
+  const theme = injectedTheme ?? createTheme({ env, platform, isTTY: stdoutIsTTY });
   const mark = theme.glyph;
 
   // The one branch in this file that chooses between whole presentations, and
@@ -324,25 +341,36 @@ async function selectHarnesses({ findings, options, prompter, out, theme }) {
   const entries = [...HARNESSES, SOMETHING_ELSE];
 
   // The sentinel's trailing ellipsis is the theme's, not a character baked into
-  // the label — and because it is the longest row, it also decides the column
-  // the arrows line up in. So the width is measured on the rendered label
-  // rather than the stored one: an ASCII terminal spends three characters on
-  // `...` where a UTF-8 one spends one, and the arrows must follow.
+  // the label: an ASCII terminal spends three characters on `...` where a UTF-8
+  // one spends one.
   const labelOf = (entry) =>
     entry === SOMETHING_ELSE ? `${entry.label}${theme.glyph.ellipsis}` : entry.label;
-  const width = Math.max(...entries.map((entry) => labelOf(entry).length));
 
+  // Three fields instead of one hand-built string.
+  //
+  // This used to compute the longest label and `padEnd` every other one to it,
+  // so that the `->` arrows lined up — a column of layout, measured in UTF-16
+  // units, inside a file whose job is deciding which tools to configure. It was
+  // wrong in the way `.length` is always wrong about a terminal, and it was
+  // wrong twice over: it produced a *rendering* that only one of the two
+  // question implementations could use.
+  //
+  // Now the call site says what each part *is* and the renderer decides where it
+  // goes. Both implementations get the same three fields and lay them out their
+  // own way, and neither this function nor any other in this file measures a
+  // string in cells.
   const answer = await prompter.chooseMany("Configure Pathfinder for which tools?", {
     options: entries.map((entry) => ({
       value: entry,
-      label:
-        `${labelOf(entry).padEnd(width)}  -> ` +
-        // The path is shown so nobody has to check a box to find out what it
-        // writes. The last entry earns the same courtesy by admitting it
-        // writes nothing, in the column where every other row names a file.
-        (entry === SOMETHING_ELSE
-          ? "nothing is generated"
-          : `${entry.skillsDir}/` + (detected.includes(entry) ? "   (detected)" : "")),
+      label: labelOf(entry),
+      // The path is shown so nobody has to check a box to find out what it
+      // writes. The last entry earns the same courtesy by admitting it writes
+      // nothing, in the column where every other row names a file.
+      hint: entry === SOMETHING_ELSE ? "nothing is generated" : `${entry.skillsDir}/`,
+      // Detection decides the default; this only says so out loud. It is the
+      // one part of a row a narrow terminal may drop, because the ENVIRONMENT
+      // block above has already reported it.
+      note: entry !== SOMETHING_ELSE && detected.includes(entry) ? "(detected)" : undefined,
     })),
     defaultSelection: detected,
   });

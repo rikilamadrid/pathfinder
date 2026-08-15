@@ -118,6 +118,15 @@ Neither editor is a Pathfinder requirement, and the alphabetical order is not a 
 | `--yes`, `--no-input` | Take the defaults and ask nothing. It does not authorize `git init`, configure any tool, touch your clipboard, or open an editor — pass `--git-init` and `--agents` for the first two |
 | `-h`, `--help` | Show usage |
 
+### Environment
+
+| Variable | Effect |
+| --- | --- |
+| `PATHFINDER_PROMPT=classic` | Ask every question as a numbered list and `y`/`n` rather than an arrow-key selector |
+| `NO_COLOR` | Print no colour. It does not disable the selector |
+
+**Both prompt styles are supported.** By default a terminal answers questions with `↑`/`↓`, `Space`, and `Enter`. `PATHFINDER_PROMPT=classic` asks for typed numbers and `y`/`n` instead — the right choice for a screen reader, for a script driving the installer's stdin, and for anyone who simply prefers it. A terminal narrower than 49 columns and `TERM=dumb` select it on their own, and `y`/`n` keep working at a Yes/No question either way.
+
 Questions are asked only when stdin and stdout are both terminals. Piped, redirected, or in CI, nothing is asked and nothing is prompted for — so a directory that is not a repository needs `--git-init`, or the install is refused, no tool is configured without `--agents`, the clipboard is never touched at all, and no editor is ever launched.
 
 ## Requirements

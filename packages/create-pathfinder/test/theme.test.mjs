@@ -168,6 +168,11 @@ describe("createTheme — glyphs", () => {
       gutter: "│",
       barFull: "█",
       barEmpty: "░",
+      pointer: "❯",
+      checked: "◉",
+      unchecked: "○",
+      arrowUp: "↑",
+      arrowDown: "↓",
     });
   });
 
@@ -189,7 +194,28 @@ describe("createTheme — glyphs", () => {
       gutter: "|",
       barFull: "#",
       barEmpty: ".",
+      pointer: ">",
+      checked: "[x]",
+      unchecked: "[ ]",
+      arrowUp: "^",
+      arrowDown: "v",
     });
+  });
+
+  it("makes ASCII the binding alphabet for width, which is why the floor is measured against it", () => {
+    // Not decoration — this asymmetry is the reason `SELECTION_MIN_COLUMNS` is
+    // 49 rather than the smaller number the decorated alphabet alone would
+    // support. If a future ASCII counterpart got *narrower* than its decorated
+    // twin, the floor would have been derived against the wrong alphabet.
+    const theme = createTheme(utf8Tty);
+    const ascii = createTheme({ ...utf8Tty, env: { LANG: "C" } }).glyph;
+
+    for (const name of ["checked", "unchecked", "ellipsis"]) {
+      assert.ok(
+        theme.width(ascii[name]) >= theme.width(theme.glyph[name]),
+        `${name}: ASCII must not be narrower than the decorated glyph`,
+      );
+    }
   });
 
   it("names the same glyphs in both alphabets, so no call site can lose one in ASCII", () => {
@@ -245,13 +271,165 @@ describe("createTheme — line primitives", () => {
       const theme = createTheme(options);
 
       assert.equal(theme.dynamic, false, `${name} should not be dynamic`);
+      assert.equal(theme.selection, false, `${name} should not offer selection`);
       assert.equal(theme.line.start(), "", `${name} emitted a carriage return`);
       assert.equal(theme.line.clear(), "", `${name} emitted a clear sequence`);
+      assert.equal(theme.line.up(3), "", `${name} emitted a cursor movement`);
     }
   });
 
-  it("exposes exactly two line primitives", () => {
-    assert.deepEqual(Object.keys(createTheme(utf8Tty).line).sort(), ["clear", "start"]);
+  it("exposes exactly three line primitives", () => {
+    assert.deepEqual(Object.keys(createTheme(utf8Tty).line).sort(), ["clear", "start", "up"]);
+  });
+
+  it("moves the cursor up by the row count it is given", () => {
+    const theme = createTheme(utf8Tty);
+
+    assert.equal(theme.line.up(1), `${ESC}[1A`);
+    assert.equal(theme.line.up(7), `${ESC}[7A`);
+    assert.equal(theme.line.up(12), `${ESC}[12A`);
+  });
+
+  it("declines to move rather than emitting a movement nobody can predict", () => {
+    // The first paint of a block has nothing above it, so `up(0)` is the normal
+    // case rather than a caller's mistake — and `ESC[0A` is read as one row by
+    // some terminals and none by others, which is exactly the ambiguity a
+    // repainting renderer cannot afford.
+    const theme = createTheme(utf8Tty);
+
+    for (const n of [0, -1, 1.5, Number.NaN, undefined, null, "3"]) {
+      assert.equal(theme.line.up(n), "", `up(${JSON.stringify(n)}) emitted a movement`);
+    }
+  });
+
+  it("grants the primitives to a selection-capable terminal that is not dynamic", () => {
+    // The gate is `dynamic || selection`, not `dynamic`. A NO_COLOR terminal is
+    // still offered the selector — NO_COLOR is a statement about decoration, not
+    // about repainting — and a selector handed "" for `clear` would leave the
+    // tail of every longer row behind it.
+    const theme = createTheme({
+      ...utf8Tty,
+      env: { LANG: "en_US.UTF-8", NO_COLOR: "1" },
+      inputIsTTY: true,
+      setRawMode: true,
+      columns: 80,
+    });
+
+    assert.equal(theme.dynamic, false, "the presentation tier is unchanged");
+    assert.equal(theme.selection, true);
+    assert.equal(theme.line.start(), "\r");
+    assert.equal(theme.line.clear(), `${ESC}[2K`);
+    assert.equal(theme.line.up(4), `${ESC}[4A`);
+  });
+});
+
+describe("createTheme — the selection capability", () => {
+  /** A terminal on both ends, wide enough, able to deliver keypresses. */
+  const capable = {
+    ...utf8Tty,
+    inputIsTTY: true,
+    setRawMode: true,
+    columns: 80,
+  };
+
+  it("says yes to a terminal that can do all of it", () => {
+    assert.equal(createTheme(capable).selection, true);
+  });
+
+  it("is decided independently of the presentation tier", () => {
+    // Three environments that all lose `dynamic` and none of which said anything
+    // about whether a line may be repainted.
+    const cases = {
+      NO_COLOR: { LANG: "en_US.UTF-8", NO_COLOR: "1" },
+      "FORCE_COLOR=0": { LANG: "en_US.UTF-8", FORCE_COLOR: "0" },
+      ascii: { LANG: "C" },
+    };
+
+    for (const [name, env] of Object.entries(cases)) {
+      const theme = createTheme({ ...capable, env });
+
+      assert.equal(theme.dynamic, false, `${name} should not be dynamic`);
+      assert.equal(theme.selection, true, `${name} lost the keyboard it never gave up`);
+    }
+  });
+
+  it("refuses without a terminal on both ends", () => {
+    assert.equal(createTheme({ ...capable, isTTY: false }).selection, false, "no stdout");
+    assert.equal(createTheme({ ...capable, inputIsTTY: false }).selection, false, "no stdin");
+  });
+
+  it("defaults both TTY answers to no, so an unanswerable environment gets classic", () => {
+    assert.equal(createTheme().selection, false);
+    assert.equal(createTheme(utf8Tty).selection, false, "stdin was never claimed to be a terminal");
+  });
+
+  it("refuses when TERM says the terminal is dumb", () => {
+    const theme = createTheme({ ...capable, env: { LANG: "en_US.UTF-8", TERM: "dumb" } });
+
+    assert.equal(theme.selection, false);
+  });
+
+  it("refuses when the input stream cannot be put into raw mode", () => {
+    assert.equal(createTheme({ ...capable, setRawMode: false }).selection, false);
+  });
+
+  it("lets PATHFINDER_PROMPT=classic outrank a fully capable terminal", () => {
+    const theme = createTheme({
+      ...capable,
+      env: { LANG: "en_US.UTF-8", PATHFINDER_PROMPT: "classic" },
+    });
+
+    assert.equal(theme.selection, false);
+    assert.equal(theme.tier, "expressive", "the override is about the question, not the presentation");
+  });
+
+  it("ignores any other value of PATHFINDER_PROMPT", () => {
+    // One documented value, and anything else is not a second opinion about the
+    // interaction. A typo must not silently take the keyboard away.
+    for (const value of ["", "classical", "CLASSIC", "keyboard", "1"]) {
+      const theme = createTheme({ ...capable, env: { LANG: "en_US.UTF-8", PATHFINDER_PROMPT: value } });
+
+      assert.equal(theme.selection, true, `PATHFINDER_PROMPT=${JSON.stringify(value)} disabled selection`);
+    }
+  });
+});
+
+describe("createTheme — the 49-column floor", () => {
+  const capable = { ...utf8Tty, inputIsTTY: true, setRawMode: true };
+
+  it("offers selection at 49 columns and refuses at 48", () => {
+    // The two sides of the measured floor. 49 is the narrowest width that keeps
+    // the marker, the whole label, the whole hint line, and the `-> path`
+    // context; 48 loses one of them, and a selector that renders a fragment of
+    // its own instructions is worse than a numbered list.
+    assert.equal(createTheme({ ...capable, columns: 49 }).selection, true);
+    assert.equal(createTheme({ ...capable, columns: 48 }).selection, false);
+  });
+
+  it("refuses every width below the floor and offers every width above it", () => {
+    for (const columns of [1, 20, 24, 32, 40, 47]) {
+      assert.equal(createTheme({ ...capable, columns }).selection, false, `${columns} columns`);
+    }
+    for (const columns of [50, 56, 80, 200]) {
+      assert.equal(createTheme({ ...capable, columns }).selection, true, `${columns} columns`);
+    }
+  });
+
+  it("falls back to 80 columns when the terminal reports nothing, and does not throw", () => {
+    // `process.stdout.columns` is undefined whenever stdout is not a terminal,
+    // and every comparison against NaN is false — which would answer "too
+    // narrow" to a question nobody asked.
+    for (const columns of [undefined, null, Number.NaN, 0, -1, 49.5, "49", {}]) {
+      const theme = createTheme({ ...capable, columns });
+
+      assert.equal(theme.columns, 80, `columns=${JSON.stringify(columns)} did not fall back`);
+      assert.equal(theme.selection, true);
+    }
+  });
+
+  it("reports the width the capability was decided against", () => {
+    assert.equal(createTheme({ ...capable, columns: 56 }).columns, 56);
+    assert.equal(createTheme({ ...capable, columns: 30 }).columns, 30);
   });
 });
 
@@ -273,10 +451,34 @@ describe("createTheme — zero escape bytes when colour is off", () => {
         ...Object.values(theme.glyph),
         theme.line.start(),
         theme.line.clear(),
+        theme.line.up(2),
       ].join("");
 
       assert.equal(everything.includes(ESC), false, `${name} emitted an escape byte`);
     }
+  });
+
+  it("narrows that promise to colour, and only for a terminal driving a selector", () => {
+    // Worth stating rather than discovering. Feature 23 made this promise
+    // *about colour* instead of about every byte: a NO_COLOR terminal that is
+    // offered the keyboard selector repaints, and repainting is escape
+    // sequences. What NO_COLOR still buys, exactly, is that no *paint* is
+    // emitted — which is the thing it was ever asked to buy.
+    const theme = createTheme({
+      ...utf8Tty,
+      env: { LANG: "en_US.UTF-8", NO_COLOR: "1" },
+      inputIsTTY: true,
+      setRawMode: true,
+      columns: 80,
+    });
+
+    const paints = [
+      ...["ok", "info", "warn", "bad", "bold", "dim"].map((level) => theme[level]("text")),
+      theme.brand("Pathfinder"),
+    ].join("");
+
+    assert.equal(paints.includes(ESC), false, "a colour escape survived NO_COLOR");
+    assert.equal(theme.line.clear().includes(ESC), true, "the selector needs to clear a line");
   });
 });
 

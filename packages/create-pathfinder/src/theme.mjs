@@ -25,7 +25,9 @@
  * Deliberately absent: cursor visibility control. A renderer that never hides
  * the cursor has nothing to restore, so no signal handler and no interrupted
  * run can leave a terminal broken. A cursor parked at the end of a progress bar
- * is the accepted cost of that guarantee.
+ * is the accepted cost of that guarantee. Feature 23 adds a second repainting
+ * surface and does not weaken this: the selector parks the cursor visibly below
+ * its block for exactly the same reason.
  *
  * Newly present, and worth naming beside that absence: `width` and `clip`, from
  * `cells.mjs`. They measure rather than decorate, which is why the algorithm
@@ -133,6 +135,18 @@ const BRAND = Object.freeze({
  * *what this module happened to contain*, not a rule about terminals, and the
  * honest correction is to publish the measurement rather than let a caller
  * reach for `.length` and be wrong by the length of an escape sequence.
+ *
+ * The third group is the selector's, added by Feature 23, and it is five rather
+ * than the four a checkbox list looks like it needs. `pointer` marks the
+ * highlighted row, `checked` and `unchecked` carry a multi-select row's state,
+ * and `arrowUp` and `arrowDown` are the hint line's — printed as text in a
+ * sentence, and therefore glyphs like any other rather than the escape
+ * sequences the same arrows arrive as.
+ *
+ * Their ASCII counterparts are the reason the minimum-width floor is what it is.
+ * `[x]` is three cells where `◉` is one, and `...` is three where `…` is one, so
+ * ASCII is the *binding* alphabet for width — 5 to 8 cells wider per row — and
+ * the floor below is derived against it rather than against the pretty one.
  */
 const GLYPHS = Object.freeze({
   unicode: Object.freeze({
@@ -150,6 +164,11 @@ const GLYPHS = Object.freeze({
     gutter: "│",
     barFull: "█",
     barEmpty: "░",
+    pointer: "❯",
+    checked: "◉",
+    unchecked: "○",
+    arrowUp: "↑",
+    arrowDown: "↓",
   }),
   ascii: Object.freeze({
     ok: "+",
@@ -166,6 +185,11 @@ const GLYPHS = Object.freeze({
     gutter: "|",
     barFull: "#",
     barEmpty: ".",
+    pointer: ">",
+    checked: "[x]",
+    unchecked: "[ ]",
+    arrowUp: "^",
+    arrowDown: "v",
   }),
 });
 
@@ -286,6 +310,85 @@ function selectTier({ isTTY, color, unicode }) {
 }
 
 /**
+ * How many columns a terminal that told us nothing is assumed to have.
+ *
+ * 80, because that is the width a terminal has when it has no opinion, and
+ * because guessing narrow is the safe direction: an over-wide guess lets a row
+ * wrap, which is the one failure the clipping in `cells.mjs` exists to prevent.
+ */
+const DEFAULT_COLUMNS = 80;
+
+/**
+ * The narrowest terminal keyboard selection is offered on: **49 columns**.
+ *
+ * Measured rather than chosen. The derivation ran the real prompt corpus — every
+ * selection question the CLI can ask — through the width model in `cells.mjs`,
+ * in both alphabets, and asked what each candidate width still preserves:
+ *
+ * | Tier preserved                  | Columns |
+ * |---------------------------------|---------|
+ * | marker + full label             | 24      |
+ * | + full hint line                | 41      |
+ * | **+ `-> path` context**         | **49**  |
+ * | + `(detected)` suffix           | 56      |
+ *
+ * 49 is the smallest width at which nothing load-bearing is lost: the marker,
+ * the whole label, the whole interaction hint, and the path each row would
+ * write to. An earlier estimate of 32 was falsified outright — at 32 the hint
+ * loses the word `confirm` and the path is cut mid-word, and even 40 loses one
+ * character.
+ *
+ * The floor is deliberately **not** 56. `(detected)` is the only thing 49 gives
+ * up, and it is already stated in the run's ENVIRONMENT block, so it duplicates
+ * information rather than carrying it. A suffix that says nothing new does not
+ * get to decide whether the whole interaction is available — it is omitted
+ * cleanly at narrow widths instead, never truncated to a fragment.
+ *
+ * Not configurable, and that is the decision rather than an omission. A floor
+ * anyone can lower is a floor that stops meaning what it was measured to mean.
+ */
+const SELECTION_MIN_COLUMNS = 49;
+
+/**
+ * May this run ask its questions with the arrow keys?
+ *
+ * A capability in its own right, and specifically **not** derived from
+ * `dynamic`. `dynamic` is colour ∧ unicode, and neither is a claim about
+ * repainting: someone who set `NO_COLOR` asked for no decoration, not for no
+ * cursor movement, and someone in a Latin-1 locale said nothing at all about
+ * either. Deriving one from the other would take the keyboard away from users
+ * who never asked to lose it.
+ *
+ * Five conditions, written as refusals, in the order that makes each one's
+ * reason legible:
+ *
+ * 1. **`PATHFINDER_PROMPT=classic` outranks everything.** It is a person saying
+ *    so, and it is the first-class answer for a screen reader — where a
+ *    repainting block re-announces itself on every arrow press and the highlight
+ *    is carried by position and colour, neither of which is conveyed. It also
+ *    outranks capability so that scripts and anyone who simply prefers typing a
+ *    number get a supported path rather than a workaround.
+ * 2. **Both ends must be terminals.** A selector needs somewhere to repaint
+ *    *and* someone able to press a key. Either half missing and the question
+ *    cannot be answered this way at all.
+ * 3. **`TERM=dumb` is the terminal telling us what it is.** Taken at its word,
+ *    exactly as `detectColor` takes it.
+ * 4. **`setRawMode` must exist on the input.** Not called here or anywhere in
+ *    this package — readline owns raw mode and keeps it — but its absence means
+ *    the stream cannot deliver keypresses, so there is nothing to borrow.
+ * 5. **At least `SELECTION_MIN_COLUMNS`.** Below the floor the classic path is
+ *    used, which is a supported way to answer the question rather than a
+ *    degradation of this one.
+ */
+function detectSelection({ env, isTTY, inputIsTTY, setRawMode, columns }) {
+  if (env.PATHFINDER_PROMPT === "classic") return false;
+  if (!isTTY || !inputIsTTY) return false;
+  if (env.TERM === "dumb") return false;
+  if (!setRawMode) return false;
+  return columns >= SELECTION_MIN_COLUMNS;
+}
+
+/**
  * Build a theme from what the process was able to observe about the outside
  * world.
  *
@@ -295,19 +398,68 @@ function selectTier({ isTTY, color, unicode }) {
  * @param {string} [options.platform] - `process.platform`, as `run()` received
  *   it.
  * @param {boolean} [options.isTTY] - whether stdout is a terminal.
+ * @param {boolean} [options.inputIsTTY] - whether stdin is a terminal. Defaults
+ *   to false for the same reason every other capability here does: an
+ *   unanswerable environment gets the conservative answer.
+ * @param {boolean} [options.setRawMode] - whether the input stream offers
+ *   `setRawMode`. Passed as a boolean rather than the stream, so this module
+ *   stays pure and no test has to synthesize a TTY to ask a question about one.
+ * @param {number} [options.columns] - the terminal's width. Anything that is
+ *   not a positive integer — including the `undefined` a non-TTY stream reports
+ *   — falls back to 80 rather than throwing.
  * @returns {Readonly<object>} the theme
  */
-export function createTheme({ env = {}, platform = "linux", isTTY = false } = {}) {
+export function createTheme({
+  env = {},
+  platform = "linux",
+  isTTY = false,
+  inputIsTTY = false,
+  setRawMode = false,
+  columns,
+} = {}) {
   const unicode = detectUnicode(env, platform);
   const color = detectColor(env, isTTY);
   const colorDepth = detectColorDepth(env, color);
   const tier = selectTier({ isTTY, color, unicode });
+
+  // A width, always, and never a throw. `process.stdout.columns` is `undefined`
+  // whenever stdout is not a terminal, and every arithmetic done with it
+  // afterwards would be `NaN` — which compares false against every threshold and
+  // would silently answer "no" to questions nobody asked.
+  const terminalColumns =
+    Number.isInteger(columns) && columns > 0 ? columns : DEFAULT_COLUMNS;
 
   // May this run repaint a line it has already written? Only where someone is
   // watching it happen. A pipe keeps every byte ever written to it, so a
   // progress treatment that repaints into a log file produces a transcript of
   // its own animation.
   const dynamic = tier === "expressive";
+
+  const selection = detectSelection({
+    env,
+    isTTY,
+    inputIsTTY,
+    setRawMode,
+    columns: terminalColumns,
+  });
+
+  // Who is allowed the cursor escapes, and it is the union of the two surfaces
+  // that repaint rather than either one alone.
+  //
+  // This used to be `dynamic` by itself, and that was correct while the progress
+  // bar was the only repainting thing in the package. It stopped being correct
+  // the moment a second surface repainted under a *different* capability: a
+  // selector on a `NO_COLOR` terminal is offered — `NO_COLOR` says nothing about
+  // repainting — and would then have been handed `""` for the very sequences it
+  // needs, clearing no line and leaving the tail of every longer row behind.
+  //
+  // No existing output moves. `progress.mjs` tests `theme.dynamic` itself before
+  // it reaches for a primitive, so widening the gate cannot widen what the
+  // progress bar draws. What it does narrow is one promise worth stating
+  // outright rather than discovering: "a run without colour emits no escape
+  // byte" now means no *colour* escape byte. A plain-tier terminal driving a
+  // selector emits `ESC[2K` and `ESC[nA`, because that is what a selector is.
+  const repaints = dynamic || selection;
 
   /**
    * Wrap `text` in an SGR pair, or hand it back untouched.
@@ -331,6 +483,25 @@ export function createTheme({ env = {}, platform = "linux", isTTY = false } = {}
     color,
     unicode,
     dynamic,
+
+    // May this run's questions be answered with the arrow keys?
+    //
+    // Read by `prompt.mjs` to choose between two whole implementations of the
+    // same interface, which is the one legitimate reason to branch on a
+    // capability. False is not an error and not a degraded rendering: it selects
+    // the numbered/`y n` path, which is a supported way to use this tool and
+    // stays byte-identical to the one 1.6.0 shipped.
+    selection,
+
+    // The width the capability above was decided against, resolved and never
+    // undefined.
+    //
+    // A *snapshot*, and the distinction matters: a terminal can be resized while
+    // a question is on screen, so a renderer clipping its rows must read the
+    // live value from the stream it is writing to. This is here to answer "how
+    // wide did we think it was when we decided", which is what a test and a
+    // reviewer need, and nothing else.
+    columns: terminalColumns,
 
     glyph,
 
@@ -373,13 +544,26 @@ export function createTheme({ env = {}, platform = "linux", isTTY = false } = {}
 
     // The only escape sequences that are not colour, and the reason they live
     // here: a progress renderer that hand-rolled its own would be a second
-    // place capable of writing bytes into a pipe. Exactly two — return to
-    // column zero, and clear the current line — and both are the empty string
-    // whenever repainting is not allowed, so a caller that never checks
-    // `dynamic` still emits nothing.
+    // place capable of writing bytes into a pipe. Exactly three — return to
+    // column zero, clear the current line, and move up — and every one of them
+    // is the empty string wherever repainting is not allowed, so a caller that
+    // never checks a capability still emits nothing.
+    //
+    // `up` is the *only* escape Feature 23 added, and the budget is the design
+    // rather than a coincidence. A selector needs to get back to the top of the
+    // block it drew and rewrite it; it does not need absolute positioning, a
+    // scroll region, an alternate screen, or — above all — cursor hiding. A
+    // fourth primitive appearing here means a renderer has started drawing
+    // something this package decided not to draw.
+    //
+    // `n` is a row count, so a non-positive or non-integer one is not an error
+    // to raise but a movement to decline: the first paint of a block has nothing
+    // above it to return to, and `ESC[0A` moves one row on some terminals rather
+    // than none.
     line: Object.freeze({
-      start: () => (dynamic ? "\r" : ""),
-      clear: () => (dynamic ? "\u001B[2K" : ""),
+      start: () => (repaints ? "\r" : ""),
+      clear: () => (repaints ? "\u001B[2K" : ""),
+      up: (n) => (repaints && Number.isInteger(n) && n > 0 ? `\u001B[${n}A` : ""),
     }),
 
     // How wide a rendered string actually is, and how to make it narrower.

@@ -10,10 +10,31 @@
  * nothing must also print nothing, and a guard bug that degrades silently would
  * show up as a script that hangs on someone's CI runner months later.
  *
- * The second is the decided interaction model: `node:readline` and printed
- * lines. No setRawMode, no keypress handler, no cursor control, no redraw. That
- * is what makes this work in a dumb terminal, over ssh, and inside an editor's
- * integrated console, and it is a decision rather than a default.
+ * The second is the decided interaction model. ~~`node:readline` and printed
+ * lines. No setRawMode, no keypress handler, no cursor control, no redraw.~~
+ * **Superseded in Feature 23**, in two different ways, and the sentence was
+ * partly wrong when it was written:
+ *
+ * - **"No setRawMode" was never true of the process**, only of this file.
+ *   `node:readline` turns raw mode on itself the moment its input is a TTY, and
+ *   turns it off again on `close()` — verified across five Node majors during
+ *   the spike. What is true, and is now the load-bearing statement, is that
+ *   **readline owns raw mode and Pathfinder never touches it.** The distinction
+ *   matters: the first is a claim about terminal state that a reader could check
+ *   and find false, and the second is the reason no interrupt can leave a
+ *   terminal broken.
+ * - **There is now a keypress handler and a redraw**, in `select.mjs`, borrowed
+ *   from readline and given back. Which is a change of interaction, not of
+ *   ownership.
+ *
+ * What has *not* changed is the reason the original sentence existed. The
+ * line-based path still works in a dumb terminal, over a pipe, and on a CI
+ * runner, and it is still here — every function below keeps its numbered/`y n`
+ * implementation intact and reaches for it whenever `theme.selection` is false.
+ * That is a supported way to use this tool, reachable deliberately with
+ * `PATHFINDER_PROMPT=classic`, and not a fallback anyone should feel they have
+ * been demoted to. `text()` never had anything to gain from a keypress loop and
+ * is untouched.
  *
  * Answers are bounded. Unparseable input is re-prompted a fixed number of times
  * and then gives up, so an input stream that will never produce a `y` cannot
@@ -24,14 +45,25 @@
 
 import { createInterface } from "node:readline";
 
+import { alignmentWidth, optionRow, select } from "./select.mjs";
+import { createTheme } from "./theme.mjs";
+
 const YES = new Set(["y", "yes"]);
 const NO = new Set(["n", "no"]);
 
 /**
  * A question-asker bound to one pair of streams.
  *
+ * `theme` decides *how* a question is asked and nothing else. Every function
+ * below returns the same values through either path, which is what lets the
+ * choice be made here instead of at four call sites — and what lets the whole
+ * existing test suite drive the classic path unchanged by simply not supplying
+ * one. The default theme knows about no terminal at all, so it answers no to
+ * `selection`, which is the conservative answer and the right one for a
+ * prompter built from streams nobody has described.
+ *
  * @param {{input: NodeJS.ReadableStream, output: NodeJS.WritableStream,
- *          interactive?: boolean, retries?: number}} options
+ *          interactive?: boolean, retries?: number, theme?: object}} options
  * @returns {{interactive: boolean,
  *            confirm: (question: string, options?: {defaultAnswer?: boolean}) => Promise<boolean|null>,
  *            chooseMany: (question: string, config?: object) => Promise<unknown[]|null>,
@@ -39,7 +71,13 @@ const NO = new Set(["n", "no"]);
  *            text: (question: string) => Promise<string|null>,
  *            close: () => void}}
  */
-export function createPrompter({ input, output, interactive = false, retries = 3 }) {
+export function createPrompter({
+  input,
+  output,
+  interactive = false,
+  retries = 3,
+  theme = createTheme(),
+}) {
   let reader = null;
 
   // Created on first use, not here. A run that never reaches a question — a
@@ -47,9 +85,22 @@ export function createPrompter({ input, output, interactive = false, retries = 3
   // reader to stdin, because attaching one resumes the stream and a process
   // holding an open stdin does not exit on its own.
   function ensureReader() {
-    if (reader === null) reader = createReader({ input, output });
+    if (reader === null) reader = createReader({ input, output, theme });
     return reader;
   }
+
+  /**
+   * Ask one question with the arrow keys.
+   *
+   * The Interface is handed over rather than a pair of streams, because the
+   * selector's whole contract is that it borrows from an open readline and
+   * gives it back. Nothing here consults `input.isTTY`: the decision was made
+   * once, in the theme, and a module that re-derived it could disagree with the
+   * one place that is allowed to have an opinion — and could not be tested over
+   * a pipe at all.
+   */
+  const ask = (question, config) =>
+    select({ readline: ensureReader().readline, theme, question, ...config });
 
   return {
     interactive,
@@ -57,6 +108,20 @@ export function createPrompter({ input, output, interactive = false, retries = 3
     async confirm(question, { defaultAnswer = true } = {}) {
       if (!interactive) {
         throw new Error(`refusing to ask "${question}": this prompter is not interactive`);
+      }
+
+      // Two rows rather than a typed letter. `y` and `n` still work and are
+      // deliberately not printed: the presented interaction is the one the hint
+      // line describes, and an accelerator that has to be advertised is a second
+      // thing to learn rather than a shortcut for people who already know it.
+      if (theme.selection) {
+        return ask(question, {
+          options: [
+            { label: "Yes", value: true, key: "y" },
+            { label: "No", value: false, key: "n" },
+          ],
+          initial: [defaultAnswer],
+        });
       }
 
       const suffix = defaultAnswer ? "[Y/n]" : "[y/N]";
@@ -103,12 +168,28 @@ export function createPrompter({ input, output, interactive = false, retries = 3
       }
       if (choices.length === 0) return [];
 
+      // A checkbox list, which is what this question always was. Note what does
+      // *not* move: the caller still supplies `{label, value}` and still reads
+      // back the chosen values in list order, so no decision about what the
+      // options mean has crossed into this file.
+      if (theme.selection) {
+        return ask(question, { options: choices, multi: true, initial: defaultSelection });
+      }
+
       const defaults = choices.filter((choice) => defaultSelection.includes(choice.value));
       const defaultNumbers = defaults.map((choice) => choices.indexOf(choice) + 1);
 
+      // The same option grammar the selector uses, inside a numbered list
+      // instead of a repainted block. An option that names the path it writes
+      // to is not a decoration the keyboard path earned — it is the answer to
+      // "what does checking this box do", and both paths owe it.
+      const labelWidth = alignmentWidth(choices, theme);
+
       const header = [
         `? ${question}`,
-        ...choices.map((choice, index) => `    ${index + 1}. ${choice.label}`),
+        ...choices.map(
+          (choice, index) => `    ${index + 1}. ${optionRow({ theme, option: choice, labelWidth })}`,
+        ),
         defaultNumbers.length > 0
           ? `  Numbers, comma-separated. Enter for the detected default [${defaultNumbers.join(",")}], or 0 for none.`
           : "  Numbers, comma-separated. Enter or 0 for none.",
@@ -158,12 +239,22 @@ export function createPrompter({ input, output, interactive = false, retries = 3
       if (choices.length === 0) return null;
 
       const fallback = choices.find((choice) => choice.value === defaultValue) ?? choices[0];
+
+      // The default becomes the highlighted row rather than a number in a
+      // sentence, so taking it still costs one keystroke.
+      if (theme.selection) {
+        return ask(question, { options: choices, initial: [fallback.value] });
+      }
+
       const defaultNumber = choices.indexOf(fallback) + 1;
+      const labelWidth = alignmentWidth(choices, theme);
 
       output.write(
         [
           `? ${question}`,
-          ...choices.map((choice, index) => `    ${index + 1}. ${choice.label}`),
+          ...choices.map(
+            (choice, index) => `    ${index + 1}. ${optionRow({ theme, option: choice, labelWidth })}`,
+          ),
           `  A number, or Enter for [${defaultNumber}].`,
           "",
         ].join("\n"),
@@ -266,8 +357,16 @@ export function nonInteractivePrompter() {
  * with a closed stdin must fall through to the caller's decision about an
  * unanswered question, not hang.
  */
-function createReader({ input, output }) {
-  const readline = createInterface({ input, output });
+function createReader({ input, output, theme }) {
+  // `terminal` is forced only where the selector will run, and only ever from
+  // false to true. On a real terminal readline works this out for itself and
+  // the flag changes nothing; over a pipe it is what makes the keypress decoder
+  // exist at all, which is the difference between a selector that can be tested
+  // and one that can only be tried. It is never forced *off*, so no classic run
+  // has its line editing altered by this.
+  const readline = createInterface(
+    theme?.selection ? { input, output, terminal: true } : { input, output },
+  );
   const delivered = [];
   const waiting = [];
   let closed = false;
@@ -284,6 +383,12 @@ function createReader({ input, output }) {
   });
 
   return {
+    // The Interface itself, for the one caller that needs the *owner* rather
+    // than a line: the selector borrows this object's listeners and hands them
+    // back. Exposed rather than re-created, because a second Interface over the
+    // same stdin would be a second thing turning raw mode on and off.
+    readline,
+
     /**
      * Print `text` and resolve with the next line, or null at end of input.
      *

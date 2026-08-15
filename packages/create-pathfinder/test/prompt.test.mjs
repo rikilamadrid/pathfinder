@@ -12,6 +12,7 @@ import { PassThrough } from "node:stream";
 import { describe, it } from "node:test";
 
 import { createPrompter, nonInteractivePrompter } from "../src/prompt.mjs";
+import { createTheme } from "../src/theme.mjs";
 
 /**
  * A prompter wired to streams instead of a terminal.
@@ -394,5 +395,232 @@ describe("createPrompter — text", () => {
 
     assert.equal(written(), "");
     prompter.close();
+  });
+});
+
+/**
+ * Which of the two implementations a question reaches, and why.
+ *
+ * The interface is identical either way, so these assert the *route* taken and
+ * the values that come back through it — never the rendering, which
+ * `select.test.mjs` owns. The classic half needs no new tests at all: every
+ * suite above drives it, because a prompter built without a theme answers no to
+ * `selection`, and that they still pass unchanged is the evidence that no
+ * business logic moved.
+ */
+
+const ESC = "\u001B";
+const ARROW_DOWN = `${ESC}[B`;
+
+/** A terminal that can do everything, unless an override is handed in. */
+function capableTheme(env = {}, columns = 80) {
+  return createTheme({
+    env: { LANG: "en_US.UTF-8", ...env },
+    platform: "linux",
+    isTTY: true,
+    inputIsTTY: true,
+    setRawMode: true,
+    columns,
+  });
+}
+
+/** A prompter over pipes, with keys pressed at it after the question is asked. */
+function keyboard(theme) {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  let printed = "";
+  output.on("data", (chunk) => (printed += chunk.toString()));
+  output.columns = theme.columns;
+
+  return {
+    prompter: createPrompter({ input, output, interactive: true, theme }),
+    written: () => printed,
+    async press(...keys) {
+      for (const key of keys) {
+        input.write(key);
+        await new Promise((resolve) => setTimeout(resolve, 40));
+      }
+    },
+  };
+}
+
+describe("createPrompter — which implementation a question reaches", () => {
+  it("answers confirm with two rows and the arrow keys", async () => {
+    const bench = keyboard(capableTheme());
+    const answered = bench.prompter.confirm("Initialize a Git repository here?");
+
+    await bench.press(ARROW_DOWN, "\r");
+
+    assert.equal(await answered, false);
+    assert.ok(bench.written().includes("Yes"), "the answers were not offered as rows");
+    assert.ok(bench.written().includes("No"));
+    assert.equal(bench.written().includes("[Y/n]"), false, "the classic suffix leaked through");
+    bench.prompter.close();
+  });
+
+  it("starts confirm on the caller's default", async () => {
+    for (const defaultAnswer of [true, false]) {
+      const bench = keyboard(capableTheme());
+      const answered = bench.prompter.confirm("Really?", { defaultAnswer });
+
+      await bench.press("\r");
+
+      assert.equal(await answered, defaultAnswer);
+      bench.prompter.close();
+    }
+  });
+
+  it("keeps y and n working without printing them", async () => {
+    const bench = keyboard(capableTheme());
+    const answered = bench.prompter.confirm("Really?", { defaultAnswer: true });
+
+    await bench.press("n");
+
+    assert.equal(await answered, false);
+    assert.equal(/\by\s*\/\s*n\b/i.test(bench.written()), false, "the accelerators were advertised");
+    bench.prompter.close();
+  });
+
+  it("answers chooseOne with the highlighted row", async () => {
+    const bench = keyboard(capableTheme());
+    const answered = bench.prompter.chooseOne("Open this project in an editor?", {
+      options: [
+        { value: "cursor", label: "Cursor" },
+        { value: "code", label: "VS Code" },
+        { value: null, label: "Don't open" },
+      ],
+      defaultValue: "cursor",
+    });
+
+    await bench.press(ARROW_DOWN, "\r");
+
+    assert.equal(await answered, "code");
+    assert.equal(bench.written().includes("1."), false, "a numbered list was printed");
+    bench.prompter.close();
+  });
+
+  it("answers chooseMany with the checked rows, in list order", async () => {
+    const bench = keyboard(capableTheme());
+    const answered = bench.prompter.chooseMany("Configure Pathfinder for which tools?", {
+      options: [
+        { value: "claude-code", label: "Claude Code" },
+        { value: "codex", label: "Codex" },
+      ],
+      defaultSelection: ["codex"],
+    });
+
+    await bench.press(" ", "\r");
+
+    assert.deepEqual(await answered, ["claude-code", "codex"]);
+    assert.equal(bench.written().includes("comma-separated"), false, "the classic instructions leaked");
+    bench.prompter.close();
+  });
+
+  it("still returns an empty list without asking when there is nothing to choose", async () => {
+    const bench = keyboard(capableTheme());
+
+    assert.deepEqual(await bench.prompter.chooseMany("Which tools?", { options: [] }), []);
+    assert.equal(bench.written(), "");
+    bench.prompter.close();
+  });
+
+  it("leaves text() on readline, where line editing already works", async () => {
+    const bench = keyboard(capableTheme());
+    const answered = bench.prompter.text("Which tool?");
+
+    await bench.press("Zed\r");
+
+    assert.equal(await answered, "Zed");
+    bench.prompter.close();
+  });
+
+  it("still refuses to ask anything when it is not interactive", async () => {
+    const prompter = createPrompter({
+      input: new PassThrough(),
+      output: new PassThrough(),
+      interactive: false,
+      theme: capableTheme(),
+    });
+
+    await assert.rejects(() => prompter.confirm("Anything?"), /refusing to ask/);
+    await assert.rejects(() => prompter.chooseOne("Anything?", { options: [{ value: 1, label: "One" }] }));
+    await assert.rejects(() => prompter.chooseMany("Anything?", { options: [{ value: 1, label: "One" }] }));
+  });
+});
+
+describe("createPrompter — everything that routes back to classic", () => {
+  /** Ask one confirm and report which implementation printed. */
+  async function route(theme) {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    let printed = "";
+    output.on("data", (chunk) => (printed += chunk.toString()));
+    input.write("y\n");
+
+    const prompter = createPrompter({ input, output, interactive: true, theme });
+    const answer = await prompter.confirm("Initialize a Git repository here?");
+    prompter.close();
+
+    return { answer, classic: printed.includes("[Y/n]") };
+  }
+
+  it("uses the selector on a fully capable terminal", () => {
+    assert.equal(capableTheme().selection, true);
+  });
+
+  it("routes to classic when PATHFINDER_PROMPT=classic", async () => {
+    const { answer, classic } = await route(capableTheme({ PATHFINDER_PROMPT: "classic" }));
+
+    assert.equal(classic, true, "the override did not reach the prompter");
+    assert.equal(answer, true);
+  });
+
+  it("routes to classic when TERM is dumb", async () => {
+    const { classic } = await route(capableTheme({ TERM: "dumb" }));
+
+    assert.equal(classic, true);
+  });
+
+  it("routes to classic below the 49-column floor and to the selector at it", async () => {
+    assert.equal((await route(capableTheme({}, 48))).classic, true, "48 columns should be classic");
+    assert.equal(capableTheme({}, 49).selection, true, "49 columns should be the selector");
+  });
+
+  it("routes to classic when nobody described the terminal at all", async () => {
+    const { classic } = await route(createTheme());
+
+    assert.equal(classic, true);
+  });
+
+  it("prints the classic bytes unchanged, whichever refusal got us here", async () => {
+    // Byte-identical to 1.6.0 is the promise, and the cheapest way to keep it is
+    // to route to the same code rather than to a re-implementation of it.
+    const overrides = [
+      capableTheme({ PATHFINDER_PROMPT: "classic" }),
+      capableTheme({ TERM: "dumb" }),
+      capableTheme({}, 48),
+      createTheme(),
+    ];
+
+    for (const theme of overrides) {
+      const input = new PassThrough();
+      const output = new PassThrough();
+      let printed = "";
+      output.on("data", (chunk) => (printed += chunk.toString()));
+      input.write("\n");
+
+      const prompter = createPrompter({ input, output, interactive: true, theme });
+      await prompter.chooseOne("Open this project in an editor?", {
+        options: [
+          { value: "cursor", label: "Cursor" },
+          { value: null, label: "Don't open" },
+        ],
+        defaultValue: "cursor",
+      });
+      prompter.close();
+
+      assert.ok(printed.includes("    1. Cursor"), `a numbered list was expected: ${JSON.stringify(printed)}`);
+      assert.ok(printed.includes("  A number, or Enter for [1]."));
+    }
   });
 });
