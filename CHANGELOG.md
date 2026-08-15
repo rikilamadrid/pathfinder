@@ -27,6 +27,8 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-08-16
+
 ### Added
 
 - **Every question the installer asks is answerable with the arrow keys.** `↑`/`↓` (or `k`/`j`) move, `Space` toggles a checkbox, `Enter` confirms, and `Escape` cancels. The harness question becomes a checkbox list that names the directory each tool writes to, and a Yes/No question becomes two rows rather than a letter to type — `y` and `n` still work and are deliberately not advertised.
@@ -36,7 +38,7 @@ The heading of the most recent released section below is the single source of tr
 ### Changed
 
 - **Keyboard selection is offered only where it can be drawn correctly.** It needs a terminal on both ends, `TERM` that is not `dumb`, an input that can be put into raw mode, and at least **49 columns** — the measured width below which the interaction hint or the path context would be cut mid-word. Anything narrower asks the classic way. The capability is deliberately independent of colour and Unicode: `NO_COLOR` is a statement about decoration, not about repainting.
-- **`(detected)` is shown only when the whole row fits**, and omitted rather than truncated when it does not. The ENVIRONMENT block has already reported detection, so the suffix duplicates information rather than carrying it — which is why it does not get to raise the width floor.
+- **`(detected)` is shown only when the whole row fits**, and omitted rather than truncated when it does not. The ENVIRONMENT block has already reported detection, so the suffix duplicates information rather than carrying it — which is why it does not get to raise the width floor. Deciding that needs a real width: the installer now measures what a terminal will *draw* rather than what `.length` counts, so a decorated string is no longer measured as longer than it looks and a wide glyph no longer as narrower. A repainting list depends on it — a line believed to be one row that wraps to two puts every cursor-up afterwards off by one.
 - **The harness question's alignment moved out of `cli.mjs`.** The call site now supplies a label, the path it writes to, and whether it was detected, and the renderer decides where each goes. It previously measured its labels with `.length` and padded them by hand, which is wrong about a terminal by the length of any escape sequence and produced a layout only one of the two prompt styles could use.
 
 ### Fixed
