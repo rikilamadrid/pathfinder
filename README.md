@@ -2,7 +2,7 @@
 
 <img src="assets/logo-wordmark.png" alt="Pathfinder" width="357">
 
-**An AI-assisted, human-in-the-loop workflow for building software — without giving up the decisions.**
+**A reusable workflow kit for directing AI agents through software delivery, while keeping judgment and consequential decisions human.**
 
 [![npm](https://img.shields.io/npm/v/create-pathfinder?color=E0611F&label=create-pathfinder)](https://www.npmjs.com/package/create-pathfinder) [![validate](https://github.com/rikilamadrid/pathfinder/actions/workflows/validate.yml/badge.svg)](https://github.com/rikilamadrid/pathfinder/actions/workflows/validate.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-E0611F)](LICENSE)
 
