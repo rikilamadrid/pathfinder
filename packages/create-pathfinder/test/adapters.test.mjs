@@ -28,6 +28,8 @@ import { join, relative, sep } from "node:path";
 import { after, describe, it } from "node:test";
 
 import { run } from "../src/cli.mjs";
+import { alignmentWidth, optionRow } from "../src/select.mjs";
+import { createTheme } from "../src/theme.mjs";
 import { findKitRoot } from "../src/kit.mjs";
 import { isPathfinderAdapter, readCanonicalSkills } from "../src/harnesses/adapter.mjs";
 
@@ -508,15 +510,23 @@ describe("the interactive question", () => {
     const [{ question, config }] = prompter.offered;
     assert.equal(question, "Configure Pathfinder for which tools?");
     assert.equal(config.options.length, 3);
-    assert.match(config.options[0].label, /Claude Code\s+-> \.claude\/skills\/\s+\(detected\)/);
 
-    // Offered, and visibly not detected. A harness the user does not have is
-    // still a choice they may make; detection only decides the default.
-    assert.match(config.options[1].label, /Codex\s+-> \.agents\/skills\/$/);
-
-    // The third entry says what it writes in the same column as the other two,
-    // because that column is where a reader looks to find out.
-    assert.match(config.options[2].label, /Something else…\s+-> nothing is generated$/);
+    // Three named fields rather than one hand-built string. What each part *is*
+    // is decided here; where it goes is decided by whichever renderer draws the
+    // question, and that separation is the point of the split.
+    //
+    // Note the second row: offered, and visibly not detected. A harness the user
+    // does not have is still a choice they may make; detection only decides the
+    // default. And the third says what it writes in the same field as the other
+    // two, because that is where a reader looks to find out.
+    assert.deepEqual(
+      config.options.map((option) => [option.label, option.hint, option.note]),
+      [
+        ["Claude Code", ".claude/skills/", "(detected)"],
+        ["Codex", ".agents/skills/", undefined],
+        ["Something else…", "nothing is generated", undefined],
+      ],
+    );
 
     assert.deepEqual(
       config.defaultSelection.map((harness) => harness.id),
@@ -815,6 +825,13 @@ describe("when the kit copy fails", () => {
 describe("the ASCII corrections", () => {
   const ascii = { LANG: "C" };
 
+  /** The options as either renderer would lay them out, in a given alphabet. */
+  function renderedRows(options, env) {
+    const theme = createTheme({ env, platform: "linux", isTTY: true });
+    const labelWidth = alignmentWidth(options, theme);
+    return options.map((option) => optionRow({ theme, option, labelWidth }));
+  }
+
   it("writes the sentinel's ellipsis in ASCII, and moves the arrows to match", async () => {
     const cwd = makeRepository();
     const prompter = scriptedPrompter({ harnesses: [] });
@@ -822,12 +839,18 @@ describe("the ASCII corrections", () => {
     await invoke([], { cwd, prompter, env: ascii });
 
     const [{ config }] = prompter.offered;
-    assert.match(config.options[2].label, /Something else\.\.\.\s+-> nothing is generated$/);
+    assert.equal(config.options[2].label, "Something else...");
 
     // The sentinel is the longest row, so its width decides the column every
-    // arrow lands in. Asserted across all three rows rather than on the one
-    // that changed, because a column that only mostly lines up is the defect.
-    const columns = config.options.map((option) => option.label.indexOf("->"));
+    // arrow lands in. Asserted across all three rows rather than on the one that
+    // changed, because a column that only mostly lines up is the defect — and
+    // asserted through the shared row grammar rather than against a string the
+    // call site pre-composed, because that grammar is now the thing that decides
+    // it, for both the numbered list and the selector.
+    const rows = renderedRows(config.options, ascii);
+
+    assert.match(rows[2], /Something else\.\.\.\s+-> nothing is generated$/);
+    const columns = rows.map((row) => row.indexOf("->"));
     assert.deepEqual(columns, [columns[0], columns[0], columns[0]]);
   });
 
@@ -838,7 +861,11 @@ describe("the ASCII corrections", () => {
     await invoke([], { cwd, prompter });
 
     const [{ config }] = prompter.offered;
-    assert.match(config.options[2].label, /Something else…\s+-> nothing is generated$/);
+    const rows = renderedRows(config.options, { LANG: "en_US.UTF-8" });
+
+    assert.match(rows[2], /Something else…\s+-> nothing is generated$/);
+    const columns = rows.map((row) => row.indexOf("->"));
+    assert.deepEqual(columns, [columns[0], columns[0], columns[0]]);
   });
 
   it("writes the supported-tool notice with an ASCII dash", async () => {

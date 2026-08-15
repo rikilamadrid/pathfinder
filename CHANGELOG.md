@@ -27,6 +27,22 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Added
+
+- **Every question the installer asks is answerable with the arrow keys.** `↑`/`↓` (or `k`/`j`) move, `Space` toggles a checkbox, `Enter` confirms, and `Escape` cancels. The harness question becomes a checkbox list that names the directory each tool writes to, and a Yes/No question becomes two rows rather than a letter to type — `y` and `n` still work and are deliberately not advertised.
+- **`PATHFINDER_PROMPT=classic` asks the old way, on purpose.** The numbered/`y n` prompts are a supported path rather than a fallback, and are byte-identical to 1.6.0. They are the first-class answer for a screen reader, for which a repainting block re-announces itself on every keypress and a highlight carried by position conveys nothing. Documented in `--help`, not only here.
+- **`theme.line.up(n)`** — one new escape primitive, cursor-up, joining the two the theme already exposed. There is still no cursor hiding anywhere in the package, which is why an interrupted run cannot leave a terminal with an invisible cursor.
+
+### Changed
+
+- **Keyboard selection is offered only where it can be drawn correctly.** It needs a terminal on both ends, `TERM` that is not `dumb`, an input that can be put into raw mode, and at least **49 columns** — the measured width below which the interaction hint or the path context would be cut mid-word. Anything narrower asks the classic way. The capability is deliberately independent of colour and Unicode: `NO_COLOR` is a statement about decoration, not about repainting.
+- **`(detected)` is shown only when the whole row fits**, and omitted rather than truncated when it does not. The ENVIRONMENT block has already reported detection, so the suffix duplicates information rather than carrying it — which is why it does not get to raise the width floor.
+- **The harness question's alignment moved out of `cli.mjs`.** The call site now supplies a label, the path it writes to, and whether it was detected, and the renderer decides where each goes. It previously measured its labels with `.length` and padded them by hand, which is wrong about a terminal by the length of any escape sequence and produced a layout only one of the two prompt styles could use.
+
+### Fixed
+
+- **`prompt.mjs` no longer claims "No setRawMode".** `node:readline` enables raw mode itself the moment its input is a terminal. What is true, and is what the interrupt guarantee actually rests on, is that readline owns raw mode and Pathfinder never touches it — the selector borrows readline's `keypress` and `resize` listeners and gives both back.
+
 ## [1.6.0] - 2026-08-14
 
 ### Added
