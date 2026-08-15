@@ -84,8 +84,16 @@ Every install ends by printing the one prompt that starts a session, and the pro
 In a terminal you are then asked whether to copy it, in a question that says what it replaces:
 
 ```text
-? Copy that prompt to your clipboard? This replaces what is on it now. [Y/n]
+? Copy that prompt to your clipboard? This replaces what is on it now.
+
+❯ Yes
+  No
+
+  ↑↓ move   enter confirm
 ```
+
+`y` and `n` still answer it in one keystroke, and under
+`PATHFINDER_PROMPT=classic` it asks as `[Y/n]` on one line.
 
 - **Nothing is copied without an explicit yes.** Declining, an unanswered question, `--no-clipboard`, `--yes`, `--dry-run`, and any run without a terminal on both ends all leave your clipboard exactly as it was.
 - **The prompt is printed either way.** Copying is a convenience, never the only way to get it.
@@ -95,8 +103,8 @@ In a terminal you are then asked whether to copy it, in a question that says wha
 
 The last question is whether to open the project, and it is only ever about an editor you already have. The installer looks for `code` (VS Code) and `cursor` (Cursor) on your `PATH`:
 
-- **One found** — a yes/no naming it: `? Open this project in VS Code? [Y/n]`
-- **Several found** — a numbered list, alphabetical, ending in `Don't open`
+- **One found** — a Yes/No naming it: `? Open this project in VS Code?`
+- **Several found** — a list, alphabetical, ending in `Don't open`
 - **None found** — no question at all
 
 Neither editor is a Pathfinder requirement, and the alphabetical order is not a recommendation. There is no way to name an editor or pass a path. The launch is detached: the installer hands over the project directory and exits immediately.

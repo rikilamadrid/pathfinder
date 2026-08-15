@@ -53,15 +53,21 @@ coding tools to configure:
 Pathfinder installs into version control so you can review what it wrote
 and undo it. It will not touch an existing history.
 
-? Initialize a Git repository here? [Y/n] y
+? Initialize a Git repository here?
+
+❯ Yes
+  No
+
+  ↑↓ move   enter confirm
   ✓ git init — initialized an empty repository in /path/to/my-project
 
 ? Configure Pathfinder for which tools?
-    1. Claude Code      -> .claude/skills/   (detected)
-    2. Codex            -> .agents/skills/   (detected)
-    3. Something else…  -> nothing is generated
-  Numbers, comma-separated. Enter for the detected default [1,2], or 0 for none.
-> 1
+
+  ◉ Claude Code      -> .claude/skills/   (detected)
+❯ ○ Codex            -> .agents/skills/   (detected)
+  ○ Something else…  -> nothing is generated
+
+  ↑↓ move   space toggle   enter confirm
 
   📦  INSTALLING
   │  ✓ Kit files — 36 copied
@@ -81,8 +87,18 @@ and undo it. It will not touch an existing history.
 
     /kickstart-pathfinder
 
-? Copy that prompt to your clipboard? This replaces what is on it now. [Y/n] n
-? Open this project in VS Code? [Y/n] n
+? Copy that prompt to your clipboard? This replaces what is on it now.
+
+  Yes
+❯ No
+
+  ↑↓ move   enter confirm
+? Open this project in VS Code?
+
+  Yes
+❯ No
+
+  ↑↓ move   enter confirm
 
   Trail's marked. The rest is yours.
 ```
@@ -95,6 +111,20 @@ draws a progress bar through the install phase, which appears only where a
 terminal is being watched live. Piped or redirected, the output is plainer still
 and is unchanged from earlier versions, so anything already parsing it keeps
 working.
+
+Every question is answered with the keyboard: `↑` and `↓` move, `Space` toggles
+a checkbox, `Enter` confirms, `Escape` cancels. What the code block can only
+show frozen is a list that redraws in place as you move — the block above is the
+last frame of each question, which is what you are left looking at once you have
+answered it. Notice that each row names the directory it would write to, so
+nothing has to be checked to find out what checking it does.
+
+If you would rather type, or you are using a screen reader, set
+`PATHFINDER_PROMPT=classic` and every question becomes a numbered list and a
+`y`/`n` instead. That is a supported way to run the installer rather than a
+reduced one, and it is what a terminal narrower than 49 columns and a `TERM` of
+`dumb` choose on their own. `NO_COLOR` is about colour only — it does not turn
+the keyboard selection off, which is why the transcript above still shows it.
 
 Detection sets the defaults and nothing else — the tools line says
 `(noted, not configured)` because that is the whole of it. Nothing is configured
