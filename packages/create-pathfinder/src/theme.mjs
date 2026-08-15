@@ -26,7 +26,16 @@
  * the cursor has nothing to restore, so no signal handler and no interrupted
  * run can leave a terminal broken. A cursor parked at the end of a progress bar
  * is the accepted cost of that guarantee.
+ *
+ * Newly present, and worth naming beside that absence: `width` and `clip`, from
+ * `cells.mjs`. They measure rather than decorate, which is why the algorithm
+ * lives in its own module and only the seam is published here — and they are
+ * the one part of this file that answers the same way in every tier, because a
+ * string's printed width is a fact about the string rather than a capability of
+ * the terminal.
  */
+
+import { clip, width } from "./cells.mjs";
 
 /**
  * SGR codes, written out rather than depended on.
@@ -105,11 +114,25 @@ const BRAND = Object.freeze({
  * `rule` is both the stroke the Pathfinder mark is drawn from and the character
  * any other horizontal device would use. `gutter` hangs a block together down
  * its left edge. Both are drawn left to right from a fixed count and neither
- * closes on the right, so no caller ever has to know the printed width of a
- * decorated string. That is why there is no corner, no box, and no border
- * character in this table — a closed box cannot be aligned without width maths
- * that emoji defeat, which the prototype demonstrated by failing to close its
- * own.
+ * closes on the right, ~~so no caller ever has to know the printed width of a
+ * decorated string~~ — **superseded in Feature 22; see `width` and `clip`
+ * below.** That is why there is no corner, no box, and no border character in
+ * this table — a closed box cannot be aligned without width maths that emoji
+ * defeat, which the prototype demonstrated by failing to close its own.
+ *
+ * The struck clause was true of every device in this module and is still the
+ * reason none of them closes on the right. What falsified it is a surface this
+ * module did not have when the sentence was written: a *repainting* one. A
+ * renderer that redraws a block in place has to know how many rows that block
+ * occupies, and a line wider than the terminal silently becomes two — so the
+ * cursor-up count goes wrong and the block walks down the screen. Feature 23's
+ * prototype reproduced exactly that at 24 columns.
+ *
+ * So the conclusion is narrowed rather than reversed. Nothing here draws a box,
+ * and nothing should. But "no caller needs printed width" was a claim about
+ * *what this module happened to contain*, not a rule about terminals, and the
+ * honest correction is to publish the measurement rather than let a caller
+ * reach for `.length` and be wrong by the length of an escape sequence.
  */
 const GLYPHS = Object.freeze({
   unicode: Object.freeze({
@@ -358,5 +381,26 @@ export function createTheme({ env = {}, platform = "linux", isTTY = false } = {}
       start: () => (dynamic ? "\r" : ""),
       clear: () => (dynamic ? "\u001B[2K" : ""),
     }),
+
+    // How wide a rendered string actually is, and how to make it narrower.
+    //
+    // Published here rather than imported directly by call sites, for the same
+    // reason every paint is: one seam, so a second opinion about what a
+    // decorated string measures cannot come into existence. A caller reaching
+    // past this into `cells.mjs` is doing the thing this module exists to
+    // prevent — and a caller reaching for `.length` is simply wrong, by the
+    // length of whatever escape sequence the theme just wrapped around it.
+    //
+    // Note what these are *not* conditioned on. Unlike `line`, they consult
+    // neither `dynamic` nor `color` nor the tier: how many cells a string
+    // occupies is a fact about the string, and a function that gave a different
+    // answer in a pipe would be lying about identical bytes. Capability decides
+    // what a caller *does* with the answer, not what the answer is.
+    //
+    // Deliberately thin. No padding, no alignment, and above all no wrapping —
+    // `cells.mjs` explains why wrapping is the one addition that would turn
+    // this into the layout engine neither module is allowed to become.
+    width,
+    clip,
   });
 }

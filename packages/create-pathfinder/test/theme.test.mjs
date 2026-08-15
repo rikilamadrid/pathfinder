@@ -320,3 +320,78 @@ describe("createTheme — it decorates, it does not draw", () => {
     }
   });
 });
+
+/**
+ * The measurement seam.
+ *
+ * `cells.test.mjs` proves the algorithm. What is proved here is that the theme
+ * publishes it, and — the part that is easy to get wrong — that it publishes it
+ * *unconditionally*. Every other capability on this object varies with the
+ * terminal. These two must not, because a string's printed width is a fact
+ * about the string.
+ */
+describe("createTheme — width and clip", () => {
+  const noTty = { env: {}, platform: "linux", isTTY: false };
+
+  it("exposes both as functions on every theme", () => {
+    for (const theme of [createTheme(utf8Tty), createTheme(noTty), createTheme()]) {
+      assert.equal(typeof theme.width, "function");
+      assert.equal(typeof theme.clip, "function");
+    }
+  });
+
+  it("measures its own paints as the text inside them", () => {
+    const theme = createTheme(utf8Tty);
+
+    assert.equal(theme.width(theme.ok(`${theme.glyph.ok} Git repository detected`)), 25);
+    assert.equal(theme.width(theme.bold("20")), 2);
+    assert.equal(theme.width(theme.dim(theme.glyph.gutter)), 1);
+  });
+
+  it("measures the brand at every depth as the text inside it", () => {
+    const depths = {
+      24: { LANG: "en_US.UTF-8", COLORTERM: "truecolor" },
+      8: { LANG: "en_US.UTF-8", TERM: "xterm-256color" },
+      4: { LANG: "en_US.UTF-8" },
+    };
+
+    for (const [depth, env] of Object.entries(depths)) {
+      const theme = createTheme({ env, platform: "linux", isTTY: true });
+
+      assert.equal(theme.colorDepth, Number(depth), `depth ${depth} was not selected`);
+      assert.equal(
+        theme.width(theme.brand("P A T H F I N D E R")),
+        19,
+        `the depth-${depth} brand escape must measure zero`,
+      );
+    }
+  });
+
+  it("gives the same answer in every tier, unlike every other capability here", () => {
+    // The property that separates these from `line`: a pipe and a terminal
+    // disagree about what may be *emitted*, never about what a string measures.
+    const painted = `${ESC}[32m✓ done${ESC}[0m`;
+
+    const widths = [createTheme(utf8Tty), createTheme(noTty), createTheme()].map((t) =>
+      t.width(painted),
+    );
+
+    assert.deepEqual(widths, [6, 6, 6]);
+  });
+
+  it("clips through the seam without breaking a paint", () => {
+    const theme = createTheme(utf8Tty);
+    const line = theme.ok(`${theme.glyph.ok} Claude Code`);
+    const clipped = theme.clip(line, 5);
+
+    assert.ok(theme.width(clipped) <= 5);
+    assert.ok(clipped.endsWith(`${ESC}[0m`), "a cut inside a paint must still reset");
+  });
+
+  it("measures the ASCII alphabet correctly too", () => {
+    const ascii = createTheme({ env: { LANG: "C" }, platform: "linux", isTTY: true });
+
+    assert.equal(ascii.unicode, false);
+    assert.equal(ascii.width(`${ascii.glyph.ellipsis}`), 3, "ASCII ellipsis is three cells");
+  });
+});
