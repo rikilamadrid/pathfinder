@@ -67,6 +67,12 @@ README_MARKERS = ("<!-- copy-list:start -->", "<!-- copy-list:end -->")
 # Not a version — a marker meaning "never released".
 VERSION_SENTINEL = "0.0.0"
 
+# The release workflow, by exact path. npm's trusted publisher for
+# `create-pathfinder` is configured against this *filename*: renaming the file
+# does not fail anything locally, it just makes every future publish reject the
+# OIDC token with an error that says nothing about a rename.
+RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
+
 failures: list[str] = []
 
 
@@ -458,6 +464,90 @@ def check_version_agreement() -> None:
              f"HEAD is tagged {tag} but the installer is {version}")
 
 
+def check_release_workflow() -> None:
+    """The release workflow's safety properties, none of which are visible in a diff.
+
+    Three releases in a row published late or not at all because the workflow
+    order put an irreversible public act ahead of a fallible one. The order is
+    now correct, but "correct order" is not a thing YAML can express, so it is
+    asserted here: the publish step must appear before the tag push, and the
+    registry read-back must sit between them. Reordering the steps while
+    refactoring is exactly the accident this catches.
+
+    The authentication properties are checked the same way. They are each one
+    line, each easy to add back by habit from another repository's workflow, and
+    each silently fatal to OIDC publishing.
+
+    Deliberately textual rather than parsed: PyYAML is not a dependency here,
+    for the same reason nothing else in this script is, and every property below
+    is a property of a line rather than of a mapping.
+    """
+    if not RELEASE_WORKFLOW.exists():
+        fail(".github/workflows/release.yml", "release-workflow",
+             "the release workflow is missing; releasing has no defined path")
+        return
+
+    # Comments are stripped first, and every check below reads the result. The
+    # workflow explains at length why it does *not* use a token and why it is
+    # not on a self-hosted runner, and a rule that searched the prose would fire
+    # on its own documentation. The same strip stops a commented-out `npm
+    # publish` from satisfying the ordering rule.
+    text = "\n".join(
+        line for line in RELEASE_WORKFLOW.read_text(encoding="utf-8").splitlines()
+        if not line.lstrip().startswith("#")
+    )
+
+    def position(needle: str) -> int | None:
+        index = text.find(needle)
+        return None if index < 0 else index
+
+    # Authentication. Trusted publishing needs the OIDC permission, and breaks
+    # in confusing ways if anything reintroduces a token path.
+    if "id-token: write" not in text:
+        fail(RELEASE_WORKFLOW, "release-workflow",
+             "no `id-token: write` permission, so npm cannot mint a publish "
+             "credential from this workflow's identity")
+
+    if re.search(r"^\s*registry-url:", text, re.MULTILINE):
+        fail(RELEASE_WORKFLOW, "release-workflow",
+             "`registry-url:` makes setup-node write an .npmrc with an empty "
+             "_authToken, which npm prefers over the OIDC exchange; the publish "
+             "then fails with a misleading 404")
+
+    for token in ("NODE_AUTH_TOKEN", "NPM_TOKEN", "secrets.NPM"):
+        if token in text:
+            fail(RELEASE_WORKFLOW, "release-workflow",
+                 f"`{token}` reintroduces long-lived token publishing, the "
+                 "credential class trusted publishing exists to remove")
+
+    if "self-hosted" in text:
+        fail(RELEASE_WORKFLOW, "release-workflow",
+             "trusted publishing rejects self-hosted runners")
+
+    # Ordering. The whole point of the rewrite.
+    publish = position("npm publish")
+    confirm = position("registry.npmjs.org/create-pathfinder/$VERSION")
+    tag_push = position("git push origin \"refs/tags/")
+    release = position("gh release create")
+
+    missing = [name for name, found in
+               (("npm publish", publish), ("the registry read-back", confirm),
+                ("the tag push", tag_push), ("gh release create", release))
+               if found is None]
+    if missing:
+        fail(RELEASE_WORKFLOW, "release-workflow",
+             f"cannot find {', '.join(missing)}; the ordering rule below can "
+             "only pass vacuously, so it is failed instead")
+        return
+
+    if not publish < confirm < tag_push < release:
+        fail(RELEASE_WORKFLOW, "release-workflow",
+             "steps are out of order. It must be publish -> confirm on the "
+             "registry -> push the tag -> create the Release. Anything else "
+             "can leave a public tag or Release naming a version npm does not "
+             "serve, which has happened three times")
+
+
 def check_changelog() -> None:
     """The most recent tag must have a CHANGELOG entry.
 
@@ -755,6 +845,7 @@ def main() -> int:
     check_no_junk_tracked()
     check_version_agreement()
     check_changelog()
+    check_release_workflow()
 
     if failures:
         print(f"\nFAIL — {len(failures)} problem(s):\n")
