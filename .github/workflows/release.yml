@@ -1,0 +1,290 @@
+name: release
+
+# Publish `create-pathfinder`, then make the release public — in that order.
+#
+# Three releases in a row failed at the npm publish step for authentication
+# reasons (v1.4.1 OTP, v1.5.0 expired token, v1.7.0 EOTP), and every one of them
+# failed *after* the version tag was already pushed. The old checklist could not
+# do better: `npm whoami` proves identity, never publish entitlement, so the
+# first step that could discover the problem was the publish itself — and it
+# came last.
+#
+# Two changes remove the whole class rather than adding another preflight:
+#
+#   1. There is no human credential. npm mints a short-lived publish token from
+#      this workflow's OIDC identity (trusted publishing), so there is no OTP to
+#      answer, no token to expire, and no reason a release must be run by hand.
+#   2. Nothing irreversible happens before the registry has the package. The tag
+#      and the GitHub Release are created by the steps *below* the publish, only
+#      after the registry has been read back and confirmed.
+#
+# The trigger is a manual dispatch rather than a tag push for exactly that
+# second reason: a tag-triggered workflow would require the irreversible act
+# first, which is the bug.
+#
+# Every step is convergent — it checks whether its effect already exists and
+# skips if so. A run that dies halfway is repaired by dispatching it again, not
+# by inventing a new version.
+#
+# One-time setup outside this repository is required before the first run; see
+# the release section of CONTRIBUTING.md. The trusted publisher on npmjs.com is
+# configured against this file's *name*, so renaming it breaks publishing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, no leading v (for example 1.8.0)"
+        required: true
+        type: string
+
+# `contents: write` pushes the tag and creates the Release; `id-token: write`
+# mints the OIDC token npm trades for a publish credential. Nothing else.
+permissions:
+  contents: write
+  id-token: write
+
+# Two concurrent releases could interleave a publish with another release's tag
+# push. Never cancel one in flight: cancelling between publish and tag is the
+# state this workflow exists to avoid.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish and release
+    # Trusted publishing rejects self-hosted runners — the OIDC claims of a
+    # runner npm cannot vouch for prove nothing.
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Refuse any trigger but a dispatch against main
+        # `workflow_dispatch` is the only trigger declared above, so this can
+        # only fire if someone adds another later. It fails before checkout
+        # rather than discovering the wrong ref halfway through a publish.
+        if: github.event_name != 'workflow_dispatch' || github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::release runs only as a manual dispatch against main" \
+               "(got ${{ github.event_name }} on ${{ github.ref }})"
+          exit 1
+
+      - name: Check out the release commit
+        uses: actions/checkout@v4
+        with:
+          # Tags and origin/main, both of which the publish guard reads, and
+          # which the validator's changelog rule needs.
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Trusted publishing needs Node >= 22.14; 24 is the current line.
+          node-version: 24
+          # Deliberately NO `registry-url`. It writes an .npmrc containing
+          # `_authToken=${NODE_AUTH_TOKEN}`, npm then prefers that empty token
+          # over the OIDC exchange, and the publish fails with a 404 or 403 that
+          # says nothing about the real cause. This omission is load-bearing.
+
+      - name: Ensure npm supports trusted publishing
+        # Node 24 has shipped npm below 11.5.1, which predates OIDC publishing
+        # and would fall back to asking for credentials that do not exist here.
+        run: |
+          set -euo pipefail
+          npm install --global npm@latest
+          echo "npm $(npm --version), node $(node --version)"
+          # `sort -V` rather than a semver package: one less thing fetched from
+          # a registry on the way to publishing to it.
+          if [ "$(printf '11.5.1\n%s\n' "$(npm --version)" | sort -V | head -1)" != "11.5.1" ]; then
+            echo "::error::npm $(npm --version) is older than 11.5.1 and cannot publish via OIDC"
+            exit 1
+          fi
+
+      - name: Plan the release
+        id: plan
+        # Everything this run will and will not do, decided up front and printed
+        # before anything is written. Each output answers "does this effect
+        # already exist?", which is what makes a re-dispatch safe.
+        env:
+          VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          case "$VERSION" in
+            v*) echo "::error::give the version without the leading v: ${VERSION#v}"; exit 1 ;;
+          esac
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'$VERSION' is not a MAJOR.MINOR.PATCH version"
+            exit 1
+          fi
+
+          # The changelog is the source of truth; the manifest is derived from
+          # it. The dispatcher's input is a third statement of the same fact, so
+          # all three must agree or someone is releasing the wrong thing.
+          changelog="$(node -e '
+            const text = require("fs").readFileSync("CHANGELOG.md", "utf8");
+            const match = text.match(/^## \[(\d+\.\d+\.\d+)\]/m);
+            process.stdout.write(match ? match[1] : "");
+          ')"
+          manifest="$(node -p 'require("./packages/create-pathfinder/package.json").version')"
+
+          echo "dispatched: $VERSION"
+          echo "changelog:  $changelog"
+          echo "manifest:   $manifest"
+          echo "commit:     $GITHUB_SHA"
+
+          if [ "$changelog" != "$VERSION" ] || [ "$manifest" != "$VERSION" ]; then
+            echo "::error::version disagreement — dispatched $VERSION," \
+                 "changelog $changelog, manifest $manifest." \
+                 "Merge the release commit first; do not edit the manifest by hand."
+            exit 1
+          fi
+
+          # The dispatched ref is main, but main may have moved since the
+          # release commit was merged. Publishing a commit that is no longer the
+          # tip means the tag would name a superseded tree.
+          git fetch --quiet origin main
+          if [ "$(git rev-parse origin/main)" != "$GITHUB_SHA" ]; then
+            echo "::error::$GITHUB_SHA is not the tip of origin/main" \
+                 "($(git rev-parse origin/main)). Re-dispatch after main settles."
+            exit 1
+          fi
+
+          published=no
+          if curl -fsS "https://registry.npmjs.org/create-pathfinder" \
+             | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
+                 process.exit(JSON.parse(s).versions?.[process.argv[1]] ? 0 : 1)})' "$VERSION"
+          then
+            published=yes
+            echo "::notice::create-pathfinder@$VERSION is already on the registry; publish will be skipped"
+          fi
+
+          tagged=no
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VERSION" >/dev/null 2>&1; then
+            tagged=yes
+            echo "::notice::tag v$VERSION already exists on the remote; tagging will be skipped"
+          fi
+
+          released=no
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            released=yes
+            echo "::notice::GitHub Release v$VERSION already exists; it will be left alone"
+          fi
+
+          if [ "$published$tagged$released" = "yesyesyes" ]; then
+            echo "::error::v$VERSION is already published, tagged, and released. Nothing to do."
+            exit 1
+          fi
+
+          {
+            echo "version=$VERSION"
+            echo "published=$published"
+            echo "tagged=$tagged"
+            echo "released=$released"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Validate kit structure
+        run: python3 .github/scripts/validate-kit.py
+
+      - name: Test the installer
+        working-directory: packages/create-pathfinder
+        run: npm test
+
+      - name: Publish to npm
+        # The single fallible authenticated step, and the first irreversible one
+        # in this workflow. No secret is referenced: the credential is minted
+        # from this job's OIDC identity against the trusted publisher configured
+        # on npmjs.com. Provenance is attached automatically for a public
+        # package from a public repository.
+        #
+        # The package's own prepublishOnly guard runs inside this and checks the
+        # tree, the version, and the changelog once more against the real
+        # working directory rather than against a branch CI looked at earlier.
+        if: steps.plan.outputs.published == 'no'
+        working-directory: packages/create-pathfinder
+        env:
+          PATHFINDER_PUBLISH: "yes"
+        run: npm publish
+
+      - name: Confirm the registry serves this version
+        # Read the release back from outside before anything advertises it. The
+        # publish above can report success while the packument is still
+        # propagating, and a Release pointing at a version npm 404s is the
+        # precise outcome this workflow exists to prevent.
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 12); do
+            if curl -fsS "https://registry.npmjs.org/create-pathfinder/$VERSION" -o packument.json; then
+              break
+            fi
+            echo "attempt $attempt: not visible yet, waiting"
+            sleep 10
+          done
+          if [ ! -s packument.json ]; then
+            echo "::error::create-pathfinder@$VERSION never appeared on the registry." \
+                 "Nothing was tagged or released. Investigate, then re-dispatch."
+            exit 1
+          fi
+
+          head="$(node -p 'require("./packument.json").gitHead || ""')"
+          echo "registry gitHead: ${head:-<absent>}"
+          if [ -z "$head" ]; then
+            echo "::warning::the registry recorded no gitHead, so the published" \
+                 "tree cannot be tied to a commit from here"
+          elif [ "$head" != "$GITHUB_SHA" ]; then
+            echo "::error::published gitHead $head is not the release commit $GITHUB_SHA." \
+                 "Do not tag this. A wrong version can only be superseded."
+            exit 1
+          fi
+          rm -f packument.json
+          echo "create-pathfinder@$VERSION is live and matches $GITHUB_SHA."
+
+      - name: Tag the release commit
+        # Now, and not before: the package exists, so a tag naming it is a true
+        # statement. Annotated, matching the changelog, never moved once pushed.
+        if: steps.plan.outputs.tagged == 'no'
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "v$VERSION" -m "v$VERSION — released by .github/workflows/release.yml"
+          git push origin "refs/tags/v$VERSION"
+
+      - name: Create the GitHub Release
+        # Last, because it is the loudest. Notes come verbatim from the
+        # changelog section rather than being written a second time.
+        if: steps.plan.outputs.released == 'no'
+        env:
+          VERSION: ${{ steps.plan.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/changelog-notes.py "$VERSION" > notes.md
+          gh release create "v$VERSION" \
+            --verify-tag \
+            --target "$GITHUB_SHA" \
+            --title "Pathfinder v$VERSION" \
+            --notes-file notes.md
+          rm -f notes.md
+
+      - name: Summarise
+        if: always()
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          {
+            echo "### create-pathfinder v$VERSION"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| commit | \`$GITHUB_SHA\` |"
+            echo "| npm | https://www.npmjs.com/package/create-pathfinder/v/$VERSION |"
+            echo "| release | $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/v$VERSION |"
+            echo
+            echo "Verify from outside: \`npx create-pathfinder@$VERSION\` into a scratch repository."
+          } >> "$GITHUB_STEP_SUMMARY"

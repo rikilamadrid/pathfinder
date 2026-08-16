@@ -22,7 +22,22 @@
  * real publish and `--dry-run`. It does not run on `npm pack`, so local
  * packing and installer testing need none of this.
  *
- * To publish a release:
+ * ## Why this no longer demands a tag
+ *
+ * It used to refuse unless a matching version tag already pointed at HEAD. That
+ * requirement forced the release order that kept failing: a tag had to be
+ * pushed before the publish that might not succeed, and three releases running
+ * left a public tag naming a version the registry did not serve.
+ * `.github/workflows/release.yml` now publishes first and tags afterwards, so a
+ * tag at publish time is not merely unnecessary — it is the wrong state.
+ *
+ * What the tag was really standing in for is "this commit is the release commit
+ * on the mainline", and that is checked directly instead. When a tag *does*
+ * point at HEAD — a manual publish from an already-tagged commit, or a re-run
+ * over an earlier release — it must still agree with the version, because a tag
+ * that contradicts the tarball is a worse lie than no tag at all.
+ *
+ * To publish a release by hand, when the workflow cannot be used:
  *
  *     PATHFINDER_PUBLISH=yes npm publish
  */
@@ -106,23 +121,59 @@ if (status !== "") {
   );
 }
 
-let tag;
+// A tag is optional now, but a *contradictory* one is not tolerated. Under the
+// workflow the tag does not exist yet; under a manual re-publish of an older
+// release it does, and then it has to agree.
+let tag = null;
 try {
   tag = git("describe", "--tags", "--exact-match");
 } catch {
-  refuse(
-    "HEAD is not a release commit — no version tag points at it.",
-    `Tag the release commit first:\n\n    git tag -a v${version} -m "v${version} — <summary>"`,
-  );
+  // Expected on a release commit that has not been tagged yet.
 }
 
-if (tag !== `v${version}`) {
+if (tag !== null && tag !== `v${version}`) {
   refuse(
     `HEAD is tagged ${tag} but the package version is ${version}.`,
     "The installer mirrors the kit version exactly. Whichever is wrong, fix it\n" +
       "before publishing — a published mismatch cannot be corrected, only\n" +
       "superseded.",
   );
+}
+
+// Untagged, so something else has to establish that this commit is the release
+// rather than a branch someone happened to be standing on. Containment in the
+// mainline is that something: the release commit is merged to main before it is
+// published, and a feature branch, a rebase in progress, or a detached
+// experiment is not.
+if (tag === null) {
+  const mainline = ["origin/main", "main"].find((ref) => {
+    try {
+      git("rev-parse", "--verify", "--quiet", `${ref}^{commit}`);
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
+  if (mainline === undefined) {
+    refuse(
+      "neither `origin/main` nor `main` resolves, so this commit cannot be " +
+        "shown to be a release commit.",
+      "Publish from a full checkout of the kit repository. A shallow or\n" +
+        "single-branch clone cannot answer the question, and guessing is not an\n" +
+        "option when the answer is permanent.",
+    );
+  }
+
+  try {
+    git("merge-base", "--is-ancestor", "HEAD", mainline);
+  } catch {
+    refuse(
+      `HEAD is not contained in ${mainline}, so it is not a released commit.`,
+      "Merge the release commit to main first, then publish that. Publishing a\n" +
+        "branch ships a tree no one has reviewed on the mainline, permanently.",
+    );
+  }
 }
 
 const changelog = readFileSync(join(REPO_ROOT, "CHANGELOG.md"), "utf8");
@@ -134,7 +185,8 @@ if (!changelog.includes(`## [${version}]`)) {
   );
 }
 
+const head = git("rev-parse", "--short", "HEAD");
 console.log(
-  `create-pathfinder: publishing ${version} from ${tag}, ` +
+  `create-pathfinder: publishing ${version} from ${tag ?? head}, ` +
     "intent confirmed and release verified.",
 );

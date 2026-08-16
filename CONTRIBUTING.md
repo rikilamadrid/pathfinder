@@ -41,23 +41,55 @@ The audience for this section is whoever cuts the next release after a long gap.
 
 **The version comes from one place.** The newest `## [X.Y.Z]` heading in `CHANGELOG.md` is the source of truth. The Git tag and the installer's `package.json` are derived from it, and CI fails if they drift.
 
-Steps 1–6 are reversible. Steps 7 onward are not: a published npm version, a pushed tag, and a GitHub Release are permanent, and a mistake is corrected by superseding it, never by removing it.
+**Nothing public exists until npm has the package.** Steps 1–6 prepare a release and are reversible. Step 7 hands the rest to [`.github/workflows/release.yml`](.github/workflows/release.yml), which publishes to npm *first*, reads the version back off the registry, and only then pushes the tag and creates the GitHub Release. A published version, a pushed tag, and a Release are all permanent, and a mistake is corrected by superseding it, never by removing it.
 
-**Check that you can publish before you make anything permanent.** Step 8 pushes a tag; step 9 is the first step that can discover you cannot finish. Both previous releases hit this: `v1.4.1` stopped at npm's one-time-password prompt *after* the tag was already public, and `v1.5.0` found an expired token. Run `npm whoami` before step 7 and confirm it names an account entitled to publish `create-pathfinder`. If it errors, authenticate first. An agent cannot satisfy an interactive OTP prompt, so if the account requires one, expect step 8 to be run by a human.
+**There is no credential to check, because there is no credential.** npm mints a short-lived publish token from the workflow's own OIDC identity ([trusted publishing](https://docs.npmjs.com/trusted-publishers/)). Nobody types an OTP, no token expires, and there is nothing to authenticate before starting.
+
+That is a direct fix for a failure that happened three releases running — `v1.4.1` stopped at an OTP prompt, `v1.5.0` found an expired token, `v1.7.0` was refused with `EOTP` — every time *after* the tag was already public. The old preflight advice was to run `npm whoami` first. **Do not reintroduce it. `npm whoami` proves identity and says nothing about publish entitlement**, which is exactly why it predicted none of the three.
 
 1. **Decide the version** using the scope rule above, and confirm validation is green: `python3 .github/scripts/validate-kit.py`.
-2. **Write the changelog entry.** Rename `[Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and add a fresh empty `[Unreleased]` above it.
+2. **Write the changelog entry.** Rename `[Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and add a fresh empty `[Unreleased]` above it. Write it carefully: the GitHub Release notes are this section, extracted verbatim by [`changelog-notes.py`](.github/scripts/changelog-notes.py), not written again later.
 3. **Derive the installer version:** `python3 .github/scripts/set-release-version.py`. This rewrites `packages/create-pathfinder/package.json` from the changelog. Do not type the version there yourself.
 4. **Regenerate every version-bearing transcript, from a real run, after the bump.** The installer prints its own version, so any captured output that shows it — the `getting-started` guide's transcript today — is stale the moment step 3 lands. Re-capture it by running the local release source in a pty and rendering what the terminal is left showing. **Never search-and-replace the version inside captured output:** the point of a transcript is that a run actually produced it, and editing it by hand turns evidence into an illustration that agrees with itself. Then confirm the embedded version matches the release. This has already caught a defect no test did.
 5. **First publication only** — remove `"private": true` from `packages/create-pathfinder/package.json`. This is the deliberate boundary before `create-pathfinder` exists publicly and permanently under that name. Do it once, knowingly.
 6. **Commit, open the PR, squash merge**, per the Git workflow above. Re-run validation on `main` afterwards; the version-agreement rule now has something to check.
-7. **Tag the release commit** on `main`, annotated, matching the changelog: `git tag -a vX.Y.Z -m "vX.Y.Z — <summary>"`. Never move or delete a tag that has been pushed.
-8. **Push the tag:** `git push origin vX.Y.Z`.
-9. **Publish the installer**, from `packages/create-pathfinder/`: `PATHFINDER_PUBLISH=yes npm publish`. The guard refuses unless the working tree is clean, HEAD is exactly the matching tag, and the changelog agrees — but it cannot check your judgement about whether this release should exist.
-10. **Create the GitHub Release:** `gh release create vX.Y.Z --verify-tag --title "Pathfinder vX.Y.Z" --notes-file <notes>`, with notes derived from the changelog entry.
-11. **Verify from outside:** `npm view create-pathfinder version`, `gh release view vX.Y.Z`, and an `npx create-pathfinder@X.Y.Z` install into a scratch repository. Install from the published package, not from a local checkout — the point is to exercise what a user gets. In that scratch repository, confirm that adapters are generated (`npx create-pathfinder@X.Y.Z --agents claude-code`) and that a second identical run is idempotent: it writes the same bytes, reports the adapters as already up to date, and leaves the tree unchanged.
+7. **Run the release workflow:** `gh workflow run release.yml --ref main -f version=X.Y.Z`, or the *Run workflow* button on the Actions tab. It refuses to start unless the dispatched version, the changelog, and the manifest all say the same thing and `main`'s tip is the commit being released. Then, in order: validate, test, publish to npm, confirm the registry serves the version and that its `gitHead` is the release commit, push the annotated tag, create the Release with notes taken verbatim from the changelog.
+8. **Verify from outside:** `npm view create-pathfinder version`, `gh release view vX.Y.Z`, and an `npx create-pathfinder@X.Y.Z` install into a scratch repository. Install from the published package, not from a local checkout — the point is to exercise what a user gets. In that scratch repository, confirm that adapters are generated (`npx create-pathfinder@X.Y.Z --agents claude-code`) and that a second identical run is idempotent: it writes the same bytes, reports the adapters as already up to date, and leaves the tree unchanged.
 
 Never force-push, never move or delete a published tag, and never rewrite released history.
+
+### When the workflow fails
+
+**Re-dispatch it.** Every step checks whether its own effect already exists and skips if so, so a second run resumes rather than repeats. A failure before the publish leaves nothing behind. A failure after it leaves a published version that the next run will tag and release without publishing again.
+
+Never invent a new version to get past a failed run. The version is a statement about the kit, not a retry counter.
+
+The one thing to look at first is the `Plan the release` step, which prints what it decided and why before anything is written.
+
+### Publishing by hand, if the workflow cannot be used
+
+Only when GitHub Actions is unavailable, and knowing it needs an OTP:
+
+```sh
+cd packages/create-pathfinder
+PATHFINDER_PUBLISH=yes npm publish
+# then, only after the registry serves it:
+git tag -a vX.Y.Z -m "vX.Y.Z — <summary>" && git push origin vX.Y.Z
+gh release create vX.Y.Z --verify-tag --title "Pathfinder vX.Y.Z" \
+  --notes-file <(python3 ../../.github/scripts/changelog-notes.py X.Y.Z)
+```
+
+The order is the same and for the same reason. The publish guard refuses unless intent is explicit, the tree is clean, the changelog agrees, and the commit is contained in `main`. It no longer requires a tag at `HEAD` — under the workflow the tag does not exist yet — but it still refuses if a tag is there and names a different version.
+
+### One-time setup, outside this repository
+
+Not part of a release. Done once, by a human with the npm account, and needed before the first workflow run:
+
+1. On <https://www.npmjs.com/package/create-pathfinder/access>, under **Trusted Publisher**, choose GitHub Actions and enter organization/user `rikilamadrid`, repository `pathfinder`, workflow filename **`release.yml`**, no environment. Allow the `npm publish` action.
+2. Leave "require 2FA for publishing" on. It does not apply to a trusted publisher, and it is what protects the human path.
+3. Delete any remaining `create-pathfinder` automation or bypass-2FA tokens. Nothing uses them now, and npm is [removing their ability to publish](https://github.blog/changelog/2026-07-08-npm-install-time-security-and-gat-bypass2fa-deprecation/) in January 2027.
+
+**The trusted publisher is bound to the workflow's filename.** Renaming `release.yml` silently breaks every future publish, so `validate-kit.py`'s `release-workflow` rule fails if the file is missing — but only npmjs.com can be told about a rename.
 
 ## Adding a skill
 
