@@ -17,7 +17,8 @@ Things the agent would otherwise carry out. It stops and asks first:
 - destructive commands or file deletion,
 - rewriting Git history,
 - commits, merges, releases, and deployments,
-- adopting prototype code into production.
+- adopting prototype code into production,
+- writes that leave your repository, such as items on a shared work tracker.
 
 This list is declared in [`context/ai-interaction.md`](/context/ai-interaction/) — a
 markdown file the installer copied into your project, which you own. That is the
