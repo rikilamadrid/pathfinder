@@ -92,7 +92,7 @@ export const WORKFLOW_LOOPS = [
     // delivery would imply every project has a step here, which is the one
     // thing the design is careful not to claim.
     label: 'Work tracking (optional)',
-    skills: ['setup-tracker'],
+    skills: ['setup-tracker', 'sync-tracker'],
   },
   {
     // Not a sixth loop. `handoff` and `skillsmith` are cross-cutting utilities

@@ -20,6 +20,7 @@ Follow the project's documented policy. Unless explicitly pre-approved, ask befo
 - Git history rewriting
 - commits, merges, releases, or deployments
 - adopting prototype code into production
+- writes that leave this repository, such as creating or editing items on a shared work tracker — writing files inside the repository is an ordinary file edit and is not covered
 
 ## Git and Delivery
 

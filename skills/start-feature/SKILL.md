@@ -23,3 +23,4 @@ Restate goal, chunk, files/areas, context, risks, assumptions, verification, exc
 - Stop on conflicts between spec, durable context, and repository reality.
 - Do not add dependencies, expand scope, adopt prototype code, commit, merge, or deploy without the documented approval.
 - Do not hide multiple features inside one delivery chunk.
+- Do not publish to a work tracker, even when `context/tracker.md` exists — the repository is canonical and a chunk boundary is not a tracker event.

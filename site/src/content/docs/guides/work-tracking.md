@@ -61,10 +61,100 @@ Configuring a tracker publishes nothing. `setup-tracker` describes where work
 would go and stops there; the config is a file in your repository until something
 reads it. Nothing contacts your tracker as a side effect of setting one up.
 
-The skill that reads it is `sync-tracker`, and it is the next thing to land. It
-is named here rather than documented because it does not exist yet — this page
-gains its section when it ships. Until then, a configured `context/tracker.md`
-describes a projection that nothing performs.
+The skill that reads it is [`sync-tracker`](/skills/sync-tracker/), below.
+
+## Publishing it
+
+[`sync-tracker`](/skills/sync-tracker/) reads the config and publishes your
+approved feature specs onto whatever it describes. It publishes in dependency
+order, blockers first, so an edge can name a real identifier by the time it is
+written.
+
+**With no `context/tracker.md`, it does nothing at all.** It reports that
+tracking is not configured and stops — it will not offer to configure one, and it
+does not treat the absence as a gap.
+
+It publishes approved feature specs and nothing else. Not debate notes, not
+kickstart output, not prototypes — with one exception: a prototype that gates a
+decision may be published as a single item phrased as the decision it resolves.
+
+It also does not decompose a feature into smaller assignable units. Choosing how
+work is split between people or agents is a judgement, and the skill does not
+make it for you.
+
+Every field of a published item comes from the spec: the key from its number,
+edges from its `## Dependencies`, chunks from its `## Delivery Chunks`, and tags
+from an optional `## Tags` section — **and from nowhere else.** Tags are never
+inferred from a title or from the paths a spec happens to mention. A spec with no
+`## Tags` section publishes with no tags, which is correct and is what most
+projects will do. Guessing would produce a taxonomy you did not choose, applied
+to work you did not classify, looking authoritative on a shared board.
+
+### A second run should be boring
+
+This is the part worth understanding, because it is the part most likely to be
+wrong somewhere else:
+
+**Running `sync-tracker` again when nothing has changed creates nothing, edits
+nothing, and issues zero writes.** Not writes that happen to be no-ops — no
+writes. `3 items, 0 changes` is the expected output and the most important one.
+
+Getting that right needs more care than it looks. A tracker is not obliged to
+hand a body back exactly as it was sent, and APIs differ in whether they adjust
+trailing whitespace. Where one does, a naive byte comparison reports every item
+as changed on every run and rewrites all of them, forever. That failure *looks*
+like working sync. It has a healthy report, a plausible diff, and a tracker full
+of items whose "last updated" time is always now.
+
+So comparison is normalized on both sides, tag sets are compared as sets rather
+than ordered lists, and the body is composed as a pure function of the spec —
+fixed section order, nothing derived from the run itself, no timestamps and no
+counters. A body that varies between runs would rewrite everything even with
+perfect comparison logic.
+
+Two more rules follow from the same place. Items are **edited in place**, never
+closed and recreated. And an item whose key is not in the current run is **left
+completely alone** — it belongs to work outside this run, and nothing gives
+`sync-tracker` licence to touch it.
+
+### Your approval before it leaves the repository
+
+**Publishing to a remote tracker asks first.** Creating items on a shared board
+is outward-facing — other people get notified, and it is not the kind of thing an
+agent should do as a side effect of tidying up. One approval covers the run, not
+each item.
+
+**Writing local files under `.work/` does not ask.** It is an ordinary file edit
+that reaches nothing outside your repository. The boundary is about *leaving the
+repository*, not about writing — which is why the same skill gates one projection
+and not the other.
+
+This is declared as an approval boundary in
+[`context/ai-interaction.md`](/context/ai-interaction/), alongside commits and
+releases, so you can widen or narrow it like any other.
+
+## It happens during normal work
+
+There is no "now update the tracker" stage to remember. Four skills you already
+run each carry one conditional line, and each does nothing at all when no config
+exists:
+
+- [`to-specs`](/skills/to-specs/) offers to publish specs once it has written
+  them.
+- [`load-feature`](/skills/load-feature/) notes the tracked item for the feature
+  being loaded.
+- [`complete-feature`](/skills/complete-feature/) reconciles that item after the
+  merge.
+- [`start-feature`](/skills/start-feature/) **publishes nothing** — deliberately.
+  A delivery chunk is a planning device inside a feature, and finishing one is
+  not an event the outside world needs to hear about.
+
+That last one is a line of prose whose whole job is to prevent something. It is
+there so a tracker cannot quietly become the thing you work *for*, updated at
+every internal boundary.
+
+You can still run [`sync-tracker`](/skills/sync-tracker/) directly whenever you
+want. The wiring means you rarely have to.
 
 ## Two projections, one model
 
@@ -135,7 +225,8 @@ same rules. Nothing in the model branches on which one it is.
 
 ## Related
 
-[`setup-tracker`](/skills/setup-tracker/) is the skill that writes the config.
+[`setup-tracker`](/skills/setup-tracker/) is the skill that writes the config and
+[`sync-tracker`](/skills/sync-tracker/) is the one that reads it.
 [Human approval](/concepts/human-approval/) covers the decisions that stay yours,
 and [the workflow](/guides/workflow/) shows the loops this sits beside rather
 than inside.

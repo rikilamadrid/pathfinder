@@ -202,7 +202,8 @@ A project installed before v1.5.0 also has a `prompts/` directory, which the ins
 │   ├── reflect/
 │   ├── handoff/
 │   ├── skillsmith/
-│   └── setup-tracker/
+│   ├── setup-tracker/
+│   └── sync-tracker/
 └── templates/
 ```
 

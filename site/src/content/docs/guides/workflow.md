@@ -271,14 +271,23 @@ Neither belongs to a loop, so neither is filed inside one.
 ## Work tracking sits beside the loops, not inside one
 
 [`setup-tracker`](/skills/setup-tracker/) configures an optional projection of your
-feature specs onto GitHub Issues or local Markdown files. It is not a step in any
+feature specs onto GitHub Issues or local Markdown files, and
+[`sync-tracker`](/skills/sync-tracker/) publishes them. It is not a step in any
 loop above, and a project that never configures a tracker meets none of it — no
 file, no prompt, and no change to any diagram on this page.
 
 It is filed separately for that reason. Placing it in the delivery loop would
 imply every project has a step there, and most do not.
-[Work tracking](/guides/work-tracking/) covers what it does and why the repository
-stays canonical.
+
+The delivery loop does carry it, though, when a config exists: `to-specs` offers
+to publish, `load-feature` names the tracked item, and `complete-feature`
+reconciles it after the merge. `start-feature` deliberately publishes nothing — a
+chunk boundary is internal, and the tracker does not need to hear about it. Each
+of those is one conditional line that does nothing without a config, which is why
+none of them appears on the diagrams above.
+
+[Work tracking](/guides/work-tracking/) covers what it does, why a second run
+should write nothing, and why the repository stays canonical.
 
 ## Where you decide, in one list
 
@@ -288,7 +297,7 @@ files. Worth keeping straight, because editing the wrong one changes nothing.
 **Operations that need approval** — the agent would otherwise carry them out, so it
 stops and asks first. Dependencies and build tooling, architecture migrations,
 security-sensitive changes, destructive commands, Git history rewriting, commits and
-releases, and adopting prototype code. Declared in
+releases, adopting prototype code, and writes that leave your repository. Declared in
 [`context/ai-interaction.md`](/context/ai-interaction/), and that file is where you
 widen, narrow, or pre-approve them.
 

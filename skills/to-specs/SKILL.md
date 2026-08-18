@@ -36,7 +36,11 @@ Create only the coherent MVP roadmap in `context/features/`, using `templates/fe
 
 Each spec must include Context Boundary, Delivery Chunks, and Learning Targets.
 
+Write a `## Tags` section only when the project has configured work tracking and its `context/tracker.md` defines tag namespaces. Use the values that config already lists, never invented ones. No tags is a valid and common answer — omit the section rather than guessing.
+
 After creation, summarize file, outcome, dependency, visible/verifiable win, context risk, and recommended first feature.
+
+If `context/tracker.md` exists, offer to publish the new specs with `sync-tracker`. If it does not, say nothing about tracking.
 
 ## Rules
 

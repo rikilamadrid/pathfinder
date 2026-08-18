@@ -79,6 +79,12 @@ chunks-projection: checklist
 Match on the key alone. Never match on the title — titles are edited by humans
 and a title match will create duplicates or overwrite the wrong item.
 
+**The title is written once, when the item is created, and is never reconciled
+afterwards.** It is human-owned from that point on. This is a decision, not an
+oversight, and it follows from the rule above: humans edit titles, so a
+projection that rewrote them would overwrite that edit on every run. Renaming
+the spec changes the pointer to it in the body, not the title.
+
 **Prose alone is not sufficient for identity.** This marker is the one
 machine-stable token in an otherwise prose contract. Everything else here can be
 reworded; this cannot be removed on the grounds that the config is "just prose".
@@ -126,8 +132,15 @@ different tracker.
 
 An edge may name a work item that is **not in the set being published**. That is
 normal — a feature can depend on one that was tracked earlier or not at all. Do
-not drop such an edge and do not invent an item for it. Record it in the body as
-unresolved, naming the key, and say plainly that it has no item in this tracker.
+not drop such an edge and do not invent an item for it. Resolve it against the
+tracker as a whole rather than against this run:
+
+- if the key already has an item in the tracker, render that item's identifier,
+  exactly as an in-set edge is rendered;
+- otherwise render the key and say plainly that it has no item here.
+
+Being outside this run is not the same as being untracked, and an edge must not
+claim it is.
 
 Publish in dependency order, blockers first, so an edge can reference a real
 identifier by the time it is written.
@@ -154,6 +167,57 @@ thing, use it and record the mapping below rather than creating a
 near-duplicate. Never invent a taxonomy the team did not ask for, and never
 apply a tag that is not in the mapping table.
 
+### From spec to work item
+
+Every field above comes from the spec, and from nowhere else:
+
+- **key** — `pathfinder:feature/<NN>`, from the spec's number.
+- **kind** — `feature` for an approved feature spec.
+- **title** — the spec's own title.
+- **blocked-by** — the specs named under `## Dependencies`, each converted to
+  its key. A dependency that is not a feature spec — a decision, an external
+  system, `None` — produces no edge.
+- **chunks** — the entries under `## Delivery Chunks`, in spec order.
+- **tags** — **only** the values written in the spec's optional `## Tags`
+  section.
+
+**Tags are never inferred.** Not from the title, not from the paths a spec
+mentions, not from which part of the system it appears to touch. A spec with no
+`## Tags` section has no tags, and an item published with none is correct and
+expected — most projects never use them. Guessing a tag produces a taxonomy the
+team did not choose, applied to work they did not classify, and it will look
+authoritative on the board.
+
+If a spec names a tag that this config's mapping table does not carry, **stop and
+ask**. Do not apply it, and do not quietly drop it.
+
+### Body composition
+
+The body is a **pure function of the spec**. The same spec must produce the same
+body on every run. This is not tidiness: re-publishing decides what to do by
+comparing the body it would write now against the one already there, so a body
+that varies between runs rewrites every item forever while appearing to work.
+
+Compose it in this order, and **omit any section whose source is absent** rather
+than emitting it empty:
+
+1. a pointer to the spec this item projects
+2. the blocked-by edges
+3. the parent, on a ticket
+4. the delivery chunks
+5. the statement that the repository is canonical and that nothing here is read
+   back
+6. the marker block, last
+
+**Never include anything derived from the run rather than the spec** — no date,
+no timestamp, no run counter, no tally of what changed, no note of who published
+it. Each of those differs on the next run and each would make every item look
+modified. Never re-wrap or re-summarise text taken from the spec: copy it the
+same way every time, or the same spec produces two different bodies.
+
+How each of these elements *renders* is a projection concern. The order, the
+omission rule, and the absence of run-derived content are not.
+
 <!-- pathfinder:projection-boundary
 This marker closes the neutral model opened by `pathfinder:model-start`.
 Everything below is one projection. Keep exactly one of the two blocks that
@@ -167,9 +231,15 @@ not keep.
 
 - One work item → one issue.
 - Title → the spec's title, prefixed with its number: `06 — Docs Site Scaffold`.
+- The **spec pointer** → the first line of the body, naming the spec's path.
+- The **repository-is-canonical statement** → a line near the end of the body,
+  before the marker, saying that nothing here is read back and that a ticked box
+  advances no state.
 - The marker block goes at the **end** of the issue body.
 - `blocked-by` → a `**Blocked by**` line naming each blocker as
-  `#<number> (<key>)`, or `<key> — not tracked here` when it resolves to nothing.
+  `#<number> (<key>)`. A key with no issue in this repository renders as
+  `<key> — not tracked here`; a key that has one renders as `#<number> (<key>)`
+  whether or not it is part of the current run.
 - `parent` → a `**Parent**` line naming the feature as `#<number> (<key>)`.
   Never render parentage as a blocking edge.
 - `chunks` under `chunks-projection: checklist` → a `## Delivery chunks` section
@@ -206,13 +276,15 @@ when nothing changed:
    no edit, no comment, no label call. An unchanged item must produce zero
    writes, not a write that happens to be a no-op.
 
-   **Compare normalized, never raw bytes.** GitHub does not return a body
-   byte-for-byte as it was sent: it appends a trailing newline. A naive byte
-   comparison therefore reports every issue as changed on every run and rewrites
-   all of them forever, which looks like working sync and is not. Before
-   comparing, strip trailing whitespace from each line and collapse trailing
-   blank lines at end of body, on **both** sides. Compare label sets as sets, not
-   as ordered lists — the tracker does not preserve the order they were applied.
+   **Compare normalized, never raw bytes.** A tracker is not obliged to hand a
+   body back exactly as it was sent, and APIs differ in whether they adjust
+   trailing whitespace. Where that happens, a naive byte comparison reports every
+   issue as changed on every run and rewrites all of them forever — which looks
+   like working sync and is not. Before comparing, strip trailing whitespace from
+   each line and collapse trailing blank lines at end of body, on **both** sides.
+   This costs nothing when the round-trip is exact, and is the difference between
+   inert and catastrophic when it is not. Compare label sets as sets, not as
+   ordered lists — the tracker does not preserve the order they were applied.
 4. If they differ, edit that issue in place. Never close and recreate.
 5. Never close an issue, never reopen one, and never touch an issue whose key is
    absent from the current set — it belongs to work outside this run.
@@ -223,12 +295,29 @@ Report what was created, what was edited, and what was left alone.
 
 *Keep this block for a local Markdown tracker; delete the GitHub block above.*
 
-- One work item → one file, `.work/<NN>-<slug>.md`, numbered from `01` in
-  dependency order so blockers sort first.
+- One work item → one file, `.work/<NN>-<slug>.md`. On first publish the files
+  are numbered from `01` in dependency order, so blockers sort first.
+
+  **`<NN>` is presentation and ordering only. It is never identity** — a file is
+  recognised by the key inside it, and nothing may match on the prefix.
+
+  A new file takes the **next unused prefix**, not the position it would occupy
+  in dependency order. Existing files are **never renumbered**: renaming a file
+  is deleting one and creating another, and re-publishing must never do that —
+  it would rewrite unrelated files every time a blocker was inserted. So after a
+  dependency change the prefixes no longer sort into dependency order, and that
+  is expected. Read the current order from the `**Blocked by**` lines, which are
+  reconciled. The prefixes are not.
 - Title → an `# ` heading, prefixed with its number: `06 — Docs Site Scaffold`.
+- The **spec pointer** → the first line of the body, naming the spec's path.
+- The **repository-is-canonical statement** → a line near the end of the file,
+  before the marker, saying that nothing here is read back and that a ticked box
+  advances no state.
 - The marker block goes at the **end** of the file.
 - `blocked-by` → a `**Blocked by**` line naming each blocker as
-  `<file> (<key>)`, or `<key> — not tracked here` when it resolves to nothing.
+  `<file> (<key>)`. A key with no file under `.work/` renders as
+  `<key> — not tracked here`; a key that has one renders as `<file> (<key>)`
+  whether or not it is part of the current run.
 - `parent` → a `**Parent**` line naming the feature as `<file> (<key>)`.
   Never render parentage as a blocking edge.
 - `chunks` under `chunks-projection: checklist` → a `## Delivery chunks` section
