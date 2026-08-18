@@ -7,10 +7,20 @@
 > with no `context/tracker.md` behaves exactly as it always has, and nothing in
 > Pathfinder prompts for one. Do not ship this template's output unconfigured.
 >
-> **Everything above the projection marker is backend-neutral and must be kept
-> byte-identical whichever projection is chosen.** Choosing a backend cuts below
-> the marker and nowhere else. If a backend's vocabulary — "issue", "label",
-> "file" — appears above it, that is a defect, not a detail.
+> **The backend-neutral model is everything between the two markers below** —
+> from `pathfinder:model-start` down to `pathfinder:projection-boundary` — and it
+> **must be byte-identical whichever projection is chosen.** Choosing a backend
+> cuts below the projection boundary and nowhere else. Nothing inside the model
+> may be *defined* in a backend's terms — an "issue number", a "label", a file
+> path. Naming one in order to rule it out is not the same thing and is correct:
+> "edges name keys, never tracker issue numbers" is the neutrality rule being
+> stated, not a leak. The test is whether changing backend would change the
+> sentence.
+>
+> The two paragraphs above the model marker are this project's own — the tracker
+> it uses, and the rule that the repository wins. They are *not* claimed to be
+> byte-identical across backends: the first one names the tracker and how an
+> agent reaches it, so it necessarily differs.
 
 This project tracks work in `[tracker name]`, at `[where it lives]`, reached by
 `[how to reach it]`.
@@ -19,6 +29,13 @@ The repository is canonical. This tracker is a **one-way projection** of work
 that already exists in `context/features/`. Never read status back out of the
 tracker and into a spec. If the two disagree, the repository is right and the
 tracker is stale.
+
+<!-- pathfinder:model-start
+Everything from here to the projection boundary is the backend-neutral model. It
+is byte-identical in every configured project, whichever backend is chosen.
+Nothing between the two markers may be defined in a backend's terms; naming one
+to exclude it is correct and is not a leak.
+-->
 
 ## What gets tracked
 
@@ -138,10 +155,10 @@ near-duplicate. Never invent a taxonomy the team did not ask for, and never
 apply a tag that is not in the mapping table.
 
 <!-- pathfinder:projection-boundary
-Everything above this marker is the neutral model and is identical in every
-configured project, whichever backend is chosen. Everything below is one
-projection. Keep exactly one of the two blocks that follow, and delete this
-marker along with the block you did not keep.
+This marker closes the neutral model opened by `pathfinder:model-start`.
+Everything below is one projection. Keep exactly one of the two blocks that
+follow, and delete this marker, the model-start marker, and the block you did
+not keep.
 -->
 
 ## Projection to GitHub

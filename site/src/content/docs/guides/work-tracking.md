@@ -58,9 +58,13 @@ markdown file written for an agent to read and follow, which is why adding a
 tracker adds no runtime, no dependency, and no credentials to the kit.
 
 Configuring a tracker publishes nothing. `setup-tracker` describes where work
-would go and stops there; the config is a file in your repository until a
-publishing run reads it. Nothing contacts your tracker as a side effect of
-setting one up.
+would go and stops there; the config is a file in your repository until something
+reads it. Nothing contacts your tracker as a side effect of setting one up.
+
+The skill that reads it is `sync-tracker`, and it is the next thing to land. It
+is named here rather than documented because it does not exist yet — this page
+gains its section when it ships. Until then, a configured `context/tracker.md`
+describes a projection that nothing performs.
 
 ## Two projections, one model
 

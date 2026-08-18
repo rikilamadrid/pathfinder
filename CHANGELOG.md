@@ -27,6 +27,16 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Added
+
+- **Optional work tracking, configured in prose rather than code.** A new `setup-tracker` skill interviews you for which tracker you use, where it lives, how an agent reaches it, and which tags your project actually uses — then writes `context/tracker.md` from `templates/tracker.template.md` once you approve it. Two projections ship, both proven against real backends: GitHub Issues via the `gh` CLI, and local Markdown files under `.work/`. Any other tracker is supported by describing it in prose, which is the mechanism rather than a gap — it is why this adds no runtime, no dependency, and no credential handling to the kit.
+- **`templates/tracker.template.md`** — one file carrying the backend-neutral work-item model once and both projections beneath it. The model is byte-identical whichever backend you pick, and the template marks its own boundaries so that claim is checkable in one place rather than asserted twice.
+
+### Notes
+
+- **Work tracking is off unless you ask for it, and the off switch is the absence of a file.** No `context/tracker.md` ships, nothing prompts you for one, and no existing skill behaves differently without it. A project that never runs `/setup-tracker` sees no change of any kind from this release.
+- **Configuring a tracker publishes nothing.** `setup-tracker` writes a config and stops; it never contacts a tracker. The skill that publishes arrives next.
+
 ## [1.7.0] - 2026-08-16
 
 ### Added

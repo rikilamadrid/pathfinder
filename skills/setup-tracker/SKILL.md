@@ -52,9 +52,17 @@ without:
    - Any other tracker is supported by the human describing it in prose, using a
      shipped projection as the shape to follow. **That is the mechanism, not a
      gap** — do not report an unsupported tracker as a blocker.
-5. Fill the placeholders. Keep **one** projection block, delete the other, and
-   delete the projection-boundary marker and the template's guidance blockquote.
-   Everything above the boundary is kept byte-for-byte.
+5. Fill the placeholders and keep **one** projection block. Delete, in the
+   written config:
+   - the template's guidance blockquote at the top;
+   - the projection block you did not keep;
+   - the `pathfinder:model-start` and `pathfinder:projection-boundary` markers;
+   - the italic *"Keep this block for…"* line under the projection you kept — it
+     is an instruction to you, not content for the project to read.
+
+   **The model — everything between the two markers — is kept byte-for-byte.**
+   The tracker-identity paragraph above it is the one part you rewrite, because
+   it names the tracker and how to reach it.
 6. Present the proposed file and request approval.
 7. Write `context/tracker.md` only after the human approves.
 8. Report what was configured, and say plainly that nothing has been published.
