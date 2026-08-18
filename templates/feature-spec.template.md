@@ -22,9 +22,9 @@ State one user-visible or system-verifiable outcome.
 
 - Earlier feature, system, decision, prototype, or `None`.
 
-## Tags — Optional
+## Tags
 
-- `namespace:value`, e.g. `area:cli`, `type:infra`, `agent:suitable`.
+- Optional. `namespace:value`, e.g. `area:cli`, `type:infra`, `agent:suitable`.
 - Omit this section entirely, or write `None`, when the project does not use tags. Most do not.
 - Only meaningful when the project has configured work tracking; nothing else reads them.
 
