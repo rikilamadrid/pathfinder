@@ -41,6 +41,7 @@ The heading of the most recent released section below is the single source of tr
 - **Work tracking is off unless you ask for it, and the off switch is the absence of a file.** No `context/tracker.md` ships, nothing prompts you for one, and no existing skill behaves differently without it. A project that never runs `/setup-tracker` sees no change of any kind from this release.
 - **Configuring a tracker publishes nothing.** `setup-tracker` writes a config and stops; it never contacts a tracker. Publishing is `sync-tracker`, and it asks before the first write that leaves your repository.
 - **Sync is one-way, and the repository stays canonical.** Nothing reads tracker state back into a spec, `context/current-feature.md`, or `context/history.md`. A ticked checkbox on a published item means nothing to Pathfinder, and items are matched by key rather than title, so renaming one on the tracker breaks nothing.
+- **Nothing here is something an existing project has to adopt.** Upgrading does not require configuring a tracker, and it does not require adding `## Tags` to any feature spec — existing specs stay valid exactly as written, and specs written after the upgrade only get a tags section if a tracker config defines namespaces to fill it. The whole of work tracking is opt-in, and staying opted out is a supported way to use Pathfinder rather than a deferral.
 
 ## [1.7.0] - 2026-08-16
 
