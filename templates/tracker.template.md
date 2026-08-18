@@ -79,6 +79,12 @@ chunks-projection: checklist
 Match on the key alone. Never match on the title — titles are edited by humans
 and a title match will create duplicates or overwrite the wrong item.
 
+**The title is written once, when the item is created, and is never reconciled
+afterwards.** It is human-owned from that point on. This is a decision, not an
+oversight, and it follows from the rule above: humans edit titles, so a
+projection that rewrote them would overwrite that edit on every run. Renaming
+the spec changes the pointer to it in the body, not the title.
+
 **Prose alone is not sufficient for identity.** This marker is the one
 machine-stable token in an otherwise prose contract. Everything else here can be
 reworded; this cannot be removed on the grounds that the config is "just prose".
@@ -154,6 +160,33 @@ thing, use it and record the mapping below rather than creating a
 near-duplicate. Never invent a taxonomy the team did not ask for, and never
 apply a tag that is not in the mapping table.
 
+### Body composition
+
+The body is a **pure function of the spec**. The same spec must produce the same
+body on every run. This is not tidiness: re-publishing decides what to do by
+comparing the body it would write now against the one already there, so a body
+that varies between runs rewrites every item forever while appearing to work.
+
+Compose it in this order, and **omit any section whose source is absent** rather
+than emitting it empty:
+
+1. a pointer to the spec this item projects
+2. the blocked-by edges
+3. the parent, on a ticket
+4. the delivery chunks
+5. the statement that the repository is canonical and that nothing here is read
+   back
+6. the marker block, last
+
+**Never include anything derived from the run rather than the spec** — no date,
+no timestamp, no run counter, no tally of what changed, no note of who published
+it. Each of those differs on the next run and each would make every item look
+modified. Never re-wrap or re-summarise text taken from the spec: copy it the
+same way every time, or the same spec produces two different bodies.
+
+How each of these elements *renders* is a projection concern. The order, the
+omission rule, and the absence of run-derived content are not.
+
 <!-- pathfinder:projection-boundary
 This marker closes the neutral model opened by `pathfinder:model-start`.
 Everything below is one projection. Keep exactly one of the two blocks that
@@ -225,6 +258,14 @@ Report what was created, what was edited, and what was left alone.
 
 - One work item → one file, `.work/<NN>-<slug>.md`, numbered from `01` in
   dependency order so blockers sort first.
+
+  `<NN>` is assigned **once**, when the file is first created, from the
+  dependency order at that moment. It is an identifier, **not a live claim about
+  ordering**. A later dependency change does not renumber the files that already
+  exist: renaming a file is deleting one and creating another, and re-publishing
+  must never do that — it would rewrite unrelated files every time a blocker was
+  inserted. Read the current order from the `**Blocked by**` lines, which are
+  reconciled. The number prefixes are not.
 - Title → an `# ` heading, prefixed with its number: `06 — Docs Site Scaffold`.
 - The marker block goes at the **end** of the file.
 - `blocked-by` → a `**Blocked by**` line naming each blocker as

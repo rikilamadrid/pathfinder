@@ -77,3 +77,4 @@ An adapter carries the canonical skill's frontmatter and a pointer to it, and no
 - `handoff` — preserve useful state between sessions or tools
 - `skillsmith` — teach and create small local skills
 - `setup-tracker` — configure an optional external work tracker
+- `sync-tracker` — publish approved feature specs to the configured tracker, one-way and idempotently
