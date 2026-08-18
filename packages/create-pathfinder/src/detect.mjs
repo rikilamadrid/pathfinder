@@ -119,7 +119,7 @@ function detectTool(tool, { cwd, home, env, platform }) {
  * Decided by counting skill directories rather than by testing for `CLAUDE.md`,
  * which any agent-assisted project may have written for its own reasons.
  * A `skills/<name>/SKILL.md` is a far more specific signature, and the count is
- * worth having on its own — it is what makes "already installed (20 skills)"
+ * worth having on its own — it is what makes "already installed (N skills)"
  * checkable by the person reading it.
  */
 function detectPathfinder(cwd) {

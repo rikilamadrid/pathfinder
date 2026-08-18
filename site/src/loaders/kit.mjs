@@ -283,8 +283,8 @@ export function kitDocsLoader({ skillsDir, contextDir }) {
 
         retire('skills', present);
         // The count is the skills, not the store entries — the generated index
-        // is not a twenty-first skill and a log line that implies it is would be
-        // the first thing to mislead someone counting.
+        // is not one more skill, and a log line that implies it is would be the
+        // first thing to mislead someone counting.
         return summaries.size;
       };
 

@@ -27,7 +27,7 @@ The installer copies five things into your repository and nothing else:
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
-| `skills/` | Twenty skills covering discovery, specs, delivery, debugging, review, and learning |
+| `skills/` | Skills covering discovery, specs, delivery, debugging, review, learning, and optional work tracking |
 | `templates/` | Starting points the project copies when it needs them |
 
 On request it also writes one thing it does not copy:

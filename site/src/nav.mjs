@@ -112,6 +112,10 @@ export const WORKFLOW_LOOPS = [
 const GUIDES = [
   { label: 'Getting started', link: '/guides/getting-started/' },
   { label: 'The workflow', link: '/guides/workflow/' },
+  // Last, and labelled optional in its own heading, because it describes a
+  // capability a project only has if it asks for one. A reader who never
+  // configures a tracker should be able to skip this and miss nothing.
+  { label: 'Work tracking', link: '/guides/work-tracking/' },
 ];
 
 /**

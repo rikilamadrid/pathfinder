@@ -93,7 +93,7 @@ Not part of a release. Done once, by a human with the npm account, and needed be
 
 ## Adding a skill
 
-The bar is high on purpose. Pathfinder currently has 20 skills and does not want 40.
+The bar is high on purpose. Pathfinder has the skills it has and does not want twice as many.
 
 Add a new skill only when:
 
