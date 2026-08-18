@@ -23,7 +23,7 @@ It is intentionally stack-agnostic. It does not choose React, Python, mobile, a 
 
 ## What this is, and what it is not
 
-**It is** a workflow and context kit: twenty skills with defined boundaries, a `context/` folder that holds project truth, and native skill discovery in the tools that support it. It is for someone who wants an agent to move fast on delivery while product, architecture, and Git decisions stay explicitly theirs — and who wants to understand the result afterward, not just receive it.
+**It is** a workflow and context kit: a set of skills with defined boundaries, a `context/` folder that holds project truth, and native skill discovery in the tools that support it. It is for someone who wants an agent to move fast on delivery while product, architecture, and Git decisions stay explicitly theirs — and who wants to understand the result afterward, not just receive it.
 
 **It is not** a framework. There is no required runtime, package manager, framework, database, hosting platform, or Git model, and there is no dependency to install. The destination project chooses its own technology, architecture, delivery process, and learning output format. See [`NOT_A_FRAMEWORK.md`](NOT_A_FRAMEWORK.md).
 
@@ -51,7 +51,7 @@ It writes exactly five things:
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
-| `skills/` | Twenty skills covering discovery, specs, delivery, debugging, review, and learning |
+| `skills/` | Skills covering discovery, specs, delivery, debugging, review, learning, and optional work tracking |
 | `templates/` | Starting points the project copies when it needs them |
 
 It never overwrites. Files you already have are left alone and listed by name; pass `--force` if you actually want them replaced, or `--dry-run` to see the plan without writing. It installs only into a Git repository, so whatever it writes is reviewable and undoable — in a directory that is not one yet, it explains why and offers to run `git init` for you. Decline and nothing is written.
@@ -201,7 +201,8 @@ A project installed before v1.5.0 also has a `prompts/` directory, which the ins
 │   ├── learning-review/
 │   ├── reflect/
 │   ├── handoff/
-│   └── skillsmith/
+│   ├── skillsmith/
+│   └── setup-tracker/
 └── templates/
 ```
 

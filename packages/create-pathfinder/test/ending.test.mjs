@@ -56,7 +56,21 @@ describe("a successful install ends on an arrival", () => {
     const { out } = await install(makeRepository());
 
     assert.match(out, /YOU'RE ALL SET/);
-    assert.match(out, /36 files, 20 adapters, Claude Code/);
+
+    // Derived from the run's own summary rather than written as literals. The
+    // claim being defended is "the run does not claim more than it did", which
+    // is about the two lines agreeing — pinning the numbers instead made every
+    // added kit file or skill fail here, with a message that named the count
+    // rather than the disagreement.
+    const summary = out.match(/✓ (\d+) files written/);
+    const adapters = out.match(/✓ (\d+) Claude Code skill adapters generated/);
+    assert.ok(summary, "the summary does not report a file count");
+    assert.ok(adapters, "the summary does not report an adapter count");
+    assert.match(
+      out,
+      new RegExp(`${summary[1]} files, ${adapters[1]} adapters, Claude Code`),
+      "the closing line disagrees with the summary above it",
+    );
   });
 
   it("bookends the run with the mark, which no intermediate phase draws", async () => {

@@ -268,6 +268,18 @@ skill owns the responsibility.
 
 Neither belongs to a loop, so neither is filed inside one.
 
+## Work tracking sits beside the loops, not inside one
+
+[`setup-tracker`](/skills/setup-tracker/) configures an optional projection of your
+feature specs onto GitHub Issues or local Markdown files. It is not a step in any
+loop above, and a project that never configures a tracker meets none of it — no
+file, no prompt, and no change to any diagram on this page.
+
+It is filed separately for that reason. Placing it in the delivery loop would
+imply every project has a step there, and most do not.
+[Work tracking](/guides/work-tracking/) covers what it does and why the repository
+stays canonical.
+
 ## Where you decide, in one list
 
 Every `◆` above is one of two different things, and they live in two different

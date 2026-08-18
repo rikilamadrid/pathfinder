@@ -4,7 +4,7 @@
  * This used to be one hardcoded string naming a file path, and that was right
  * for exactly as long as Pathfinder configured nothing. Once a run can generate
  * native adapters, the path form is no longer the best answer for someone who
- * just watched twenty skills be installed into their harness — it is the answer
+ * just watched the whole kit be installed into their harness — it is the answer
  * for someone whose tool cannot discover them.
  *
  * A pure function of the selection, deliberately: no filesystem, no detection,

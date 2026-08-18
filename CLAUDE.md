@@ -76,3 +76,4 @@ An adapter carries the canonical skill's frontmatter and a pointer to it, and no
 - `reflect` — review completed work, and the reflection itself, and propose reusable workflow improvements for human approval
 - `handoff` — preserve useful state between sessions or tools
 - `skillsmith` — teach and create small local skills
+- `setup-tracker` — configure an optional external work tracker

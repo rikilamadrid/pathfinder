@@ -70,17 +70,17 @@ and undo it. It will not touch an existing history.
   ↑↓ move   space toggle   enter confirm
 
   📦  INSTALLING
-  │  ✓ Kit files — 36 copied
-  │  ✓ Claude Code — 20 adapters
+  │  ✓ Kit files — N copied
+  │  ✓ Claude Code — N adapters
 
   📋  SUMMARY
   │  Installed the Pathfinder kit into /path/to/my-project
-  │  ✓ 36 files written
-  │  ✓ 20 Claude Code skill adapters generated
+  │  ✓ N files written
+  │  ✓ N Claude Code skill adapters generated
 
      ━━━
     ━━━━━      🎉  YOU'RE ALL SET
-   ━━━━━━━     36 files, 20 adapters, Claude Code
+   ━━━━━━━     N files, N adapters, Claude Code
   ━━━━━━━━━
 
   Hand your agent this prompt to begin:
@@ -104,7 +104,10 @@ and undo it. It will not touch an existing history.
 ```
 
 That transcript is a real run, captured with colour switched off, because a
-Markdown code block can show the glyphs and the layout but not the colour. In a
+Markdown code block can show the glyphs and the layout but not the colour. The
+file and adapter counts are shown as `N` rather than as the numbers that run
+printed: a real run prints real totals, and pinning last release's totals into
+this page only guarantees they are wrong by the next one. In a
 colour terminal the same run adds Pathfinder's orange to the mark, green to the
 successful counts, and yellow to anything that wants your attention — and it
 draws a progress bar through the install phase, which appears only where a
