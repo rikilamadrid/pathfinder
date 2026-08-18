@@ -86,6 +86,15 @@ export const WORKFLOW_LOOPS = [
     skills: ['reflect'],
   },
   {
+    // Also not a loop, and deliberately its own group rather than a corner of
+    // the delivery loop. Work Tracking is *optional*: a project with no
+    // `context/tracker.md` never meets these skills at all. Filing them under
+    // delivery would imply every project has a step here, which is the one
+    // thing the design is careful not to claim.
+    label: 'Work tracking (optional)',
+    skills: ['setup-tracker'],
+  },
+  {
     // Not a sixth loop. `handoff` and `skillsmith` are cross-cutting utilities
     // and the README does not place them in one, so neither does this. Naming
     // the group honestly beats forcing them into a loop they do not belong to.
