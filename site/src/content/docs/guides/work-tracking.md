@@ -82,6 +82,14 @@ It also does not decompose a feature into smaller assignable units. Choosing how
 work is split between people or agents is a judgement, and the skill does not
 make it for you.
 
+Every field of a published item comes from the spec: the key from its number,
+edges from its `## Dependencies`, chunks from its `## Delivery Chunks`, and tags
+from an optional `## Tags` section — **and from nowhere else.** Tags are never
+inferred from a title or from the paths a spec happens to mention. A spec with no
+`## Tags` section publishes with no tags, which is correct and is what most
+projects will do. Guessing would produce a taxonomy you did not choose, applied
+to work you did not classify, looking authoritative on a shared board.
+
 ### A second run should be boring
 
 This is the part worth understanding, because it is the part most likely to be
@@ -91,12 +99,12 @@ wrong somewhere else:
 nothing, and issues zero writes.** Not writes that happen to be no-ops — no
 writes. `3 items, 0 changes` is the expected output and the most important one.
 
-Getting that right needs more care than it looks. A tracker does not necessarily
-hand a body back exactly as it was sent — GitHub appends a trailing newline — so
-a naive byte comparison reports every item as changed on every run and rewrites
-all of them, forever. That failure *looks* like working sync. It has a healthy
-report, a plausible diff, and a tracker full of items whose "last updated" time
-is always now.
+Getting that right needs more care than it looks. A tracker is not obliged to
+hand a body back exactly as it was sent, and APIs differ in whether they adjust
+trailing whitespace. Where one does, a naive byte comparison reports every item
+as changed on every run and rewrites all of them, forever. That failure *looks*
+like working sync. It has a healthy report, a plausible diff, and a tracker full
+of items whose "last updated" time is always now.
 
 So comparison is normalized on both sides, tag sets are compared as sets rather
 than ordered lists, and the body is composed as a pure function of the spec —

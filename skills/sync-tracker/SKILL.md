@@ -50,7 +50,9 @@ skill written for it. Publish the feature.
 1. Check for `context/tracker.md`. If it is absent, report and stop.
 2. Read the config. Read the approved specs. Read nothing else.
 3. Build the work items: key, kind, title, body, blocked-by edges, tags, and
-   chunks, composed exactly as the config's model section says.
+   chunks, derived and composed exactly as the config's model section says. Every
+   field comes from the spec — **tags only from its optional `## Tags` section,
+   never inferred.** A spec without one has no tags, which is correct and common.
 4. Order them by dependency, blockers first. If the edges contain a cycle,
    report it and publish nothing — a guessed order is a wrong order that looks
    fine.
@@ -76,12 +78,13 @@ leaving the repository, not about writing.
 A second run over unchanged specs must **create nothing, change nothing, and
 issue zero writes**. Not writes that happen to be no-ops — no writes.
 
-- **Compare normalized, never raw bytes.** A tracker does not necessarily return
-  a body as it was sent; appending a trailing newline is common. A naive byte
-  comparison therefore reports every item as changed on every run and rewrites
-  all of them forever, which looks like working sync and is not. Strip trailing
-  whitespace from each line and collapse trailing blank lines at the end, **on
-  both sides**, before comparing.
+- **Compare normalized, never raw bytes.** A tracker is not obliged to hand a
+  body back exactly as it was sent, and APIs differ in whether they adjust
+  trailing whitespace. Where that happens, a naive byte comparison reports every
+  item as changed on every run and rewrites all of them forever, which looks like
+  working sync and is not. Strip trailing whitespace from each line and collapse
+  trailing blank lines at the end, **on both sides**, before comparing. It costs
+  nothing when the round-trip is exact.
 - **Compare tag sets as sets**, not as ordered lists. Application order is not
   preserved.
 - Never close, reopen, delete, or recreate an item. Edit in place.
@@ -98,9 +101,13 @@ important line of output.
 
 - Do not add code, dependencies, or an adapter for any tracker.
 - Do not branch on `kind`.
-- Do not invent a tag value that is not in the config's mapping table.
+- Do not infer tags, and do not apply a value the config's mapping table does not
+  carry. A spec naming an unmapped tag is a question for the human, not a
+  judgement call.
 - Do not drop an edge that resolves outside the published set, and do not invent
-  an item for it. Record it as unresolved, naming the key.
+  an item for it. Resolve it against the tracker as a whole: render the item's
+  identifier if the key already has one, and name the key as untracked only when
+  it genuinely has none.
 - Do not read anything back. A ticked checkbox means nothing to Pathfinder and
   never advances any state.
 - Do not close, reopen, or delete anything, ever.
