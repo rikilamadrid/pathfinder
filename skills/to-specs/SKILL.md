@@ -38,6 +38,8 @@ Each spec must include Context Boundary, Delivery Chunks, and Learning Targets.
 
 After creation, summarize file, outcome, dependency, visible/verifiable win, context risk, and recommended first feature.
 
+If `context/tracker.md` exists, offer to publish the new specs with `sync-tracker`. If it does not, say nothing about tracking.
+
 ## Rules
 
 - Do not implement or install packages.
