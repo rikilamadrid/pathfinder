@@ -27,6 +27,8 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-08-18
+
 ### Added
 
 - **Optional work tracking, configured in prose rather than code.** A new `setup-tracker` skill interviews you for which tracker you use, where it lives, how an agent reaches it, and which tags your project actually uses — then writes `context/tracker.md` from `templates/tracker.template.md` once you approve it. Two projections ship, both proven against real backends: GitHub Issues via the `gh` CLI, and local Markdown files under `.work/`. Any other tracker is supported by describing it in prose, which is the mechanism rather than a gap — it is why this adds no runtime, no dependency, and no credential handling to the kit.
