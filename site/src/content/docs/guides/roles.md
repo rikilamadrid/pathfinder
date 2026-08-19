@@ -107,8 +107,12 @@ for the duration.
 
 Each file states a responsibility, a context boundary, the skills it uses, its
 inputs and outputs, the condition that ends its turn, what it must not do, and a
-pointer to the approval policy. **Approval policy is never restated in a role**,
-because two homes for approval policy is how they come to disagree, and
+pointer to the approval policy. Within **Skills and tools**, a `Skills:` line
+carries the Pathfinder skill names as backticked, comma-separated entries, and
+any non-skill tooling is described in prose after it.
+
+**Approval policy is never restated in a role**, because two homes for approval
+policy is how they come to disagree, and
 [`context/ai-interaction.md`](/context/ai-interaction/) is the home.
 
 ### There is no debugger role
