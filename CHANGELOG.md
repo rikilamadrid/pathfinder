@@ -12,7 +12,7 @@ The kit follows Semantic Versioning:
 
 The repository holds more than one shippable thing. The version number belongs to the kit — the part a destination project actually consumes:
 
-- **Bumps the version** — `skills/`, `context/`, `templates/`, and the agent entry files (`AGENTS.md`, `CLAUDE.md`). Also the installer, whenever someone running it would see the difference: what it installs, what it asks, or how a run presents itself. A new installer capability is a MINOR; an installer fix or correction is a PATCH; installer refactoring that changes nothing observable is not a release at all.
+- **Bumps the version** — `skills/`, `context/`, `roles/`, `templates/`, and the agent entry files (`AGENTS.md`, `CLAUDE.md`). Also the installer, whenever someone running it would see the difference: what it installs, what it asks, or how a run presents itself. A new installer capability is a MINOR; an installer fix or correction is a PATCH; installer refactoring that changes nothing observable is not a release at all.
 - **Does not bump the version** — CI workflows, validation scripts, brand assets, the website, the README, and this repository's own planning files. They change how Pathfinder is built and presented, not what a destination project receives. A site-only change ships continuously and publishes nothing to npm.
 
 *The installer rule above previously read "only when it changes the documented installation path". That test was written when the installer only ever copied files, and v1.6.0 is what found its edge: an installer release that rewrites how every run looks, while the command, the questions, and the installed files all stay exactly as documented. Read literally, the old wording said that was not a release at all. The test is now what a user would notice, which is the thing SemVer was always about.*
@@ -28,6 +28,8 @@ The heading of the most recent released section below is the single source of tr
 ## [Unreleased]
 
 ### Added
+
+- **Roles: four declarative contracts that scope a session to one responsibility.** `roles/` ships `planner`, `developer`, `qa`, and `human` — each stating what a worker is responsible for, what it reads, what ends its turn, and what it must not do. They exist to hold the constraints a skill cannot, because a skill cannot see what preceded it: `qa` forbids continuing into `start-feature` in the same session to fix what it just found. **Naming a role is the only thing that activates one**, so a project that never names one behaves exactly as it did in 1.8.0 — the files install and sit inert. They are plain Markdown carrying no `model`, `tools`, or `isolation`, which is why they need no adapter and work unchanged in any tool that can read a file. The copy list moves from five entries to six, its first addition since it was created.
 
 - **Work tracking can find your specs wherever you keep them.** `context/tracker.md` now names the project's spec source, and `setup-tracker` asks for it only when it is not `context/features/`. A config that names none behaves exactly as it did in 1.8.0, so nothing an existing project wrote needs changing. The path is declared in the config's own opening paragraphs and never inside the backend-neutral model, which stays byte-identical everywhere. Keys are unaffected: a spec numbered `27` is `pathfinder:feature/27` wherever it lives, so moving your specs cannot orphan a published item.
 

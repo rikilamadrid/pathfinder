@@ -73,12 +73,13 @@ Pathfinder installs into version control, so in a directory that is not a
 repository yet the installer offers to run `git init` for you. Decline and
 nothing is written.
 
-It writes exactly five things.
+It writes exactly six things.
 
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
+| `roles/` | Four declarative contracts — planner, developer, QA, human — inert until you name one |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
 | `templates/` | Starting points the project copies when it needs them |
 
@@ -86,7 +87,7 @@ It also asks which coding tools to configure. Claude Code and Codex discover
 skills natively, so it can generate a small adapter per skill — under
 `.claude/skills/`, `.agents/skills/`, or both — and Pathfinder's skills appear in
 that tool's own list. Those adapters are generated from `skills/` at install
-time, not copied, which is why they are not among the five. Nothing is configured
+time, not copied, which is why they are not among the six. Nothing is configured
 unless you choose it.
 
 The installer ends by printing the prompt that starts your first session, matched

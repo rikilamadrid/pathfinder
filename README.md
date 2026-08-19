@@ -45,12 +45,13 @@ npx create-pathfinder
 
 That copies the kit into the repository. Nothing is installed into your project, nothing is built, and no dependency is added — the installer is a file copier that exits.
 
-It writes exactly five things:
+It writes exactly six things:
 
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
+| `roles/` | Declarative contracts a session follows when you name one — planner, developer, QA, human |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, learning, and optional work tracking |
 | `templates/` | Starting points the project copies when it needs them |
 
@@ -74,7 +75,7 @@ That starts the discovery conversation. From there the loop is: debate the direc
 
 The question that follows is which tools to configure. Claude Code and Codex discover skills natively, so the installer can generate a small adapter per skill — `.claude/skills/<name>/SKILL.md`, `.agents/skills/<name>/SKILL.md`, or both — and Pathfinder's skills appear in that tool's own list. In a terminal you are asked, with the detected tools as the default; without one, `--agents claude-code,codex` says it explicitly. Nothing is configured unless you choose it, and choosing one tool never touches the other's directory.
 
-**Adapters are generated artifacts, not copy-list entries.** The five paths in the table above are the kit; adapters are derived from `skills/` at install time, regenerated on every run without `--force`, and never added to `copy-list.json`. Each carries a skill's name and description and delegates to the canonical file — so the behavior contract stays in exactly one place, whichever tool you are in.
+**Adapters are generated artifacts, not copy-list entries.** The six paths in the table above are the kit; adapters are derived from `skills/` at install time, regenerated on every run without `--force`, and never added to `copy-list.json`. Each carries a skill's name and description and delegates to the canonical file — so the behavior contract stays in exactly one place, whichever tool you are in.
 
 ## Adapt an existing repo
 
@@ -161,7 +162,7 @@ Use skills/reflect/SKILL.md to review this completed work. Propose improvements;
 
 ## What's in the kit
 
-Five entries get copied into a destination project: `AGENTS.md` and `CLAUDE.md` (agent entry points), `context/` (project truth), `skills/` (durable behavior), and `templates/`.
+Six entries get copied into a destination project: `AGENTS.md` and `CLAUDE.md` (agent entry points), `context/` (project truth), `roles/` (what a worker is responsible for), `skills/` (durable behavior), and `templates/`.
 
 A project installed before v1.5.0 also has a `prompts/` directory, which the installer leaves untouched and which keeps working, since those launchers point at `skills/`.
 
@@ -181,6 +182,11 @@ A project installed before v1.5.0 also has a `prompts/` directory, which the ins
 │   ├── current-feature.md
 │   ├── history.md
 │   └── features/
+├── roles/
+│   ├── planner.md
+│   ├── developer.md
+│   ├── qa.md
+│   └── human.md
 ├── skills/
 │   ├── kickstart-pathfinder/
 │   ├── debate-me/

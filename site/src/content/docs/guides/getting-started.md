@@ -150,18 +150,19 @@ redirected, or in CI, nothing is asked: pass `--git-init` and
 ls
 ```
 
-In the empty repository you just created, five things:
+In the empty repository you just created, six things:
 
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
+| `roles/` | Four declarative contracts — planner, developer, QA, human — inert until you name one |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
 | `templates/` | Starting points the project copies when it needs them |
 
 Plus a `.claude/` or `.agents/` directory if you asked for adapters. Those hold one
 generated pointer per skill, rendered from `skills/` at install time rather than
-copied — which is why they are not part of the five, and why editing a skill
+copied — which is why they are not part of the six, and why editing a skill
 changes behavior while editing an adapter does not.
 
 Nothing is hidden from you. The installer stages nothing and commits nothing, so

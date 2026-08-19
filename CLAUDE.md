@@ -15,6 +15,12 @@ For feature work, usually read:
 
 Do not load the whole repo by default.
 
+## Roles
+
+When the human names a role, read `roles/<name>.md` before anything else and follow it for the session. A role says what a worker is responsible for, what it reads, and what it must not do, where a skill says how to perform a task.
+
+Naming a role is the only thing that activates one. If the human names none, ignore `roles/` and work as this guide otherwise describes. A role narrows what a session may do and never widens it.
+
 ## Project-selected policies
 
 Follow the stack, architecture, commands, Git workflow, review policy, and release process documented in `context/project-overview.md`.

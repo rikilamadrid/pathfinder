@@ -21,12 +21,13 @@ Everything below is what the command does. **What Pathfinder is, how the workflo
 
 ## What it installs
 
-The installer copies five things into your repository and nothing else:
+The installer copies six things into your repository and nothing else:
 
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
+| `roles/` | Four declarative contracts — planner, developer, QA, human — inert until you name one |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, learning, and optional work tracking |
 | `templates/` | Starting points the project copies when it needs them |
 
@@ -34,7 +35,7 @@ On request it also writes one thing it does not copy:
 
 | Path | What it is |
 | --- | --- |
-| `.claude/skills/`, `.agents/skills/` | **Generated** — a small adapter per skill, derived from `skills/` at install time, so your coding tool discovers them natively. Not part of the five above; see [Native skills for your coding tool](#native-skills-for-your-coding-tool) |
+| `.claude/skills/`, `.agents/skills/` | **Generated** — a small adapter per skill, derived from `skills/` at install time, so your coding tool discovers them natively. Not part of the six above; see [Native skills for your coding tool](#native-skills-for-your-coding-tool) |
 
 It never copies Pathfinder's own `README.md`, `CHANGELOG.md`, CI configuration, or brand assets. Your repository gets the workflow, not the project that maintains it.
 
