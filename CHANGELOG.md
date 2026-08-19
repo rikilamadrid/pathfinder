@@ -29,6 +29,8 @@ The heading of the most recent released section below is the single source of tr
 
 ### Added
 
+- **Roles: four declarative contracts that scope a session to one responsibility.** `roles/` ships `planner`, `developer`, `qa`, and `human` — each stating what a worker is responsible for, what it reads, what ends its turn, and what it must not do. They exist to hold the constraints a skill cannot, because a skill cannot see what preceded it: `qa` forbids continuing into `start-feature` in the same session to fix what it just found. **Naming a role is the only thing that activates one**, so a project that never names one behaves exactly as it did in 1.8.0 — the files install and sit inert. They are plain Markdown carrying no `model`, `tools`, or `isolation`, which is why they need no adapter and work unchanged in any tool that can read a file. The copy list moves from five entries to six, its first addition since it was created.
+
 - **Work tracking can find your specs wherever you keep them.** `context/tracker.md` now names the project's spec source, and `setup-tracker` asks for it only when it is not `context/features/`. A config that names none behaves exactly as it did in 1.8.0, so nothing an existing project wrote needs changing. The path is declared in the config's own opening paragraphs and never inside the backend-neutral model, which stays byte-identical everywhere. Keys are unaffected: a spec numbered `27` is `pathfinder:feature/27` wherever it lives, so moving your specs cannot orphan a published item.
 
 ### Fixed
