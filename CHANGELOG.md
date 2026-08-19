@@ -33,7 +33,7 @@ The heading of the most recent released section below is the single source of tr
 
 ### Fixed
 
-- **`context/tracker.md` can no longer be shipped by accident.** 1.8.0 said the file does not ship, and that was true only because none had ever existed in the kit repository — `context` is a *directory* entry in the copy list, so a config placed beneath it would have been copied into every new project, handing them a tracker they do not own with work tracking's off switch already defeated on first install. The installer and the publish-staging script now both refuse to carry it, a validator rule fails if it is ever committed, and both paths are covered by tests. **No released version ever shipped one**; this closes the gap before it could open.
+- **`context/tracker.md` can no longer be shipped by accident.** 1.8.0 said the file does not ship, and that was true only because none had ever existed in the kit repository — `context` is a *directory* entry in the copy list, so a config placed beneath it would have been copied into every new project, handing them a tracker they do not own with work tracking's off switch already defeated on first install. The installer and the publish-staging script now both refuse to carry it, a validator rule fails if it is ever committed *or* left sitting in a staged package, and both paths are covered by tests. **No released version ever shipped one**; this closes the gap before it could open.
 
 ## [1.8.0] - 2026-08-18
 
