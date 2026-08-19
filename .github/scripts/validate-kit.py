@@ -27,6 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SKILLS = ROOT / "skills"
+ROLES = ROOT / "roles"
 INSTALLER = ROOT / "packages" / "create-pathfinder"
 
 # The one harness whose adapters this repository commits. CONTRIBUTING.md states
@@ -49,6 +50,12 @@ ADAPTER_BYTE_CEILING = 4096
 # Lines short enough to collide by coincidence. `---`, a blank line, and a bare
 # heading word appear in both a skill and its adapter without meaning anything.
 THIN_LINE_THRESHOLD = 40
+
+# A role file states responsibility and constraint, never procedure. The
+# ceiling is the crude backstop for that: the moment a role grows past a page
+# it has started explaining how to do the work, which is what a skill is for.
+# For calibration, skills/load-feature/SKILL.md is 18 lines.
+ROLE_LINE_CEILING = 40
 
 # The one statement of what a destination project receives. Everything else
 # that names the list — the README install section, npm's `files` allowlist,
@@ -831,6 +838,66 @@ def check_readme_copy_list(copy_list: tuple[str, ...]) -> None:
                  f"list is {copy_list}")
 
 
+def check_roles(skill_names: set[str]) -> None:
+    """Every role file must be well-formed, current, and short.
+
+    The skill-name rule is the one that earns its keep. A role names the
+    skills it uses, and renaming a skill leaves those mentions pointing at
+    nothing — with no adapter and no import to break, a stale role would go on
+    being read as instructions until a human happened to notice. This is the
+    same class of rule as `check_claude_md`.
+    """
+    if not ROLES.is_dir():
+        fail("roles", "roles-exist",
+             "the roles directory is missing, so the copy list would ship "
+             "an entry that does not exist")
+        return
+
+    for path in sorted(ROLES.glob("*.md")):
+        data = parse_frontmatter(path)
+        if data is None:
+            continue
+
+        for key in ("name", "description"):
+            if not data.get(key):
+                fail(path, "role-frontmatter", f"`{key}` is missing or empty")
+
+        expected = path.stem
+        if "name" in data and data["name"] != expected:
+            fail(path, "role-name",
+                 f"frontmatter name is `{data['name']}` but the file is "
+                 f"`{expected}.md`; a role is named by naming its file")
+
+        lines = path.read_text(encoding="utf-8").splitlines()
+        if len(lines) > ROLE_LINE_CEILING:
+            fail(path, "role-length",
+                 f"{len(lines)} lines, over the {ROLE_LINE_CEILING}-line "
+                 "ceiling; a role this long has probably become a procedure")
+
+        check_role_skills(path, skill_names)
+
+
+def check_role_skills(path: Path, skill_names: set[str]) -> None:
+    """Every skill a role's `Skills and tools` section names must exist."""
+    text = path.read_text(encoding="utf-8")
+
+    match = re.search(r"^## Skills and tools\s*$(.*)", text,
+                      re.MULTILINE | re.DOTALL)
+    if not match:
+        fail(path, "role-sections", "no `## Skills and tools` section found")
+        return
+
+    section = re.split(r"^## ", match.group(1), maxsplit=1, flags=re.MULTILINE)[0]
+
+    # Bare backticked lowercase words only. The section legitimately names
+    # paths such as `context/project-overview.md`, and those are not skills.
+    for name in sorted(set(re.findall(r"`([a-z0-9-]+)`", section))):
+        if name not in skill_names:
+            fail(path, "role-skill-exists",
+                 f"names `{name}` in Skills and tools, but there is no "
+                 f"`skills/{name}/` directory")
+
+
 def check_help_text() -> None:
     """`--help` must document every flag the parser accepts, and every harness.
 
@@ -912,6 +979,7 @@ def main() -> int:
     check_adapters(skill_names)
     check_adapter_generation()
     check_copy_list()
+    check_roles(skill_names)
     check_help_text()
     check_no_junk_tracked()
     check_never_ships()
