@@ -878,7 +878,18 @@ def check_roles(skill_names: set[str]) -> None:
 
 
 def check_role_skills(path: Path, skill_names: set[str]) -> None:
-    """Every skill a role's `Skills and tools` section names must exist."""
+    """Every skill on a role's `Skills:` line must exist.
+
+    The first version of this rule checked every backticked token in the whole
+    `Skills and tools` section, which contradicted the contract it was meant to
+    enforce: that section is also where a role names its non-skill tooling, so
+    a role saying it uses `pytest` was told to go create `skills/pytest/`.
+
+    The label is the fix, and it is the smallest one that is decidable. A
+    validator cannot tell a skill name from a tool name by looking at it, so
+    the file says which is which, and the rule reads only what it is told is a
+    skill list. Everything after the terminating period is free prose.
+    """
     text = path.read_text(encoding="utf-8")
 
     match = re.search(r"^## Skills and tools\s*$(.*)", text,
@@ -889,12 +900,36 @@ def check_role_skills(path: Path, skill_names: set[str]) -> None:
 
     section = re.split(r"^## ", match.group(1), maxsplit=1, flags=re.MULTILINE)[0]
 
-    # Bare backticked lowercase words only. The section legitimately names
-    # paths such as `context/project-overview.md`, and those are not skills.
-    for name in sorted(set(re.findall(r"`([a-z0-9-]+)`", section))):
+    listed = re.search(r"^Skills:(.*?)\.(?:\s|$)", section, re.MULTILINE | re.DOTALL)
+    if listed is None:
+        fail(path, "role-skills-line",
+             "the Skills and tools section has no `Skills:` line; skills are "
+             "listed after that label, comma-separated and backticked, ending "
+             "in a period, so tooling can be named freely after it")
+        return
+
+    declared = listed.group(1)
+
+    # The list must be names and separators and nothing else. Without this the
+    # label would be decoration: prose could sit inside the checked span and
+    # silently name a skill the rule never looks at.
+    residue = re.sub(r"`[a-z0-9-]+`|,|\band\b|\s+", "", declared)
+    if residue:
+        fail(path, "role-skills-line",
+             f"the `Skills:` list must contain only backticked skill names "
+             f"and separators, but carries {residue!r}; describe tooling "
+             "after the period that ends the list")
+        return
+
+    names = re.findall(r"`([a-z0-9-]+)`", declared)
+    if not names:
+        fail(path, "role-skills-line", "the `Skills:` list is empty")
+        return
+
+    for name in sorted(set(names)):
         if name not in skill_names:
             fail(path, "role-skill-exists",
-                 f"names `{name}` in Skills and tools, but there is no "
+                 f"lists `{name}` under Skills, but there is no "
                  f"`skills/{name}/` directory")
 
 

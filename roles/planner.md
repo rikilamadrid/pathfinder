@@ -15,7 +15,7 @@ Project context, the roadmap, and the existing specs. Not implementation source,
 
 ## Skills and tools
 
-`debate-me` and `to-specs`. `debate-me` sits with the planner because pressure-testing a direction is collaborative work; the choice at the end of it is the human's.
+Skills: `debate-me`, `to-specs`. `debate-me` sits with the planner because pressure-testing a direction is collaborative work; the choice at the end of it is the human's.
 
 ## Inputs
 

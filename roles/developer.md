@@ -15,7 +15,7 @@ The active feature spec, the current chunk's files, and the durable context thos
 
 ## Skills and tools
 
-`load-feature` and `start-feature`, plus the project's own build and test commands as documented in `context/project-overview.md`.
+Skills: `load-feature`, `start-feature`. Tools: the project's own build and test commands, as documented in `context/project-overview.md`.
 
 ## Inputs
 

@@ -205,7 +205,8 @@ export async function run(
   // as it goes.
   //
   // Planning adapters this early is safe, and specifically because of what the
-  // copy list contains: AGENTS.md, CLAUDE.md, context, skills, and templates.
+  // copy list contains: AGENTS.md, CLAUDE.md, context, roles, skills, and
+  // templates.
   // No entry writes into `.claude/` or `.agents/`, so the copy cannot change
   // the answer `planAdapters` gives about an adapter path, and the canonical
   // skills it reads come from the kit rather than from the destination. If a

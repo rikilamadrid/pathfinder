@@ -15,7 +15,7 @@ The feature spec, the actual diff, the tests, and the running behaviour. Not the
 
 ## Skills and tools
 
-`review-feature`, plus the project's test commands and browser automation where a spec calls for it.
+Skills: `review-feature`. Tools: the project's test commands, and browser automation where a spec calls for it.
 
 ## Inputs
 

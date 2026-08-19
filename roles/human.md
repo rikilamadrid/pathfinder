@@ -15,7 +15,7 @@ Whatever the decision requires. This is the one role with no reading limit, beca
 
 ## Skills and tools
 
-`complete-feature`, and approval of everything `context/ai-interaction.md` lists as requiring it.
+Skills: `complete-feature`. Approval of everything `context/ai-interaction.md` lists as requiring it.
 
 ## Inputs
 
