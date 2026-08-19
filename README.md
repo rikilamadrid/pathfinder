@@ -75,7 +75,7 @@ That starts the discovery conversation. From there the loop is: debate the direc
 
 The question that follows is which tools to configure. Claude Code and Codex discover skills natively, so the installer can generate a small adapter per skill — `.claude/skills/<name>/SKILL.md`, `.agents/skills/<name>/SKILL.md`, or both — and Pathfinder's skills appear in that tool's own list. In a terminal you are asked, with the detected tools as the default; without one, `--agents claude-code,codex` says it explicitly. Nothing is configured unless you choose it, and choosing one tool never touches the other's directory.
 
-**Adapters are generated artifacts, not copy-list entries.** The five paths in the table above are the kit; adapters are derived from `skills/` at install time, regenerated on every run without `--force`, and never added to `copy-list.json`. Each carries a skill's name and description and delegates to the canonical file — so the behavior contract stays in exactly one place, whichever tool you are in.
+**Adapters are generated artifacts, not copy-list entries.** The six paths in the table above are the kit; adapters are derived from `skills/` at install time, regenerated on every run without `--force`, and never added to `copy-list.json`. Each carries a skill's name and description and delegates to the canonical file — so the behavior contract stays in exactly one place, whichever tool you are in.
 
 ## Adapt an existing repo
 
