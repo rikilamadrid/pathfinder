@@ -16,7 +16,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 
-import { COPY_LIST, isExcluded } from "./kit.mjs";
+import { COPY_LIST, isExcluded, neverShips } from "./kit.mjs";
 import {
   ADAPTER_STATE,
   adapterPath,
@@ -43,6 +43,10 @@ export function planInstall(kitRoot, targetRoot, { force = false } = {}) {
   for (const entry of COPY_LIST) {
     for (const source of walkFiles(join(kitRoot, entry))) {
       const relativePath = relative(kitRoot, source).split(sep).join("/");
+      // Filtered here rather than in walkFiles, which sees basenames only and
+      // would have to guess whether a `tracker.md` is *the* one.
+      if (neverShips(relativePath)) continue;
+
       const destination = join(targetRoot, relativePath);
       const exists = existsSync(destination);
 

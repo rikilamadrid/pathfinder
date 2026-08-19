@@ -9,6 +9,15 @@ __MACOSX/
 # Local planning only — not pushed
 .features/
 
+# This repository's own Work Tracking config. Local like `.features/`, and for
+# the same reason: `context` is a directory entry in the copy list, so a
+# committed copy would ship Pathfinder's tracker configuration to every
+# destination project and defeat the off switch — which is the absence of this
+# very file — on first install. Anchored so only the root one is ignored.
+# Not the enforcement: `neverShips()` in the installer and the staging script
+# is. This keeps it out of version control; that keeps it out of the tarball.
+/context/tracker.md
+
 # Generated harness adapters. Pathfinder commits adapters only for the harness
 # its own maintainers use — `.claude/skills/` is tracked and CI checks it is
 # fresh. Every other harness is generated on demand, so its output is ignored

@@ -8,7 +8,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -47,6 +47,59 @@ const EXCLUDED = new Set([".DS_Store", "Thumbs.db", "__MACOSX", ".git"]);
 
 export function isExcluded(basename) {
   return EXCLUDED.has(basename) || basename.startsWith("._");
+}
+
+/**
+ * Kit files that are deliberately not part of the kit, by kit-relative path.
+ *
+ * A different idea from EXCLUDED above, and kept separate for that reason.
+ * Those are OS and editor droppings that were never anybody's file. These are
+ * real, hand-written files that live inside a copy-list directory and must
+ * still never reach a destination project.
+ *
+ * `context/tracker.md` is the whole list. Work Tracking's off switch is the
+ * *absence* of that file in a destination project, so shipping this
+ * repository's own copy would hand every new project a configuration naming a
+ * tracker it does not own, pointing at a spec directory it does not have, with
+ * the off switch already defeated on first install.
+ *
+ * Feature 25 said this file "does not ship" and that was true only because no
+ * such file had ever existed here. `context` is a *directory* entry in the copy
+ * list, so anything placed beneath it ships by default. Making the invariant
+ * enforced rather than intended is the same move `check_no_junk_tracked` made:
+ * an ignore rule is advisory, and one `git add -f` defeats it.
+ *
+ * Matched on the kit-relative path, never the basename — a project's own
+ * `tracker.md` somewhere else is not this file and must not be caught by it.
+ */
+const NEVER_SHIPS = new Set(["context/tracker.md"]);
+
+/**
+ * Is this kit-relative path one the kit must never hand over?
+ *
+ * @param {string} relativePath forward-slashed, relative to the kit root
+ */
+export function neverShips(relativePath) {
+  return NEVER_SHIPS.has(relativePath);
+}
+
+/**
+ * A `cpSync` filter that drops never-ships files from a recursive copy.
+ *
+ * Lives here rather than inline in `stage-kit.mjs` so the staging path and its
+ * test run the same code. A test that rebuilds the predicate proves only that
+ * `cpSync` honours `filter`; it cannot catch the path arithmetic below going
+ * wrong, which is the part with anything to get wrong in it.
+ *
+ * `cpSync` hands the filter absolute paths and calls it for the copy root
+ * itself, so the root resolves to `""` and is kept — filtering a directory out
+ * would take its whole subtree with it.
+ *
+ * @param {string} rootDir absolute path the kit-relative paths are relative to
+ * @returns {(source: string) => boolean} true to copy, false to skip
+ */
+export function neverShipsFilter(rootDir) {
+  return (source) => !neverShips(relative(rootDir, source).split(sep).join("/"));
 }
 
 const PACKAGE_ROOT = resolve(HERE, "..");
