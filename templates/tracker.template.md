@@ -17,18 +17,22 @@
 > stated, not a leak. The test is whether changing backend would change the
 > sentence.
 >
-> The two paragraphs above the model marker are this project's own — the tracker
-> it uses, and the rule that the repository wins. They are *not* claimed to be
-> byte-identical across backends: the first one names the tracker and how an
-> agent reaches it, so it necessarily differs.
+> The three paragraphs above the model marker are this project's own — the
+> tracker it uses, where its approved specs live, and the rule that the
+> repository wins. They are *not* claimed to be byte-identical across backends
+> or across projects: the first names the tracker and how an agent reaches it,
+> and the second names a directory this project chose, so both necessarily
+> differ. **A per-project value belongs here and never inside the model.**
 
 This project tracks work in `[tracker name]`, at `[where it lives]`, reached by
 `[how to reach it]`.
 
+This project's approved feature specs live in `[spec source]`.
+
 The repository is canonical. This tracker is a **one-way projection** of work
-that already exists in `context/features/`. Never read status back out of the
-tracker and into a spec. If the two disagree, the repository is right and the
-tracker is stale.
+that already exists in that directory. Never read status back out of the tracker
+and into a spec. If the two disagree, the repository is right and the tracker is
+stale.
 
 <!-- pathfinder:model-start
 Everything from here to the projection boundary is the backend-neutral model. It
@@ -43,6 +47,12 @@ Only **approved feature specs**, from `to-specs` onward. Never track debate
 notes, kickstart output, or prototypes. The one exception is a prototype that
 gates a decision, which may be tracked as a single item phrased as the decision
 it resolves, never as a deliverable.
+
+**Where those specs live is declared above**, in the paragraph naming this
+project's spec source. A config that declares none means `context/features/`,
+which is where `to-specs` writes and where most projects will leave them. The
+directory is a fact about this project, so it cannot be stated in here — this
+block is byte-identical everywhere.
 
 ## The work item
 
@@ -59,8 +69,12 @@ Every tracked thing is a **work item**. A work item has:
 ### Keys
 
 A key looks like `pathfinder:<kind>/<id>`. For a feature spec, the id is the
-spec's number: `context/features/06-docs-site-scaffold.md` is
-`pathfinder:feature/06`.
+spec's number: a spec numbered `06-docs-site-scaffold.md` is
+`pathfinder:feature/06`, wherever the spec source puts it.
+
+**The key comes from the number, never from the path.** Moving a project's spec
+source must not rewrite a single key — every published item would be orphaned by
+a change that only moved files.
 
 Keys are how a work item is recognised on a later run. Record the key inside the
 published item so it can be found again without keeping a local index. Put it in

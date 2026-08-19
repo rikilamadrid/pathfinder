@@ -23,10 +23,10 @@
  */
 
 import { cpSync, existsSync, rmSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { COPY_LIST } from "../src/kit.mjs";
+import { COPY_LIST, neverShips } from "../src/kit.mjs";
 
 /** The kit, plus the licence npm shows on the package page. */
 const STAGED = [...COPY_LIST, "LICENSE"];
@@ -59,6 +59,10 @@ function stage() {
   for (const entry of STAGED) {
     cpSync(join(REPO_ROOT, entry), join(PACKAGE_ROOT, entry), {
       recursive: true,
+      // This filter, not `.gitignore`, is what keeps a never-ships file out of
+      // the published tarball. Staging copies from the working tree, so a file
+      // Git ignores is still sitting right there when `npm pack` runs.
+      filter: (source) => !neverShips(relative(REPO_ROOT, source).split(sep).join("/")),
     });
   }
 

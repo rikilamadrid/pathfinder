@@ -63,6 +63,23 @@ reads it. Nothing contacts your tracker as a side effect of setting one up.
 
 The skill that reads it is [`sync-tracker`](/skills/sync-tracker/), below.
 
+### Where your specs live
+
+The config names your **spec source** — the directory holding your approved
+feature specs. Most projects leave them where [`to-specs`](/skills/to-specs/)
+writes them, `context/features/`, and that is what a config gets when it says
+nothing. You are only asked about it when your specs are somewhere else.
+
+They are somewhere else more often than you would think. A repository that keeps
+planning material out of version control, or splits specs by product area, or
+inherited a layout from before Pathfinder, all have a source to declare.
+
+**Moving your specs never changes a key.** A spec numbered `27` publishes as
+`pathfinder:feature/27` wherever the file sits, so reorganising a directory does
+not orphan a single published item. Keys come from the number, never the path —
+which is also why the source is declared in the config's opening paragraphs and
+never inside the backend-neutral model.
+
 ## Publishing it
 
 [`sync-tracker`](/skills/sync-tracker/) reads the config and publishes your

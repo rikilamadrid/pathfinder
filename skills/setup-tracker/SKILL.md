@@ -31,13 +31,17 @@ without:
 
 1. Which tracker, and where it lives.
 2. How an agent reaches it — a CLI, a path, or a described manual step.
-3. Which tag namespaces the project actually uses. `area`, `type`, `priority`,
+3. Where the project's approved feature specs live, **but only if they are not
+   in `context/features/`.** Check the repository before asking: when the
+   default is what is there, record it and move on rather than spending a
+   question on it.
+4. Which tag namespaces the project actually uses. `area`, `type`, `priority`,
    and `agent` are available; a project needing none of them says so.
-4. What the tracker already carries. **List its existing labels, fields, or
+5. What the tracker already carries. **List its existing labels, fields, or
    conventions before proposing any tag value.** If something already means the
    same thing, reuse it and record the mapping rather than creating a
    near-duplicate.
-5. Anything about the projection that the shipped starting points do not cover.
+6. Anything about the projection that the shipped starting points do not cover.
 
 ## Process
 

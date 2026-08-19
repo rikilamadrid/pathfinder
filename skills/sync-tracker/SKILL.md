@@ -34,6 +34,21 @@ Where the config is silent on something a run needs, **ask the human**. Do not
 fill the gap with a convention of your own — the next run would fill it
 differently, and every item would look modified.
 
+## Where the specs are
+
+The config names this project's **spec source**. Read the approved specs from
+there. A config that names none means `context/features/`, which is where
+`to-specs` writes and what every project had before the source could be
+declared — so an existing config keeps behaving exactly as it did.
+
+**The key never comes from the path.** A spec numbered `27` is
+`pathfinder:feature/27` wherever it lives. A project that moves its specs must
+not find every published item orphaned by the move.
+
+If the declared source does not exist, report it and stop. Do not fall back to
+the default — a config naming a directory that is not there is a mistake to
+surface, and publishing an empty set over it would look like success.
+
 ## What gets published
 
 **Approved feature specs only**, from `to-specs` onward — one work item per spec.
@@ -48,7 +63,8 @@ skill written for it. Publish the feature.
 ## Process
 
 1. Check for `context/tracker.md`. If it is absent, report and stop.
-2. Read the config. Read the approved specs. Read nothing else.
+2. Read the config. Read the approved specs from the source it declares. Read
+   nothing else.
 3. Build the work items: key, kind, title, body, blocked-by edges, tags, and
    chunks, derived and composed exactly as the config's model section says. Every
    field comes from the spec — **tags only from its optional `## Tags` section,

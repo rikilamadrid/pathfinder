@@ -27,6 +27,14 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Added
+
+- **Work tracking can find your specs wherever you keep them.** `context/tracker.md` now names the project's spec source, and `setup-tracker` asks for it only when it is not `context/features/`. A config that names none behaves exactly as it did in 1.8.0, so nothing an existing project wrote needs changing. The path is declared in the config's own opening paragraphs and never inside the backend-neutral model, which stays byte-identical everywhere. Keys are unaffected: a spec numbered `27` is `pathfinder:feature/27` wherever it lives, so moving your specs cannot orphan a published item.
+
+### Fixed
+
+- **`context/tracker.md` can no longer be shipped by accident.** 1.8.0 said the file does not ship, and that was true only because none had ever existed in the kit repository — `context` is a *directory* entry in the copy list, so a config placed beneath it would have been copied into every new project, handing them a tracker they do not own with work tracking's off switch already defeated on first install. The installer and the publish-staging script now both refuse to carry it, a validator rule fails if it is ever committed, and both paths are covered by tests. **No released version ever shipped one**; this closes the gap before it could open.
+
 ## [1.8.0] - 2026-08-18
 
 ### Added

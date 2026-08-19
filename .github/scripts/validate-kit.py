@@ -602,6 +602,40 @@ def check_no_junk_tracked() -> None:
              "OS/editor junk is tracked; remove it with `git rm --cached`")
 
 
+def check_never_ships() -> None:
+    """Files that live in a copy-list directory but must never reach a project.
+
+    `context/tracker.md` is the whole list. Work Tracking's off switch is the
+    absence of that file in a destination project, so a committed copy here
+    would ship this repository's own tracker configuration to everyone and
+    defeat the switch on first install.
+
+    `.gitignore` already covers it, and `neverShips()` filters both the
+    installer and the staging script. This rule exists because an ignore rule
+    is advisory — one `git add -f` defeats it — and because the installer
+    filter is only as good as the memory of why it is there. Same argument as
+    `check_no_junk_tracked`, applied to a second invariant.
+    """
+    never_ships = ("context/tracker.md",)
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--", *never_ships],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        print("note: git unavailable, skipping never-ships")
+        return
+
+    if result.returncode != 0:
+        print("note: git ls-files failed, skipping never-ships")
+        return
+
+    for tracked in sorted(filter(None, result.stdout.splitlines())):
+        fail(tracked, "never-ships",
+             "is tracked, but must never reach a destination project; "
+             "remove it with `git rm --cached` and keep it local")
+
+
 def load_copy_list() -> tuple[str, ...] | None:
     """Read the canonical copy list, or report why it could not be read."""
     try:
@@ -843,6 +877,7 @@ def main() -> int:
     check_copy_list()
     check_help_text()
     check_no_junk_tracked()
+    check_never_ships()
     check_version_agreement()
     check_changelog()
     check_release_workflow()
