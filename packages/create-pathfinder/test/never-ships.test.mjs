@@ -18,13 +18,13 @@
  */
 
 import { strict as assert } from "node:assert";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
 import { planInstall } from "../src/install.mjs";
-import { COPY_LIST, findKitRoot, neverShips } from "../src/kit.mjs";
+import { COPY_LIST, findKitRoot, neverShips, neverShipsFilter } from "../src/kit.mjs";
 
 const temporaryRoots = [];
 
@@ -113,23 +113,44 @@ describe("the installer", () => {
 
 describe("staging for publication", () => {
   /**
-   * `stage-kit.mjs` resolves the repository from its own location, so it
-   * cannot be pointed at a fixture. The filter it applies is reproduced here
-   * against the same `neverShips` predicate and the same `cpSync` option, which
-   * is what the script relies on — if `cpSync` stopped honouring `filter`, this
-   * fails exactly as the real staging would.
+   * `stage-kit.mjs` resolves the repository from its own location, so it cannot
+   * be pointed at a fixture. What it *can* be made to share is the predicate:
+   * `neverShipsFilter` is the exact function the script hands to `cpSync`, so
+   * these tests cover the real path arithmetic rather than a lookalike rebuilt
+   * from basenames. A test that restates the filter proves only that `cpSync`
+   * honours `filter`.
    */
-  it("filters the tracker config out of a recursive copy", () => {
+  it("keeps the copy root, which cpSync asks about first", () => {
+    // Returning false here would skip the entire subtree, so this is the one
+    // answer the filter cannot afford to get wrong.
+    const filter = neverShipsFilter("/kit");
+    assert.equal(filter("/kit"), true);
+    assert.equal(filter(join("/kit", "context")), true);
+  });
+
+  it("rejects the tracker config by its path, not its name", () => {
+    const filter = neverShipsFilter("/kit");
+
+    assert.equal(filter(join("/kit", "context", "tracker.md")), false);
+    assert.equal(filter(join("/kit", "context", "ai-interaction.md")), true);
+    assert.equal(filter(join("/kit", "templates", "tracker.md")), true);
+    assert.equal(filter(join("/kit", "context", "features", "tracker.md")), true);
+  });
+
+  it("filters the tracker config out of a real recursive copy", () => {
     const source = temporaryDirectory("pathfinder-never-ships-source-");
     const destination = temporaryDirectory("pathfinder-never-ships-dest-");
 
-    mkdirSync(join(source, "context"), { recursive: true });
+    mkdirSync(join(source, "context", "features"), { recursive: true });
     writeFileSync(join(source, "context", "tracker.md"), "# Tracker\n");
     writeFileSync(join(source, "context", "ai-interaction.md"), "# Interaction\n");
+    // A legitimate file the rule must not catch, one level deeper than the
+    // config — basename matching would take this with it.
+    writeFileSync(join(source, "context", "features", "tracker.md"), "# Spec\n");
 
     cpSync(join(source, "context"), join(destination, "context"), {
       recursive: true,
-      filter: (from) => !neverShips(`context/${from.split("/").pop()}`),
+      filter: neverShipsFilter(source),
     });
 
     assert.equal(
@@ -142,5 +163,22 @@ describe("staging for publication", () => {
       true,
       "everything else in context/ must still be staged",
     );
+    assert.equal(
+      existsSync(join(destination, "context", "features", "tracker.md")),
+      true,
+      "a tracker.md elsewhere in the tree is a different file",
+    );
+  });
+
+  it("is the filter stage-kit.mjs actually applies", () => {
+    // Guards the seam itself: if staging ever stops importing the shared
+    // predicate, the tests above would keep passing against a function nothing
+    // calls. That is the failure this whole finding was about.
+    const script = readFileSync(
+      new URL("../scripts/stage-kit.mjs", import.meta.url),
+      "utf8",
+    );
+
+    assert.match(script, /filter:\s*neverShipsFilter\(REPO_ROOT\)/);
   });
 });

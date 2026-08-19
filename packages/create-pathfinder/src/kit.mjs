@@ -8,7 +8,7 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -81,6 +81,25 @@ const NEVER_SHIPS = new Set(["context/tracker.md"]);
  */
 export function neverShips(relativePath) {
   return NEVER_SHIPS.has(relativePath);
+}
+
+/**
+ * A `cpSync` filter that drops never-ships files from a recursive copy.
+ *
+ * Lives here rather than inline in `stage-kit.mjs` so the staging path and its
+ * test run the same code. A test that rebuilds the predicate proves only that
+ * `cpSync` honours `filter`; it cannot catch the path arithmetic below going
+ * wrong, which is the part with anything to get wrong in it.
+ *
+ * `cpSync` hands the filter absolute paths and calls it for the copy root
+ * itself, so the root resolves to `""` and is kept — filtering a directory out
+ * would take its whole subtree with it.
+ *
+ * @param {string} rootDir absolute path the kit-relative paths are relative to
+ * @returns {(source: string) => boolean} true to copy, false to skip
+ */
+export function neverShipsFilter(rootDir) {
+  return (source) => !neverShips(relative(rootDir, source).split(sep).join("/"));
 }
 
 const PACKAGE_ROOT = resolve(HERE, "..");

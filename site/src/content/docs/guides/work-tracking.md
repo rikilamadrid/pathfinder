@@ -29,9 +29,10 @@ that, in a better place.
 The single most important rule, and the one that decides how everything else
 behaves:
 
-**Sync is one-way.** The tracker is a *projection* of work that already exists in
-`context/features/`. Nothing reads tracker state back into a spec. If the two
-disagree, the repository is right and the tracker is stale.
+**Sync is one-way.** The tracker is a *projection* of work that already exists
+in your repository, in the spec source your config names — `context/features/`
+unless you say otherwise. Nothing reads tracker state back into a spec. If the
+two disagree, the repository is right and the tracker is stale.
 
 So a ticked checkbox on a published item means nothing to Pathfinder. Someone can
 tick it, and they may find that useful, but no state advances and nothing reads it

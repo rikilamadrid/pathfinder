@@ -65,8 +65,18 @@ without:
      is an instruction to you, not content for the project to read.
 
    **The model — everything between the two markers — is kept byte-for-byte.**
-   The tracker-identity paragraph above it is the one part you rewrite, because
-   it names the tracker and how to reach it.
+   The paragraphs *above* it are this project's own, and both are yours to
+   fill:
+   - the **tracker-identity** paragraph, naming the tracker and how to reach
+     it;
+   - the **spec source** paragraph, naming where the approved feature specs
+     live. Write `context/features/` when that is what the repository has —
+     the answer you did not need to ask for is still an answer, and leaving
+     the placeholder in place ships a config with a hole in it.
+
+   A per-project value belongs in those paragraphs and never inside the model,
+   which is why the source is declared there rather than in the block that has
+   to stay byte-identical everywhere.
 6. Present the proposed file and request approval.
 7. Write `context/tracker.md` only after the human approves.
 8. Report what was configured, and say plainly that nothing has been published.

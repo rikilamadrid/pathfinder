@@ -615,25 +615,62 @@ def check_never_ships() -> None:
     is advisory — one `git add -f` defeats it — and because the installer
     filter is only as good as the memory of why it is there. Same argument as
     `check_no_junk_tracked`, applied to a second invariant.
+
+    Both routes out of this repository are checked, because the file only has
+    to escape through one of them:
+
+      1. **version control** — `git ls-files`, the `git add -f` case;
+      2. **the published tarball** — a staged copy under the installer package.
+         `stage-kit.mjs` copies from the working tree, so `.gitignore` has no
+         say here at all, and the staged path is itself ignored, which puts it
+         beyond the reach of the check above. This is the route that would
+         actually have leaked.
+
+    The two halves are independent: git being unavailable skips the first and
+    must not silently take the second with it.
     """
     never_ships = ("context/tracker.md",)
+
+    _check_never_ships_untracked(never_ships)
+    _check_never_ships_unstaged(never_ships)
+
+
+def _check_never_ships_untracked(never_ships: tuple[str, ...]) -> None:
+    """Route one: the file must not be tracked by Git."""
     try:
         result = subprocess.run(
             ["git", "ls-files", "--", *never_ships],
             cwd=ROOT, capture_output=True, text=True, check=False,
         )
     except OSError:
-        print("note: git unavailable, skipping never-ships")
+        print("note: git unavailable, skipping never-ships (tracked)")
         return
 
     if result.returncode != 0:
-        print("note: git ls-files failed, skipping never-ships")
+        print("note: git ls-files failed, skipping never-ships (tracked)")
         return
 
     for tracked in sorted(filter(None, result.stdout.splitlines())):
         fail(tracked, "never-ships",
              "is tracked, but must never reach a destination project; "
              "remove it with `git rm --cached` and keep it local")
+
+
+def _check_never_ships_unstaged(never_ships: tuple[str, ...]) -> None:
+    """Route two: the file must not be sitting in a staged kit.
+
+    A staged kit is transient — `prepack` writes it and `postpack` removes it —
+    so on a clean checkout this finds nothing. It fires when a crashed or
+    interrupted `npm pack` leaves staging behind, which is exactly when the
+    next pack would publish it.
+    """
+    for entry in never_ships:
+        staged = INSTALLER / Path(entry)
+        if staged.exists():
+            fail(f"packages/create-pathfinder/{entry}", "never-ships",
+                 "is staged for publication, but must never reach a "
+                 "destination project; remove the staged kit with "
+                 "`node packages/create-pathfinder/scripts/stage-kit.mjs --clean`")
 
 
 def load_copy_list() -> tuple[str, ...] | None:
