@@ -229,7 +229,7 @@ Options worth knowing before you run it anywhere real:
 | Option | Effect |
 | --- | --- |
 | `--dry-run` | Report the same plan the real install would carry out, and write nothing |
-| `--force` | Overwrite files that already exist. Off by default |
+| `--force` | Overwrite files that already exist, and replace a file you wrote at a path an adapter would occupy. Off by default |
 | `--agents <ids>` | Generate adapters for `claude-code`, `codex`, or both, without being asked |
 | `--git-init` | Run `git init` here if this is not a repository yet |
 | `--yes` | Take the defaults and ask nothing. It does not authorize `git init` or configure any tool |

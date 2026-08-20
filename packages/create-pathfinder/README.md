@@ -82,7 +82,7 @@ The installer copies six kit entries into your repository:
 | `context/` | Project standards and interaction rules; other context is created only when needed |
 | `roles/` | Three optional responsibility contracts: planner, developer, tester |
 | `skills/` | Reusable procedures for discovery, specs, delivery, debugging, review, learning, and optional work tracking |
-| `templates/` | Minimal starting shapes copied when a workflow needs them |
+| `templates/` | Minimal starting shapes; records are created from them later, when a workflow needs one |
 
 A fresh Pathfinder 2.0 project begins with only:
 
@@ -125,7 +125,9 @@ Use:
 npx create-pathfinder --force
 ```
 
-only when you explicitly want existing Pathfinder files replaced.
+only when you want files that already exist overwritten — any copied file,
+whoever created or edited it — and a file you wrote at a path an adapter
+would occupy replaced.
 
 ### It requires a Git repository
 
@@ -378,7 +380,7 @@ one. Pathfinder reports the project directory so you can open it yourself.
 | --- | --- |
 | `--agents <ids>` | Generate adapters for comma-separated supported tools. Valid ids: `claude-code`, `codex`. Alias: `--agent` |
 | `--dry-run` | Show what would happen without changing anything |
-| `--force` | Replace existing Pathfinder files and Pathfinder adapter paths |
+| `--force` | Overwrite files that already exist, and replace a file you wrote at a path an adapter would occupy. Off by default |
 | `--git-init` | Initialize Git if the current directory is not already in a repository |
 | `--no-git-init` | Never initialize Git; refuse installation instead |
 | `--no-clipboard` | Never offer to copy the Kickstart prompt |

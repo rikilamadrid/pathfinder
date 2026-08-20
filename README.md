@@ -211,7 +211,8 @@ copies these kit entries:
 | `skills/` | Reusable workflow procedures |
 | `templates/` | Minimal starting shapes created when needed |
 
-The installer never silently overwrites existing files.
+The installer never silently overwrites. Files you already have are left
+alone and listed by name in the summary.
 
 Use:
 
@@ -225,7 +226,9 @@ to preview changes, or:
 npx create-pathfinder --force
 ```
 
-when you explicitly want Pathfinder-owned files replaced.
+when you want files that already exist overwritten — any file in the list
+above, whoever created or edited it — and a file you wrote at a path an
+adapter would occupy replaced.
 
 Pathfinder installs only into a Git repository. If the current directory is
 not one, the installer explains why Git is required and can offer to initialize
