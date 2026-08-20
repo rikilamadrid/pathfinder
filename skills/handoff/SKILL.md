@@ -1,12 +1,32 @@
 ---
 name: handoff
-description: Preserve compact factual state so another agent or session can continue safely.
+description: Leave the minimum factual state another session needs to continue safely.
 ---
 
 # Handoff
 
-Read current feature, relevant spec, history, Git state, and verification evidence.
+Create or overwrite `context/handoff.md`.
 
-Return current state, changed outcomes, approved decisions, verification, unresolved issues, assumptions, exact next action, and files worth reading.
+Read only what is needed to describe the current state:
+the active Feature, relevant Git state, and verification already performed.
 
-Keep it compact. Do not include private chain-of-thought or an irrelevant transcript dump.
+Do not load history, roadmap, unrelated Features, or broad repository context
+by default.
+
+Write:
+
+# Handoff
+
+- Feature: `[feature or work]`
+- Done: `[what was completed]`
+- Verified: `[what was actually checked]`
+- Open: `[blocker, finding, or none]`
+- Next: `[single next action]`
+- Read next: `[specific file(s), only when useful]`
+
+Keep it factual and short.
+
+Do not repeat requirements, acceptance criteria, project history, or decisions
+already recorded in their canonical location.
+
+Do not include private chain-of-thought or conversation transcripts.

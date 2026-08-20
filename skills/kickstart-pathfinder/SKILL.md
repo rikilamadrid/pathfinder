@@ -29,7 +29,7 @@ Ask only what materially affects the project:
 7. Quality priorities: security, accessibility, performance, reliability, privacy, localization
 8. Deployment, environments, cost limits, and external services
 9. Git, review, CI/CD, versioning, changelog, and release preferences
-10. Prototype and learning goals
+10. Prototype direction and learning goals
 11. AI tools and actions requiring human approval
 
 When the user is unsure, provide a small recommendation with reasoning and alternatives.
@@ -42,6 +42,11 @@ When the user is unsure, provide a small recommendation with reasoning and alter
 4. Route uncertain product/technical choices to `debate-me` when useful.
 5. Present the proposed context and request human corrections or approval.
 6. Update `context/project-overview.md`, `context/coding-standards.md`, `context/ai-interaction.md`, `CLAUDE.md`, and `AGENTS.md` only after the choices are sufficiently clear.
+   `context/project-overview.md` does not ship; create it from `templates/project-overview.template.md` at this step.
+   Project facts go there; approval rules and tool actions requiring a human go
+   in `context/ai-interaction.md`. Fill the sections the project has and mark
+   the rest `TBD` or `None`. Do not add sections the template does not carry,
+   and do not leave a field blank.
 7. Recommend `debate-me`, `prototype`, or `to-specs` as the next action.
 
 ## Stop Condition

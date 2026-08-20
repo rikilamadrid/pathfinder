@@ -54,7 +54,7 @@ misunderstanding while it is still small.
 - **Verification is per chunk.** "It will be tested at the end" means the boundary
   is decorative.
 
-[`context/current-feature.md`](/context/current-feature/) tracks which chunk is
+`context/current-feature.md` tracks which chunk is
 active, so a session that starts cold knows where the last one stopped.
 
 ## Related

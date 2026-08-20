@@ -1,22 +1,19 @@
 ---
 title: Pathfinder
-description: An AI-assisted, human-in-the-loop workflow for building software — without giving up the decisions.
+description: A human-in-the-loop workflow kit for building software with AI agents.
 template: splash
-# The landing page is not a step in a reading sequence, and the sidebar order
-# that drives Starlight's pagination would put "Next: kickstart-pathfinder"
-# under a page that already ends with its own call to action.
+
+# The landing page is not a step in a reading sequence.
 prev: false
 next: false
-# Starlight joins every page title to the site title, which on the one page
-# whose title *is* the site title reads "Pathfinder | Pathfinder". A head entry
-# of the same tag replaces Starlight's own, so this is the framework's
-# supported override rather than a rewrite of built HTML. Deep pages are
-# untouched and keep their "Page | Pathfinder" form.
+
+# Avoid "Pathfinder | Pathfinder" on the home page.
 head:
   - tag: title
     content: Pathfinder
+
 hero:
-  tagline: An AI-assisted, human-in-the-loop workflow for building software — without giving up the decisions.
+  tagline: Direct AI agents through software delivery without giving up the decisions.
   image:
     alt: The Pathfinder cairn
     file: ../../../../assets/logo.svg
@@ -30,114 +27,102 @@ hero:
       variant: minimal
 ---
 
-Pathfinder is a small, portable kit of context files and skills you copy into a
-project. It gives an AI agent a process for discovering, challenging, analyzing
-references, prototyping, specifying, building, debugging, reviewing, completing,
-learning from, and reflecting on the work — and it keeps every consequential
-decision with you.
+Pathfinder is a small, portable workflow kit you copy into a software project.
 
-It is intentionally stack-agnostic. It does not choose React, Python, mobile, a
-database, Git Flow, or any other implementation detail for you.
+It gives AI agents reusable skills for discovering, planning, building,
+testing, completing, debugging, learning from, and reflecting on software
+work — while keeping judgment and consequential decisions with you.
+
+It is intentionally stack-agnostic. Pathfinder does not choose React, Python,
+mobile, a database, hosting platform, Git model, or other implementation
+details for you.
 
 > The kit owns the workflow. The project owns the stack.
 
-## What this is, and what it is not
+## What Pathfinder gives you
 
-**It is** a workflow and context kit: [a set of skills](/skills/) with defined
-boundaries, a `context/` folder that holds project truth, and native skill
-discovery in the tools that support it.
+Pathfinder has four small building blocks:
 
-**It is not** a framework. There is no required runtime, package manager,
-framework, database, hosting platform, or Git model, and there is no dependency
-to install. The destination project chooses its own technology, architecture,
-delivery process, and learning output format.
+- **Skills** — reusable procedures for software-development work
+- **Roles** — responsibility boundaries for an AI session
+- **Context** — project truth and temporary workspace state
+- **Templates** — minimal records created only when needed
 
-**It is not an autopilot.** Recommendations are proposals, not silent decisions.
+It is **not a framework** and **not an orchestration runtime**.
 
-The whole kit is markdown. You can read all of it, and you can delete any part
-of it that does not suit your project.
+There is no required application framework, package manager, database,
+programming language, hosting platform, Git model, agent swarm, or background
+service.
+
+It is also **not autopilot**. Agents may recommend and execute work, but the
+human owns approval, acceptance, merge, release, and other consequential
+decisions.
+
+Everything is readable Markdown.
 
 ## Start a project
 
 ```bash
 mkdir my-project
 cd my-project
+git init
 npx create-pathfinder
 ```
 
-That copies the kit into the repository and exits. Nothing is installed, nothing
-is built, and no dependency is added — the installer is a file copier. It never
-overwrites: files you already have are left alone and listed by name.
+The installer copies Pathfinder into the repository and exits. It does not add
+a runtime dependency to your application.
 
-Pathfinder installs into version control, so in a directory that is not a
-repository yet the installer offers to run `git init` for you. Decline and
-nothing is written.
+If you configure Claude Code or Codex during installation, Pathfinder also
+generates native skill adapters so its skills appear directly in that tool.
 
-It writes exactly six things.
-
-| Path | What it is |
-| --- | --- |
-| `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
-| `context/` | Project truth — overview, standards, interaction rules, current feature |
-| `roles/` | Four declarative contracts — planner, developer, QA, human — inert until you name one |
-| `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
-| `templates/` | Starting points the project copies when it needs them |
-
-It also asks which coding tools to configure. Claude Code and Codex discover
-skills natively, so it can generate a small adapter per skill — under
-`.claude/skills/`, `.agents/skills/`, or both — and Pathfinder's skills appear in
-that tool's own list. Those adapters are generated from `skills/` at install
-time, not copied, which is why they are not among the six. Nothing is configured
-unless you choose it.
-
-The installer ends by printing the prompt that starts your first session, matched
-to what you configured — `/kickstart-pathfinder` in Claude Code,
-`$kickstart-pathfinder` in Codex, and otherwise the line that works anywhere:
+Then start with:
 
 ```text
-Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this project. Do not install packages or write product code yet.
+/kickstart-pathfinder
 ```
 
-That starts the discovery conversation.
+Kickstart learns enough about the project to establish its durable context
+without writing product code or silently choosing unresolved decisions.
 
-To adapt an existing repository, run the same command inside it. Nothing you
-already have is overwritten, so it is safe in a repository that already has its
-own `CLAUDE.md` or `context/` — or its own `.claude/` configuration, which the
-installer leaves alone.
-
-[Getting started](/guides/getting-started/) walks the whole first session — what
-discovery should feel like, what to check before you accept it, and how the first
-feature gets built.
-
-## The workflow at a glance
-
-One pass through the kit, front to back. Each arrow is a skill with a defined
-boundary, and most of them stop to ask you something.
+Without native skill support, use:
 
 ```text
-idea, or an existing repository
-→ kickstart-pathfinder     establish project truth in context/
-→ debate-me                pressure-test the direction; you choose
-→ prototype                validate the riskiest assumption, cheaply
-→ to-specs                 split the approved direction into small features
-→ load-feature             prepare exactly one feature for implementation
-→ start-feature            build it in stable delivery chunks
-→ review-feature           check it against requirements and standards
-→ complete-feature         verify, close, and record it in history
-→ teach-feature, quiz-me   understand what was built, not just receive it
-→ reflect                  improve the workflow itself
+Use skills/kickstart-pathfinder/SKILL.md to initialize this project.
 ```
 
-Two skills sit outside that line.
+[Getting started](/guides/getting-started/) walks through the first session.
 
-`reverse-engineer` runs before the workflow when the project is inspired by an
-existing product, interface, or repository. It produces an evidence-based
-reconstruction blueprint — separating what it observed from what it inferred and
-what it cannot know — and then hands off. A blueprint is not a feature spec.
+## The workflow
 
-`debug-issue` interrupts the delivery loop when something is observably broken.
-It reproduces before repairing and tests hypotheses rather than editing at
-random. A symptom disappearing does not count as a root cause.
+The core delivery flow is deliberately small:
+
+```text
+idea
+  ↓
+kickstart / debate / prototype
+  ↓
+to-specs
+  ↓
+load-feature
+  ↓
+start-feature
+  ↓
+optional tester
+  ↓
+human acceptance
+  ↓
+complete-feature
+```
+
+A prototype is optional.
+
+Features are small, focused, and independently verifiable.
+
+Debugging, learning, external-reference analysis, handoff, reflection, and
+work tracking are supporting workflows you invoke when useful rather than
+mandatory stages every Feature must pass through.
+
+When it is not obvious which one applies:
 
 ```text
 reverse-engineer = understand an external reference
@@ -146,50 +131,179 @@ debug-issue      = an observed failure needs an explanation
 start-feature    = planned construction is difficult
 ```
 
-[The workflow](/guides/workflow/) draws all five loops, with every point where the
-agent stops and a human decides marked on the diagram.
+[See the full workflow](/guides/workflow/).
 
-## Where you decide
+## Optional roles
 
-This is the part that makes the rest work. The agent may recommend any of these,
-with reasoning. It does not choose them.
+Pathfinder ships three roles:
 
-- Product and MVP scope
-- Technology stack and architecture
-- Database, authentication, APIs, and infrastructure
-- Prototype direction, and whether prototype code is ever adopted
-- Reconstruction choices derived from external references
-- Git and delivery workflow
-- Dependency changes
-- Destructive operations
-- Commits, merges, and releases
+| Role | Responsibility |
+| --- | --- |
+| `planner` | Turns approved direction into clear Feature specs |
+| `developer` | Implements approved work without accepting its own work |
+| `tester` | Independently verifies delivered work and reports findings |
 
-Unresolved decisions are marked, not guessed. [`TBD`](/concepts/decision-states/)
-means a human decision is still required, and an agent must not quietly resolve one
-while implementing a feature. Separately, a shorter list of *operations* — installs,
-destructive commands, commits, releases — stops for approval before it happens;
-[Human approval](/concepts/human-approval/) sets out both.
+Activate one when the responsibility boundary is useful:
 
-## Who this is not for
+```text
+/role developer
+```
 
-Worth saying plainly, because the fit is narrow.
+Roles do not grant authority. They only narrow what the current AI session is
+responsible for.
 
-- If you want the agent to decide the product and the architecture for you, this
-  will feel like it is asking too many questions. It is.
-- If you need a process the tooling enforces, this is not it. Nothing here is
-  enforced. It is markdown an agent reads, and a human who ignores it will
-  succeed at ignoring it.
-- If you are looking for a runtime, a CLI that stays installed, or a framework
-  to build against, there is nothing here to install.
+The human remains the conductor.
+
+[Learn about roles](/guides/roles/).
+
+## Know where you are
+
+During a session:
+
+```text
+/whereami
+```
+
+gives you a compact view of the current role, Feature, Git state, and next
+action without loading broad project history.
+
+When you need to stop and continue later:
+
+```text
+/handoff
+```
+
+records the minimum factual state another session needs to continue safely.
+
+## Context grows only when needed
+
+A fresh Pathfinder project starts with only:
+
+```text
+context/
+├── ai-interaction.md
+└── coding-standards.md
+```
+
+Other context appears only when a workflow actually needs it.
+
+Durable project truth is tracked in Git:
+
+```text
+context/project-overview.md
+context/features/
+context/history.md
+context/tracker.md
+```
+
+Temporary workspace state is normally ignored:
+
+```text
+context/current-feature.md
+context/handoff.md
+```
+
+Do not ignore `context/` wholesale. That would also hide the project truth
+future sessions need.
+
+## Human judgment stays human
+
+Pathfinder deliberately stops rather than silently deciding things such as:
+
+- product scope
+- architecture and technology choices
+- dependencies
+- destructive operations
+- prototype adoption
+- Git and delivery decisions
+- acceptance
+- merge and release
+
+An unresolved decision stays unresolved. [`TBD`](/concepts/decision-states/)
+means a human decision is still required, and an agent must not quietly resolve
+one while implementing a Feature.
+
+[Human approval](/concepts/human-approval/) explains the boundary in detail.
+
+## Add it to an existing repository
+
+Run the same installer inside an existing Git repository:
+
+```bash
+npx create-pathfinder
+```
+
+Existing files are preserved unless you explicitly choose to replace them.
+
+Then run:
+
+```text
+/kickstart-pathfinder
+```
+
+Kickstart separates facts already established by the repository from decisions
+that still need human input.
+
+For deeper understanding of an existing codebase:
+
+```text
+/learn-codebase
+```
+
+## Optional work tracking
+
+Pathfinder does not require a ticket system.
+
+Feature specs in the repository remain canonical.
+
+If you want Features projected to GitHub Issues, local Markdown, or another
+tracker:
+
+```text
+/setup-tracker
+```
+
+then:
+
+```text
+/sync-tracker
+```
+
+Tracker state never silently becomes Pathfinder state.
+
+[Work tracking](/guides/work-tracking/) explains the optional model.
+
+## Who Pathfinder is for
+
+Pathfinder is a good fit when you want AI agents to do substantial software
+work while you retain control of the important decisions.
+
+It is probably not a fit if you want:
+
+- an autonomous agent to choose the product and architecture for you
+- a runtime that orchestrates a swarm of agents
+- a software framework your application builds against
+- a process enforced by infrastructure rather than readable instructions
+
+Pathfinder is intentionally simpler than that.
 
 ## Read the kit
 
-Every skill in the sidebar is rendered from the kit's own `skills/` directory,
-and every project-context file from `context/`. Nothing on this site is a copy —
-what you read here is the file your agent reads.
+The documentation renders the same skills and project guidance the agent
+reads.
 
-Start with [`kickstart-pathfinder`](/skills/kickstart-pathfinder/), the entry
-point for a new project, or
-[`project-overview`](/context/project-overview/), the file that holds project
-truth once you have it. [All skills](/skills/) lists every one of them with its
-own summary, grouped by loop.
+Start with:
+
+[`kickstart-pathfinder`](/skills/kickstart-pathfinder/)
+
+or browse:
+
+[All skills](/skills/)
+
+For the deeper model, continue with:
+
+- [Getting started](/guides/getting-started/)
+- [Workflow](/guides/workflow/)
+- [Roles](/guides/roles/)
+- [Human approval](/concepts/human-approval/)
+- [Work tracking](/guides/work-tracking/)

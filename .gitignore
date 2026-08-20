@@ -18,6 +18,14 @@ __MACOSX/
 # is. This keeps it out of version control; that keeps it out of the tarball.
 /context/tracker.md
 
+# This repository's own transient session state, ignored for the same reason
+# and by the same pair of mechanisms. `load-feature` and `handoff` write these
+# on first use; neither is durable project truth, and a committed copy would
+# be one maintainer's in-flight work showing up in everybody's diff. Durable
+# context — project-overview.md, features/, history.md — is tracked normally.
+/context/current-feature.md
+/context/handoff.md
+
 # Generated harness adapters. Pathfinder commits adapters only for the harness
 # its own maintainers use — `.claude/skills/` is tracked and CI checks it is
 # fresh. Every other harness is generated on demand, so its output is ignored
@@ -56,6 +64,7 @@ __MACOSX/
 /packages/create-pathfinder/CLAUDE.md
 /packages/create-pathfinder/LICENSE
 /packages/create-pathfinder/context/
+/packages/create-pathfinder/roles/
 /packages/create-pathfinder/skills/
 /packages/create-pathfinder/templates/
 /packages/create-pathfinder/*.tgz

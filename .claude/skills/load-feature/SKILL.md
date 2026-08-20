@@ -1,6 +1,6 @@
 ---
 name: load-feature
-description: Prepare one feature for implementation by checking readiness, context size, dependencies, and delivery chunks.
+description: Load one approved Feature and the minimum context needed to work on it.
 ---
 
 <!-- pathfinder:adapter v1 source=skills/load-feature/SKILL.md -->

@@ -25,17 +25,52 @@ The trade-off is accepted deliberately: a fix that touches only the installer st
 
 The heading of the most recent released section below is the single source of truth for the release version. The Git tag and the installer's `package.json` are both derived from it; CI fails if they disagree. See the release checklist in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-## [Unreleased]
+## [2.0.0] - 2026-08-20
+
+A simplification release. Pathfinder had been accumulating structure faster than it was earning it — role files that restated procedure, templates carrying sections nobody filled in, and a `context/` shipped full of blank stencils a reader had to recognise as empty before ignoring. This release removes that surface. The kit is smaller, and what remains is what a project actually uses.
+
+**The shape of the change:** a fresh install is now 36 files instead of 43. `context/` ships two files instead of six. Templates go from six to five, roles from four to three, and the feature spec from sixteen sections to eight.
+
+### Removed
+
+- **`roles/qa.md` and `roles/human.md`.** `qa` is now `tester`, which does the same job under the name most projects already use. `human` is gone on purpose: human authority is not one contract among several that an agent might also read, and shipping a file describing it invited the exact misreading it was meant to prevent — that a session could name it and act with a human's authority. Approval and acceptance live in `context/ai-interaction.md` and nowhere else.
+- **`templates/tracker.template.md`** — 370 lines of backend-neutral work-item model, item kinds, blocked-by edges, tag-mapping tables, chunk projections, and a marker specification. It asked every project to adopt a project-management taxonomy in order to use a feature most projects never turn on, and the great majority of it described trackers nobody had configured. `setup-tracker` now composes a config that fits the tracker you actually named.
+- **`templates/progress-entry.template.md`**, and the blank `context/` stencils: `project-overview.md`, `history.md`, `current-feature.md`, `features/example-feature-spec.md`, and the three `context/learning/` placeholders.
+
+### Changed
+
+- **Files are created when a workflow first needs them, not scaffolded at install.** `context/` ships `ai-interaction.md` and `coding-standards.md`. Everything else — `project-overview.md`, `features/`, `history.md`, `current-feature.md`, `handoff.md`, `tracker.md` — is written by the skill that first needs it. Skills that read these files now treat absence as normal rather than as an error, and the skills that write them create what is missing.
+- **Roles carry responsibility; skills carry procedure.** The three shipped roles state what a worker is responsible for, what it may read, and what ends its turn — and stop there. A role that starts explaining *first do X, then do Y* has become a skill, and CI now holds a 40-line ceiling to catch it.
+- **The feature spec template is eight sections**: Status, Goal, Context, Requirements, Out of Scope, Delivery Chunks, Acceptance Criteria, Notes / Decisions. `Context Boundary` is now a three-line `## Context`. Dropped: Overview, Problem, Dependencies, Tags, Experience Notes, Technical Notes, Verification, Learning Targets, and Suggested Delivery Metadata.
+- **Feature status is durable lifecycle state only**: `Proposed` → `Ready` → `In Progress` → `Complete`, with `Cancelled` and `Superseded` terminal. Review and testing are optional workflow activity, not a status — a Feature stays `In Progress` until it is complete.
+- **`context/project-overview.md` records `TBD` and `None`.** The parallel `proposed` / `accepted` / `superseded` record-status vocabulary is gone: two vocabularies meant every row invited two questions, and the second was almost always answerable from the first.
+- **A Feature spec is named `NN-feature-name.md`, and that number is the Feature's identity.** `to-specs` numbers each new spec with the next unused number in the spec source, and `27-export-saved-searches.md` is Feature 27 wherever the file sits. Numbers are never reused and never renumbered. The number lives in the filename and nowhere else — the eight-section template carries no number field, so there is no second place to keep in agreement. This is also what a published tracker item is matched on: with the 370-line tracker template gone, the key `sync-tracker` publishes under is read from the basename alone, never from the directory above it, the title inside it, or the order specs happen to be read. Moving or reorganising specs therefore orphans nothing, and a spec whose filename carries no number is skipped and reported by name rather than being assigned one.
+- **Work tracking stays optional and got smaller with it.** `sync-tracker` no longer decomposes a Feature into assignable tickets, and infers no labels, tags, or status. The repository stays canonical, sync stays one-way, and a second run with no changes still writes nothing.
 
 ### Added
 
-- **Roles: four declarative contracts that scope a session to one responsibility.** `roles/` ships `planner`, `developer`, `qa`, and `human` — each stating what a worker is responsible for, what it reads, what ends its turn, and what it must not do. They exist to hold the constraints a skill cannot, because a skill cannot see what preceded it: `qa` forbids continuing into `start-feature` in the same session to fix what it just found. **Naming a role is the only thing that activates one**, so a project that never names one behaves exactly as it did in 1.8.0 — the files install and sit inert. They are plain Markdown carrying no `model`, `tools`, or `isolation`, which is why they need no adapter and work unchanged in any tool that can read a file. The copy list moves from five entries to six, its first addition since it was created.
-
-- **Work tracking can find your specs wherever you keep them.** `context/tracker.md` now names the project's spec source, and `setup-tracker` asks for it only when it is not `context/features/`. A config that names none behaves exactly as it did in 1.8.0, so nothing an existing project wrote needs changing. The path is declared in the config's own opening paragraphs and never inside the backend-neutral model, which stays byte-identical everywhere. Keys are unaffected: a spec numbered `27` is `pathfinder:feature/27` wherever it lives, so moving your specs cannot orphan a published item.
+- **Roles: three declarative contracts that scope a session to one responsibility.** `roles/` ships `planner`, `developer`, and `tester`, each stating what a worker is responsible for, what it reads, what ends its turn, and what it must not do. They hold the constraints a skill cannot, because a skill cannot see what preceded it: `tester` forbids continuing into `start-feature` in the same session to repair what it just found. **Naming a role is the only thing that activates one**, so a project that never names one behaves exactly as it did in 1.8.0. They are plain Markdown carrying no `model`, `tools`, or `isolation`, which is why they need no adapter and work unchanged in any tool that can read a file. The copy list moves from five entries to six, its first addition since it was created.
+- **`role`** — activate one named role for the current session, in one line.
+- **`whereami`** — a read-only snapshot of the current session: role, Feature, chunk, Git state, and next action. It reads one file, reports `none` rather than inferring, and never offers to fix what it finds.
+- **`templates/history.template.md`** — the compact completed-work record `complete-feature` appends to.
+- **A version-control policy for `context/`.** Durable project truth is tracked (`project-overview.md`, `features/`, `history.md`, `tracker.md`); transient session state is ignored (`current-feature.md`, `handoff.md`). Two lines in `.gitignore` are the whole mechanism, and the documentation is explicit that ignoring `context/` wholesale is the mistake to avoid — it quietly untracks the file documenting your stack.
+- **Work tracking can find your specs wherever you keep them.** `context/tracker.md` names the project's spec source, and `setup-tracker` asks for it only when it is not `context/features/`. A config that names none behaves exactly as it did in 1.8.0.
 
 ### Fixed
 
-- **`context/tracker.md` can no longer be shipped by accident.** 1.8.0 said the file does not ship, and that was true only because none had ever existed in the kit repository — `context` is a *directory* entry in the copy list, so a config placed beneath it would have been copied into every new project, handing them a tracker they do not own with work tracking's off switch already defeated on first install. The installer and the publish-staging script now both refuse to carry it, a validator rule fails if it is ever committed *or* left sitting in a staged package, and both paths are covered by tests. **No released version ever shipped one**; this closes the gap before it could open.
+- **`context/tracker.md` can no longer be shipped by accident.** 1.8.0 said the file does not ship, and that was true only because none had ever existed in the kit repository — `context` is a *directory* entry in the copy list, so a config placed beneath it would have been copied into every new project, handing them a tracker they do not own with work tracking's off switch already defeated on first install. **No released version ever shipped one**; this closes the gap before it could open.
+- **`context/current-feature.md` and `context/handoff.md` are covered by the same guard.** Having stopped shipping blank stencils, the risk inverts: a maintainer's *filled-in* copy reaching a new project, so somebody's first session opens on a note about whichever feature was loaded on release day. A `.gitignore` entry does not prevent this — the publish-staging script copies from the working tree and never consults Git — so the installer and the staging script both refuse to carry these files, and tests cover both paths.
+
+### Upgrading
+
+Nothing is deleted from a project that already has Pathfinder; re-running the installer adds what is missing and leaves your edits alone. Adopt at your own pace:
+
+- If you named the `qa` role, name `tester` instead. If you relied on `roles/human.md`, the policy it pointed at is in `context/ai-interaction.md`.
+- Feature specs written against the old template still read fine. New specs get the eight-section shape.
+- If a spec sits in `In Review` or `Accepted`, move it to `In Progress` or `Complete`.
+- Add the two transient `context/` files to `.gitignore`.
+- If you configured work tracking, your `context/tracker.md` keeps working. The template it was written from no longer ships.
+- Rename existing specs to `NN-feature-name.md` before your next `sync-tracker` run. **Preserve the numbers already published** — give each spec the number its tracker item carries today, rather than renumbering from one. A spec that reaches sync without a number in its filename is skipped and reported; a spec that reaches it under a *different* number publishes a second item beside the first. If you have never configured a tracker, rename at your leisure: nothing outside the repository depends on the numbers yet.
 
 ## [1.8.0] - 2026-08-18
 

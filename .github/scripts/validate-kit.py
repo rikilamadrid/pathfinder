@@ -732,6 +732,8 @@ def check_copy_list() -> None:
 
     check_installer_copy_list(copy_list)
 
+    check_staging_ignored(copy_list)
+
     # npm allowlist: the kit entries must all be published, and nothing
     # kit-external may be listed alongside them.
     manifest_path = INSTALLER / "package.json"
@@ -754,6 +756,73 @@ def check_copy_list() -> None:
             fail(manifest_path, "copy-list-files",
                  f"`{extra}` is published but is neither installer code nor "
                  "part of the copy list")
+
+
+def check_staging_ignored(copy_list: tuple[str, ...]) -> None:
+    """Every staged copy-list source must be git-ignored, and none may be tracked.
+
+    `stage-kit.mjs` copies the kit into `packages/create-pathfinder/` so npm can
+    see it, because `files` cannot reach outside the package directory. Those
+    copies are transient: `prepack` writes them and `postpack` removes them. A
+    staged source that `.gitignore` does not cover shows up as untracked noise
+    in `git status` during a pack, and a `git add -A` in that window commits a
+    second copy of the kit — the root copy and a stale duplicate underneath the
+    installer, with nothing to keep them in agreement.
+
+    This rule exists because that is exactly what happened when `roles` was
+    added to the copy list in 2.0.0: the copy list, the installer, the npm
+    allowlist, and the README were all updated together and checked by the rules
+    above, while `.gitignore` was not, because nothing checked it. The staging
+    list is the copy list plus `LICENSE`, mirroring `STAGED` in stage-kit.mjs.
+    """
+    staged = [*copy_list, "LICENSE"]
+
+    for entry in staged:
+        # A directory-only pattern does not match a path that does not exist, and
+        # a staged copy exists only between prepack and postpack. Probing a path
+        # *inside* the directory asks the question the pattern can answer on a
+        # clean checkout.
+        probe = f"packages/create-pathfinder/{entry}"
+        if (ROOT / entry).is_dir():
+            probe = f"{probe}/probe"
+
+        try:
+            result = subprocess.run(
+                ["git", "check-ignore", "-q", "--", probe],
+                cwd=ROOT, capture_output=True, text=True, check=False,
+            )
+        except OSError:
+            print("note: git unavailable, skipping staging-ignored")
+            return
+
+        # 0 ignored, 1 not ignored, anything else is git failing rather than
+        # answering — do not read that as a passing check.
+        if result.returncode == 1:
+            fail(".gitignore", "staging-ignored",
+                 f"`packages/create-pathfinder/{entry}` is staged by "
+                 "stage-kit.mjs but is not git-ignored, so a pack leaves a "
+                 "committable duplicate of the kit behind")
+        elif result.returncode != 0:
+            print("note: git check-ignore failed, skipping staging-ignored")
+            return
+
+    try:
+        tracked = subprocess.run(
+            ["git", "ls-files", "--",
+             *(f"packages/create-pathfinder/{entry}" for entry in staged)],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        return
+
+    if tracked.returncode != 0:
+        return
+
+    for path in sorted(filter(None, tracked.stdout.splitlines())):
+        fail(path, "staging-ignored",
+             "is a staged copy of the kit that has been committed; the copy at "
+             "the repository root is the only one in version control. Remove it "
+             "with `git rm --cached`")
 
 
 def check_installer_copy_list(copy_list: tuple[str, ...]) -> None:
@@ -878,58 +947,40 @@ def check_roles(skill_names: set[str]) -> None:
 
 
 def check_role_skills(path: Path, skill_names: set[str]) -> None:
-    """Every skill on a role's `Skills:` line must exist.
+    """Every skill a role names under `## Use` must exist.
 
-    The first version of this rule checked every backticked token in the whole
-    `Skills and tools` section, which contradicted the contract it was meant to
-    enforce: that section is also where a role names its non-skill tooling, so
-    a role saying it uses `pytest` was told to go create `skills/pytest/`.
+    A role is prose. Nothing imports it and nothing generates from it, so a
+    role naming a skill that was since renamed or removed goes on being read
+    as instructions until a human happens to notice. This rule is the only
+    thing standing between a stale role and that outcome.
 
-    The label is the fix, and it is the smallest one that is decidable. A
-    validator cannot tell a skill name from a tool name by looking at it, so
-    the file says which is which, and the rule reads only what it is told is a
-    skill list. Everything after the terminating period is free prose.
+    The slim role shape lists what a role uses as bullets under `## Use`, and
+    backticks exactly the skill names — a role is free to describe its other
+    tooling ("the project's existing test commands") in plain prose on the
+    same list. That convention is what makes the rule decidable: a validator
+    cannot tell a skill name from a tool name by looking at it, so it reads
+    only the backticked tokens and leaves unbackticked prose alone.
     """
     text = path.read_text(encoding="utf-8")
 
-    match = re.search(r"^## Skills and tools\s*$(.*)", text,
-                      re.MULTILINE | re.DOTALL)
+    match = re.search(r"^## Use\s*$(.*)", text, re.MULTILINE | re.DOTALL)
     if not match:
-        fail(path, "role-sections", "no `## Skills and tools` section found")
+        fail(path, "role-sections", "no `## Use` section found")
         return
 
     section = re.split(r"^## ", match.group(1), maxsplit=1, flags=re.MULTILINE)[0]
 
-    listed = re.search(r"^Skills:(.*?)\.(?:\s|$)", section, re.MULTILINE | re.DOTALL)
-    if listed is None:
-        fail(path, "role-skills-line",
-             "the Skills and tools section has no `Skills:` line; skills are "
-             "listed after that label, comma-separated and backticked, ending "
-             "in a period, so tooling can be named freely after it")
-        return
-
-    declared = listed.group(1)
-
-    # The list must be names and separators and nothing else. Without this the
-    # label would be decoration: prose could sit inside the checked span and
-    # silently name a skill the rule never looks at.
-    residue = re.sub(r"`[a-z0-9-]+`|,|\band\b|\s+", "", declared)
-    if residue:
-        fail(path, "role-skills-line",
-             f"the `Skills:` list must contain only backticked skill names "
-             f"and separators, but carries {residue!r}; describe tooling "
-             "after the period that ends the list")
-        return
-
-    names = re.findall(r"`([a-z0-9-]+)`", declared)
+    names = re.findall(r"`([a-z0-9-]+)`", section)
     if not names:
-        fail(path, "role-skills-line", "the `Skills:` list is empty")
+        fail(path, "role-use-empty",
+             "the `## Use` section names no skill; a role that uses no skill "
+             "has no need to exist")
         return
 
     for name in sorted(set(names)):
         if name not in skill_names:
             fail(path, "role-skill-exists",
-                 f"lists `{name}` under Skills, but there is no "
+                 f"names `{name}` under `## Use`, but there is no "
                  f"`skills/{name}/` directory")
 
 

@@ -64,6 +64,14 @@ describe("neverShips", () => {
     assert.equal(neverShips("context/tracker.md"), true);
   });
 
+  it("matches transient session state by kit-relative path", () => {
+    // Neither ships as a blank stencil any more — `load-feature` and `handoff`
+    // write them on first use. What is being guarded against here is the
+    // opposite leak: a maintainer's *filled-in* copy reaching a new project.
+    assert.equal(neverShips("context/current-feature.md"), true);
+    assert.equal(neverShips("context/handoff.md"), true);
+  });
+
   it("does not match a tracker.md living anywhere else", () => {
     // Basename matching would catch all of these, and every one of them is a
     // file some project legitimately wrote for itself.
@@ -73,9 +81,19 @@ describe("neverShips", () => {
     assert.equal(neverShips("docs/context/tracker.md"), false);
   });
 
-  it("leaves the rest of context/ alone", () => {
+  it("does not match transient state living anywhere else", () => {
+    assert.equal(neverShips("current-feature.md"), false);
+    assert.equal(neverShips("handoff.md"), false);
+    assert.equal(neverShips("docs/context/handoff.md"), false);
+  });
+
+  it("leaves the durable context files alone", () => {
+    // The durable half of `context/` is exactly what a destination project is
+    // supposed to receive, and is tracked in Git rather than ignored.
     assert.equal(neverShips("context/ai-interaction.md"), false);
-    assert.equal(neverShips("context/current-feature.md"), false);
+    assert.equal(neverShips("context/coding-standards.md"), false);
+    assert.equal(neverShips("context/project-overview.md"), false);
+    assert.equal(neverShips("context/history.md"), false);
   });
 });
 

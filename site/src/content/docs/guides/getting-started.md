@@ -42,7 +42,7 @@ coding tools to configure:
 
 ```text
      ━━━
-    ━━━━━      P A T H F I N D E R  v1.8.0
+    ━━━━━      P A T H F I N D E R  v2.0.0
    ━━━━━━━     trail markers for AI-assisted work
   ━━━━━━━━━
 
@@ -155,8 +155,8 @@ In the empty repository you just created, six things:
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
-| `context/` | Project truth — overview, standards, interaction rules, current feature |
-| `roles/` | Four declarative contracts — planner, developer, QA, human — inert until you name one |
+| `context/` | Project truth — the interaction rules and coding standards; the rest is written when first needed |
+| `roles/` | Three declarative contracts — planner, developer, tester — inert until you name one |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
 | `templates/` | Starting points the project copies when it needs them |
 
@@ -173,6 +173,32 @@ without.
 
 Pathfinder's own `README.md`, `CHANGELOG.md`, CI configuration, and brand assets are
 never copied. Your repository gets the workflow, not the project that maintains it.
+
+### Two lines for your `.gitignore`
+
+`context/` starts with two files and grows as you work. What gets written into it
+divides cleanly, and the division is worth setting up before your first commit.
+
+**Durable project truth is tracked.** `context/project-overview.md`,
+`context/features/`, `context/history.md`, and `context/tracker.md` answer *what is
+true about this project*. They outlive any session and a reviewer should see them
+change.
+
+**Transient session state is ignored.** `context/current-feature.md` and
+`context/handoff.md` answer *what was I doing*. They belong to one session on one
+machine, and committing them puts your in-flight work in everybody else's diff:
+
+```text
+context/current-feature.md
+context/handoff.md
+```
+
+That is the whole mechanism — no hook, no filter, no wrapper. **Do not ignore
+`context/` as a directory.** It looks tidier and quietly untracks the file
+documenting your stack and workflow, which every later session reads as true.
+
+A team that would rather share workspace state can track both files instead.
+Nothing in the kit reads Git to decide how to behave.
 
 ## Installing into a repository you already have
 
@@ -203,7 +229,7 @@ Options worth knowing before you run it anywhere real:
 | Option | Effect |
 | --- | --- |
 | `--dry-run` | Report the same plan the real install would carry out, and write nothing |
-| `--force` | Overwrite files that already exist. Off by default |
+| `--force` | Overwrite files that already exist, and replace a file you wrote at a path an adapter would occupy. Off by default |
 | `--agents <ids>` | Generate adapters for `claude-code`, `codex`, or both, without being asked |
 | `--git-init` | Run `git init` here if this is not a repository yet |
 | `--yes` | Take the defaults and ask nothing. It does not authorize `git init` or configure any tool |
@@ -246,16 +272,15 @@ conversation. Expect it to:
 - **leave open decisions marked [`TBD`](/concepts/decision-states/)** instead of
   quietly choosing for you.
 
-Once the direction is clear enough, it records the emerging context — filling in
-[`context/project-overview.md`](/context/project-overview/),
+Once the direction is clear enough, it records the emerging context — creating
+`context/project-overview.md` from its template, then filling in
 `context/coding-standards.md`, [`context/ai-interaction.md`](/context/ai-interaction/),
 `CLAUDE.md`, and `AGENTS.md` — and then recommends what to run next.
 
 It does not wait for your approval to write. What it has not settled with you stays
 visible in the file — a choice nobody has made reads [`TBD`](/concepts/decision-states/),
-and a choice it recorded for you to approve is marked `proposed` in the row's status.
-Either way, a choice appearing in `context/` records where the conversation reached,
-not something you agreed to.
+and everything else is a line it recorded for you to check. A choice appearing in
+`context/` records where the conversation reached, not something you agreed to.
 
 Which makes the next step yours. Read `context/project-overview.md` and correct or
 approve it before any implementation begins. It is now the file every later session

@@ -1,6 +1,6 @@
 ---
 name: setup-tracker
-description: Configure an optional external work tracker by interviewing the human and writing context/tracker.md from the shipped template.
+description: Configure optional work tracking for the project.
 ---
 
 <!-- pathfinder:adapter v1 source=skills/setup-tracker/SKILL.md -->

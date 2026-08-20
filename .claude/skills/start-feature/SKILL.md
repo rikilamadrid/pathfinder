@@ -1,6 +1,6 @@
 ---
 name: start-feature
-description: Implement the active feature one stable delivery chunk at a time under the project's approved workflow.
+description: Implement the active Feature in small, stable increments.
 ---
 
 <!-- pathfinder:adapter v1 source=skills/start-feature/SKILL.md -->

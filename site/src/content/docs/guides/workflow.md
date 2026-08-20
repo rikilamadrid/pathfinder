@@ -53,17 +53,15 @@ A prototype is optional. [`debate-me`](/skills/debate-me/) recommends whether th
 project needs an experience prototype, a technical proof of concept, an architecture
 diagram, or nothing at all, and the cheapest useful format is the right one.
 
-The output of this loop is [`context/project-overview.md`](/context/project-overview/)
+The output of this loop is `context/project-overview.md`
 and its neighbors. Everything downstream treats those files as true, which is why
 the loop ends on your approval rather than on the agent's satisfaction.
 
 Choices that are not yet made are marked rather than guessed:
 
 ```text
-TBD        a human decision is still required
-None       intentionally excluded
-N/A        not applicable
-Deferred   intentionally postponed
+TBD     a human decision is still required
+None    considered and intentionally excluded
 ```
 
 An agent must not quietly resolve a `TBD` while implementing something else.
@@ -308,7 +306,7 @@ reference. The agent recommends, with reasoning; you choose. Editing
 `ai-interaction.md` does not hand any of these over.
 
 Git and delivery workflow is neither: an agent follows what
-[`context/project-overview.md`](/context/project-overview/) documents, and asks when
+`context/project-overview.md` documents, and asks when
 that is still `TBD`.
 
 [Human approval](/concepts/human-approval/) covers all three in full.

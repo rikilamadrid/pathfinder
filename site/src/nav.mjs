@@ -95,11 +95,18 @@ export const WORKFLOW_LOOPS = [
     skills: ['setup-tracker', 'sync-tracker'],
   },
   {
-    // Not a sixth loop. `handoff` and `skillsmith` are cross-cutting utilities
-    // and the README does not place them in one, so neither does this. Naming
-    // the group honestly beats forcing them into a loop they do not belong to.
+    // Not a sixth loop. These are cross-cutting utilities and the README does
+    // not place them in one, so neither does this. Naming the group honestly
+    // beats forcing them into a loop they do not belong to.
+    //
+    // Ordered by when a session meets them: `role` scopes the session, then
+    // `whereami` reports where it stands, then `handoff` preserves it for the
+    // next one. `skillsmith` is last because it is about the kit rather than
+    // the session. `role` and `whereami` belong here rather than inside a loop
+    // for the same reason as the other two — every loop can use them, and none
+    // owns them.
     label: 'Session and kit utilities',
-    skills: ['handoff', 'skillsmith'],
+    skills: ['role', 'whereami', 'handoff', 'skillsmith'],
   },
 ];
 
@@ -139,11 +146,8 @@ const CONCEPTS = [
  * not listed here still appear, in path order, after the ones that are.
  */
 const CONTEXT_ORDER = [
-  'project-overview',
   'ai-interaction',
   'coding-standards',
-  'current-feature',
-  'history',
 ];
 
 const skillLink = (slug) => ({ label: slug, link: `/skills/${slug}/` });

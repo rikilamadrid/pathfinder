@@ -1,136 +1,81 @@
 ---
 name: sync-tracker
-description: Publish approved feature specs to the configured work tracker, one-way and idempotently, writing nothing when nothing has changed.
+description: Project Feature specs onto the configured work tracker.
 ---
 
 # Sync Tracker
 
-Use this skill to project the project's approved feature specs onto the tracker
-described in `context/tracker.md`.
+Sync project Features to the tracker configured in `context/tracker.md`.
 
-The repository is canonical. This is a **one-way projection** of work that
-already exists. Nothing here reads tracker state back into a spec,
-`context/current-feature.md`, or `context/history.md`.
-
-## The off switch comes first
-
-**If `context/tracker.md` does not exist, do nothing at all.** Report that work
-tracking is not configured for this project, and stop.
-
-Do not create the config, do not propose configuring one, and do not describe
-its absence as a gap. Work Tracking is optional, and a project without it is
-behaving correctly.
-
-## The config is the contract
-
-Read `context/tracker.md` in full and follow its prose. It states the model, the
-projection, and the publishing rules for this project.
-
-There is **no adapter code, no vendor branch, and no required tool** beyond what
-the config itself names. If the config describes a tracker this skill has never
-heard of, that is the design working, not a blocker.
-
-Where the config is silent on something a run needs, **ask the human**. Do not
-fill the gap with a convention of your own — the next run would fill it
-differently, and every item would look modified.
-
-## Where the specs are
-
-The config names this project's **spec source**. Read the approved specs from
-there. A config that names none means `context/features/`, which is where
-`to-specs` writes and what every project had before the source could be
-declared — so an existing config keeps behaving exactly as it did.
-
-**The key never comes from the path.** A spec numbered `27` is
-`pathfinder:feature/27` wherever it lives. A project that moves its specs must
-not find every published item orphaned by the move.
-
-If the declared source does not exist, report it and stop. Do not fall back to
-the default — a config naming a directory that is not there is a mistake to
-surface, and publishing an empty set over it would look like success.
-
-## What gets published
-
-**Approved feature specs only**, from `to-specs` onward — one work item per spec.
-Never debate notes, kickstart output, or prototypes. The one exception is a
-prototype that gates a decision, published as a single item phrased as the
-decision it resolves, never as a deliverable.
-
-**Do not decompose a feature.** Choosing units of execution inside a feature is a
-judgement about how work will be shared out, and it belongs to a human or to a
-skill written for it. Publish the feature.
+The repository is canonical.
+Tracker state never changes Pathfinder state.
 
 ## Process
 
-1. Check for `context/tracker.md`. If it is absent, report and stop.
-2. Read the config. Read the approved specs from the source it declares. Read
-   nothing else.
-3. Build the work items: key, kind, title, body, blocked-by edges, tags, and
-   chunks, derived and composed exactly as the config's model section says. Every
-   field comes from the spec — **tags only from its optional `## Tags` section,
-   never inferred.** A spec without one has no tags, which is correct and common.
-4. Order them by dependency, blockers first. If the edges contain a cycle,
-   report it and publish nothing — a guessed order is a wrong order that looks
-   fine.
-5. **Ask the human before the first write that leaves this repository.** See
-   below.
-6. Publish, following the config's *Publishing, and re-publishing* section
-   exactly: index existing items by key, create what is missing, compare
-   normalized, and leave an unchanged item completely alone.
-7. Report what was created, what was edited, and what was left alone.
+1. If `context/tracker.md` does not exist, report that tracking is not
+   configured and stop. Do not propose configuring one.
+2. Read the tracker configuration. It names the tracker, how to reach it, the
+   spec source, and how a published item records its Pathfinder key. Stop if it
+   does not say how the key is recorded — without it a re-run cannot recognise
+   what it published last time, and would duplicate every item.
+3. Read the approved Feature specs from the spec source. A config that names
+   none means `context/features/`. If the named source does not exist, report
+   it and stop rather than falling back.
+4. Build one item per Feature: key, title, and body, composed only from the
+   spec.
+5. Show the proposed writes.
+6. Ask before the first write that leaves this repository. One approval covers
+   the run. A projection onto files inside the repository is an ordinary file
+   write and is not gated.
+7. Create or update only the items that changed.
+8. Report created, updated, and unchanged as counts of writes, not as final
+   tracker state.
 
-## The approval gate
+## Identity
 
-**Ask before the first write to a tracker outside this repository in a session.**
-Creating items on a shared board is outward-facing and is not covered by ordinary
-file-edit approval. One approval covers the run; do not ask per item.
+Each Feature has one stable key derived from the number in its spec filename.
+`to-specs` names every spec `NN-feature-name.md`, so
+`27-export-saved-searches.md` is `pathfinder:feature/27` in whichever directory
+it sits — moving specs orphans nothing.
 
-**A projection onto files inside this repository is not gated.** It is an
-ordinary file edit and reaches nothing outside the repository. The gate is about
-leaving the repository, not about writing.
+Read the number from the basename only. Never from the directory above it, the
+title inside it, or the order the specs happen to be read in.
 
-## Idempotency is the whole feature
+Match published items on that key alone. Titles are edited by humans.
 
-A second run over unchanged specs must **create nothing, change nothing, and
-issue zero writes**. Not writes that happen to be no-ops — no writes.
+Skip a spec whose filename carries no number and report it by name. Do not
+assign one — numbering is `to-specs`' job, and inventing one here would publish
+an item that the next run cannot recognise.
 
-- **Compare normalized, never raw bytes.** A tracker is not obliged to hand a
-  body back exactly as it was sent, and APIs differ in whether they adjust
-  trailing whitespace. Where that happens, a naive byte comparison reports every
-  item as changed on every run and rewrites all of them forever, which looks like
-  working sync and is not. Strip trailing whitespace from each line and collapse
-  trailing blank lines at the end, **on both sides**, before comparing. It costs
-  nothing when the round-trip is exact.
-- **Compare tag sets as sets**, not as ordered lists. Application order is not
-  preserved.
-- Never close, reopen, delete, or recreate an item. Edit in place.
-- Never touch an item whose key is absent from the current set. It belongs to
-  work outside this run.
-- Match on the key alone, never on the title.
+## Idempotency
 
-**Report writes, not final state.** "The tracker looks right" is satisfied by a
-run that rewrote every item, which is the specific failure this skill exists to
-avoid. `3 items, 0 changes` is the expected result of a second run and the most
-important line of output.
+A second run over unchanged Features must issue **zero writes** — not writes
+that happen to be no-ops.
+
+- Compose the body as a pure function of the spec: fixed section order, no
+  timestamps, no counters, nothing derived from the run.
+- Compare normalized, never raw bytes. Strip trailing whitespace per line and
+  collapse trailing blank lines, on both sides. A tracker is not obliged to
+  return a body byte-for-byte, and a naive comparison then rewrites every item
+  forever while looking like working sync.
+- Where the config defines tags, compare them as sets, not ordered lists.
+- Edit in place. Never close, reopen, delete, or recreate an item.
+- Leave any item whose key is absent from this run completely alone.
+
+`3 items, 0 changes` is the expected second run and the most important line of
+output.
 
 ## Rules
 
-- Do not add code, dependencies, or an adapter for any tracker.
-- Do not branch on `kind`.
-- Do not infer tags, and do not apply a value the config's mapping table does not
-  carry. A spec naming an unmapped tag is a question for the human, not a
-  judgement call.
-- Do not drop an edge that resolves outside the published set, and do not invent
-  an item for it. Resolve it against the tracker as a whole: render the item's
-  identifier if the key already has one, and name the key as untracked only when
-  it genuinely has none.
-- Do not read anything back. A ticked checkbox means nothing to Pathfinder and
-  never advances any state.
-- Do not close, reopen, or delete anything, ever.
+- Do not decompose Features into tickets.
+- Do not derive dependency edges, ordering, or a graph from a spec. A Feature
+  may mention a dependency under `## Notes / Decisions` for a human to read;
+  it is prose, not structure, and this skill does not parse or orchestrate it.
+- Do not infer labels, tags, status, or other metadata.
+- Do not modify Feature specs from tracker state.
+- Do not read tracker state back into anything.
+- Do not delete tracker items automatically.
+- Do not rewrite unchanged items.
+- Local Markdown tracking is an ordinary repository/file write.
+- External trackers require human approval before writing.
 - Stop and report when the config, the specs, and the tracker disagree.
-
-## Stop Condition
-
-Stop once the run is reported. Configuring a tracker is `setup-tracker`, not this
-skill. If a spec set is not ready to publish, say so rather than publishing part
-of it.

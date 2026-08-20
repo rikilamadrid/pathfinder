@@ -1,77 +1,116 @@
 # AI Interaction Guidelines
 
-This file defines how AI agents collaborate with the human owner. Project-specific choices override generic defaults when explicitly documented.
+This file defines the default rules for AI-assisted work.
+Project-specific instructions override these defaults when explicit.
 
 ## Communication
 
 - Be concise, direct, and honest.
-- Distinguish facts, recommendations, assumptions, and unresolved decisions.
+- Separate facts, assumptions, recommendations, and unresolved decisions.
 - Do not invent answers for `TBD` items.
-- Stop after 2–3 grounded failed approaches and explain the blocker.
+- After 2–3 grounded failed approaches, stop and explain the blocker.
 
-## Approval Boundaries
+## Human Approval
 
-Follow the project's documented policy. Unless explicitly pre-approved, ask before:
+Ask before:
 
-- dependencies or build-tool changes
-- architecture migrations
+- architecture or dependency changes
 - database, auth, payment, secrets, or security-sensitive changes
 - destructive commands or file deletion
 - Git history rewriting
 - commits, merges, releases, or deployments
 - adopting prototype code into production
-- writes that leave this repository, such as creating or editing items on a shared work tracker — writing files inside the repository is an ordinary file edit and is not covered
+- writes outside the repository, such as shared tracker changes
+
+The human owns judgment, acceptance, merge, and release decisions.
 
 ## Git and Delivery
 
-Follow `context/project-overview.md`. Do not assume `main`, feature branches, Git Flow, conventional commits, pull requests, or SemVer.
+Follow `context/project-overview.md`.
 
-Before Git actions, inspect current state and state what the documented workflow requires. If the workflow is `TBD`, ask before changing it.
+Do not assume branch strategy, commit style, pull requests, versioning,
+or deployment workflow.
 
-## Feature Lifecycle
+Inspect current Git state before acting. If the workflow is unclear or
+`TBD`, ask.
 
-1. `load-feature` prepares one feature and checks context readiness.
-2. `start-feature` implements one delivery chunk at a time.
-3. `review-feature` reports findings against the spec and repository standards.
-4. `complete-feature` verifies acceptance criteria and updates durable records.
-5. `learn-feature` may generate an interactive lesson after completion.
+## Feature Workflow
+
+Use the workflow skills instead of recreating their procedures in chat:
+
+1. `load-feature` — load the active work and relevant context.
+2. `start-feature` — implement the current delivery chunk.
+3. `review-feature` — verify the work and report findings.
+4. `complete-feature` — complete accepted work and durable records.
+5. `learn-feature` — optionally teach what was implemented.
+
+Roles are optional. The workflow must work without activating one.
+
+### Status
+
+Feature status records durable lifecycle state only:
+
+`Proposed` → `Ready` → `In Progress` → `Complete`
+
+`Cancelled` and `Superseded` are terminal alternatives.
+
+- `Ready` means the human approved execution.
+- Review and testing are optional workflow activity, not a status.
+  A Feature stays `In Progress` until it is complete.
+- `Blocked` is not a status; record the blocker in current workspace state.
+- The human decides approval, acceptance, cancellation, and supersession.
 
 ## Context Discipline
 
-- Read the active feature, its dependencies, and only relevant durable context.
-- Use the feature's Context Boundary and Delivery Chunks.
-- Avoid repo-wide scans unless the task genuinely requires them.
-- Split the feature when a focused session cannot safely understand, implement, and verify it.
-- Never hide excessive scope behind a long checklist.
-
-## Prototype Workflow
-
-- Use `debate-me` to determine whether prototyping is warranted.
-- Use `prototype` to validate one important assumption at a time.
-- Ask the human to approve, revise, replace, or stop the direction.
-- Record approved direction and rejected assumptions.
-- Do not treat prototype output as production-ready.
+- Read only what the current work requires.
+- Prefer exact files or sections over broad repository scans.
+- Do not load history, roadmap, tracker data, or unrelated context by
+  default.
+- Work one delivery chunk at a time.
+- If the work can no longer be understood safely in a focused session,
+  stop and split or hand off.
+- Extra scaffolding must earn its cost by reducing downstream context.
 
 ## Scope Control
 
-Do not drift into unrelated refactors, extra features, dependency swaps, broad visual changes, speculative abstractions, or later roadmap items.
+Stay inside the approved work.
 
-## Review Priorities
+Do not add unrelated refactors, features, dependency changes, visual
+redesigns, speculative abstractions, or later roadmap work.
 
-Use the project's quality priorities. When none are specified, review in this order:
+When necessary work falls outside scope, stop and ask.
+
+## Prototypes
+
+Use `debate-me` to decide whether a prototype is useful.
+
+Use `prototype` to test one important assumption at a time.
+
+Prototype output is evidence, not production code, until the human
+explicitly approves adoption.
+
+## Review
+
+Review against the Feature and the actual diff.
+
+Prioritize:
 
 1. correctness
-2. security/privacy
+2. security and privacy
 3. regressions and edge cases
-4. accessibility when applicable
+4. accessibility when relevant
 5. performance
 6. maintainability
-7. consistency
-8. polish
+
+Verification effort should be proportional to risk.
+
+Report findings; do not manufacture them.
 
 ## Learning
 
-- Explain what was actually implemented, not an idealized architecture.
-- Use diagrams, examples, and quizzes when they improve understanding.
-- Do not expose private chain-of-thought.
-- Keep feature lessons scoped; reserve broad repository scanning for `learn-codebase`.
+Explain what was actually implemented.
+
+Use examples, diagrams, or quizzes only when they improve understanding.
+
+Keep Feature learning scoped. Use `learn-codebase` for broad repository
+study.

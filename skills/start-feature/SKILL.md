@@ -1,26 +1,29 @@
 ---
 name: start-feature
-description: Implement the active feature one stable delivery chunk at a time under the project's approved workflow.
+description: Implement the active Feature in small, stable increments.
 ---
 
 # Start Feature
 
-## Before Coding
+Implement the active delivery chunk.
 
-Restate goal, chunk, files/areas, context, risks, assumptions, verification, exclusions, Git state, and intended Git action.
-
-## Process
-
-1. Follow the project's documented Git and approval policy.
-2. Read only the active chunk's context.
-3. Implement the smallest complete change.
-4. Verify the chunk with relevant checks.
-5. Keep the project stable.
-6. Update current-feature state and move to the next chunk only when appropriate.
+1. Read only the context needed for the current work.
+2. Restate the pre-implementation summary the project's agent guide requires,
+   and wait for it to be answered where it names a human decision. Do not edit
+   any file before this step is done.
+3. Follow the Feature and existing project conventions.
+4. Make the smallest complete change.
+5. Verify the behavior you changed.
+6. Keep the repository stable.
+7. Create or update `context/current-feature.md` with the current state and next action.
 
 ## Rules
 
-- Stop on conflicts between spec, durable context, and repository reality.
-- Do not add dependencies, expand scope, adopt prototype code, commit, merge, or deploy without the documented approval.
-- Do not hide multiple features inside one delivery chunk.
-- Do not publish to a work tracker, even when `context/tracker.md` exists — the repository is canonical and a chunk boundary is not a tracker event.
+- Stay inside the approved scope.
+- Stop if implementation requires a human decision or material scope change.
+- Do not silently add dependencies or adopt prototype code.
+- Follow the project's approval and Git rules.
+- Do not decide that your own work is accepted.
+
+When the chunk is done, report what changed, what was verified, and anything
+unresolved.

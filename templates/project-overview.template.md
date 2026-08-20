@@ -1,129 +1,108 @@
 # Project Overview
 
-> Describe the product, audience, intended feeling, and reason it should exist.
+Durable, project-wide context.
 
-## Status
+Keep this concise. Feature scope, active work, history, and temporary
+planning belong elsewhere.
 
-- Project: `[Project Name]`
+Two words keep an unmade decision visible:
+
+- `TBD` — a human decision is still required
+- `None` — considered and intentionally excluded
+
+Leave nothing blank. A blank field is indistinguishable from an abandoned one.
+
+## Project
+
+- Name: `[Project Name]`
 - Stage: `[idea / prototype / MVP / production / maintenance]`
-- Repo type: `[new / existing / application / library / service / monorepo / other]`
-- Primary goal: `[success definition]`
-- Prototype status: `[not required / recommended / in progress / approved / rejected / TBD]`
+- Repo type: `[application / library / service / monorepo / other]`
+- Primary goal: `[what success means]`
 
-## Decision States
+## Product
 
-These four words describe a decision:
+- Problem: `[problem being solved]`
+- Primary user: `[who it is for]`
+- First useful outcome: `[smallest meaningful result]`
+- Distinctive quality: `[what should make it good or different]`
+- Avoid becoming: `[important anti-goal]`
 
-- `TBD` — human decision required
-- `None` — intentionally excluded
-- `N/A` — not applicable
-- `Deferred` — intentionally postponed
+## Scope
 
-## Record Status
+### In
 
-A `Status` column describes the record, not the decision:
+- `[core outcome]`
 
-- `proposed` — written down, not yet approved by the human
-- `accepted` — approved by the human
-- `superseded` — replaced by a later decision, kept for history
+### Out
 
-The two answer different questions. `TBD` says nobody has decided yet. `proposed` says something was recorded for the human to approve. A recorded proposal is not an approved decision.
+- `[explicit non-goal]`
 
-## Product Vision
+## Requirements and Open Decisions
 
-- Problem:
-- Primary user:
-- First useful outcome:
-- Distinctive quality:
-- What this must avoid becoming:
-
-## MVP Boundary
-
-### In scope
-
-- `[essential outcome]`
-
-### Out of scope
-
-- `[deferred outcome]`
-
-### Success signals
-
-- `[observable user, business, system, or learning signal]`
-
-## Core Experience or System Flow
-
-```text
-starting state -> action/process -> useful result -> reason to return or continue
-```
-
-## Requirements, Preferences, Constraints, and Open Decisions
+Record only what constrains the work. An open decision stays `TBD` until a
+human resolves it.
 
 | Type | Item | Notes |
 | --- | --- | --- |
 | Requirement | `[must be true]` | |
 | Preference | `[desired but negotiable]` | |
 | Constraint | `[limit or external obligation]` | |
-| Open decision | `[TBD]` | |
+| Open decision | `TBD` | |
 
-## Recommended and Approved Technology
+## System
 
-Recommended and approved choices both live here. `debate-me` and `kickstart-pathfinder` may record a choice before the human approves it; that row is marked `proposed` in `Status` and stays that way until it is `accepted`. Leave `Status` empty while the choice is still `TBD`.
+Record only important project-wide architecture and constraints.
 
-| Layer | Choice | Reason | Status |
-| --- | --- | --- | --- |
-| Platform/runtime | `TBD` | | |
-| Language(s) | `TBD` | | |
-| UI/presentation | `TBD / N/A` | | |
-| Backend/application layer | `TBD / None` | | |
-| Data storage | `TBD / None` | | |
-| Data access/ORM | `TBD / None` | | |
-| Authentication | `TBD / None` | | |
-| Authorization | `TBD / None` | | |
-| API/integration style | `TBD / None` | | |
-| State management | `TBD / N/A` | | |
-| Testing | `TBD` | | |
-| Build/package tooling | `TBD` | | |
-| Deployment/runtime environment | `TBD` | | |
-| Observability | `TBD / Deferred` | | |
-| AI providers/models | `TBD / None` | | |
+- Architecture: `[short description or TBD]`
+- Main components: `[components or TBD]`
+- Constraints: `[important constraint or None]`
 
-## Architecture
-
-- Architecture style: `TBD`
-- Repository shape: `TBD`
-- Main boundaries/modules:
-- Data/control flow:
-- Important tradeoffs:
+Optional flow:
 
 ```text
-[path or module]    # purpose
-[path or module]    # purpose
+[input] -> [component] -> [result]
 ```
 
-## Prototype Direction
+## Technology
 
-- Prototype needed: `[yes / no / TBD]`
-- Type: `[experience / technical / diagram / mixed / N/A]`
-- Assumption being validated:
-- Output location:
-- Review criteria:
-- Approved direction:
-- Elements explicitly not adopted into production:
+The stack an agent must follow rather than choose. Keep the rows this project
+actually has.
+
+| Layer | Choice | Reason |
+| --- | --- | --- |
+| Platform/runtime | `TBD` | |
+| Language(s) | `TBD` | |
+| UI/presentation | `TBD / None` | |
+| Backend/application | `TBD / None` | |
+| Data storage and access | `TBD / None` | |
+| Auth | `TBD / None` | |
+| Testing | `TBD` | |
+| Build and package tooling | `TBD` | |
+
+## Commands
+
+The commands an agent runs to verify its own work.
+
+```text
+install: TBD
+run/dev: TBD
+test: TBD
+lint/static analysis: TBD
+build/package: TBD
+```
 
 ## Delivery Workflow
 
 | Area | Choice |
 | --- | --- |
 | Git workflow | `TBD` |
-| Default/stable branch | `TBD` |
-| Branch naming | `TBD / N/A` |
+| Default branch | `TBD` |
+| Branch naming | `TBD / None` |
 | Commit convention | `TBD / None` |
-| Pull request policy | `TBD` |
+| Review policy | `TBD` |
 | Merge strategy | `TBD` |
 | CI/CD | `TBD / None` |
-| Versioning | `TBD / None` |
-| Changelog | `TBD / None` |
+| Versioning and changelog | `TBD / None` |
 | Release process | `TBD / None` |
 
 ## Environments and Integrations
@@ -133,14 +112,12 @@ Recommended and approved choices both live here. `debate-me` and `kickstart-path
 | Local development | `TBD` | |
 | Preview/staging | `TBD / None` | |
 | Production | `TBD / None` | |
-| Environment configuration | `TBD` | |
-| Secrets management | `TBD / N/A` | |
-| External APIs/services | `TBD / None` | |
-| Rate/cost limits | `TBD / N/A` | |
+| Configuration and secrets | `TBD` | |
+| External services/APIs | `TBD / None` | |
 
 ## Quality Priorities
 
-Rank only what matters for this project.
+Rank only what matters for this project, highest first.
 
 1. `[priority]`
 2. `[priority]`
@@ -149,63 +126,21 @@ Rank only what matters for this project.
 | Concern | Target or decision |
 | --- | --- |
 | Correctness/reliability | `TBD` |
-| Security/privacy | `TBD / N/A` |
-| Accessibility | `TBD / N/A` |
-| Performance | `TBD / N/A` |
-| Browser/platform support | `TBD / N/A` |
-| Localization | `TBD / None` |
-| Offline behavior | `TBD / N/A` |
-
-## Core Domain Concepts
-
-Describe durable concepts without assuming a language:
-
-```text
-Entity/Concept: Example
-Required fields: id, name
-Important states: draft, active, archived
-Relationships: belongs to / contains / references
-```
-
-## Build, Test, and Run Commands
-
-```text
-install: TBD
-run/dev: TBD
-test: TBD
-lint/static analysis: TBD
-build/package: TBD
-other verification: TBD
-```
-
-## Build Phases
-
-| Phase | Goal | Visible or verifiable win |
-| --- | --- | --- |
-| 1 | Foundation | `[result]` |
-| 2 | Core experience/system | `[result]` |
-| 3 | Real data/integration | `[result]` |
-| 4 | Quality and release readiness | `[result]` |
-
-## Learning Goals
-
-- What the human wants to understand:
-- Preferred lesson format: `[HTML / MDX / Markdown / existing docs system / TBD]`
-- Quiz preferences:
-- Topics to emphasize:
-- Topics to avoid over-explaining:
+| Security/privacy | `TBD / None` |
+| Accessibility | `TBD / None` |
+| Performance | `TBD / None` |
+| Supported platforms | `TBD / None` |
 
 ## Durable Decisions
 
-| Date | Decision | Reason | Status |
-| --- | --- | --- | --- |
-| `[YYYY-MM-DD]` | `[decision]` | `[reason]` | `[proposed / accepted / superseded]` |
+Decisions that outlive a Feature, including approved prototype direction and
+anything a prototype proved must not reach production.
 
-## Things To Avoid
+| Date | Decision | Reason |
+| --- | --- | --- |
+| `[YYYY-MM-DD]` | `[decision]` | `[reason]` |
 
-- Building before critical decisions are understood.
-- Treating recommendations as approval.
-- Silently resolving `TBD` items.
-- Turning prototype shortcuts into production defaults.
-- Over-documenting temporary implementation detail.
-- Creating feature specs too large for a focused LLM context window.
+## Learning
+
+- What the human wants to understand: `[topics or None]`
+- Preferred lesson format: `[HTML / MDX / Markdown / existing docs system / TBD]`

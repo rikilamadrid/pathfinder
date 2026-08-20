@@ -6,19 +6,21 @@ description: Why every feature declares what to read and what to ignore, and wha
 A context boundary is a feature's explicit statement of what an agent should read
 before working on it — and, just as important, what it should not.
 
-Every feature spec carries one:
+Every feature spec carries one, as its `## Context` section:
 
 ```text
-## Context Boundary
+## Context
 
-Read:
+Include only what materially helps someone implement this Feature.
 
-- `[specific context and code]`
-
-Avoid loading:
-
-- `[unrelated systems, old specs, generated output]`
+- Read: `[specific files, sections, or systems]`
+- Relevant area: `[path or component]`
+- Avoid: `[unrelated area, if useful]`
 ```
+
+It is three lines rather than a form, and `Avoid` is optional — most features do
+not need to name anything, and an empty exclusion list is a better answer than a
+padded one.
 
 ## Why the second list exists
 
@@ -41,8 +43,8 @@ relevant parts of the project overview and coding standards, the interaction rul
 and *only the source files the current delivery chunk needs*.
 
 [`context/ai-interaction.md`](/context/ai-interaction/) states the discipline as a
-rule: read the active feature and its dependencies, use the feature's own boundary,
-avoid repo-wide scans unless the task genuinely requires one.
+rule: read only what the current work requires, prefer exact files or sections over
+broad repository scans, and work one delivery chunk at a time.
 
 Neither is enforced by tooling. Both are markdown an agent reads.
 

@@ -1,49 +1,61 @@
 ---
 name: to-specs
-description: Convert approved project context into small sequential feature specs optimized for focused LLM context and reliable delivery.
+description: Turn approved direction into small, clear Feature specs.
 ---
 
 # To Specs
 
-## Readiness Check
+Turn approved direction into the minimum Feature specs needed to implement it.
 
-Confirm:
+## Process
 
-- MVP and first useful flow are defined
-- critical stack and workflow choices are approved or deliberately deferred
-- required prototype direction is approved
-- known verification methods exist or are explicitly deferred
-- no material context contradictions remain
+1. Read the approved project context and relevant existing Features.
+2. Stop if a required human decision is still `TBD`.
+3. Decide whether the work is one Feature or needs a small number of Features.
+4. Create `context/features/` if it does not exist.
+5. Create each Feature from `templates/feature-spec.template.md`, named
+   `NN-feature-name.md` — see Naming below.
+6. Fill only information that materially helps implementation and review.
+7. Present the created Features and recommend which one to start first.
+8. If `context/tracker.md` exists, offer to publish them with `sync-tracker`.
+   Do nothing here if it does not.
 
-If not ready, report the blockers instead of inventing decisions.
+## Naming
 
-## Sizing Principles
+A Feature spec is named `NN-feature-name.md` in the spec source, for example
+`context/features/27-export-saved-searches.md`.
 
-Each feature should:
+`NN` is the Feature number: the next unused number in the spec source, counting
+every spec already there whatever its status. Numbers are never reused and never
+renumbered, because a published tracker item is matched on that number and
+renumbering would orphan it.
 
-- create one visible or system-verifiable outcome
-- fit one focused branch/change set under the project's workflow
-- be independently reviewable and verifiable
-- require a coherent, bounded set of context
-- state dependencies, assumptions, and exclusions
-- contain stable delivery chunks
+The number lives in the filename and nowhere else. The Feature template carries
+no number field, and nothing else in the spec records one.
 
-Split a feature when it mixes several systems, requires a repo-wide mental model, combines infrastructure with unrelated UX/polish, or cannot be verified independently.
+## Sizing
 
-## Output
+Prefer one Feature when the work is coherent.
 
-Create only the coherent MVP roadmap in `context/features/`, using `templates/feature-spec.template.md` and project-selected naming/delivery policies.
+Split only when separate outcomes:
 
-Each spec must include Context Boundary, Delivery Chunks, and Learning Targets.
+- can be implemented or reviewed independently
+- depend on meaningfully different context
+- have a real dependency between them
+- would make one Feature unnecessarily difficult to understand
 
-Write a `## Tags` section only when the project has configured work tracking and its `context/tracker.md` defines tag namespaces. Use the values that config already lists, never invented ones. No tags is a valid and common answer — omit the section rather than guessing.
+Prefer fewer Features and fewer artifacts.
 
-After creation, summarize file, outcome, dependency, visible/verifiable win, context risk, and recommended first feature.
-
-If `context/tracker.md` exists, offer to publish the new specs with `sync-tracker`. If it does not, say nothing about tracking.
+Use delivery chunks inside a Feature before creating additional Features.
 
 ## Rules
 
-- Do not implement or install packages.
-- Do not assume UI, mobile, a framework, a branch type, or conventional commits.
-- Do not plan the entire dream product.
+- Do not implement.
+- Do not invent unresolved decisions.
+- Do not plan beyond the approved direction.
+- Do not add workflow metadata that the Feature template does not require.
+- Do not create tickets, tracker items, or extra planning files by default.
+- Do not scan unrelated repository areas.
+
+When implementation details are unclear, inspect only enough source code to
+write an accurate Feature.
