@@ -19,6 +19,8 @@ The goal is to connect implementation details to system boundaries, ownership, s
 5. Data contracts, API boundaries, stores, routing, and deployment configuration relevant to the requested scope
 6. Existing ADRs, if present
 
+Skip any of these that does not exist. Pathfinder creates these files only when a workflow first needs them, so their absence is normal and is not an error. Do not create them just to satisfy this list.
+
 Do not infer services or infrastructure that do not exist. Clearly distinguish current architecture from likely future architecture.
 
 ## Teach These Layers

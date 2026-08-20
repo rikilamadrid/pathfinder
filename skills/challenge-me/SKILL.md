@@ -18,6 +18,8 @@ A good challenge changes the context while preserving the underlying concept.
 4. The feature spec and focused implementation when needed
 5. Current git status if the challenge may involve code
 
+Skip any of these that does not exist. Pathfinder creates these files only when a workflow first needs them, so their absence is normal and is not an error. Do not create them just to satisfy this list.
+
 ## Challenge Types
 
 Choose one, or honor the requested argument:

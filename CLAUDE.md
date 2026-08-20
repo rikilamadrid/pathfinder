@@ -15,11 +15,23 @@ For feature work, usually read:
 
 Do not load the whole repo by default.
 
+Pathfinder ships two context files: `ai-interaction.md` and
+`coding-standards.md`. Everything else in `context/` — `project-overview.md`,
+`features/`, `history.md`, `current-feature.md`, `handoff.md` — is written by
+the workflow that first needs it. A missing file here is normal; skip it rather
+than treating it as an error.
+
+Track the durable ones in Git and ignore the two transient ones,
+`current-feature.md` and `handoff.md`. `context/coding-standards.md` carries the
+rule; do not ignore `context/` wholesale.
+
 ## Roles
 
 When the human names a role, read `roles/<name>.md` before anything else and follow it for the session. A role says what a worker is responsible for, what it reads, and what it must not do, where a skill says how to perform a task.
 
-Naming a role is the only thing that activates one. If the human names none, ignore `roles/` and work as this guide otherwise describes. A role narrows what a session may do and never widens it.
+The roles are `planner`, `developer`, and `tester`. Activate one with `/role <name>`.
+
+Naming a role is the only thing that activates one. If the human names none, ignore `roles/` and work as this guide otherwise describes. A role narrows what a session may do and never widens it. Human authority sits outside the role system: approval, acceptance, merge, and release are always the human's.
 
 ## Project-selected policies
 
@@ -81,6 +93,8 @@ An adapter carries the canonical skill's frontmatter and a pointer to it, and no
 - `learning-review` — review accumulated lessons, identify gaps, and create a reinforcement plan
 - `reflect` — review completed work, and the reflection itself, and propose reusable workflow improvements for human approval
 - `handoff` — preserve useful state between sessions or tools
+- `role` — activate one named role for the current session
+- `whereami` — report a compact read-only snapshot of the current session
 - `skillsmith` — teach and create small local skills
 - `setup-tracker` — configure an optional external work tracker
 - `sync-tracker` — publish approved feature specs to the configured tracker, one-way and idempotently

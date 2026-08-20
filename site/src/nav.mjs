@@ -139,11 +139,8 @@ const CONCEPTS = [
  * not listed here still appear, in path order, after the ones that are.
  */
 const CONTEXT_ORDER = [
-  'project-overview',
   'ai-interaction',
   'coding-standards',
-  'current-feature',
-  'history',
 ];
 
 const skillLink = (slug) => ({ label: slug, link: `/skills/${slug}/` });

@@ -57,22 +57,38 @@ export function isExcluded(basename) {
  * real, hand-written files that live inside a copy-list directory and must
  * still never reach a destination project.
  *
- * `context/tracker.md` is the whole list. Work Tracking's off switch is the
+ * All three are this repository's own working state, and every one of them
+ * would be actively wrong in somebody else's project.
+ *
+ * `context/tracker.md` is the original case. Work Tracking's off switch is the
  * *absence* of that file in a destination project, so shipping this
  * repository's own copy would hand every new project a configuration naming a
  * tracker it does not own, pointing at a spec directory it does not have, with
  * the off switch already defeated on first install.
  *
- * Feature 25 said this file "does not ship" and that was true only because no
- * such file had ever existed here. `context` is a *directory* entry in the copy
- * list, so anything placed beneath it ships by default. Making the invariant
- * enforced rather than intended is the same move `check_no_junk_tracked` made:
- * an ignore rule is advisory, and one `git add -f` defeats it.
+ * `context/current-feature.md` and `context/handoff.md` are transient session
+ * state, and they are here for the same reason one step further on: the kit
+ * stopped shipping a blank `current-feature.md` stencil, because `load-feature`
+ * writes the real one on first use and a placeholder is just a file a reader
+ * has to recognise as empty. Having stopped shipping the blank one, the thing
+ * to guard against is shipping a *filled-in* one — a destination project
+ * opening its first session to a note about whichever feature a Pathfinder
+ * maintainer had loaded on the day of the release.
+ *
+ * `context` is a *directory* entry in the copy list, so anything placed beneath
+ * it ships by default. Making the invariant enforced rather than intended is
+ * the same move `check_no_junk_tracked` made: an ignore rule is advisory, one
+ * `git add -f` defeats it, and `stage-kit.mjs` copies from the working tree
+ * without consulting it at all.
  *
  * Matched on the kit-relative path, never the basename — a project's own
  * `tracker.md` somewhere else is not this file and must not be caught by it.
  */
-const NEVER_SHIPS = new Set(["context/tracker.md"]);
+const NEVER_SHIPS = new Set([
+  "context/tracker.md",
+  "context/current-feature.md",
+  "context/handoff.md",
+]);
 
 /**
  * Is this kit-relative path one the kit must never hand over?

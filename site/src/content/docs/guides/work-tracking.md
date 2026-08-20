@@ -37,21 +37,21 @@ two disagree, the repository is right and the tracker is stale.
 So a ticked checkbox on a published item means nothing to Pathfinder. Someone can
 tick it, and they may find that useful, but no state advances and nothing reads it
 back. Editing a title on the tracker changes nothing either — items are matched by
-key, never by title, precisely because humans edit titles.
+identity, never by title, precisely because humans edit titles.
 
 This is what keeps a tracker from becoming a second source of truth that
 disagrees with your repository at 4pm on a Friday.
 
 ## Configuring it
 
-[`setup-tracker`](/skills/setup-tracker/) interviews you for which tracker you
-use, where it lives, how an agent reaches it, and which tags your project
-actually uses — then writes `context/tracker.md` from a shipped template, once
-you approve it.
+[`setup-tracker`](/skills/setup-tracker/) asks where work should be tracked —
+GitHub Issues, local Markdown files, or another tracker you describe — and then
+only for the information needed to reach it. It composes a proposed
+`context/tracker.md`, shows it to you, and writes it once you approve.
 
-It asks one question that matters more than it looks: **what does your tracker
-already carry?** If a label already means what a tag would mean, the config
-reuses it and records the mapping instead of creating a near-duplicate beside it.
+No tracker template ships with the kit. The config is written to fit the tracker
+you named rather than trimmed down from a long stencil of fields for trackers you
+do not use, and creating a near-duplicate beside it.
 Pathfinder does not ship a project-management taxonomy for you to fight.
 
 The result is prose. Not a schema, not a config format, and not a plugin — a
@@ -100,13 +100,14 @@ It also does not decompose a feature into smaller assignable units. Choosing how
 work is split between people or agents is a judgement, and the skill does not
 make it for you.
 
-Every field of a published item comes from the spec: the key from its number,
-edges from its `## Dependencies`, chunks from its `## Delivery Chunks`, and tags
-from an optional `## Tags` section — **and from nowhere else.** Tags are never
-inferred from a title or from the paths a spec happens to mention. A spec with no
-`## Tags` section publishes with no tags, which is correct and is what most
-projects will do. Guessing would produce a taxonomy you did not choose, applied
-to work you did not classify, looking authoritative on a shared board.
+Every field of a published item comes from the spec: the key from its number, the
+title and body from its `## Goal` and `## Requirements`, and chunks from its
+`## Delivery Chunks` — **and from nowhere else.** Labels, tags, and status are
+never inferred from a title or from the paths a spec happens to mention. The
+feature template carries no tag section at all, so a published item arrives
+unlabelled unless your tracker config says otherwise. Guessing would produce a
+taxonomy you did not choose, applied to work you did not classify, looking
+authoritative on a shared board.
 
 ### A second run should be boring
 
@@ -174,72 +175,48 @@ every internal boundary.
 You can still run [`sync-tracker`](/skills/sync-tracker/) directly whenever you
 want. The wiring means you rarely have to.
 
-## Two projections, one model
+## What the config carries
 
-The config has two halves. The **model** describes work items neutrally: a key, a
-kind, blocked-by edges, tags, chunks, and a parent. The **projection** describes
-how that model renders onto one particular tracker.
+The config is prose, and it carries only what your tracker actually needs: where
+work is tracked, how an agent reaches it, and how a Feature spec should appear
+once it gets there.
 
-Two projections ship, both proven against real backends:
+Two backends are well-trodden and worth naming, because both have been driven
+against the real thing:
 
-**GitHub Issues**, via the `gh` CLI. One work item becomes one issue. Blocked-by
-edges become a `Blocked by` line naming each blocker by issue number and key.
-Tags become labels, through a mapping table you can see and edit.
+**GitHub Issues**, via the `gh` CLI. One Feature becomes one issue.
 
-**Local Markdown files**, one file per work item under `.work/`. The same edges
-become a `Blocked by` line naming files instead of issue numbers. Tags are
-written out verbatim, because there is no label object to create.
+**Local Markdown files**, one file per Feature under a directory you name. This
+reaches nothing outside your repository, which is why it needs no credentials and
+no approval to write.
 
-The split is strict, and it is the point: **the model section is byte-identical
-whichever projection you choose.** Only identifiers and tag rendering differ. An
-edge names a key, never an issue number, so the same dependency survives being
-pointed at a different tracker.
+A tracker neither covers — Jira, Linear, something internal — is supported by
+describing it in prose. That is the mechanism rather than a gap, and it is the
+reason the kit does not need an adapter per vendor.
 
-A tracker neither projection covers — Jira, Linear, something internal — is
-supported by describing it in prose, using a shipped projection as the shape to
-follow. That is the mechanism rather than a gap, and it is the reason the kit
-does not need an adapter per vendor.
+Earlier versions shipped a `templates/tracker.template.md` carrying a full
+backend-neutral work-item model: item kinds, blocked-by edges, tag mapping tables,
+chunk projections, and a machine-readable marker block. None of it ships now. It
+was a project-management taxonomy the kit was asking you to adopt in order to use
+a feature most projects do not turn on, and the great majority of a 370-line
+stencil was fields for trackers nobody had configured.
 
 ## What identifies an item
 
-Every published item carries a marker block the tracker does not render:
+**Items are matched by identity, never by title** — which is what makes a second
+run boring rather than duplicating everything the moment somebody rewords a
+heading on the board.
 
-```text
-<!-- pathfinder:work-item
-key: pathfinder:feature/06
-kind: feature
-blocked-by: pathfinder:feature/03
-tags: area:site, type:infra, agent:suitable
-chunks-projection: checklist
--->
-```
+How that identity is recorded is your config's business, because it depends on
+the tracker. A marker comment in the item body and a recorded issue number both
+work. What the kit requires is only the property: a re-run has to recognise the
+item it published last time. Without that, sync is a duplicate generator.
 
-Keys look like `pathfinder:<kind>/<id>` and are assigned by Pathfinder, never by
-the tracker. The marker is how an item is recognised on a later run without
-keeping a local index.
-
-It is worth knowing why this one machine-readable token exists in an otherwise
-prose system: **prose alone is not sufficient for identity.** Everything else in
-the config can be reworded freely. Remove the marker and there is no way to
-recognise an item a second time, which is what turns a re-run into a pile of
-duplicates.
-
-## Tickets are not delivery chunks
-
-The model defines two kinds. A `feature` is one approved spec — one branch, one
-review, one merge. A `ticket` is an independently assignable unit of execution
-inside a feature, so more than one agent can work on it at once.
-
-**A ticket is not a chunk.** Chunks are a planning device inside a spec and get
-re-planned as work proceeds; tickets are units of execution. A ticket may span
-several chunks, or belong to no chunk at all. Nothing derives one from the other.
-
-A ticket names its feature with `parent`, and **parentage is never a blocking
-edge** — a ticket is not blocked by its own feature. Rendering it as one produces
-a dependency graph that can never unblock.
-
-Both kinds are the same work item, with the same fields, the same marker, and the
-same rules. Nothing in the model branches on which one it is.
+Pathfinder does not decompose a Feature into smaller assignable tickets, and
+[`sync-tracker`](/skills/sync-tracker/) says so in as many words. Splitting work
+between people or agents is a judgement, and the skill does not make it for you.
+Delivery chunks stay a planning device inside a spec, which is why finishing one
+publishes nothing.
 
 ## Related
 

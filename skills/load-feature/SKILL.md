@@ -1,18 +1,25 @@
 ---
 name: load-feature
-description: Prepare one feature for implementation by checking readiness, context size, dependencies, and delivery chunks.
+description: Load one approved Feature and the minimum context needed to work on it.
 ---
 
 # Load Feature
 
-1. Select the requested or next approved feature spec.
-2. Read its dependencies and the smallest relevant durable context.
-3. Check repository reality without scanning unrelated areas.
-4. Identify contradictions, missing decisions, stale paths, and prototype dependencies.
-5. Assess whether the feature fits a focused LLM context window.
-6. Split or revise it before implementation if the context is too broad.
-7. Populate `context/current-feature.md` with the feature, first delivery chunk, context boundary, assumptions, Git state, definition of done, and out-of-scope work.
-8. If `context/tracker.md` exists, note this feature's tracked item, or that it has none yet. The lookup is best-effort: an unreachable tracker is reported and never blocks loading.
-9. Present a short readiness summary.
+1. Select the requested approved Feature.
+2. Read the Feature spec.
+3. Read only the files or context needed for the current work.
+4. Inspect the current Git state.
+5. Stop if a required human decision or explicit dependency blocks the work.
+6. Create or update `context/current-feature.md` — it does not ship, so the
+   first load writes it — with:
+   - Feature and spec
+   - active delivery chunk
+   - Git state
+   - blocker, if any
+   - next action
+7. Present a short readiness summary.
 
-Do not implement, create Git history, or resolve `TBD` decisions silently.
+Do not implement the Feature.
+
+Do not scan unrelated repository areas, load history or roadmap by default,
+rewrite the Feature, or silently resolve `TBD` decisions.

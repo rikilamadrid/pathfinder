@@ -1,6 +1,7 @@
 # Changelog
 
-Use this file only when the destination project adopts a changelog.
+Use only when the project adopts a changelog.
+Record user-facing changes, not implementation history.
 
 ## [Unreleased]
 

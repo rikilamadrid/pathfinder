@@ -1,6 +1,6 @@
 ---
 name: complete-feature
-description: Close an accepted feature through final verification, records, delivery metadata, and an optional learning handoff.
+description: Complete accepted work through the project's delivery workflow and durable records.
 ---
 
 <!-- pathfinder:adapter v1 source=skills/complete-feature/SKILL.md -->

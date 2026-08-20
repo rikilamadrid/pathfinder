@@ -21,6 +21,8 @@ Read only the smallest useful context:
 6. Tests and implementation files touched by the feature
 7. Relevant ADR, coding standard, or design-system guidance only when it materially affects the feature
 
+Skip any of these that does not exist. Pathfinder creates these files only when a workflow first needs them, so their absence is normal and is not an error. Do not create them just to satisfy this list.
+
 Do not read the entire repository by default.
 
 If the feature or diff cannot be identified, ask for the branch, spec, commit range, or explicit file set.

@@ -78,8 +78,8 @@ It writes exactly six things.
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
-| `context/` | Project truth — overview, standards, interaction rules, current feature |
-| `roles/` | Four declarative contracts — planner, developer, QA, human — inert until you name one |
+| `context/` | Project truth — the interaction rules and coding standards; the rest is written when first needed |
+| `roles/` | Three declarative contracts — planner, developer, tester — inert until you name one |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
 | `templates/` | Starting points the project copies when it needs them |
 
@@ -189,7 +189,6 @@ and every project-context file from `context/`. Nothing on this site is a copy �
 what you read here is the file your agent reads.
 
 Start with [`kickstart-pathfinder`](/skills/kickstart-pathfinder/), the entry
-point for a new project, or
-[`project-overview`](/context/project-overview/), the file that holds project
-truth once you have it. [All skills](/skills/) lists every one of them with its
-own summary, grouped by loop.
+point for a new project — it is what writes `context/project-overview.md`, the
+file that holds project truth once you have it. [All skills](/skills/) lists
+every one of them with its own summary, grouped by loop.

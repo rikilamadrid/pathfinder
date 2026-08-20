@@ -51,7 +51,7 @@ It writes exactly six things:
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
-| `roles/` | Declarative contracts a session follows when you name one — planner, developer, QA, human |
+| `roles/` | Declarative contracts a session follows when you name one — planner, developer, tester |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, learning, and optional work tracking |
 | `templates/` | Starting points the project copies when it needs them |
 
@@ -164,6 +164,17 @@ Use skills/reflect/SKILL.md to review this completed work. Propose improvements;
 
 Six entries get copied into a destination project: `AGENTS.md` and `CLAUDE.md` (agent entry points), `context/` (project truth), `roles/` (what a worker is responsible for), `skills/` (durable behavior), and `templates/`.
 
+The kit installs only the context files it needs on day one — `ai-interaction.md` and `coding-standards.md`. The rest of `context/` is written by the workflow that first needs it, so a fresh install carries no blank copies to delete.
+
+Those generated files split two ways for version control. **Durable project truth is tracked**: `context/project-overview.md`, `context/features/`, `context/history.md`, and `context/tracker.md` answer *what is true about this project* and belong in every diff. **Transient session state is ignored**: `context/current-feature.md` and `context/handoff.md` answer *what was I doing*, belong to one session on one machine, and are two lines in `.gitignore`:
+
+```gitignore
+context/current-feature.md
+context/handoff.md
+```
+
+Do not ignore `context/` wholesale — that quietly untracks the project truth every later session reads. `context/coding-standards.md` carries the rule in full.
+
 A project installed before v1.5.0 also has a `prompts/` directory, which the installer leaves untouched and which keeps working, since those launchers point at `skills/`.
 
 <details>
@@ -176,17 +187,12 @@ A project installed before v1.5.0 also has a `prompts/` directory, which the ins
 ├── CHANGELOG.md                  # history of this kit only
 ├── NOT_A_FRAMEWORK.md
 ├── context/
-│   ├── project-overview.md
-│   ├── coding-standards.md
 │   ├── ai-interaction.md
-│   ├── current-feature.md
-│   ├── history.md
-│   └── features/
+│   └── coding-standards.md
 ├── roles/
-│   ├── planner.md
 │   ├── developer.md
-│   ├── qa.md
-│   └── human.md
+│   ├── planner.md
+│   └── tester.md
 ├── skills/
 │   ├── kickstart-pathfinder/
 │   ├── debate-me/
@@ -207,10 +213,17 @@ A project installed before v1.5.0 also has a `prompts/` directory, which the ins
 │   ├── learning-review/
 │   ├── reflect/
 │   ├── handoff/
+│   ├── role/
+│   ├── whereami/
 │   ├── skillsmith/
 │   ├── setup-tracker/
 │   └── sync-tracker/
 └── templates/
+    ├── CHANGELOG.template.md
+    ├── feature-spec.template.md
+    ├── history.template.md
+    ├── lesson.template.md
+    └── project-overview.template.md
 ```
 
 </details>

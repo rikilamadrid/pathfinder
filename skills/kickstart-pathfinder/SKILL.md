@@ -42,6 +42,7 @@ When the user is unsure, provide a small recommendation with reasoning and alter
 4. Route uncertain product/technical choices to `debate-me` when useful.
 5. Present the proposed context and request human corrections or approval.
 6. Update `context/project-overview.md`, `context/coding-standards.md`, `context/ai-interaction.md`, `CLAUDE.md`, and `AGENTS.md` only after the choices are sufficiently clear.
+   `context/project-overview.md` does not ship; create it from `templates/project-overview.template.md` at this step.
 7. Recommend `debate-me`, `prototype`, or `to-specs` as the next action.
 
 ## Stop Condition

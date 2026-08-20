@@ -1,6 +1,6 @@
 ---
 name: to-specs
-description: Convert approved project context into small sequential feature specs optimized for focused LLM context and reliable delivery.
+description: Turn approved direction into small, clear Feature specs.
 ---
 
 <!-- pathfinder:adapter v1 source=skills/to-specs/SKILL.md -->

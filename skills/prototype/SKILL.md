@@ -16,7 +16,8 @@ Use this skill after debate recommends validation or when the human asks to see 
 5. Create only the prototype; avoid production architecture unless the task is explicitly a technical proof.
 6. Present focused review questions.
 7. On feedback, revise the same direction, replace it, approve it, or stop.
-8. Record approved direction, rejected assumptions, and explicit production exclusions in `context/project-overview.md`.
+8. Record approved direction, rejected assumptions, and explicit production exclusions in `context/project-overview.md`,
+   creating it from `templates/project-overview.template.md` if it does not exist yet.
 
 ## Supported Forms
 

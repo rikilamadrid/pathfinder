@@ -1,46 +1,41 @@
 ---
 title: Decision states
-description: TBD, None, N/A, and Deferred — four words that keep an unmade decision visible instead of letting it be guessed.
+description: TBD and None — the two words that keep an unmade decision visible instead of letting it be guessed.
 ---
 
 Project context is full of choices. Some are made, and some are not. The difference
 has to survive being written down, or an agent reading the file later cannot tell a
 decision from a blank.
 
-Four states, used consistently:
+Two words carry it:
 
 ```text
-TBD        a human decision is still required
-None       intentionally excluded
-N/A        not applicable
-Deferred   intentionally postponed
+TBD     a human decision is still required
+None    considered and intentionally excluded
 ```
 
-## Why four and not one
+## Why the distinction matters
 
-Because "empty" means at least four different things, and the difference matters to
+Because "empty" means at least two different things, and the difference matters to
 whoever reads it next.
 
-`None` and `N/A` are closed. Something was considered and ruled out, or never
-applied — an agent should not raise it again, and a reviewer should not treat it as
-an omission.
-
-`Deferred` is open but not blocking. The decision is coming, later, on purpose.
+`None` is closed. Something was considered and ruled out — an agent should not raise
+it again, and a reviewer should not treat it as an omission.
 
 `TBD` is the one with teeth. It means a human has to decide and has not yet, and it
 is the only state that can stop work.
 
-An empty field says none of that. It is indistinguishable from someone getting
-bored halfway down the template — which is exactly the ambiguity an agent will
-resolve in whichever direction is most convenient.
+An empty field says neither. It is indistinguishable from someone getting bored
+halfway down the template — which is exactly the ambiguity an agent will resolve in
+whichever direction is most convenient.
 
 ## The rule attached to TBD
 
 **An agent must not silently resolve a `TBD` while implementing something else.**
 
-This is the rule the states exist to support. Half-answered context is the normal
-state of a real project, and without it every unmade decision quietly becomes made
-by whoever was typing at the time.
+This is the rule the vocabulary exists to support. Half-answered context is the
+normal state of a real project, and without it every unmade decision quietly becomes
+made by whoever was typing at the time.
 
 [`CLAUDE.md`](https://github.com/rikilamadrid/pathfinder/blob/main/CLAUDE.md) says
 it directly: if a policy is `TBD`, do not invent it — ask, or clearly mark it
@@ -52,33 +47,27 @@ implementation and does not resolve them either.
 
 ## Where they appear
 
-[`context/project-overview.md`](/context/project-overview/) declares the four states
-near the top and uses them throughout — stage, prototype status, stack choices,
-workflow policy. Feature specs use them for dependencies and open questions.
+`context/project-overview.md` declares `TBD` at the top and uses both words
+throughout — stage, architecture, integrations, constraints. Feature specs use them
+in `## Notes / Decisions` for a dependency or constraint that is not yet settled.
 
-They are worth the small discipline of using the exact four words. A file that says
-`TBD` in one place, `?` in another, and leaves a third blank has lost the property
-that made the convention useful.
+They are worth the small discipline of using the exact words. A file that says `TBD`
+in one place, `?` in another, and leaves a third blank has lost the property that
+made the convention useful.
 
-## Record status is a different question
+## Why there is no status vocabulary
 
-The four words describe *the decision*. Several tables also carry a `Status` column,
-and that describes *the record* — how far a written-down row has travelled toward
-being yours:
+An earlier version of the overview template carried a second vocabulary —
+`proposed`, `accepted`, `superseded` — in a `Status` column beside each recorded
+choice, to say how far a written-down row had travelled toward being yours.
 
-```text
-proposed     written down, not yet approved by you
-accepted     you approved it
-superseded   replaced by a later decision, kept for history
-```
+It no longer ships, and the reason is worth stating. Two vocabularies in one file
+meant every row invited two questions, and the second one was almost always
+answerable from the first: a `TBD` is not approved, and a filled-in line in a file
+you reviewed is. The bookkeeping cost was real and the information was not.
 
-There is no fifth decision state. The two vocabularies answer different questions,
-and a row uses both: `TBD` in the choice column means nobody has decided, while
-`proposed` in the status column means something was recorded for you to approve.
-[`kickstart-pathfinder`](/skills/kickstart-pathfinder/) does not wait for approval to
-write, so a first pass at `context/project-overview.md` can be full of `proposed`
-rows. That is the point — a recorded proposal survives the session and shows up in a
-diff, and it is still not an approved decision.
+Feature lifecycle status is a different thing and still exists — it lives in a
+Feature spec's `## Status`, and [the workflow](/guides/workflow/) covers it.
 
 ## Related
 

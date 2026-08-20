@@ -18,6 +18,8 @@ The goal is to turn isolated feature lessons into a coherent learning path.
 4. Recent completed feature specs and history
 5. Quiz or challenge evidence available in the repo
 
+Skip any of these that does not exist. Pathfinder creates these files only when a workflow first needs them, so their absence is normal and is not an error. Do not create them just to satisfy this list.
+
 ## Review Modes
 
 ### feature

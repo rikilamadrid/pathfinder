@@ -27,7 +27,7 @@ The installer copies six things into your repository and nothing else:
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — overview, standards, interaction rules, current feature |
-| `roles/` | Four declarative contracts — planner, developer, QA, human — inert until you name one |
+| `roles/` | Three declarative contracts — planner, developer, tester — inert until you name one |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, learning, and optional work tracking |
 | `templates/` | Starting points the project copies when it needs them |
 

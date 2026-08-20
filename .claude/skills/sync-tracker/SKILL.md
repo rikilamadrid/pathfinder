@@ -1,6 +1,6 @@
 ---
 name: sync-tracker
-description: Publish approved feature specs to the configured work tracker, one-way and idempotently, writing nothing when nothing has changed.
+description: Project Feature specs onto the configured work tracker.
 ---
 
 <!-- pathfinder:adapter v1 source=skills/sync-tracker/SKILL.md -->

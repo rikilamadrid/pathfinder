@@ -1,25 +1,33 @@
 ---
 name: review-feature
-description: Review an implemented feature against its spec, repository standards, regressions, and project quality priorities.
+description: Verify implemented work against its Feature and report findings.
 ---
 
 # Review Feature
 
-Review the actual diff and behavior, not only a summary.
+Review the actual diff and behavior, not only the developer's summary.
 
 ## Check
 
-- acceptance criteria and missed requirements
-- regressions, logic errors, edge/failure states
-- security/privacy and data boundaries
-- accessibility, performance, compatibility, and operations when applicable
-- tests and verification quality
-- scope creep and unrelated churn
-- consistency with approved architecture and prototype direction
+- acceptance criteria
+- regressions and important edge cases
+- security/privacy when relevant
+- accessibility, performance, compatibility, and operations when relevant
+- tests and verification
+- scope creep
 - documentation accuracy
+
+Use the project's quality priorities and existing standards where relevant.
 
 ## Output
 
-List findings by severity with file/location, impact, and practical fix. Then list verification performed, residual risk, and whether it is ready to complete.
+Report:
 
-Do not modify code unless the user asks for fixes. Do not manufacture findings to fill a template.
+- `PASS`, or findings by severity
+- file/location and impact for each finding
+- what was actually verified
+- anything important that remains unverified
+
+Do not modify the implementation unless the human explicitly asks.
+
+Do not invent findings or treat passing tests as automatic acceptance.

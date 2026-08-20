@@ -1,71 +1,42 @@
 # Lesson — [Feature Name]
 
 - Date:
-- Branch:
-- Feature spec:
-- Commit or diff range:
-- Difficulty:
-- Estimated review time:
+- Feature:
+- Commit/diff:
 
-## 1. Feature in One Minute
+## What Changed
 
-What changed, why it exists, and the user or system value it creates.
+Explain what was implemented and why it matters.
 
-## 2. Mental Model
+## Mental Model
 
-Explain the feature through one clear model. Include a small Mermaid diagram when useful.
+Explain the simplest useful way to understand the Feature.
 
-## 3. Execution and Data Flow
+Include a small diagram only when it helps.
 
-Trace one representative interaction from input to visible result.
+## How It Works
 
-## 4. Important Files
+Trace one representative flow through the implementation.
 
-| File | Responsibility | Why it matters |
-| --- | --- | --- |
+## Important Files
 
-## 5. Key Decisions and Tradeoffs
+| File | Responsibility |
+| --- | --- |
 
-For each meaningful decision:
+Include only files that materially help understanding.
 
-- Decision
-- Evidence in the repository
-- Benefit
-- Cost
-- Credible alternative
-- When the alternative would be better
+## Key Decisions
 
-## 6. Concepts Worth Retaining
+- `[important decision and why it was made]`
 
-Limit this to the most transferable concepts.
+Include only decisions worth remembering.
 
-## 7. Quality Lens
+## Concepts to Retain
 
-### Testing
+- `[transferable concept]`
 
-### Accessibility
+## Check Your Understanding
 
-### Performance
-
-### Maintainability
-
-### Error and edge states
-
-## 8. Production-Scale Gap
-
-What would need to change for higher traffic, larger datasets, multiple teams, stricter security, or real-time collaboration?
-
-## 9. Interview Preparation
-
-- Likely question:
-- Strong answer outline:
-- Follow-up question:
-- Vocabulary to use carefully:
-
-## 10. Check Your Understanding
-
-Three short retrieval questions. Do not include answers here.
-
-## 11. Suggested Next Action
-
-Choose one: quiz, challenge, architecture lesson, spaced review, or no further work.
+1. `[question]`
+2. `[question]`
+3. `[question]`

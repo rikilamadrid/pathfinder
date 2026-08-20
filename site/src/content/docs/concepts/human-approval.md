@@ -43,7 +43,7 @@ Not operations the agent pauses on — choices it never makes:
 
 These are not governed by `ai-interaction.md`, and editing that file does not hand
 any of them over. They are decisions, recorded in
-[`context/project-overview.md`](/context/project-overview/) once you have made them.
+`context/project-overview.md` once you have made them.
 
 ## What the documented workflow governs
 

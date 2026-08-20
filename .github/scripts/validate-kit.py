@@ -878,58 +878,40 @@ def check_roles(skill_names: set[str]) -> None:
 
 
 def check_role_skills(path: Path, skill_names: set[str]) -> None:
-    """Every skill on a role's `Skills:` line must exist.
+    """Every skill a role names under `## Use` must exist.
 
-    The first version of this rule checked every backticked token in the whole
-    `Skills and tools` section, which contradicted the contract it was meant to
-    enforce: that section is also where a role names its non-skill tooling, so
-    a role saying it uses `pytest` was told to go create `skills/pytest/`.
+    A role is prose. Nothing imports it and nothing generates from it, so a
+    role naming a skill that was since renamed or removed goes on being read
+    as instructions until a human happens to notice. This rule is the only
+    thing standing between a stale role and that outcome.
 
-    The label is the fix, and it is the smallest one that is decidable. A
-    validator cannot tell a skill name from a tool name by looking at it, so
-    the file says which is which, and the rule reads only what it is told is a
-    skill list. Everything after the terminating period is free prose.
+    The slim role shape lists what a role uses as bullets under `## Use`, and
+    backticks exactly the skill names — a role is free to describe its other
+    tooling ("the project's existing test commands") in plain prose on the
+    same list. That convention is what makes the rule decidable: a validator
+    cannot tell a skill name from a tool name by looking at it, so it reads
+    only the backticked tokens and leaves unbackticked prose alone.
     """
     text = path.read_text(encoding="utf-8")
 
-    match = re.search(r"^## Skills and tools\s*$(.*)", text,
-                      re.MULTILINE | re.DOTALL)
+    match = re.search(r"^## Use\s*$(.*)", text, re.MULTILINE | re.DOTALL)
     if not match:
-        fail(path, "role-sections", "no `## Skills and tools` section found")
+        fail(path, "role-sections", "no `## Use` section found")
         return
 
     section = re.split(r"^## ", match.group(1), maxsplit=1, flags=re.MULTILINE)[0]
 
-    listed = re.search(r"^Skills:(.*?)\.(?:\s|$)", section, re.MULTILINE | re.DOTALL)
-    if listed is None:
-        fail(path, "role-skills-line",
-             "the Skills and tools section has no `Skills:` line; skills are "
-             "listed after that label, comma-separated and backticked, ending "
-             "in a period, so tooling can be named freely after it")
-        return
-
-    declared = listed.group(1)
-
-    # The list must be names and separators and nothing else. Without this the
-    # label would be decoration: prose could sit inside the checked span and
-    # silently name a skill the rule never looks at.
-    residue = re.sub(r"`[a-z0-9-]+`|,|\band\b|\s+", "", declared)
-    if residue:
-        fail(path, "role-skills-line",
-             f"the `Skills:` list must contain only backticked skill names "
-             f"and separators, but carries {residue!r}; describe tooling "
-             "after the period that ends the list")
-        return
-
-    names = re.findall(r"`([a-z0-9-]+)`", declared)
+    names = re.findall(r"`([a-z0-9-]+)`", section)
     if not names:
-        fail(path, "role-skills-line", "the `Skills:` list is empty")
+        fail(path, "role-use-empty",
+             "the `## Use` section names no skill; a role that uses no skill "
+             "has no need to exist")
         return
 
     for name in sorted(set(names)):
         if name not in skill_names:
             fail(path, "role-skill-exists",
-                 f"lists `{name}` under Skills, but there is no "
+                 f"names `{name}` under `## Use`, but there is no "
                  f"`skills/{name}/` directory")
 
 

@@ -1,6 +1,6 @@
 ---
 name: review-feature
-description: Review an implemented feature against its spec, repository standards, regressions, and project quality priorities.
+description: Verify implemented work against its Feature and report findings.
 ---
 
 <!-- pathfinder:adapter v1 source=skills/review-feature/SKILL.md -->
