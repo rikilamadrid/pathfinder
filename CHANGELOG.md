@@ -44,6 +44,7 @@ A simplification release. Pathfinder had been accumulating structure faster than
 - **The feature spec template is eight sections**: Status, Goal, Context, Requirements, Out of Scope, Delivery Chunks, Acceptance Criteria, Notes / Decisions. `Context Boundary` is now a three-line `## Context`. Dropped: Overview, Problem, Dependencies, Tags, Experience Notes, Technical Notes, Verification, Learning Targets, and Suggested Delivery Metadata.
 - **Feature status is durable lifecycle state only**: `Proposed` → `Ready` → `In Progress` → `Complete`, with `Cancelled` and `Superseded` terminal. Review and testing are optional workflow activity, not a status — a Feature stays `In Progress` until it is complete.
 - **`context/project-overview.md` records `TBD` and `None`.** The parallel `proposed` / `accepted` / `superseded` record-status vocabulary is gone: two vocabularies meant every row invited two questions, and the second was almost always answerable from the first.
+- **A Feature spec is named `NN-feature-name.md`, and that number is the Feature's identity.** `to-specs` numbers each new spec with the next unused number in the spec source, and `27-export-saved-searches.md` is Feature 27 wherever the file sits. Numbers are never reused and never renumbered. The number lives in the filename and nowhere else — the eight-section template carries no number field, so there is no second place to keep in agreement. This is also what a published tracker item is matched on: with the 370-line tracker template gone, the key `sync-tracker` publishes under is read from the basename alone, never from the directory above it, the title inside it, or the order specs happen to be read. Moving or reorganising specs therefore orphans nothing, and a spec whose filename carries no number is skipped and reported by name rather than being assigned one.
 - **Work tracking stays optional and got smaller with it.** `sync-tracker` no longer decomposes a Feature into assignable tickets, and infers no labels, tags, or status. The repository stays canonical, sync stays one-way, and a second run with no changes still writes nothing.
 
 ### Added
@@ -69,6 +70,7 @@ Nothing is deleted from a project that already has Pathfinder; re-running the in
 - If a spec sits in `In Review` or `Accepted`, move it to `In Progress` or `Complete`.
 - Add the two transient `context/` files to `.gitignore`.
 - If you configured work tracking, your `context/tracker.md` keeps working. The template it was written from no longer ships.
+- Rename existing specs to `NN-feature-name.md` before your next `sync-tracker` run. **Preserve the numbers already published** — give each spec the number its tracker item carries today, rather than renumbering from one. A spec that reaches sync without a number in its filename is skipped and reported; a spec that reaches it under a *different* number publishes a second item beside the first. If you have never configured a tracker, rename at your leisure: nothing outside the repository depends on the numbers yet.
 
 ## [1.8.0] - 2026-08-18
 

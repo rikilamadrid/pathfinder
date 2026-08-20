@@ -34,4 +34,4 @@ Do not load unrelated history, roadmap, Features, or repository areas by default
 
 Report what changed, what was verified, and anything unresolved.
 
-The human decides what happens next, including whether QA is needed.
+The human decides what happens next, including whether a `tester` session is needed.

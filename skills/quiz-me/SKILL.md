@@ -12,11 +12,10 @@ The goal is retrieval and diagnosis, not entertainment and not a long exam.
 
 ## Read First
 
-1. `context/learning/learner-profile.md`
-2. The relevant lesson in `context/learning/lessons/`
-3. `context/current-feature.md`
-4. Only the implementation or tests needed to verify answers
-5. `context/learning/progress.md`
+1. The relevant lesson in `context/learning/lessons/`
+2. `context/current-feature.md`
+3. Only the implementation or tests needed to verify answers
+4. `context/learning/progress.md`
 
 Skip any of these that does not exist. Pathfinder creates these files only when a workflow first needs them, so their absence is normal and is not an error. Do not create them just to satisfy this list.
 
@@ -69,9 +68,34 @@ Do not use a percentage unless every question had a clear scoring basis.
 
 Update `context/learning/progress.md` with demonstrated evidence.
 
-Use the confidence scale already defined there.
+The file does not ship. If it is missing, create it with this header, then add
+the entry:
 
-A correct answer with heavy hints is `practiced`, not `independent`.
+```markdown
+# Learning Progress
+
+Demonstrated understanding, not feature completion.
+
+## Confidence Scale
+
+- `introduced` — explained once; no evidence of recall yet
+- `practiced` — answered or applied with help
+- `independent` — applied correctly without meaningful help
+- `transferable` — applied correctly in a different context
+- `review-needed` — misunderstanding or weak recall was observed
+
+## Concepts
+
+| Concept | Confidence | Evidence | Last reviewed |
+| --- | --- | --- | --- |
+```
+
+This block is the scale's only definition. The other learning skills read it
+from the file rather than restating it.
+
+Record one confidence value per concept, and record uncertainty honestly. A
+correct answer with heavy hints is `practiced`, not `independent`. Passive
+reading is never `independent`.
 
 ## Scope
 

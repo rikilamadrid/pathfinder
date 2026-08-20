@@ -62,6 +62,8 @@ Verify the behavior that matters, not just that a command exited successfully.
 
 - Prefer evidence from the real artifact or behavior being claimed.
 - When something can silently do nothing, verify that the intended effect occurred.
+- Beware a check whose every input it supplied itself. Name which inputs came
+  from the real system.
 - Distinguish what was observed from what was only reasoned about.
 - Record unverified behavior as unverified, not passed.
 - Increase verification effort when the cost of being wrong is higher.

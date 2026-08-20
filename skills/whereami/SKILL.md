@@ -16,7 +16,8 @@ action. It reports state. It never changes it.
    Roles are session state and are never written to disk, so if no role was
    activated in this conversation, report `none`. Do not search `roles/`.
 2. Read `context/current-feature.md` if it exists.
-   Take Feature, Active chunk, and Next from it verbatim.
+   Take Feature, Active chunk, and Next from it verbatim. The Feature number is
+   the `NN` recorded there, from its spec filename.
    If the file is missing or still holds template placeholders, report `none`.
 3. Run `git status --short --branch` once.
    Report the branch/ref, and `clean` or the count of changed paths.
@@ -34,6 +35,7 @@ Role:    <role | none>
 Feature: <## — name | none>
 Chunk:   <number and name | none>
 Git:     <branch/ref> — <clean | N changed>
+Context: <telemetry | unavailable>
 Next:    <single next action | none>
 ```
 

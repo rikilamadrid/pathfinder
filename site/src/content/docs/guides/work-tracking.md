@@ -5,8 +5,7 @@ description: An optional, prose-configured projection of Pathfinder's feature sp
 
 Pathfinder already has the units of work. A feature spec is a work item, and a
 delivery chunk is a planning step inside one. What they lack is an *external
-identity*: a stable ID, a visible dependency graph, and a status somebody outside
-your repository can see.
+identity*: a stable ID and a status somebody outside your repository can see.
 
 Work tracking adds that, and only if you ask for it.
 
@@ -75,39 +74,43 @@ They are somewhere else more often than you would think. A repository that keeps
 planning material out of version control, or splits specs by product area, or
 inherited a layout from before Pathfinder, all have a source to declare.
 
-**Moving your specs never changes a key.** A spec numbered `27` publishes as
-`pathfinder:feature/27` wherever the file sits, so reorganising a directory does
-not orphan a single published item. Keys come from the number, never the path —
-which is also why the source is declared in the config's opening paragraphs and
-never inside the backend-neutral model.
+**Moving your specs never changes a key.** Every spec is named
+`NN-feature-name.md`, and that `NN` is the feature number — so
+`27-export-saved-searches.md` publishes as `pathfinder:feature/27` in whichever
+directory it sits, and reorganising one orphans nothing. The number lives in the
+filename because the spec itself has nowhere to put it: the eight-section
+template carries no number field, and adding one would mean two places to keep
+in agreement.
 
 ## Publishing it
 
 [`sync-tracker`](/skills/sync-tracker/) reads the config and publishes your
-approved feature specs onto whatever it describes. It publishes in dependency
-order, blockers first, so an edge can name a real identifier by the time it is
-written.
+approved feature specs onto whatever it describes.
 
 **With no `context/tracker.md`, it does nothing at all.** It reports that
 tracking is not configured and stops — it will not offer to configure one, and it
 does not treat the absence as a gap.
 
 It publishes approved feature specs and nothing else. Not debate notes, not
-kickstart output, not prototypes — with one exception: a prototype that gates a
-decision may be published as a single item phrased as the decision it resolves.
+kickstart output, not prototypes.
 
 It also does not decompose a feature into smaller assignable units. Choosing how
 work is split between people or agents is a judgement, and the skill does not
 make it for you.
 
-Every field of a published item comes from the spec: the key from its number, the
-title and body from its `## Goal` and `## Requirements`, and chunks from its
-`## Delivery Chunks` — **and from nowhere else.** Labels, tags, and status are
-never inferred from a title or from the paths a spec happens to mention. The
-feature template carries no tag section at all, so a published item arrives
-unlabelled unless your tracker config says otherwise. Guessing would produce a
-taxonomy you did not choose, applied to work you did not classify, looking
-authoritative on a shared board.
+Nor does it build a dependency graph. A spec may say under `## Notes /
+Decisions` that it waits on another feature, and that sentence is for a person
+to read — the slim feature contract has no structured dependency field, so there
+is nothing to parse and sync publishes no edges and orders nothing. Ordering
+work is a judgement too.
+
+Every field of a published item comes from the spec — the key from the number in
+its filename, the title and body from its content — **and from nowhere else.** Labels, tags,
+and status are never inferred from a title or from the paths a spec happens to
+mention. The feature template carries no tag section at all, so a published item
+arrives unlabelled unless your tracker config says otherwise. Guessing would
+produce a taxonomy you did not choose, applied to work you did not classify,
+looking authoritative on a shared board.
 
 ### A second run should be boring
 
@@ -125,11 +128,11 @@ as changed on every run and rewrites all of them, forever. That failure *looks*
 like working sync. It has a healthy report, a plausible diff, and a tracker full
 of items whose "last updated" time is always now.
 
-So comparison is normalized on both sides, tag sets are compared as sets rather
-than ordered lists, and the body is composed as a pure function of the spec —
-fixed section order, nothing derived from the run itself, no timestamps and no
-counters. A body that varies between runs would rewrite everything even with
-perfect comparison logic.
+So comparison is normalized on both sides, tags — where your config defines any
+— are compared as sets rather than ordered lists, and the body is composed as a
+pure function of the spec: fixed section order, nothing derived from the run
+itself, no timestamps and no counters. A body that varies between runs would
+rewrite everything even with perfect comparison logic.
 
 Two more rules follow from the same place. Items are **edited in place**, never
 closed and recreated. And an item whose key is not in the current run is **left
@@ -143,8 +146,9 @@ is outward-facing — other people get notified, and it is not the kind of thing
 agent should do as a side effect of tidying up. One approval covers the run, not
 each item.
 
-**Writing local files under `.work/` does not ask.** It is an ordinary file edit
-that reaches nothing outside your repository. The boundary is about *leaving the
+**Writing local Markdown files does not ask.** A local projection writes one
+file per Feature into the directory your config names, which is an ordinary file
+edit that reaches nothing outside your repository. The boundary is about *leaving the
 repository*, not about writing — which is why the same skill gates one projection
 and not the other.
 
@@ -154,23 +158,21 @@ releases, so you can widen or narrow it like any other.
 
 ## It happens during normal work
 
-There is no "now update the tracker" stage to remember. Four skills you already
+There is no "now update the tracker" stage to remember. Three skills you already
 run each carry one conditional line, and each does nothing at all when no config
 exists:
 
 - [`to-specs`](/skills/to-specs/) offers to publish specs once it has written
   them.
-- [`load-feature`](/skills/load-feature/) notes the tracked item for the feature
+- [`load-feature`](/skills/load-feature/) names the tracked item for the feature
   being loaded.
 - [`complete-feature`](/skills/complete-feature/) reconciles that item after the
   merge.
-- [`start-feature`](/skills/start-feature/) **publishes nothing** — deliberately.
-  A delivery chunk is a planning device inside a feature, and finishing one is
-  not an event the outside world needs to hear about.
 
-That last one is a line of prose whose whole job is to prevent something. It is
-there so a tracker cannot quietly become the thing you work *for*, updated at
-every internal boundary.
+[`start-feature`](/skills/start-feature/) carries no such line, deliberately. A
+delivery chunk is a planning device inside a feature, and finishing one is not an
+event the outside world needs to hear about — so a tracker cannot quietly become
+the thing you work *for*, updated at every internal boundary.
 
 You can still run [`sync-tracker`](/skills/sync-tracker/) directly whenever you
 want. The wiring means you rarely have to.
@@ -207,10 +209,15 @@ stencil was fields for trackers nobody had configured.
 run boring rather than duplicating everything the moment somebody rewords a
 heading on the board.
 
-How that identity is recorded is your config's business, because it depends on
-the tracker. A marker comment in the item body and a recorded issue number both
-work. What the kit requires is only the property: a re-run has to recognise the
-item it published last time. Without that, sync is a duplicate generator.
+The key itself comes from the number in the spec's filename, never from the
+directory above it or the title inside it: `27-export-saved-searches.md` is
+`pathfinder:feature/27` wherever it sits.
+
+How that key is recorded on the tracker is your config's business, because it
+depends on the tracker. A marker comment in the item body and a recorded issue
+number both work, and [`setup-tracker`](/skills/setup-tracker/) asks which. What
+the kit requires is only the property: a re-run has to recognise the item it
+published last time. Without that, sync is a duplicate generator.
 
 Pathfinder does not decompose a Feature into smaller assignable tickets, and
 [`sync-tracker`](/skills/sync-tracker/) says so in as many words. Splitting work

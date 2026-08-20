@@ -13,13 +13,12 @@ The goal is not to produce generic documentation. The goal is to help the learne
 
 Read only the smallest useful context:
 
-1. `context/learning/learner-profile.md`
-2. `context/current-feature.md`
-3. The source feature spec under `context/features/`
-4. `context/project-overview.md`
-5. The current branch, working tree status, and focused diff
-6. Tests and implementation files touched by the feature
-7. Relevant ADR, coding standard, or design-system guidance only when it materially affects the feature
+1. `context/current-feature.md`
+2. The source feature spec under `context/features/`
+3. `context/project-overview.md`
+4. The current branch, working tree status, and focused diff
+5. Tests and implementation files touched by the feature
+6. Relevant ADR, coding standard, or design-system guidance only when it materially affects the feature
 
 Skip any of these that does not exist. Pathfinder creates these files only when a workflow first needs them, so their absence is normal and is not an error. Do not create them just to satisfy this list.
 
@@ -59,7 +58,9 @@ Explain:
 
 ## Adaptation
 
-Use `context/learning/learner-profile.md`.
+Pitch the lesson at what the learner has already demonstrated, using
+`context/learning/progress.md` when it exists and what the human tells you when
+it does not. Ask rather than assume.
 
 For an experienced engineer:
 

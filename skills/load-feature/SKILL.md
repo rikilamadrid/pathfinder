@@ -5,19 +5,22 @@ description: Load one approved Feature and the minimum context needed to work on
 
 # Load Feature
 
-1. Select the requested approved Feature.
+1. Select the requested approved Feature. Its spec is
+   `NN-feature-name.md` in the spec source, and `NN` is its Feature number.
 2. Read the Feature spec.
 3. Read only the files or context needed for the current work.
 4. Inspect the current Git state.
 5. Stop if a required human decision or explicit dependency blocks the work.
 6. Create or update `context/current-feature.md` — it does not ship, so the
    first load writes it — with:
-   - Feature and spec
+   - Feature number, name, and spec path
    - active delivery chunk
    - Git state
    - blocker, if any
    - next action
-7. Present a short readiness summary.
+7. If `context/tracker.md` exists, name the tracked item for this Feature —
+   its key is that Feature number. Do nothing here if it does not.
+8. Present a short readiness summary.
 
 Do not implement the Feature.
 

@@ -12,11 +12,10 @@ A good challenge changes the context while preserving the underlying concept.
 
 ## Read First
 
-1. `context/learning/learner-profile.md`
-2. The relevant lesson
-3. `context/learning/progress.md`
-4. The feature spec and focused implementation when needed
-5. Current git status if the challenge may involve code
+1. The relevant lesson
+2. `context/learning/progress.md`
+3. The feature spec and focused implementation when needed
+4. Current git status if the challenge may involve code
 
 Skip any of these that does not exist. Pathfinder creates these files only when a workflow first needs them, so their absence is normal and is not an error. Do not create them just to satisfy this list.
 
@@ -79,5 +78,8 @@ After the learner responds:
 - Identify the strongest decision.
 - Identify the most important weakness.
 - Explain a stronger solution.
-- Update `context/learning/progress.md`.
-- Mark `transferable` only when the concept was applied correctly in the changed context.
+- Update `context/learning/progress.md`, using the confidence scale defined in
+  its `## Confidence Scale` section. If the file does not exist, `quiz-me`
+  carries the header to create it with.
+- Mark `transferable` only when the concept was applied correctly in the changed
+  context, and never using the example that introduced it.

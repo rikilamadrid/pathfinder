@@ -12,11 +12,10 @@ The goal is to turn isolated feature lessons into a coherent learning path.
 
 ## Read First
 
-1. `context/learning/learner-profile.md`
-2. `context/learning/progress.md`
-3. Recent lessons under `context/learning/lessons/`
-4. Recent completed feature specs and history
-5. Quiz or challenge evidence available in the repo
+1. `context/learning/progress.md`
+2. Recent lessons under `context/learning/lessons/`
+3. Recent completed feature specs and history
+4. Quiz or challenge evidence available in the repo
 
 Skip any of these that does not exist. Pathfinder creates these files only when a workflow first needs them, so their absence is normal and is not an error. Do not create them just to satisfy this list.
 
@@ -68,7 +67,9 @@ At most three, ordered by value.
 
 ## Progress Changes
 
-Update `context/learning/progress.md` conservatively.
+Update `context/learning/progress.md` conservatively, using the confidence scale
+defined in its `## Confidence Scale` section. If the file does not exist,
+`quiz-me` carries the header to create it with.
 
 ## Rules
 

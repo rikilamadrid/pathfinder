@@ -16,9 +16,16 @@ Pathfinder works normally without one.
    - local Markdown files
    - another tracker the human describes
 2. Ask only for the information needed to use that tracker.
-3. Create a proposed `context/tracker.md`.
-4. Show it to the human.
-5. Write it only after approval.
+3. Check where the approved Feature specs live. Ask only when they are not in
+   `context/features/`; when the default is what the repository has, record it
+   and move on.
+4. Create a proposed `context/tracker.md` naming, at minimum:
+   - the tracker and how an agent reaches it
+   - the spec source
+   - how a published item records its Pathfinder key, so a later run
+     recognises the item it published last time
+5. Show it to the human.
+6. Write it only after approval.
 
 If `context/tracker.md` already exists, modify only the requested settings.
 

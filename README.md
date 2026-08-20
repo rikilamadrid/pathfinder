@@ -50,7 +50,7 @@ It writes exactly six things:
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
-| `context/` | Project truth — overview, standards, interaction rules, current feature |
+| `context/` | Project truth — coding standards and interaction rules on install, the rest written when a workflow first needs it |
 | `roles/` | Declarative contracts a session follows when you name one — planner, developer, tester |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, learning, and optional work tracking |
 | `templates/` | Starting points the project copies when it needs them |

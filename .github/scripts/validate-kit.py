@@ -732,6 +732,8 @@ def check_copy_list() -> None:
 
     check_installer_copy_list(copy_list)
 
+    check_staging_ignored(copy_list)
+
     # npm allowlist: the kit entries must all be published, and nothing
     # kit-external may be listed alongside them.
     manifest_path = INSTALLER / "package.json"
@@ -754,6 +756,73 @@ def check_copy_list() -> None:
             fail(manifest_path, "copy-list-files",
                  f"`{extra}` is published but is neither installer code nor "
                  "part of the copy list")
+
+
+def check_staging_ignored(copy_list: tuple[str, ...]) -> None:
+    """Every staged copy-list source must be git-ignored, and none may be tracked.
+
+    `stage-kit.mjs` copies the kit into `packages/create-pathfinder/` so npm can
+    see it, because `files` cannot reach outside the package directory. Those
+    copies are transient: `prepack` writes them and `postpack` removes them. A
+    staged source that `.gitignore` does not cover shows up as untracked noise
+    in `git status` during a pack, and a `git add -A` in that window commits a
+    second copy of the kit — the root copy and a stale duplicate underneath the
+    installer, with nothing to keep them in agreement.
+
+    This rule exists because that is exactly what happened when `roles` was
+    added to the copy list in 2.0.0: the copy list, the installer, the npm
+    allowlist, and the README were all updated together and checked by the rules
+    above, while `.gitignore` was not, because nothing checked it. The staging
+    list is the copy list plus `LICENSE`, mirroring `STAGED` in stage-kit.mjs.
+    """
+    staged = [*copy_list, "LICENSE"]
+
+    for entry in staged:
+        # A directory-only pattern does not match a path that does not exist, and
+        # a staged copy exists only between prepack and postpack. Probing a path
+        # *inside* the directory asks the question the pattern can answer on a
+        # clean checkout.
+        probe = f"packages/create-pathfinder/{entry}"
+        if (ROOT / entry).is_dir():
+            probe = f"{probe}/probe"
+
+        try:
+            result = subprocess.run(
+                ["git", "check-ignore", "-q", "--", probe],
+                cwd=ROOT, capture_output=True, text=True, check=False,
+            )
+        except OSError:
+            print("note: git unavailable, skipping staging-ignored")
+            return
+
+        # 0 ignored, 1 not ignored, anything else is git failing rather than
+        # answering — do not read that as a passing check.
+        if result.returncode == 1:
+            fail(".gitignore", "staging-ignored",
+                 f"`packages/create-pathfinder/{entry}` is staged by "
+                 "stage-kit.mjs but is not git-ignored, so a pack leaves a "
+                 "committable duplicate of the kit behind")
+        elif result.returncode != 0:
+            print("note: git check-ignore failed, skipping staging-ignored")
+            return
+
+    try:
+        tracked = subprocess.run(
+            ["git", "ls-files", "--",
+             *(f"packages/create-pathfinder/{entry}" for entry in staged)],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        return
+
+    if tracked.returncode != 0:
+        return
+
+    for path in sorted(filter(None, tracked.stdout.splitlines())):
+        fail(path, "staging-ignored",
+             "is a staged copy of the kit that has been committed; the copy at "
+             "the repository root is the only one in version control. Remove it "
+             "with `git rm --cached`")
 
 
 def check_installer_copy_list(copy_list: tuple[str, ...]) -> None:

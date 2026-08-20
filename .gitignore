@@ -64,6 +64,7 @@ __MACOSX/
 /packages/create-pathfinder/CLAUDE.md
 /packages/create-pathfinder/LICENSE
 /packages/create-pathfinder/context/
+/packages/create-pathfinder/roles/
 /packages/create-pathfinder/skills/
 /packages/create-pathfinder/templates/
 /packages/create-pathfinder/*.tgz
