@@ -1,88 +1,304 @@
 ![Pathfinder](https://raw.githubusercontent.com/rikilamadrid/pathfinder/main/assets/logo-wordmark.png)
 
-**An AI-assisted, human-in-the-loop workflow for building software — without giving up the decisions.**
+**A reusable workflow kit for directing AI agents through software delivery,
+while keeping judgment and consequential decisions human.**
 
-This package installs [Pathfinder](https://pathfinder-kit.vercel.app) into a Git repository — one you already have, or one it offers to create for you.
+This package copies [Pathfinder](https://pathfinder-kit.vercel.app) into a Git
+repository.
 
 ```bash
 npx create-pathfinder
 ```
 
-That is the whole invocation. This is a scaffolding CLI you run once, not a dependency: `npm i create-pathfinder` would add it to your project's `package.json` and `node_modules` without installing anything into your repository. If you would rather not use `npx`, `npm exec create-pathfinder` is equivalent, and a global install (`npm i -g create-pathfinder`) gives you a `create-pathfinder` command that behaves identically.
+Pathfinder is a scaffolding CLI you run when setting up or updating a project.
+It is not a runtime dependency and adds nothing to your application's
+`node_modules`.
 
-Then give your agent this prompt:
+Then start Pathfinder.
+
+Claude Code:
+
+```text
+/kickstart-pathfinder
+```
+
+Codex:
+
+```text
+$kickstart-pathfinder
+```
+
+Any other coding agent:
 
 ```text
 Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this project.
 Do not install packages or write product code yet.
 ```
 
-Everything below is what the command does. **What Pathfinder is, how the workflow runs, and what each skill does are documented at [pathfinder-kit.vercel.app](https://pathfinder-kit.vercel.app).**
+For the workflow itself, roles, skills, and guides, see
+[pathfinder-kit.vercel.app](https://pathfinder-kit.vercel.app).
+
+Everything below documents the installer.
+
+## Run it
+
+```bash
+npx create-pathfinder
+```
+
+That is the intended invocation.
+
+You can also use:
+
+```bash
+npm exec create-pathfinder
+```
+
+or install the CLI globally:
+
+```bash
+npm i -g create-pathfinder
+create-pathfinder
+```
+
+Do not use:
+
+```bash
+npm i create-pathfinder
+```
+
+for normal Pathfinder setup.
+
+That installs the CLI as a dependency in your project's `package.json` and
+`node_modules`; it does not run the scaffolding process.
 
 ## What it installs
 
-The installer copies six things into your repository and nothing else:
+The installer copies six kit entries into your repository:
 
 | Path | What it is |
 | --- | --- |
-| `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
-| `context/` | Project truth — overview, standards, interaction rules, current feature |
-| `roles/` | Three declarative contracts — planner, developer, tester — inert until you name one |
-| `skills/` | Skills covering discovery, specs, delivery, debugging, review, learning, and optional work tracking |
-| `templates/` | Starting points the project copies when it needs them |
+| `AGENTS.md`, `CLAUDE.md` | Entry files that tell supported agents how to work in the project |
+| `context/` | Project standards and interaction rules; other context is created only when needed |
+| `roles/` | Three optional responsibility contracts: planner, developer, tester |
+| `skills/` | Reusable procedures for discovery, specs, delivery, debugging, review, learning, and optional work tracking |
+| `templates/` | Minimal starting shapes copied when a workflow needs them |
 
-On request it also writes one thing it does not copy:
+A fresh Pathfinder 2.0 project begins with only:
+
+```text
+context/
+├── ai-interaction.md
+└── coding-standards.md
+```
+
+Other context files are created lazily by the workflow that needs them.
+
+Pathfinder does not copy its own repository `README.md`, `CHANGELOG.md`, CI
+configuration, or brand assets. Your project gets the workflow kit, not the
+repository that maintains it.
+
+### Generated tool adapters
+
+If you choose native tool integration, the installer also generates adapters:
 
 | Path | What it is |
 | --- | --- |
-| `.claude/skills/`, `.agents/skills/` | **Generated** — a small adapter per skill, derived from `skills/` at install time, so your coding tool discovers them natively. Not part of the six above; see [Native skills for your coding tool](#native-skills-for-your-coding-tool) |
+| `.claude/skills/` | Generated Claude Code skill adapters |
+| `.agents/skills/` | Generated Codex skill adapters |
 
-It never copies Pathfinder's own `README.md`, `CHANGELOG.md`, CI configuration, or brand assets. Your repository gets the workflow, not the project that maintains it.
+These are derived from the canonical files under `skills/`; they are not a
+second copy of the behavior.
 
 ## What it will not do to your repository
 
-This runs once, in real code, so it is deliberately timid:
+The installer is deliberately conservative.
 
-- **It never overwrites.** Files that already exist are left exactly as they are and listed by name in the summary. Pass `--force` if you actually want them replaced.
-- **It will not install outside a Git repository**, so whatever it writes is reviewable and undoable. In an empty directory it offers to run `git init` for you — and that is the only Git command it will ever run. No `add`, no `commit`, no config, no branch. If you say no, nothing is written.
-- **It never touches an existing history.** A directory that is already a repository, or inside one, is never asked about and never initialized.
-- **`--dry-run` reports the same plan the real install would carry out**, including any `git init`, without writing anything.
-- **It owns a generated adapter, and nothing else in your tool's directory.** A file at `.claude/skills/<name>/SKILL.md` or `.agents/skills/<name>/SKILL.md` belongs to the installer only if that name is a Pathfinder skill *and* the file carries the `pathfinder:adapter` marker it wrote. Your `settings.json`, `settings.local.json`, agents, commands, hooks, and any skill of your own are never read and never written, a file you wrote at an adapter path is left alone and named in the summary, and nothing is ever deleted.
+### It never silently overwrites
 
-**Re-running `npx create-pathfinder` in a project that already has Pathfinder is safe, requires no flags, and is idempotent.** Canonical files you have edited are skipped and listed; files new in this version are written; adapters are regenerated, byte-identical if nothing changed; anything you own is untouched. That is how a project installed before v1.5.0 gains adapters — one ordinary run, no migration command.
+Files that already exist are left exactly as they are and listed in the
+summary.
+
+Use:
+
+```bash
+npx create-pathfinder --force
+```
+
+only when you explicitly want existing Pathfinder files replaced.
+
+### It requires a Git repository
+
+Pathfinder installs into version control so its changes are reviewable and
+undoable.
+
+If the current directory is not a Git repository, an interactive run can offer
+to initialize one.
+
+If you decline, nothing is installed.
+
+The installer does not run:
+
+```text
+git add
+git commit
+git push
+git config
+```
+
+and it does not create or switch branches.
+
+### It does not alter existing history
+
+If the current directory is already a repository, or is inside one, Pathfinder
+uses it as-is.
+
+It does not reinitialize it.
+
+### Dry runs are actually dry
+
+```bash
+npx create-pathfinder --dry-run
+```
+
+shows the same installation plan without writing files, initializing Git,
+changing the clipboard, or opening an editor.
+
+### It only owns Pathfinder-generated adapters
+
+An adapter at:
+
+```text
+.claude/skills/<name>/SKILL.md
+.agents/skills/<name>/SKILL.md
+```
+
+belongs to Pathfinder only when:
+
+1. `<name>` is a Pathfinder skill, and
+2. the file contains the `pathfinder:adapter` marker Pathfinder generated.
+
+Your own:
+
+```text
+settings.json
+settings.local.json
+agents
+commands
+hooks
+skills
+```
+
+are not Pathfinder-owned.
+
+A file you created at a would-be adapter path is left alone and reported.
+
+Pathfinder does not delete unrelated tool configuration.
+
+## Re-running Pathfinder
+
+Re-running:
+
+```bash
+npx create-pathfinder
+```
+
+in a project that already uses Pathfinder is supported.
+
+Without `--force`:
+
+- canonical files you already have are preserved
+- new Pathfinder files can be added
+- Pathfinder-owned adapters are regenerated
+- unchanged adapters remain byte-identical
+- unrelated files remain untouched
+
+This is also how older Pathfinder projects gain newer generated adapters:
+re-run the installer rather than using a separate migration command.
 
 ## Native skills for your coding tool
 
-Pathfinder's skills are tool-neutral files at `skills/<name>/SKILL.md`. Some coding tools discover skills natively from their own directory, and the installer can generate small adapters there so you get `/reflect` instead of pasting a path.
+Pathfinder's canonical skills live at:
+
+```text
+skills/<name>/SKILL.md
+```
+
+Claude Code and Codex can discover skills from their own directories, so the
+installer can generate small adapters for them.
+
+Non-interactively:
 
 ```bash
 npx create-pathfinder --agents claude-code,codex
 ```
 
-| Id | Writes to | Invoked as |
+Supported ids:
+
+| Id | Generated path | Example invocation |
 | --- | --- | --- |
 | `claude-code` | `.claude/skills/<name>/SKILL.md` | `/reflect` |
-| `codex` | `.agents/skills/<name>/SKILL.md` | `/skills`, or `$reflect` |
+| `codex` | `.agents/skills/<name>/SKILL.md` | `$reflect` |
 
-Each adapter carries the skill's name and description and tells the tool to read the canonical file — the behavior lives in one place, and the adapter never restates it.
+Each adapter carries the skill's name and description and delegates to:
 
-Pick one, both, or neither. Choosing one never generates, removes, or claims anything under the other's directory, and Pathfinder never writes to a personal skills directory such as `$HOME/.agents/skills`.
+```text
+skills/<name>/SKILL.md
+```
 
-In a terminal you are asked instead of passing the flag — a numbered list, comma-separated, `Enter` for the tools found on your machine, `0` for none. Each option shows the directory it writes to before you choose it. A third entry, **Something else…**, generates nothing and says so: the kit still installs `AGENTS.md` at the repository root, which Codex, Cursor, and several others read, and any agent can be given the line the adapters delegate to — `Use skills/<name>/SKILL.md and follow it exactly.`
+The behavior remains canonical in one place.
 
-Nothing is configured unless you choose it. Detection only sets the default, a piped or scripted run configures nothing at all unless `--agents` says so, and `--agents` accepts only the ids in the table above — an unknown one exits 2 rather than quietly installing nothing.
+You may configure one tool, both, or neither.
 
-## The Kickstart prompt, and your clipboard
+Choosing one never configures the other.
 
-Every install ends by printing the one prompt that starts a session, and the prompt follows the tool you chose:
+Pathfinder also never writes to personal/global skill directories such as:
 
-| Configured | Prompt |
+```text
+~/.claude/skills/
+~/.agents/skills/
+```
+
+### Interactive selection
+
+In an interactive terminal, the installer asks which supported tools to
+configure.
+
+Detected tools influence the default selection only. Detection does not
+authorize writes by itself.
+
+`Enter` accepts the tools found on your machine, and selecting none is always
+available. Each option shows the directory it writes to before you choose it.
+Under `PATHFINDER_PROMPT=classic` the same question is a numbered list answered
+comma-separated, with `0` for none.
+
+A third entry, **Something else…**, generates nothing and says so: the kit still
+installs `AGENTS.md` at the repository root, which Codex, Cursor, and several
+others read, and any agent can be given the line the adapters delegate to —
+`Use skills/<name>/SKILL.md and follow it exactly.`
+
+Without an interactive terminal, no tool adapters are generated unless
+`--agents` is provided explicitly.
+
+An unknown agent id exits 2 rather than quietly installing nothing.
+
+## The Kickstart prompt
+
+Every successful install prints the prompt that starts Pathfinder.
+
+| Configured tool | Prompt |
 | --- | --- |
-| `claude-code` | `/kickstart-pathfinder` |
-| `codex` | `$kickstart-pathfinder` |
-| both, or neither | `Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this project. Do not install packages or write product code yet.` |
+| Claude Code | `/kickstart-pathfinder` |
+| Codex | `$kickstart-pathfinder` |
+| both or neither | `Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this project. Do not install packages or write product code yet.` |
 
-In a terminal you are then asked whether to copy it, in a question that says what it replaces:
+The prompt is always printed.
+
+Copying it to the clipboard is optional.
+
+## Clipboard behavior
+
+In an interactive terminal, Pathfinder can ask:
 
 ```text
 ? Copy that prompt to your clipboard? This replaces what is on it now.
@@ -93,64 +309,163 @@ In a terminal you are then asked whether to copy it, in a question that says wha
   ↑↓ move   enter confirm
 ```
 
-`y` and `n` still answer it in one keystroke, and under
-`PATHFINDER_PROMPT=classic` it asks as `[Y/n]` on one line.
+Nothing is copied without an explicit yes.
 
-- **Nothing is copied without an explicit yes.** Declining, an unanswered question, `--no-clipboard`, `--yes`, `--dry-run`, and any run without a terminal on both ends all leave your clipboard exactly as it was.
-- **The prompt is printed either way.** Copying is a convenience, never the only way to get it.
-- **No dependency, and no clipboard is ever read.** The copy uses whatever your system already has — `pbcopy`, `clip.exe` including under WSL, or `wl-copy`, `xclip`, or `xsel` — chosen by what is actually installed rather than by your platform's name. If none of them is there, or one of them fails, the installer says so in one line and still exits 0.
+The clipboard is left untouched when:
+
+- you choose No
+- the question is unanswered
+- `--no-clipboard` is used
+- `--yes` is used
+- `--dry-run` is used
+- the run is non-interactive
+
+Pathfinder never reads the clipboard.
+
+When copying is requested, it uses an existing system utility such as:
+
+```text
+pbcopy
+clip.exe
+wl-copy
+xclip
+xsel
+```
+
+If no supported clipboard command is available, or copying fails, installation
+still succeeds and the prompt remains visible in the terminal.
 
 ## Opening the project
 
-The last question is whether to open the project, and it is only ever about an editor you already have. The installer looks for `code` (VS Code) and `cursor` (Cursor) on your `PATH`:
+The final interactive question can offer to open the installed project in an
+editor already available on the machine.
 
-- **One found** — a Yes/No naming it: `? Open this project in VS Code?`
-- **Several found** — a list, alphabetical, ending in `Don't open`
-- **None found** — no question at all
+Supported editor commands are:
 
-Neither editor is a Pathfinder requirement, and the alphabetical order is not a recommendation. There is no way to name an editor or pass a path. The launch is detached: the installer hands over the project directory and exits immediately.
+```text
+code
+cursor
+```
 
-- **Nothing is launched without an explicit yes.** Declining, an unanswered question, `Don't open`, `--no-open`, `--yes`, `--dry-run`, and any run without a terminal on both ends all leave your screen alone.
-- **A failed launch is not a failed install.** If the binary is there but cannot be run, the installer says so in one line, tells you the directory to open yourself, and still exits 0.
+If one is detected, Pathfinder can ask:
+
+```text
+? Open this project in VS Code?
+```
+
+If several are available, it offers a choice.
+
+If none are available, no editor question is shown.
+
+Nothing is launched without an explicit selection.
+
+The project is not opened when:
+
+- you decline
+- the question is unanswered
+- you choose `Don't open`
+- `--no-open` is used
+- `--yes` is used
+- `--dry-run` is used
+- the run is non-interactive
+
+A failed editor launch does not turn a successful installation into a failed
+one. Pathfinder reports the project directory so you can open it yourself.
 
 ## Options
 
 | Option | Effect |
 | --- | --- |
-| `--agents <ids>` | Generate skill adapters for these tools, comma-separated. Valid ids: `claude-code`, `codex`. Alias: `--agent` |
-| `--dry-run` | Report what would be written, and any `git init` that would run first; change nothing |
-| `--force` | Overwrite files that already exist, and replace a file you wrote at a path an adapter would occupy |
-| `--git-init` | Run `git init` here if this is not a repository yet |
-| `--no-git-init` | Never run `git init`; refuse instead |
-| `--no-clipboard` | Never offer to copy the Kickstart prompt. The prompt is printed either way |
-| `--no-open` | Never offer to open the project in an editor |
-| `--yes`, `--no-input` | Take the defaults and ask nothing. It does not authorize `git init`, configure any tool, touch your clipboard, or open an editor — pass `--git-init` and `--agents` for the first two |
+| `--agents <ids>` | Generate adapters for comma-separated supported tools. Valid ids: `claude-code`, `codex`. Alias: `--agent` |
+| `--dry-run` | Show what would happen without changing anything |
+| `--force` | Replace existing Pathfinder files and Pathfinder adapter paths |
+| `--git-init` | Initialize Git if the current directory is not already in a repository |
+| `--no-git-init` | Never initialize Git; refuse installation instead |
+| `--no-clipboard` | Never offer to copy the Kickstart prompt |
+| `--no-open` | Never offer to launch an editor |
+| `--yes`, `--no-input` | Ask nothing and use non-destructive defaults |
 | `-h`, `--help` | Show usage |
 
-### Environment
+`--yes` does **not** authorize Git initialization, tool configuration,
+clipboard writes, or editor launches.
+
+For scripted setup, specify the actions you actually want, for example:
+
+```bash
+npx create-pathfinder \
+  --yes \
+  --git-init \
+  --agents claude-code
+```
+
+## Prompt styles
+
+By default, interactive terminals use an arrow-key selector.
+
+Set:
+
+```bash
+PATHFINDER_PROMPT=classic npx create-pathfinder
+```
+
+to use numbered choices and `y` / `n` prompts instead.
 
 | Variable | Effect |
 | --- | --- |
-| `PATHFINDER_PROMPT=classic` | Ask every question as a numbered list and `y`/`n` rather than an arrow-key selector |
-| `NO_COLOR` | Print no colour. It does not disable the selector |
+| `PATHFINDER_PROMPT=classic` | Use classic typed prompts instead of the interactive selector |
+| `NO_COLOR` | Disable terminal color; does not change prompt style |
 
-**Both prompt styles are supported.** By default a terminal answers questions with `↑`/`↓`, `Space`, and `Enter`. `PATHFINDER_PROMPT=classic` asks for typed numbers and `y`/`n` instead — the right choice for a screen reader, for a script driving the installer's stdin, and for anyone who simply prefers it. A terminal narrower than 49 columns and `TERM=dumb` select it on their own, and `y`/`n` keep working at a Yes/No question either way.
+Classic mode is useful for:
 
-Questions are asked only when stdin and stdout are both terminals. Piped, redirected, or in CI, nothing is asked and nothing is prompted for — so a directory that is not a repository needs `--git-init`, or the install is refused, no tool is configured without `--agents`, the clipboard is never touched at all, and no editor is ever launched.
+- screen readers
+- scripts driving terminal input
+- users who prefer typed choices
+
+A terminal narrower than 49 columns and `TERM=dumb` select the classic
+presentation on their own. Either way, `y` and `n` answer a Yes/No question in
+one keystroke; under `PATHFINDER_PROMPT=classic` it is asked as `[Y/n]` on one
+line.
+
+Questions are asked only when both stdin and stdout are terminals.
+
+In CI, redirected, or piped execution:
+
+- no interactive questions are shown
+- Git initialization requires `--git-init`
+- adapters require `--agents`
+- the clipboard is untouched
+- no editor is launched
 
 ## Requirements
 
-Node 18 or newer, and a Git repository — though the installer will offer to create one for you.
+- Node.js 18 or newer
+- a Git repository, or permission to initialize one
 
-The `git` binary is only needed to *create* that repository. Inside one that already exists, the installer finds it by walking the filesystem for `.git` and never runs Git at all, so it works on a machine where `git` is not on your `PATH`.
+The `git` executable is required only when Pathfinder needs to run `git init`.
 
-No dependencies — this package installs nothing into your project's `node_modules`, and has none of its own.
+Inside an existing repository, Pathfinder identifies the repository from the
+filesystem and does not need to run Git commands.
 
-## Links
+The package has no runtime dependencies and installs nothing into the
+destination project's `node_modules`.
+
+## After installation
+
+Pathfinder itself is documented separately from the installer.
+
+Start here:
 
 - [Documentation](https://pathfinder-kit.vercel.app)
-- [Repository](https://github.com/rikilamadrid/pathfinder)
-- [Why this is not a framework](https://github.com/rikilamadrid/pathfinder/blob/main/NOT_A_FRAMEWORK.md)
+- [Getting started](https://pathfinder-kit.vercel.app/guides/getting-started/)
+- [Workflow](https://pathfinder-kit.vercel.app/guides/workflow/)
+- [Skills](https://pathfinder-kit.vercel.app/skills/)
+
+Repository resources:
+
+- [GitHub](https://github.com/rikilamadrid/pathfinder)
 - [Changelog](https://github.com/rikilamadrid/pathfinder/blob/main/CHANGELOG.md)
+- [Why Pathfinder is not a framework](https://github.com/rikilamadrid/pathfinder/blob/main/NOT_A_FRAMEWORK.md)
+
+## License
 
 MIT © Lamadrid Labs
