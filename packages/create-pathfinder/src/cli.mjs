@@ -16,6 +16,7 @@ import { detectEditors, openInEditor } from "./editor.mjs";
 import { kickstartPrompt, kickstartPromptLines } from "./kickstart-prompt.mjs";
 import { createTheme } from "./theme.mjs";
 import { createProgress } from "./progress.mjs";
+import { summarize } from "./outcome.mjs";
 import {
   HARNESSES,
   HARNESS_IDS,
@@ -270,7 +271,13 @@ export async function run(
   progress.finish();
   if (!options.dryRun && theme.tier !== "contract") out("\n");
 
-  report({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err, theme });
+  // Derived here, once, and handed down. Below this line nothing re-reads a
+  // plan or a result: the two renderings disagree about everything except the
+  // facts, and this is what makes "except the facts" true rather than a hope
+  // about two functions being edited together.
+  const outcome = summarize({ plan, result, adapters, harnesses, options });
+
+  report({ outcome, harnesses, customTools, cwd, gitRoot, options, out, err, theme });
 
   // After the report, because the first offer is about the prompt the report
   // just printed — and because a question above the summary would make the user
@@ -286,7 +293,7 @@ export async function run(
   //
   // Not printed when anything failed. A sign-off over an error is a tool that
   // did not read its own output.
-  const failed = result.errors.length > 0 || adapters.result.errors.length > 0;
+  const failed = outcome.failures.length > 0;
   if (theme.tier !== "contract" && !failed) {
     out(`\n  ${theme.dim(SIGN_OFF)}\n`);
   }
@@ -497,9 +504,9 @@ function generateAdapters({ plan, harnesses, options, result, onProgress, onHarn
  * person reading has just watched a bar fill. A re-run that wrote nothing says
  * so plainly instead of inventing an achievement.
  */
-function endingHeadline({ theme, written, adapters, attention, options }) {
+function endingHeadline({ theme, outcome, options }) {
   const mark = theme.glyph;
-  const built = adapters.result.generated + adapters.result.replaced;
+  const { written, built, attention } = outcome;
 
   // Something wants a human. Still ready — it is — but this is not the moment
   // for confetti over somebody's conflicted file.
@@ -523,9 +530,9 @@ function endingHeadline({ theme, written, adapters, attention, options }) {
  * so plainly instead of inventing an achievement out of the harnesses it did
  * not have to configure.
  */
-function endingDetail({ written, adapters, harnesses, attention, options }) {
+function endingDetail({ outcome, harnesses, options }) {
   const parts = [];
-  const built = adapters.result.generated + adapters.result.replaced;
+  const { written, built, attention } = outcome;
 
   if (written > 0) parts.push(`${written} file${plural(written)}`);
   if (built > 0) parts.push(`${built} adapter${plural(built)}`);
@@ -988,15 +995,16 @@ export function formatFindings(findings, { theme = createTheme() } = {}) {
 function report(args) {
   // Two renderings, kept adjacent on purpose.
   //
-  // The duplication below is a known, accepted cost rather than an oversight.
-  // `contractReport` owes byte-for-byte what 1.4.1 printed, to scripts that
-  // parse it; `expressiveReport` owes a person a legible hierarchy. Merging
-  // them would mean one function whose every line carries a conditional, and
-  // the first wording improvement would silently break somebody's grep.
+  // What is reported is decided once, in `summarize`: both functions below read
+  // the same outcome and neither recounts anything. What remains separate is how
+  // it looks. `contractReport` owes byte-for-byte what 1.4.1 printed, to scripts
+  // that parse it; `expressiveReport` owes a person a legible hierarchy. Merging
+  // them would mean one function whose every line carries a conditional, and the
+  // first wording improvement would silently break somebody's grep.
   //
-  // They are written next to each other so that editing one is an obvious
-  // prompt to consider the other. Anything that changes what is *reported* —
-  // as opposed to how it looks — has to be made twice, and that is the point.
+  // So a new reported fact belongs in the outcome, and reaches both renderings
+  // from there; only its wording has to be chosen twice. They are written next
+  // to each other so that editing one is an obvious prompt to consider the other.
   if (args.theme.tier === "contract") return contractReport(args);
   return expressiveReport(args);
 }
@@ -1008,7 +1016,7 @@ function report(args) {
  * `test/non-interactive.test.mjs` and by a capture-and-compare against the
  * published package, because a script somewhere is reading it.
  */
-function contractReport({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err, theme }) {
+function contractReport({ outcome, harnesses, customTools, cwd, gitRoot, options, out, err, theme }) {
   const lines = [];
   const verb = options.dryRun ? "Would install" : "Installed";
 
@@ -1018,25 +1026,24 @@ function contractReport({ result, plan, adapters, harnesses, customTools, cwd, g
   }
   lines.push("");
 
-  const written = options.dryRun ? plan.filter((i) => i.status === "write").length : result.written;
+  const { written, overwritten, skipped } = outcome;
   lines.push(`  ${written} file${plural(written)} ${options.dryRun ? "to write" : "written"}`);
 
-  if (result.overwritten > 0) {
-    lines.push(`  ${result.overwritten} file${plural(result.overwritten)} overwritten (--force)`);
+  if (overwritten > 0) {
+    lines.push(`  ${overwritten} file${plural(overwritten)} overwritten (--force)`);
   }
 
-  lines.push(...contractAdapterLines({ adapters, harnesses, options, theme }));
+  lines.push(...contractAdapterLines({ outcome, options, theme }));
   lines.push(...customToolLines(customTools));
 
-  const skipped = plan.filter((item) => item.status === "skip");
   if (skipped.length > 0) {
     lines.push(`  ${skipped.length} file${plural(skipped.length)} left untouched because they already exist:`);
-    for (const item of skipped) lines.push(`      ${item.relativePath}`);
+    for (const path of skipped) lines.push(`      ${path}`);
     lines.push("");
     lines.push("  Nothing above was modified. Re-run with --force to replace them.");
   }
 
-  if (written === 0 && skipped.length === plan.length) {
+  if (outcome.alreadyInstalled) {
     lines.push("");
     lines.push("The kit is already installed here.");
   }
@@ -1054,7 +1061,7 @@ function contractReport({ result, plan, adapters, harnesses, customTools, cwd, g
 
   out(lines.join("\n") + "\n");
 
-  const failures = [...result.errors, ...adapters.result.errors];
+  const { failures } = outcome;
   if (failures.length > 0) {
     const detail = failures.map((error) => `  ${error.relativePath}: ${error.message}`).join("\n");
     err(`\ncreate-pathfinder: ${failures.length} file${plural(failures.length)} could not be written:\n${detail}\n`);
@@ -1198,10 +1205,12 @@ async function offerEditor({ editors, cwd, prompter, out, env, platform, theme }
  * Empty when no harness was chosen, which is the default and must stay
  * invisible: a scripted 1.4.1-era run prints exactly what it always did.
  */
-function contractAdapterLines({ adapters, harnesses, options, theme }) {
-  if (harnesses.length === 0) return [];
-
-  if (adapters.blocked) {
+function contractAdapterLines({ outcome, options, theme }) {
+  // No explicit "no harness chosen" guard: that case is no rows and
+  // `blocked: false`, so it falls straight through to an empty list. The
+  // blocked case is checked first because it is *also* no rows, and the two
+  // must not print the same nothing.
+  if (outcome.blocked) {
     return [
       "",
       "  No adapters were generated, because the kit copy did not finish.",
@@ -1210,21 +1219,9 @@ function contractAdapterLines({ adapters, harnesses, options, theme }) {
     ];
   }
 
-  const failed = new Set(adapters.result.errors.map((error) => error.relativePath));
   const lines = [];
 
-  for (const harness of harnesses) {
-    const mine = adapters.plan.filter(
-      (item) => item.harness === harness && !failed.has(item.relativePath),
-    );
-    const count = (action) => mine.filter((item) => item.action === action).length;
-
-    const generated = count("write");
-    const replaced = count("replace");
-    const unchanged = count("up-to-date");
-    const conflicts = mine.filter((item) => item.action === "conflict");
-    const orphans = mine.filter((item) => item.action === "orphan");
-
+  for (const { harness, generated, replaced, unchanged, conflicts, orphans } of outcome.harnessRows) {
     lines.push(
       `  ${generated} ${harness.label} skill adapter${plural(generated)} ` +
         (options.dryRun ? "to generate" : "generated"),
@@ -1242,7 +1239,7 @@ function contractAdapterLines({ adapters, harnesses, options, theme }) {
       lines.push(
         `  ${conflicts.length} file${plural(conflicts.length)} left untouched because Pathfinder did not write ${conflicts.length === 1 ? "it" : "them"}:`,
       );
-      for (const item of conflicts) lines.push(`      ${item.relativePath}`);
+      for (const path of conflicts) lines.push(`      ${path}`);
       lines.push("");
       lines.push(
         conflicts.length === 1
@@ -1253,8 +1250,8 @@ function contractAdapterLines({ adapters, harnesses, options, theme }) {
       );
     }
 
-    for (const item of orphans) {
-      lines.push(`  ${item.relativePath} delegates to a skill this version no longer`);
+    for (const path of orphans) {
+      lines.push(`  ${path} delegates to a skill this version no longer`);
       lines.push("  ships. It was left in place; delete it yourself if you want it gone.");
     }
   }
@@ -1311,7 +1308,7 @@ function customToolLines(customTools = []) {
  *   and get colour. The paths underneath get neither, for the reason below.
  * - **Diagnostics stay pasteable.** See `pathList`.
  */
-function expressiveReport({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err, theme }) {
+function expressiveReport({ outcome, harnesses, customTools, cwd, gitRoot, options, out, err, theme }) {
   const mark = theme.glyph;
   const lines = [];
   const verb = options.dryRun ? "Would install" : "Installed";
@@ -1325,7 +1322,7 @@ function expressiveReport({ result, plan, adapters, harnesses, customTools, cwd,
     );
   }
 
-  const written = options.dryRun ? plan.filter((i) => i.status === "write").length : result.written;
+  const { written, overwritten, skipped } = outcome;
   // A zero is reported, never celebrated. `✓ 0 files written` is a tick over
   // nothing happening, which is the kind of detail that makes a whole summary
   // feel automated rather than read.
@@ -1342,18 +1339,17 @@ function expressiveReport({ result, plan, adapters, harnesses, customTools, cwd,
   // was asked to do, and marking a requested action as a warning is how a tool
   // teaches people to ignore its warnings. The files it replaced are still
   // worth stating plainly, which is what `info` is for.
-  if (result.overwritten > 0) {
+  if (overwritten > 0) {
     lines.push(
       railed(
         theme,
-        theme.info(`${mark.info} ${result.overwritten} file${plural(result.overwritten)} overwritten (--force)`),
+        theme.info(`${mark.info} ${overwritten} file${plural(overwritten)} overwritten (--force)`),
       ),
     );
   }
 
-  lines.push(...expressiveAdapterLines({ adapters, harnesses, options, theme }));
+  lines.push(...expressiveAdapterLines({ outcome, options, theme }));
 
-  const skipped = plan.filter((item) => item.status === "skip");
   if (skipped.length > 0) {
     lines.push(
       railed(
@@ -1379,33 +1375,26 @@ function expressiveReport({ result, plan, adapters, harnesses, customTools, cwd,
         theme,
         word: "Skipped",
         summary: `${skipped.length} file${plural(skipped.length)} already exist${skipped.length === 1 ? "s" : ""} and ${skipped.length === 1 ? "was" : "were"} left untouched`,
-        paths: skipped.map((item) => item.relativePath),
+        paths: skipped,
         advice: ["Nothing above was modified. Re-run with --force to replace them."],
       }),
     );
   }
 
-  lines.push(...expressiveAdapterBlocks({ adapters, harnesses, theme }));
+  lines.push(...expressiveAdapterBlocks({ outcome, theme }));
 
   if (customTools.length > 0) lines.push(...customToolLines(customTools));
 
-  const failureCount = result.errors.length + adapters.result.errors.length;
-  // What actually wants a human: a contested path, or an adapter pointing at a
-  // skill that is gone. Skipped files are deliberately *not* counted here.
-  // A re-run over an existing install skips every file by design, and calling
-  // thirty-six routine skips "things to look at" would turn the one number that
-  // should mean something into noise nobody reads twice.
-  const attention = adapters.blocked
-    ? 0
-    : adapters.plan.filter((item) => item.action === "conflict" || item.action === "orphan").length;
-
-  if (failureCount === 0) {
+  // `attention` is what actually wants a human: a contested path, or an adapter
+  // pointing at a skill that is gone. Skipped files are deliberately not among
+  // them — see `summarize`, which is where that decision now lives.
+  if (outcome.failures.length === 0) {
     lines.push("");
     lines.push(
       ...readyBlock({
         theme,
-        headline: endingHeadline({ theme, written, adapters, attention, options }),
-        detail: endingDetail({ written, adapters, harnesses, attention, options }),
+        headline: endingHeadline({ theme, outcome, options }),
+        detail: endingDetail({ outcome, harnesses, options }),
       }),
     );
   }
@@ -1431,7 +1420,7 @@ function expressiveReport({ result, plan, adapters, harnesses, customTools, cwd,
 
   out(lines.join("\n") + "\n");
 
-  const failures = [...result.errors, ...adapters.result.errors];
+  const { failures } = outcome;
   if (failures.length > 0) {
     // `bad`, not `warn`, and the distinction is the whole point of having both:
     // everything above is an outcome somebody may want to know about, and this
@@ -1481,29 +1470,21 @@ function pathList(paths) {
 }
 
 /** The per-harness summary counts, on the gutter, each at its own severity. */
-function expressiveAdapterLines({ adapters, harnesses, options, theme }) {
+function expressiveAdapterLines({ outcome, options, theme }) {
   const mark = theme.glyph;
-  if (harnesses.length === 0) return [];
 
-  if (adapters.blocked) {
+  // No "no harness chosen" guard: that case is no rows and `blocked: false`,
+  // so it falls through to an empty list. Blocked is checked first because it
+  // is also no rows, and the two must not print the same nothing.
+  if (outcome.blocked) {
     return [
       railed(theme, theme.bad(`${mark.bad} No adapters were generated`) + theme.dim(" (the kit copy did not finish)")),
     ];
   }
 
-  const failed = new Set(adapters.result.errors.map((error) => error.relativePath));
   const lines = [];
 
-  for (const harness of harnesses) {
-    const mine = adapters.plan.filter(
-      (item) => item.harness === harness && !failed.has(item.relativePath),
-    );
-    const count = (action) => mine.filter((item) => item.action === action).length;
-
-    const generated = count("write");
-    const replaced = count("replace");
-    const unchanged = count("up-to-date");
-
+  for (const { harness, generated, replaced, unchanged, conflicts, orphans } of outcome.harnessRows) {
     lines.push(
       railed(
         theme,
@@ -1525,9 +1506,6 @@ function expressiveAdapterLines({ adapters, harnesses, options, theme }) {
         railed(theme, theme.dim(`${mark.info} ${unchanged} ${harness.label} adapter${plural(unchanged)} already up to date`)),
       );
     }
-
-    const conflicts = mine.filter((item) => item.action === "conflict");
-    const orphans = mine.filter((item) => item.action === "orphan");
 
     if (conflicts.length > 0) {
       lines.push(
@@ -1554,20 +1532,12 @@ function expressiveAdapterLines({ adapters, harnesses, options, theme }) {
 }
 
 /** The conflict and orphan detail blocks, with their paths kept pasteable. */
-function expressiveAdapterBlocks({ adapters, harnesses, theme }) {
-  if (harnesses.length === 0 || adapters.blocked) return [];
+function expressiveAdapterBlocks({ outcome, theme }) {
+  if (outcome.blocked) return [];
 
-  const failed = new Set(adapters.result.errors.map((error) => error.relativePath));
   const blocks = [];
 
-  for (const harness of harnesses) {
-    const mine = adapters.plan.filter(
-      (item) => item.harness === harness && !failed.has(item.relativePath),
-    );
-
-    const conflicts = mine.filter((item) => item.action === "conflict");
-    const orphans = mine.filter((item) => item.action === "orphan");
-
+  for (const { harness, conflicts, orphans } of outcome.harnessRows) {
     if (conflicts.length > 0) {
       const one = conflicts.length === 1;
       blocks.push(
@@ -1575,7 +1545,7 @@ function expressiveAdapterBlocks({ adapters, harnesses, theme }) {
           theme,
           word: "Conflict",
           summary: `${conflicts.length} ${harness.label} file${plural(conflicts.length)} at ${one ? "a path an adapter wants" : "paths adapters want"}, which Pathfinder did not write`,
-          paths: conflicts.map((item) => item.relativePath),
+          paths: conflicts,
           advice: [
             `Re-run with --force to replace ${one ? "it" : "them"} ${theme.glyph.dash} note that --force also`,
             "overwrites Pathfinder kit files you have edited.",
@@ -1591,7 +1561,7 @@ function expressiveAdapterBlocks({ adapters, harnesses, theme }) {
           theme,
           word: "Orphan",
           summary: `${orphans.length} ${harness.label} adapter${plural(orphans.length)} delegat${one ? "es" : "e"} to a skill this version no longer ships`,
-          paths: orphans.map((item) => item.relativePath),
+          paths: orphans,
           advice: [
             `Left in place. Delete ${one ? "it" : "them"} yourself if you want ${one ? "it" : "them"} gone.`,
           ],
