@@ -284,7 +284,7 @@ describe("summarize — the shape it returns", () => {
     assert.equal(Object.isFrozen(outcome.harnessRows[0].conflicts), true);
   });
 
-  it("reads nothing but its arguments", () => {
+  it("carries exactly these keys and no others", () => {
     const outcome = run({ plan: [file("README.md", "write")], result: copyResult({ written: 1 }) });
 
     assert.deepEqual(Object.keys(outcome).sort(), [

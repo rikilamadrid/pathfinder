@@ -995,15 +995,16 @@ export function formatFindings(findings, { theme = createTheme() } = {}) {
 function report(args) {
   // Two renderings, kept adjacent on purpose.
   //
-  // The duplication below is a known, accepted cost rather than an oversight.
-  // `contractReport` owes byte-for-byte what 1.4.1 printed, to scripts that
-  // parse it; `expressiveReport` owes a person a legible hierarchy. Merging
-  // them would mean one function whose every line carries a conditional, and
-  // the first wording improvement would silently break somebody's grep.
+  // What is reported is decided once, in `summarize`: both functions below read
+  // the same outcome and neither recounts anything. What remains separate is how
+  // it looks. `contractReport` owes byte-for-byte what 1.4.1 printed, to scripts
+  // that parse it; `expressiveReport` owes a person a legible hierarchy. Merging
+  // them would mean one function whose every line carries a conditional, and the
+  // first wording improvement would silently break somebody's grep.
   //
-  // They are written next to each other so that editing one is an obvious
-  // prompt to consider the other. Anything that changes what is *reported* —
-  // as opposed to how it looks — has to be made twice, and that is the point.
+  // So a new reported fact belongs in the outcome, and reaches both renderings
+  // from there; only its wording has to be chosen twice. They are written next
+  // to each other so that editing one is an obvious prompt to consider the other.
   if (args.theme.tier === "contract") return contractReport(args);
   return expressiveReport(args);
 }
