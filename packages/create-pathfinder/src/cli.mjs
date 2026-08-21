@@ -16,6 +16,7 @@ import { detectEditors, openInEditor } from "./editor.mjs";
 import { kickstartPrompt, kickstartPromptLines } from "./kickstart-prompt.mjs";
 import { createTheme } from "./theme.mjs";
 import { createProgress } from "./progress.mjs";
+import { summarize } from "./outcome.mjs";
 import {
   HARNESSES,
   HARNESS_IDS,
@@ -986,6 +987,11 @@ export function formatFindings(findings, { theme = createTheme() } = {}) {
  * not let anyone check that claim.
  */
 function report(args) {
+  // Derived once, above the fork. The two renderings below disagree about
+  // everything except the facts, and this is the line that makes "except the
+  // facts" true rather than a hope about two functions being edited together.
+  const outcome = summarize(args);
+
   // Two renderings, kept adjacent on purpose.
   //
   // The duplication below is a known, accepted cost rather than an oversight.
@@ -997,8 +1003,8 @@ function report(args) {
   // They are written next to each other so that editing one is an obvious
   // prompt to consider the other. Anything that changes what is *reported* —
   // as opposed to how it looks — has to be made twice, and that is the point.
-  if (args.theme.tier === "contract") return contractReport(args);
-  return expressiveReport(args);
+  if (args.theme.tier === "contract") return contractReport({ ...args, outcome });
+  return expressiveReport({ ...args, outcome });
 }
 
 /**
@@ -1008,7 +1014,7 @@ function report(args) {
  * `test/non-interactive.test.mjs` and by a capture-and-compare against the
  * published package, because a script somewhere is reading it.
  */
-function contractReport({ result, plan, adapters, harnesses, customTools, cwd, gitRoot, options, out, err, theme }) {
+function contractReport({ outcome, harnesses, customTools, cwd, gitRoot, options, out, err, theme }) {
   const lines = [];
   const verb = options.dryRun ? "Would install" : "Installed";
 
@@ -1018,25 +1024,24 @@ function contractReport({ result, plan, adapters, harnesses, customTools, cwd, g
   }
   lines.push("");
 
-  const written = options.dryRun ? plan.filter((i) => i.status === "write").length : result.written;
+  const { written, overwritten, skipped } = outcome;
   lines.push(`  ${written} file${plural(written)} ${options.dryRun ? "to write" : "written"}`);
 
-  if (result.overwritten > 0) {
-    lines.push(`  ${result.overwritten} file${plural(result.overwritten)} overwritten (--force)`);
+  if (overwritten > 0) {
+    lines.push(`  ${overwritten} file${plural(overwritten)} overwritten (--force)`);
   }
 
-  lines.push(...contractAdapterLines({ adapters, harnesses, options, theme }));
+  lines.push(...contractAdapterLines({ outcome, options, theme }));
   lines.push(...customToolLines(customTools));
 
-  const skipped = plan.filter((item) => item.status === "skip");
   if (skipped.length > 0) {
     lines.push(`  ${skipped.length} file${plural(skipped.length)} left untouched because they already exist:`);
-    for (const item of skipped) lines.push(`      ${item.relativePath}`);
+    for (const path of skipped) lines.push(`      ${path}`);
     lines.push("");
     lines.push("  Nothing above was modified. Re-run with --force to replace them.");
   }
 
-  if (written === 0 && skipped.length === plan.length) {
+  if (outcome.alreadyInstalled) {
     lines.push("");
     lines.push("The kit is already installed here.");
   }
@@ -1054,7 +1059,7 @@ function contractReport({ result, plan, adapters, harnesses, customTools, cwd, g
 
   out(lines.join("\n") + "\n");
 
-  const failures = [...result.errors, ...adapters.result.errors];
+  const { failures } = outcome;
   if (failures.length > 0) {
     const detail = failures.map((error) => `  ${error.relativePath}: ${error.message}`).join("\n");
     err(`\ncreate-pathfinder: ${failures.length} file${plural(failures.length)} could not be written:\n${detail}\n`);
@@ -1198,10 +1203,12 @@ async function offerEditor({ editors, cwd, prompter, out, env, platform, theme }
  * Empty when no harness was chosen, which is the default and must stay
  * invisible: a scripted 1.4.1-era run prints exactly what it always did.
  */
-function contractAdapterLines({ adapters, harnesses, options, theme }) {
-  if (harnesses.length === 0) return [];
-
-  if (adapters.blocked) {
+function contractAdapterLines({ outcome, options, theme }) {
+  // No explicit "no harness chosen" guard: that case is no rows and
+  // `blocked: false`, so it falls straight through to an empty list. The
+  // blocked case is checked first because it is *also* no rows, and the two
+  // must not print the same nothing.
+  if (outcome.blocked) {
     return [
       "",
       "  No adapters were generated, because the kit copy did not finish.",
@@ -1210,21 +1217,9 @@ function contractAdapterLines({ adapters, harnesses, options, theme }) {
     ];
   }
 
-  const failed = new Set(adapters.result.errors.map((error) => error.relativePath));
   const lines = [];
 
-  for (const harness of harnesses) {
-    const mine = adapters.plan.filter(
-      (item) => item.harness === harness && !failed.has(item.relativePath),
-    );
-    const count = (action) => mine.filter((item) => item.action === action).length;
-
-    const generated = count("write");
-    const replaced = count("replace");
-    const unchanged = count("up-to-date");
-    const conflicts = mine.filter((item) => item.action === "conflict");
-    const orphans = mine.filter((item) => item.action === "orphan");
-
+  for (const { harness, generated, replaced, unchanged, conflicts, orphans } of outcome.harnessRows) {
     lines.push(
       `  ${generated} ${harness.label} skill adapter${plural(generated)} ` +
         (options.dryRun ? "to generate" : "generated"),
@@ -1242,7 +1237,7 @@ function contractAdapterLines({ adapters, harnesses, options, theme }) {
       lines.push(
         `  ${conflicts.length} file${plural(conflicts.length)} left untouched because Pathfinder did not write ${conflicts.length === 1 ? "it" : "them"}:`,
       );
-      for (const item of conflicts) lines.push(`      ${item.relativePath}`);
+      for (const path of conflicts) lines.push(`      ${path}`);
       lines.push("");
       lines.push(
         conflicts.length === 1
@@ -1253,8 +1248,8 @@ function contractAdapterLines({ adapters, harnesses, options, theme }) {
       );
     }
 
-    for (const item of orphans) {
-      lines.push(`  ${item.relativePath} delegates to a skill this version no longer`);
+    for (const path of orphans) {
+      lines.push(`  ${path} delegates to a skill this version no longer`);
       lines.push("  ships. It was left in place; delete it yourself if you want it gone.");
     }
   }
