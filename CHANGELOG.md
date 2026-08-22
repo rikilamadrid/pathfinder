@@ -27,6 +27,8 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-08-22
+
 ### Removed
 
 - **`load-feature`, `start-feature`, `review-feature`, and `complete-feature` are gone as standalone skills.** This is a breaking change to the public surface: those four commands no longer exist, and there is no alias, deprecation stub, or second path to the same behavior. The behavior itself is unchanged — it moved, it was not redesigned.
