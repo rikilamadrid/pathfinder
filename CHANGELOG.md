@@ -25,6 +25,20 @@ The trade-off is accepted deliberately: a fix that touches only the installer st
 
 The heading of the most recent released section below is the single source of truth for the release version. The Git tag and the installer's `package.json` are both derived from it; CI fails if they disagree. See the release checklist in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+## [Unreleased]
+
+## [2.1.0] - 2026-08-22
+
+### Changed
+
+- **`load-feature` promotes the spec it loads.** Invoking the skill on a Feature *is* the approval to prepare it for execution, and until now that approval was recorded nowhere: the spec kept claiming `Proposed` while the work was already underway. `load-feature` now writes the spec's own `## Status` — `Proposed` becomes `Ready`, and that is the only value it ever writes. A spec already `Ready` or `In Progress` is left exactly as it is, because reloading mid-work is normal. A `Complete`, `Cancelled`, or `Superseded` spec blocks the load and stops; reopening terminal work stays the human's decision. The write happens after the readiness checks and before `context/current-feature.md`, so a blocked load never leaves a promoted spec behind.
+- **`context/current-feature.md` records no status line.** It is transient workspace state belonging to one session on one machine, and the spec carries the durable lifecycle status — which `context/coding-standards.md` already required. The rule against rewriting a loaded spec is narrowed to what it always meant: Goal, Context, Requirements, Out of Scope, Delivery Chunks, and Acceptance Criteria are not touched, and `## Status` is the one field this skill maintains.
+
+### Notes
+
+- **A Feature loaded before upgrading needs nothing done to it.** A spec left at `Proposed` is promoted the next time it is loaded, and one already past `Proposed` is never rewritten, so no existing spec has to be corrected by hand.
+- Skill frontmatter is unchanged, so no harness adapter needs regenerating.
+
 ## [2.0.0] - 2026-08-20
 
 A simplification release. Pathfinder had been accumulating structure faster than it was earning it — role files that restated procedure, templates carrying sections nobody filled in, and a `context/` shipped full of blank stencils a reader had to recognise as empty before ignoring. This release removes that surface. The kit is smaller, and what remains is what a project actually uses.
