@@ -20,7 +20,7 @@ Do not rely on the developer's summary as proof.
 
 ## Use
 
-- `review-feature` to verify implemented work.
+- `feature` — its review action, to verify implemented work.
 - Use the project's existing test commands and relevant testing tools.
 
 ## Rules

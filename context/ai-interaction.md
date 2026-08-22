@@ -38,10 +38,10 @@ Inspect current Git state before acting. If the workflow is unclear or
 
 Use the workflow skills instead of recreating their procedures in chat:
 
-1. `load-feature` — load the active work and relevant context.
-2. `start-feature` — implement the current delivery chunk.
-3. `review-feature` — verify the work and report findings.
-4. `complete-feature` — complete accepted work and durable records.
+1. `/feature load` — load the active work and relevant context.
+2. `/feature start` — implement the current delivery chunk.
+3. `/feature review` — verify the work and report findings.
+4. `/feature complete` — complete accepted work and durable records.
 5. `learn-feature` — optionally teach what was implemented.
 
 Roles are optional. The workflow must work without activating one.

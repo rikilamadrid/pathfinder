@@ -65,7 +65,7 @@ describe("neverShips", () => {
   });
 
   it("matches transient session state by kit-relative path", () => {
-    // Neither ships as a blank stencil any more — `load-feature` and `handoff`
+    // Neither ships as a blank stencil any more — `/feature load` and `handoff`
     // write them on first use. What is being guarded against here is the
     // opposite leak: a maintainer's *filled-in* copy reaching a new project.
     assert.equal(neverShips("context/current-feature.md"), true);

@@ -39,11 +39,12 @@ Because a session ends. Context windows are finite, attention is finite, and a
 feature built in one pass is a feature you review in one pass, at the end, when the
 cost of having misunderstood it is highest.
 
-Chunks move that cost forward. [`start-feature`](/skills/start-feature/) restates
-the goal, the active chunk, the expected files, the risks, the verification plan,
-and what it considers out of scope **before** writing anything — and it does that
-per chunk, not once per feature. Each restatement is a cheap chance to catch a
-misunderstanding while it is still small.
+Chunks move that cost forward. The `start` action of
+[`feature`](/skills/feature/) restates the goal, the active chunk, the expected
+files, the risks, the verification plan, and what it considers out of scope
+**before** writing anything — and it does that per chunk, not once per feature.
+Each restatement is a cheap chance to catch a misunderstanding while it is still
+small.
 
 ## The rules that keep them honest
 
@@ -62,4 +63,4 @@ active, so a session that starts cold knows where the last one stopped.
 [Context boundaries](/concepts/context-boundaries/) limit what a feature loads;
 chunks limit how much of it has to be understood at once. A feature whose chunks
 cannot be made stable is usually a feature whose boundary is too wide —
-[`load-feature`](/skills/load-feature/) will say so before implementation starts.
+`/feature load` will say so before implementation starts.

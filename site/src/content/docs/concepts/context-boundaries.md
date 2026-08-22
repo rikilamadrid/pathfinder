@@ -69,14 +69,13 @@ person can look at or a machine can check — one visible behavior, one verifiab
 system change — and the reading list follows from that. Titles like these get split
 by outcome, not trimmed by wording.
 
-[`load-feature`](/skills/load-feature/) checks this before implementation starts and
-will recommend splitting rather than proceeding. [`to-specs`](/skills/to-specs/)
-tries to avoid producing such a feature in the first place, by sizing each one to a
-coherent, bounded set of context.
+The `load` action of [`feature`](/skills/feature/) checks this before
+implementation starts and will recommend splitting rather than proceeding.
+[`to-specs`](/skills/to-specs/) tries to avoid producing such a feature in the
+first place, by sizing each one to a coherent, bounded set of context.
 
-A boundary that keeps getting exceeded during
-[`start-feature`](/skills/start-feature/) is the same signal arriving late. Stop and
-re-scope rather than widening it.
+A boundary that keeps getting exceeded during `/feature start` is the same signal
+arriving late. Stop and re-scope rather than widening it.
 
 ## Related
 

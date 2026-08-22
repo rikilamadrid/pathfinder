@@ -164,15 +164,14 @@ exists:
 
 - [`to-specs`](/skills/to-specs/) offers to publish specs once it has written
   them.
-- [`load-feature`](/skills/load-feature/) names the tracked item for the feature
-  being loaded.
-- [`complete-feature`](/skills/complete-feature/) reconciles that item after the
-  merge.
+- The `load` action of [`feature`](/skills/feature/) names the tracked item for
+  the feature being loaded.
+- Its `complete` action reconciles that item after the merge.
 
-[`start-feature`](/skills/start-feature/) carries no such line, deliberately. A
-delivery chunk is a planning device inside a feature, and finishing one is not an
-event the outside world needs to hear about — so a tracker cannot quietly become
-the thing you work *for*, updated at every internal boundary.
+`/feature start` carries no such line, deliberately. A delivery chunk is a
+planning device inside a feature, and finishing one is not an event the outside
+world needs to hear about — so a tracker cannot quietly become the thing you work
+*for*, updated at every internal boundary.
 
 You can still run [`sync-tracker`](/skills/sync-tracker/) directly whenever you
 want. The wiring means you rarely have to.

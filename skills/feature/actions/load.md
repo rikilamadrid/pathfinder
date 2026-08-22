@@ -1,9 +1,6 @@
----
-name: load-feature
-description: Load one approved Feature and the minimum context needed to work on it.
----
+# Feature: Load
 
-# Load Feature
+Prepare one Feature for execution.
 
 1. Select the Feature the human named. Being invoked on it is the approval to
    prepare it for execution, so its spec does not already have to say `Ready`.
@@ -15,7 +12,7 @@ description: Load one approved Feature and the minimum context needed to work on
 5. Stop if a required human decision or explicit dependency blocks the work.
 6. Record the approval in the Feature spec's `## Status`, which holds the
    durable lifecycle state:
-   - `Proposed` becomes `Ready`. That is the only value this skill writes.
+   - `Proposed` becomes `Ready`. That is the only value this action writes.
    - `Ready` or `In Progress` is left exactly as it is. Reloading a Feature
      mid-work is normal and must not rewrite its state.
    - `Complete`, `Cancelled`, or `Superseded` blocks the load. Report it and
@@ -38,11 +35,11 @@ description: Load one approved Feature and the minimum context needed to work on
    its key is that Feature number. Do nothing here if it does not.
 9. Present a short readiness summary.
 
-Do not implement the Feature.
+Do not implement the Feature. That is `/feature start`.
 
 Do not scan unrelated repository areas, load history or roadmap by default, or
 silently resolve `TBD` decisions.
 
 Do not rewrite the Feature's substance — its Goal, Context, Requirements, Out of
 Scope, Delivery Chunks, or Acceptance Criteria. `## Status` is the one field this
-skill maintains.
+action maintains.

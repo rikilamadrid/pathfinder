@@ -49,6 +49,8 @@ Options:
                   It does not authorize \`git init\` or configure any tool;
                   pass --git-init and --agents for those.
   -h, --help      Show this message.
+  -v, --version   Print the version and exit, whatever else you passed.
+                  Nothing else is printed.
 
 Adapters are generated files Pathfinder owns and regenerates without --force.
 A file it did not generate is never replaced, at any path, without --force.
@@ -82,6 +84,22 @@ export async function run(
   },
 ) {
   const options = parseArguments(argv);
+
+  // Answered before the error branch, and before every other flag: `--version`
+  // is a question about this package, not about this run. It holds outside a Git
+  // repository, alongside a misspelled flag, and when stdout is redirected to a
+  // file or a pipe, because the one thing a caller asking for a version number
+  // can never use is a paragraph explaining why the version could not be
+  // printed. A reader that closes the pipe before this write lands still raises
+  // EPIPE, as it does for every other write here; that is not something this
+  // early return changes.
+  //
+  // One line, `VERSION` alone. No `v` prefix, no identity block, no findings:
+  // this output is read by scripts, and the plain form is the whole contract.
+  if (options.version) {
+    out(`${VERSION}\n`);
+    return 0;
+  }
 
   if (options.error) {
     err(`create-pathfinder: ${options.error}\n\n${USAGE}`);
@@ -570,21 +588,43 @@ function countWritten(result, plan, options) {
   return result.written + result.overwritten;
 }
 
+/**
+ * Every option at its unasked-for default. `parseArguments` starts from a copy
+ * of this and `--version` returns one, so the two agree by construction.
+ */
+const NO_OPTIONS = {
+  dryRun: false,
+  force: false,
+  help: false,
+  version: false,
+  gitInit: false,
+  noGitInit: false,
+  noClipboard: false,
+  noOpen: false,
+  yes: false,
+  // null means "not said", which is not the same as "none". Only the first
+  // suppresses the question.
+  agents: null,
+  error: null,
+};
+
+/**
+ * Which options this run asks for.
+ *
+ * `-v` and `--version` are recognized here, before any other token in `argv`
+ * is interpreted, because they ask what this package is rather than what this
+ * run should do. A misspelled flag or an invalid `--agents` value must not
+ * swallow the answer, and the answer must not depend on position: a wrapper
+ * that appends `--version` to arguments it was handed still gets a version
+ * number. That is why this is a scan and not another `case` below — the
+ * refusals in the loop return early, and one of them would otherwise win.
+ */
 function parseArguments(argv) {
-  const options = {
-    dryRun: false,
-    force: false,
-    help: false,
-    gitInit: false,
-    noGitInit: false,
-    noClipboard: false,
-    noOpen: false,
-    yes: false,
-    // null means "not said", which is not the same as "none". Only the first
-    // suppresses the question.
-    agents: null,
-    error: null,
-  };
+  if (argv.some((argument) => argument === "-v" || argument === "--version")) {
+    return { ...NO_OPTIONS, version: true };
+  }
+
+  const options = { ...NO_OPTIONS };
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];

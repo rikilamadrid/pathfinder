@@ -103,15 +103,15 @@ kickstart / debate / prototype
   ↓
 to-specs
   ↓
-load-feature
+/feature load
   ↓
-start-feature
+/feature start
   ↓
-optional tester
+optional /feature review
   ↓
 human acceptance
   ↓
-complete-feature
+/feature complete
 ```
 
 A prototype is optional.
@@ -128,7 +128,7 @@ When it is not obvious which one applies:
 reverse-engineer = understand an external reference
 learn-codebase   = understand the current codebase
 debug-issue      = an observed failure needs an explanation
-start-feature    = planned construction is difficult
+/feature start   = planned construction is difficult
 ```
 
 [See the full workflow](/guides/workflow/).

@@ -1,6 +1,7 @@
 ---
 name: role
 description: Activate one named Pathfinder role for the current session.
+argument-hint: planner|developer|tester
 ---
 
 # Role

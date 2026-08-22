@@ -79,11 +79,8 @@ An adapter carries the canonical skill's frontmatter and a pointer to it, and no
 - `reverse-engineer` — analyze an external reference and produce an evidence-based reconstruction blueprint
 - `prototype` — create and iterate the cheapest useful validation artifact
 - `to-specs` — generate context-sized feature specs
-- `load-feature` — prepare one feature for implementation
-- `start-feature` — implement scoped delivery chunks
+- `feature` — run one action of the Feature delivery loop: `load`, `start`, `review`, `complete`
 - `debug-issue` — diagnose an observed failure to its root cause, apply the smallest justified fix, and verify it
-- `review-feature` — review against requirements, regressions, and standards
-- `complete-feature` — verify and close a feature cleanly
 - `learn-feature` — create an interactive lesson for a completed feature
 - `learn-codebase` — create a modular learning portal for the repository
 - `teach-feature` — teach the verified current feature from its spec, diff, tests, and implementation

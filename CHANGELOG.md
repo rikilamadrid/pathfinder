@@ -27,6 +27,28 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Removed
+
+- **`load-feature`, `start-feature`, `review-feature`, and `complete-feature` are gone as standalone skills.** This is a breaking change to the public surface: those four commands no longer exist, and there is no alias, deprecation stub, or second path to the same behavior. The behavior itself is unchanged — it moved, it was not redesigned.
+
+### Added
+
+- **One `feature` skill with four actions.** `/feature load`, `/feature start`, `/feature review`, and `/feature complete` replace the four commands. Four skills was four discovery surfaces for one loop that is always run in one order; the names already carried the shared noun, but nothing in a skill list could show that they belonged together, so a reader meeting them had to infer the sequence. `skills/feature/SKILL.md` dispatches and nothing more — it names the four actions, states the lifecycle they move a Feature through, and sends the session to one file under `skills/feature/actions/`. Invoked with no action it lists the four and stops, the way `role` does with no role name. `argument-hint: load|start|review|complete` puts the actions in front of the human at the moment they type the command.
+- **`create-pathfinder --version`** prints the package version on one line and exits, with no identity block, no detection findings, and no colour. It is recognized before any other argument is interpreted, so it answers from outside a Git repository and from behind a misspelled flag or an invalid `--agents` value — a wrapper that appends `--version` to arguments it was handed still gets a version number. `-v` is the same flag.
+
+### Changed
+
+- **`start` records `Ready` → `In Progress`** in the Feature spec's `## Status`, before the first file edit of the first chunk. A Feature already `In Progress` is left alone, because continuing across sessions and chunks is normal; any other status stops the session rather than being promoted. This completes what `load` began in 2.1.0 — the spec now states what is actually happening to it at every stage.
+- **`complete` treats its own invocation as acceptance.** The old step 1, "Confirm the Feature is accepted", is removed: the human running the action *is* the answer, and asking again was a question with only one possible reply. Acceptance of the Feature is still not approval of the delivery steps — every gate the project's documented workflow names is asked for exactly as before, and an undocumented or `TBD` Git policy still stops the session rather than being invented.
+- **`review` writes no status,** now stated in the action rather than left to inference. Review is workflow activity, not lifecycle state, and a reviewed Feature stays `In Progress` until it is completed.
+- **`context/ai-interaction.md` is the one place the lifecycle is defined.** `skills/feature/SKILL.md` restates `Proposed → Ready → In Progress → Complete` as a summary so a human reading the command can see which action writes which transition, and points back to the source. No summary adds a state or a transition of its own.
+- **`/role` states its roles inline** through `argument-hint: planner|developer|tester`. The body is unchanged and no role file, name, or count changes.
+
+### Notes
+
+- **A destination project upgrading from 2.1.0 or earlier must relearn four commands.** Nothing in an existing project breaks on its own — Feature specs, `context/`, and history are untouched — but any habit, script, or note naming the old commands has to be updated, and running `npx create-pathfinder` does not delete the four old skill directories it previously installed. Remove `skills/{load,start,review,complete}-feature/` and their generated adapters by hand.
+- The website publishes one page per top-level skill, so `/skills/feature/` documents the four actions and the four old URLs are gone. Each action's full procedure ships in the kit, under `skills/feature/actions/`, and is not published as its own page.
+
 ## [2.1.0] - 2026-08-22
 
 ### Changed
