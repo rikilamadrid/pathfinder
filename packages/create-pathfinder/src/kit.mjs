@@ -68,7 +68,7 @@ export function isExcluded(basename) {
  *
  * `context/current-feature.md` and `context/handoff.md` are transient session
  * state, and they are here for the same reason one step further on: the kit
- * stopped shipping a blank `current-feature.md` stencil, because `load-feature`
+ * stopped shipping a blank `current-feature.md` stencil, because `/feature load`
  * writes the real one on first use and a placeholder is just a file a reader
  * has to recognise as empty. Having stopped shipping the blank one, the thing
  * to guard against is shipping a *filled-in* one — a destination project

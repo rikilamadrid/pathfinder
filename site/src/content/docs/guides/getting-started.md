@@ -310,17 +310,17 @@ inventing decisions. That refusal is the feature.
 From there, one feature at a time:
 
 ```text
-→ load-feature       prepare exactly one feature; fills context/current-feature.md
-→ start-feature      implement it in stable delivery chunks
-→ review-feature     check it against requirements, regressions, and standards
-→ complete-feature   verify, close, and record it in context/history.md
+→ /feature load      prepare exactly one feature; fills context/current-feature.md
+→ /feature start     implement it in stable delivery chunks
+→ /feature review    check it against requirements, regressions, and standards
+→ /feature complete  verify, close, and record it in context/history.md
 ```
 
 Run them one at a time and read what comes back —
-[`start-feature`](/skills/start-feature/) restates the goal, the active chunk, the
-files it expects to touch, the risks, its verification plan, and what it considers out
-of scope *before* it writes anything. That restatement is your cheapest chance to
-catch a misunderstanding.
+`/feature start` restates the goal, the active chunk, the files it expects to
+touch, the risks, its verification plan, and what it considers out of scope
+*before* it writes anything. That restatement is your cheapest chance to catch a
+misunderstanding.
 
 If something breaks along the way, [`debug-issue`](/skills/debug-issue/) interrupts
 the loop. It reproduces the failure before repairing it, which is the part that
@@ -370,6 +370,7 @@ or two behind you and the shape will already be familiar.
 
 Every skill in the sidebar is rendered from the kit's own `skills/` directory, so
 what you read here is exactly what your agent reads. The two worth reading before
-your second feature are [`start-feature`](/skills/start-feature/), which is where
-most of your time goes, and [`reflect`](/skills/reflect/), which is how the workflow
-gets better at your project rather than staying generic.
+your second feature are [`feature`](/skills/feature/), the dispatcher for the four
+delivery actions and where most of your time goes, and
+[`reflect`](/skills/reflect/), which is how the workflow gets better at your
+project rather than staying generic.

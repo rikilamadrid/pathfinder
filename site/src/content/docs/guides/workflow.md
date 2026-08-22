@@ -131,16 +131,16 @@ project context
 → to-specs                 split the approved direction into small features
                            blockers are reported, not invented around
 
-→ load-feature             prepare exactly one feature
+→ /feature load            prepare exactly one feature
                            fills context/current-feature.md
 
-→ start-feature            implement one delivery chunk
+→ /feature start           implement one delivery chunk
      ◆ dependencies, migrations, destructive commands, and commits
        all stop here for approval
 
-→ review-feature           check against requirements, regressions, standards
+→ /feature review          check against requirements, regressions, standards
 
-→ complete-feature         confirm each acceptance criterion with evidence
+→ /feature complete        confirm each acceptance criterion with evidence
      ◆ commit, merge, changelog, versioning, and release follow the policy
        you documented, requesting approval where that policy requires it
 
@@ -153,11 +153,14 @@ to ignore, and can be verified on its own. "Build the backend" is not a feature.
 ideas do the work here: [context boundaries](/concepts/context-boundaries/) and
 [delivery chunks](/concepts/delivery-chunks/).
 
-[`start-feature`](/skills/start-feature/) restates the goal, the active chunk, the
-files it expects to touch, the risks, its verification plan, and what it considers
-out of scope **before** it writes anything. Read that restatement. It is the cheapest
-place to catch a misunderstanding — cheaper than the review, and far cheaper than the
-merge.
+`/feature start` restates the goal, the active chunk, the files it expects to
+touch, the risks, its verification plan, and what it considers out of scope
+**before** it writes anything. Read that restatement. It is the cheapest place to
+catch a misunderstanding — cheaper than the review, and far cheaper than the merge.
+
+The [`feature`](/skills/feature/) page is the dispatcher: it names the four actions,
+says what each one is for, and states the lifecycle they move a feature through. Each
+action's full procedure ships in the kit, under `skills/feature/actions/`.
 
 ### When something breaks
 
@@ -184,8 +187,8 @@ not for work that is merely hard:
 
 ```text
 debug-issue     = an observed failure needs an explanation
-start-feature   = planned construction is difficult
-review-feature  = completed implementation needs inspection for defects
+/feature start  = planned construction is difficult
+/feature review = completed implementation needs inspection for defects
 learn-codebase  = the real question is understanding the repository
 ```
 
@@ -278,8 +281,8 @@ It is filed separately for that reason. Placing it in the delivery loop would
 imply every project has a step there, and most do not.
 
 The delivery loop does carry it, though, when a config exists: `to-specs` offers
-to publish, `load-feature` names the tracked item, and `complete-feature`
-reconciles it after the merge. `start-feature` deliberately publishes nothing — a
+to publish, `/feature load` names the tracked item, and `/feature complete`
+reconciles it after the merge. `/feature start` deliberately publishes nothing — a
 chunk boundary is internal, and the tracker does not need to hear about it. Each
 of those is one conditional line that does nothing without a config, which is why
 none of them appears on the diagrams above.
@@ -315,5 +318,5 @@ that is still `TBD`.
 
 If you have not installed anything yet, [Getting started](/guides/getting-started/)
 runs the first loop end to end in a real repository. If you have, the skill you will
-read most is [`start-feature`](/skills/start-feature/), and [all skills](/skills/)
-lists every one of them with its own summary.
+read most is [`feature`](/skills/feature/), which dispatches the four actions,
+and [all skills](/skills/) lists every one of them with its own summary.

@@ -1,9 +1,4 @@
----
-name: review-feature
-description: Verify implemented work against its Feature and report findings.
----
-
-# Review Feature
+# Feature: Review
 
 Review the actual diff and behavior, not only the developer's summary.
 
@@ -31,3 +26,7 @@ Report:
 Do not modify the implementation unless the human explicitly asks.
 
 Do not invent findings or treat passing tests as automatic acceptance.
+
+Do not write the Feature's `## Status`. Review is workflow activity, not
+lifecycle state, and a reviewed Feature stays `In Progress` until it is
+completed.

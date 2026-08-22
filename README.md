@@ -115,15 +115,15 @@ kickstart / debate / prototype
   ↓
 to-specs
   ↓
-load-feature
+/feature load
   ↓
-start-feature
+/feature start
   ↓
-optional tester
+optional /feature review
   ↓
 human acceptance
   ↓
-complete-feature
+/feature complete
 ```
 
 A prototype is optional. Use one when an important assumption is cheaper to
@@ -335,11 +335,8 @@ Some common entry points:
 | `debate-me` | Pressure-testing a direction before committing to it |
 | `prototype` | Proving an important assumption cheaply |
 | `to-specs` | Turning approved direction into Features |
-| `load-feature` | Preparing one Feature for focused work |
-| `start-feature` | Implementing the active Feature |
+| `feature` | The delivery loop: `load`, `start`, `review`, `complete` |
 | `debug-issue` | Something is observably broken |
-| `review-feature` | Independently verifying delivered work |
-| `complete-feature` | Completing accepted work through delivery |
 | `handoff` | Leaving factual state for another session |
 | `whereami` | Getting quick session orientation |
 | `learn-feature` | Learning from completed work |
@@ -456,24 +453,21 @@ at `skills/`.
 │   └── tester.md
 ├── skills/
 │   ├── challenge-me/
-│   ├── complete-feature/
 │   ├── debate-me/
 │   ├── debug-issue/
+│   ├── feature/
 │   ├── handoff/
 │   ├── kickstart-pathfinder/
 │   ├── learn-codebase/
 │   ├── learn-feature/
 │   ├── learning-review/
-│   ├── load-feature/
 │   ├── prototype/
 │   ├── quiz-me/
 │   ├── reflect/
 │   ├── reverse-engineer/
-│   ├── review-feature/
 │   ├── role/
 │   ├── setup-tracker/
 │   ├── skillsmith/
-│   ├── start-feature/
 │   ├── sync-tracker/
 │   ├── teach-architecture/
 │   ├── teach-feature/
