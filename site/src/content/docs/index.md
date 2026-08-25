@@ -90,6 +90,19 @@ Without native skill support, use:
 Use skills/kickstart-pathfinder/SKILL.md to initialize this project.
 ```
 
+Claude Code users can install Pathfinder as a plugin instead, which brings the
+commands without copying anything into the repository:
+
+```text
+/plugin marketplace add rikilamadrid/pathfinder
+/plugin install pathfinder@lamadrid-labs
+```
+
+Plugin commands are namespaced — `/pathfinder:kickstart-pathfinder`,
+`/pathfinder:feature load` — and the plugin installs no project files. See
+[Getting started](/guides/getting-started/#or-install-the-claude-code-plugin)
+for what each path installs and when to use both.
+
 [Getting started](/guides/getting-started/) walks through the first session.
 
 ## The workflow

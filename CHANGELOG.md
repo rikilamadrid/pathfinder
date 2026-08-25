@@ -27,6 +27,15 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Added
+
+- **Pathfinder installs as a Claude Code plugin.** `/plugin marketplace add rikilamadrid/pathfinder` then `/plugin install pathfinder@lamadrid-labs` brings every Pathfinder command without copying a skill file anywhere. The repository *is* the plugin: `.claude-plugin/plugin.json` exposes the canonical `skills/` tree verbatim, so there is no generated copy of any skill body and no second behavior contract to keep honest — the same rule the harness adapters already live under, applied to a third discovery surface. Claude Code namespaces every plugin skill with no opt-out, so plugin commands are `/pathfinder:feature load`, `/pathfinder:role planner`, and so on. The bare `/feature` form still comes from an installed kit's adapter; a repository with both has both, running the same canonical body.
+- **`kickstart-pathfinder` can lay the kit down for a plugin-only user.** The plugin distributes commands, not project state, so a repository reached through `/plugin install` has every command and none of the files those commands read. When the kit is missing and the skill was loaded from the plugin, it now offers to install the kit from the plugin's own copy — naming every file first, overwriting nothing without asking, deleting nothing, and generating no adapters. It reads what to copy from `copy-list.json` and what to exclude from the installer's `NEVER_SHIPS`, rather than restating either, so the bootstrap and `npx create-pathfinder` cannot drift apart. When the kit is already present it changes nothing and says so.
+
+### Changed
+
+- **The release number is written into a third file.** `set-release-version.py` now derives `.claude-plugin/plugin.json`'s version from the changelog alongside the installer's `package.json`, rewriting only the `version` line in each. `claude plugin update` hands users a new version only when that number changes, so a plugin left behind at the previous release is a release nobody receives.
+
 ## [3.0.0] - 2026-08-22
 
 ### Removed

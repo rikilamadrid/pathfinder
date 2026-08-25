@@ -36,18 +36,57 @@ When the user is unsure, provide a small recommendation with reasoning and alter
 
 ## Process
 
-1. Read the kit context and inspect relevant repository facts.
-2. Ask the minimum unresolved questions in small groups.
-3. Summarize requirements, preferences, constraints, open decisions, and contradictions.
-4. Route uncertain product/technical choices to `debate-me` when useful.
-5. Present the proposed context and request human corrections or approval.
-6. Update `context/project-overview.md`, `context/coding-standards.md`, `context/ai-interaction.md`, `CLAUDE.md`, and `AGENTS.md` only after the choices are sufficiently clear.
+1. If the project is missing kit files, and this session loaded this skill from
+   the Pathfinder plugin, offer to install the kit before going further. See
+   `Kit Bootstrap` below. Otherwise start at the next step.
+2. Read the kit context and inspect relevant repository facts.
+3. Ask the minimum unresolved questions in small groups.
+4. Summarize requirements, preferences, constraints, open decisions, and contradictions.
+5. Route uncertain product/technical choices to `debate-me` when useful.
+6. Present the proposed context and request human corrections or approval.
+7. Update `context/project-overview.md`, `context/coding-standards.md`, `context/ai-interaction.md`, `CLAUDE.md`, and `AGENTS.md` only after the choices are sufficiently clear.
    `context/project-overview.md` does not ship; create it from `templates/project-overview.template.md` at this step.
    Project facts go there; approval rules and tool actions requiring a human go
    in `context/ai-interaction.md`. Fill the sections the project has and mark
    the rest `TBD` or `None`. Do not add sections the template does not carry,
    and do not leave a field blank.
-7. Recommend `debate-me`, `prototype`, or `to-specs` as the next action.
+8. Recommend `debate-me`, `prototype`, or `to-specs` as the next action.
+
+## Kit Bootstrap
+
+The Pathfinder plugin distributes commands. It does not distribute project
+state. A repository reached through `/plugin install` therefore has every
+Pathfinder command and none of the files those commands read.
+
+This step applies only when both are true: the project is missing kit files,
+and this skill was loaded from the plugin, which is what makes
+`${CLAUDE_PLUGIN_ROOT}` — the plugin's install directory — a real path. When
+the kit installed this skill into the repository instead, there is no plugin
+root, the condition is false, and this whole section is skipped without being
+raised or quoted.
+
+When it does apply:
+
+- Copy from the plugin root into the project root, and copy only the kit. That
+  list is not restated here: `packages/create-pathfinder/copy-list.json`, inside
+  the plugin root, is the one statement of it. Read that file and copy the
+  entries it names.
+- Exclude exactly what the installer excludes, and read that from the installer
+  too: `NEVER_SHIPS` in `packages/create-pathfinder/src/kit.mjs`, also inside
+  the plugin root, is the one statement of it. Skip every kit-relative path it
+  holds. Those files are one repository's own working state and would be wrong
+  in any other project. Restating them here would be a second list to keep in
+  step, and the first time it drifted this step would hand a project what
+  `npx create-pathfinder` refuses to.
+- Name every file before writing it, and wait for approval.
+- Overwrite nothing without asking about that file by name. Delete nothing.
+- Report exactly what was written, what was skipped, and what was left alone.
+- Generate no harness adapters. Plugin commands stay namespaced
+  `/<plugin-name>:<skill>`, and that is the intended plugin form.
+  `npx create-pathfinder --agents claude-code` is what generates adapters and
+  the bare command names, for a human who wants both.
+
+When the project already has the kit, change nothing and say so.
 
 ## Stop Condition
 

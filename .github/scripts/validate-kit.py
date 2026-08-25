@@ -30,6 +30,29 @@ SKILLS = ROOT / "skills"
 ROLES = ROOT / "roles"
 INSTALLER = ROOT / "packages" / "create-pathfinder"
 
+# The plugin's own root. `.claude-plugin/` holds the two manifests and nothing
+# else: Claude Code reads a plugin's components — `skills/`, `agents/`,
+# `hooks/` — from beside this directory, never inside it, so a component
+# directory appearing here would be silently dead. The plugin's skills are the
+# canonical `skills/` tree itself, which is why no `skills` override is
+# allowed in the manifest: pointing it elsewhere would invite a second tree.
+PLUGIN_DIR = ROOT / ".claude-plugin"
+PLUGIN_MANIFEST = PLUGIN_DIR / "plugin.json"
+MARKETPLACE_MANIFEST = PLUGIN_DIR / "marketplace.json"
+
+# What the plugin manifest must carry, and what it must never carry. The
+# forbidden list is not stylistic: every one of those fields is a permission or
+# a process, and Pathfinder ships skills and nothing else. `skills` is
+# forbidden for the separate reason above.
+PLUGIN_REQUIRED_FIELDS = ("name", "description", "version", "author",
+                          "homepage", "repository", "license", "keywords")
+PLUGIN_FORBIDDEN_FIELDS = ("skills", "hooks", "mcpServers", "lspServers",
+                           "agents", "bin", "monitors", "userConfig")
+
+# The plugin name is the command namespace: every command is `/<name>:<skill>`
+# and there is no opt-out, so this value is user-visible on every invocation.
+PLUGIN_NAME = "pathfinder"
+
 # The one harness whose adapters this repository commits. CONTRIBUTING.md states
 # the scoping rule in prose; this is the same rule in the checker, so adding a
 # second tracked adapter directory has to be a deliberate edit in both places.
@@ -409,7 +432,14 @@ def check_version_agreement() -> None:
 
     The installer mirrors the kit version exactly, so a drift here is
     user-visible: `npx create-pathfinder@1.3.0` would install something other
-    than the v1.3.0 kit.
+    than the v1.3.0 kit. The plugin manifest is the same promise on the other
+    distribution path: `claude plugin update` hands users a new version only
+    when that number changes, so a plugin left behind at the previous release
+    is a release nobody receives.
+
+    Both manifests are compared against the changelog rather than against each
+    other. That is what makes a single drifted file produce a single failure
+    naming it, instead of one failure per pair.
 
     Careful about when this is allowed to fail. Ordinary commits between
     releases must pass: work accumulates under `[Unreleased]` without a bump,
@@ -418,11 +448,14 @@ def check_version_agreement() -> None:
     section, and, when HEAD is a release commit, its tag matches too.
     """
     manifest_path = INSTALLER / "package.json"
-    try:
-        version = json.loads(manifest_path.read_text(encoding="utf-8")).get("version")
-    except (OSError, json.JSONDecodeError) as error:
-        fail(manifest_path, "version-agreement", f"could not be read: {error}")
-        return
+    versions: dict[Path, str | None] = {}
+    for path in (manifest_path, PLUGIN_MANIFEST):
+        try:
+            versions[path] = json.loads(path.read_text(encoding="utf-8")).get("version")
+        except (OSError, json.JSONDecodeError) as error:
+            fail(path, "version-agreement", f"could not be read: {error}")
+            versions[path] = None
+    version = versions[manifest_path]
 
     changelog_version = released_version()
     if changelog_version is None:
@@ -442,6 +475,15 @@ def check_version_agreement() -> None:
              f"installer is {version} but the newest released changelog "
              f"section is {changelog_version}; the installer mirrors the kit "
              "version exactly. Run .github/scripts/set-release-version.py")
+
+    # The plugin manifest has no sentinel: it was written already carrying a
+    # released number, and there is no unpublished state for it to sit in.
+    plugin_version = versions[PLUGIN_MANIFEST]
+    if plugin_version is not None and plugin_version != changelog_version:
+        fail(PLUGIN_MANIFEST, "version-agreement",
+             f"the plugin is {plugin_version} but the newest released "
+             f"changelog section is {changelog_version}; one release number, "
+             "three files. Run .github/scripts/set-release-version.py")
 
     # A release commit is one that carries a version tag. Between releases
     # there is no exact-match tag and this check does not apply.
@@ -469,6 +511,135 @@ def check_version_agreement() -> None:
     if published and tagged_version != version:
         fail(manifest_path, "version-agreement",
              f"HEAD is tagged {tag} but the installer is {version}")
+    if plugin_version is not None and tagged_version != plugin_version:
+        fail(PLUGIN_MANIFEST, "version-agreement",
+             f"HEAD is tagged {tag} but the plugin is {plugin_version}")
+
+
+def load_plugin_json(path: Path) -> dict | None:
+    """Read one `.claude-plugin` manifest, or record why it could not be read."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        fail(path, "plugin-manifest",
+             "missing; the repository is its own Claude Code plugin and this "
+             "file is what makes it one")
+        return None
+    except (OSError, json.JSONDecodeError) as error:
+        fail(path, "plugin-manifest", f"could not be parsed: {error}")
+        return None
+    if not isinstance(data, dict):
+        fail(path, "plugin-manifest", "is not a JSON object")
+        return None
+    return data
+
+
+def check_plugin_manifests() -> None:
+    """The two manifests that make this repository a plugin and a marketplace.
+
+    Pure Python against two JSON files, deliberately: CI must not depend on the
+    `claude` binary being installed. `claude plugin validate .` is the
+    release-time manual check and catches a different class of problem — this
+    catches the ones specific to Pathfinder's architecture, where the plugin
+    root *is* the repository root and the plugin's skills *are* the canonical
+    tree.
+    """
+    plugin = load_plugin_json(PLUGIN_MANIFEST)
+    marketplace = load_plugin_json(MARKETPLACE_MANIFEST)
+
+    # The plugin distributes commands; the kit installs project state. They are
+    # separate paths on purpose, and the moment `.claude-plugin/` joins the copy
+    # list every project that installs the kit starts carrying a manifest
+    # claiming to be Pathfinder.
+    for entry in load_copy_list() or ():
+        if entry == PLUGIN_DIR.name or entry.startswith(PLUGIN_DIR.name + "/"):
+            fail(CANONICAL_COPY_LIST, "plugin-manifest",
+                 f"lists {entry!r}; the plugin is not part of the kit and "
+                 "never reaches a destination project")
+
+    # A component directory here is silently dead: Claude Code reads them from
+    # beside `.claude-plugin/`, not inside it. Anything other than the two
+    # manifests is either that mistake or a second thing to keep in step.
+    for entry in sorted(PLUGIN_DIR.iterdir()) if PLUGIN_DIR.is_dir() else []:
+        if entry.is_dir():
+            fail(entry, "plugin-manifest",
+                 "is a directory inside .claude-plugin/; plugin components live "
+                 "beside that directory, never inside it, so this one would "
+                 "never be loaded")
+        elif entry.name not in {"plugin.json", "marketplace.json"}:
+            fail(entry, "plugin-manifest",
+                 ".claude-plugin/ holds plugin.json and marketplace.json and "
+                 "nothing else")
+
+    if plugin is not None:
+        name = plugin.get("name")
+        if name != PLUGIN_NAME:
+            fail(PLUGIN_MANIFEST, "plugin-manifest",
+                 f"name is {name!r} but the command namespace is "
+                 f"{PLUGIN_NAME!r}; every command is /<name>:<skill> and "
+                 "renaming this renames all of them")
+        for field in PLUGIN_REQUIRED_FIELDS:
+            if not plugin.get(field):
+                fail(PLUGIN_MANIFEST, "plugin-manifest",
+                     f"has no `{field}`")
+        for field in PLUGIN_FORBIDDEN_FIELDS:
+            if field in plugin:
+                fail(PLUGIN_MANIFEST, "plugin-manifest",
+                     f"declares `{field}`; Pathfinder ships skills and nothing "
+                     "else, and its skills are the canonical skills/ tree")
+
+    if marketplace is None:
+        return
+
+    for field in ("name", "owner", "plugins"):
+        if not marketplace.get(field):
+            fail(MARKETPLACE_MANIFEST, "plugin-manifest", f"has no `{field}`")
+
+    entries = marketplace.get("plugins")
+    if not isinstance(entries, list):
+        return
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            fail(MARKETPLACE_MANIFEST, "plugin-manifest",
+                 f"plugin entry {entry!r} is not an object")
+            continue
+        if entry.get("name") != PLUGIN_NAME:
+            fail(MARKETPLACE_MANIFEST, "plugin-manifest",
+                 f"lists a plugin named {entry.get('name')!r}; this "
+                 f"marketplace serves {PLUGIN_NAME!r} and nothing else")
+        check_marketplace_source(entry.get("source"))
+
+
+def check_marketplace_source(source: object) -> None:
+    """A `source` must resolve to this repository, as a path or as a pinned repo.
+
+    The path form is what chunk 1 verified and what the entry uses: the
+    repository is both its own marketplace and its own plugin. The `github`
+    form is the documented fallback, and is accepted here so that switching to
+    it is a one-line edit rather than a validator change too.
+    """
+    if isinstance(source, str):
+        resolved = (ROOT / source).resolve()
+        if not resolved.is_dir():
+            fail(MARKETPLACE_MANIFEST, "plugin-manifest",
+                 f"source {source!r} does not resolve to an existing "
+                 f"directory ({resolved})")
+        elif not (resolved / ".claude-plugin" / "plugin.json").is_file():
+            fail(MARKETPLACE_MANIFEST, "plugin-manifest",
+                 f"source {source!r} resolves to {resolved}, which holds no "
+                 ".claude-plugin/plugin.json")
+        return
+
+    if isinstance(source, dict) and source.get("source") == "github":
+        if not source.get("repo"):
+            fail(MARKETPLACE_MANIFEST, "plugin-manifest",
+                 "a github source needs a `repo`")
+        return
+
+    fail(MARKETPLACE_MANIFEST, "plugin-manifest",
+         f"source {source!r} is neither a path relative to the marketplace "
+         "root nor a github source")
 
 
 def check_release_workflow() -> None:
@@ -607,6 +778,110 @@ def check_no_junk_tracked() -> None:
     for tracked in sorted(filter(None, result.stdout.splitlines())):
         fail(tracked, "no-junk-tracked",
              "OS/editor junk is tracked; remove it with `git rm --cached`")
+
+
+KIT_SOURCE = INSTALLER / "src" / "kit.mjs"
+BOOTSTRAP_SKILL = SKILLS / "kickstart-pathfinder" / "SKILL.md"
+BOOTSTRAP_HEADING = "## Kit Bootstrap"
+
+
+def installer_never_ships() -> tuple[str, ...] | None:
+    """The installer's exclusion set, read out of the one file that declares it.
+
+    Parsed from source rather than imported, because `NEVER_SHIPS` is module
+    private and exporting it to satisfy a checker would be the tail wagging the
+    dog. A parse that finds nothing is a hard failure, never a skip: the trap
+    `check_installer_copy_list` fell into once was a rule that quietly stopped
+    checking anything, and a regex that silently matches nothing is that same
+    rule with a different spelling.
+    """
+    try:
+        source = KIT_SOURCE.read_text(encoding="utf-8")
+    except OSError as error:
+        fail(KIT_SOURCE, "bootstrap-exclusions", f"could not be read: {error}")
+        return None
+
+    block = re.search(r"const NEVER_SHIPS = new Set\(\[(.*?)\]\)",
+                      source, re.DOTALL)
+    if block is None:
+        fail(KIT_SOURCE, "bootstrap-exclusions",
+             "no `const NEVER_SHIPS = new Set([...])` to read; this rule "
+             "derives the exclusions from here and cannot check anything "
+             "without them")
+        return None
+
+    paths = tuple(re.findall(r'"([^"]+)"', block.group(1)))
+    if not paths:
+        fail(KIT_SOURCE, "bootstrap-exclusions",
+             "`NEVER_SHIPS` parsed as empty; the exclusions could not be read")
+        return None
+    return paths
+
+
+def check_bootstrap_exclusions() -> None:
+    """The plugin bootstrap and the installer must not be able to disagree.
+
+    `kickstart-pathfinder`'s Kit Bootstrap step lays the kit down for someone
+    who arrived through `/plugin install` and has no npx step in their history.
+    It is a second implementation of the installer's copy, written in prose for
+    an agent to carry out, and a second implementation is exactly where the two
+    can drift apart without anyone noticing.
+
+    So the section is held to naming its sources instead of restating them. Add
+    a fourth path to `NEVER_SHIPS` and the bootstrap picks it up on its next
+    run, because it reads that set rather than remembering it. The failure this
+    prevents is the quiet one: a bootstrap handing a project the very file
+    `npx create-pathfinder` refuses to hand it.
+
+    Both lists are derived here from the files that own them. This rule states
+    neither, which is the whole point — a checker carrying its own copy of the
+    list would be the third thing to keep in step.
+    """
+    never_ships = installer_never_ships()
+    copy_list = load_copy_list()
+
+    try:
+        body = BOOTSTRAP_SKILL.read_text(encoding="utf-8")
+    except OSError as error:
+        fail(BOOTSTRAP_SKILL, "bootstrap-exclusions",
+             f"could not be read: {error}")
+        return
+
+    start = body.find(BOOTSTRAP_HEADING)
+    if start == -1:
+        fail(BOOTSTRAP_SKILL, "bootstrap-exclusions",
+             f"has no `{BOOTSTRAP_HEADING}` section; the plugin bootstrap step "
+             "is what this rule checks, and it cannot be found")
+        return
+
+    end = body.find("\n## ", start + len(BOOTSTRAP_HEADING))
+    section = body[start:end if end != -1 else len(body)]
+
+    # Naming the source is the requirement. Reading it is what makes the
+    # bootstrap follow the installer instead of a memory of it.
+    for path, why in ((CANONICAL_COPY_LIST, "what the kit is"),
+                      (KIT_SOURCE, "what the kit never hands over")):
+        reference = path.relative_to(ROOT).as_posix()
+        if reference not in section:
+            fail(BOOTSTRAP_SKILL, "bootstrap-exclusions",
+                 f"does not name `{reference}`, which is the one statement of "
+                 f"{why}; the bootstrap has to read it rather than restate it")
+
+    for path in never_ships or ():
+        if path in section:
+            fail(BOOTSTRAP_SKILL, "bootstrap-exclusions",
+                 f"names `{path}` literally; that is one of the installer's "
+                 f"`NEVER_SHIPS` paths and restating it here creates a second "
+                 "list that can drift out of step with "
+                 f"{KIT_SOURCE.relative_to(ROOT).as_posix()}")
+
+    # Partial mentions stay legal — the section may well need to say
+    # `context/`. Naming every entry is what makes it a restatement of the list.
+    if copy_list and all(entry in section for entry in copy_list):
+        fail(BOOTSTRAP_SKILL, "bootstrap-exclusions",
+             f"names every copy-list entry ({', '.join(copy_list)}); that is a "
+             "second statement of the copy list, which "
+             f"{CANONICAL_COPY_LIST.relative_to(ROOT).as_posix()} already owns")
 
 
 def check_never_ships() -> None:
@@ -1070,6 +1345,8 @@ def main() -> int:
     check_no_junk_tracked()
     check_never_ships()
     check_version_agreement()
+    check_plugin_manifests()
+    check_bootstrap_exclusions()
     check_changelog()
     check_release_workflow()
 

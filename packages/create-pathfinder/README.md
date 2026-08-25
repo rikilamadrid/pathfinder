@@ -261,6 +261,23 @@ Pathfinder also never writes to personal/global skill directories such as:
 ~/.agents/skills/
 ```
 
+### The Claude Code plugin is a separate path
+
+Pathfinder is also distributed as a Claude Code plugin, installed with
+`/plugin marketplace add rikilamadrid/pathfinder` followed by
+`/plugin install pathfinder@lamadrid-labs`. It does not replace this installer
+and does not change anything it does.
+
+The two install different things. The plugin installs commands, always
+namespaced `/pathfinder:<skill>`, into your Claude Code installation and writes
+nothing into your repository — no kit, no adapters. This installer copies the
+kit your repository keeps under version control, and generates the adapters that
+expose the bare `/<skill>` names.
+
+A repository can have both, and then carries both command forms running the same
+canonical skill body. If you arrived through the plugin with no kit yet,
+`/pathfinder:kickstart-pathfinder` offers to install one for you.
+
 ### Interactive selection
 
 In an interactive terminal, the installer asks which supported tools to

@@ -238,6 +238,52 @@ Options worth knowing before you run it anywhere real:
 `--dry-run` runs the real planner, so what it reports is what would happen — not a
 separate description of it.
 
+## Or install the Claude Code plugin
+
+Everything above installs the **kit** — the files your repository keeps. Claude Code
+users have a second path that installs the **commands** instead:
+
+```text
+/plugin marketplace add rikilamadrid/pathfinder
+/plugin install pathfinder@lamadrid-labs
+```
+
+`rikilamadrid/pathfinder` is the repository, and `lamadrid-labs` is the marketplace
+it declares. The marketplace name is used once, at install; it is not part of any
+command afterwards. The same two steps work from a terminal as
+`claude plugin marketplace add` and `claude plugin install`.
+
+**Plugin commands are namespaced, always.** Claude Code prefixes every plugin skill
+with its plugin name and offers no way to opt out, so through the plugin each skill
+is `/pathfinder:<skill>`:
+
+```text
+/pathfinder:feature load
+/pathfinder:role planner
+/pathfinder:whereami
+```
+
+The bare `/feature` form is not a plugin feature — it comes from an adapter the
+installer generated in your repository. A project with both installed has both
+forms, running the same canonical skill body, and neither shadows the other.
+
+**The plugin installs no files into your repository.** It carries commands, not
+project state, so a repository reached only through `/plugin install` has every
+Pathfinder command and none of the `context/`, `roles/`, or `templates/` files
+those commands read. `/pathfinder:kickstart-pathfinder` offers to install the kit
+from the plugin's own copy — naming every file first, overwriting nothing without
+asking, deleting nothing. It generates no adapters; `npx create-pathfinder` is
+still what does that.
+
+Any clone can act as its own marketplace, because the repository *is* the plugin:
+`/plugin marketplace add ./` from inside one, or `claude --plugin-dir /path/to/pathfinder`
+to try a working copy without installing anything.
+
+**Updates follow releases.** The plugin's version is the kit's version, and
+`claude plugin update pathfinder` hands you a new one when a release changes that
+number — never between releases. `claude plugin uninstall pathfinder` removes the
+commands only: kit files in your repository are yours and survive it.
+
 ## Point your agent at the kit
 
 Open your agent in the project and give it the prompt the installer printed:

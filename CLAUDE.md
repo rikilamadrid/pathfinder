@@ -70,6 +70,8 @@ Ask before actions identified in `context/ai-interaction.md`, especially depende
 
 Canonical Pathfinder skills are tool-neutral and live under `skills/`. Harness-specific representations — `.claude/skills/`, `.agents/skills/` — are generated integration artifacts and must not become independent behavior contracts. Edit the canonical file; regenerate the adapter.
 
+The Claude Code plugin declared by `.claude-plugin/plugin.json` is a third discovery surface, and the only one that generates nothing: it exposes the canonical `skills/` tree itself, namespaced `/pathfinder:<skill>`. There is no plugin copy of any skill and there must never be one. If a discovery surface and its canonical skill disagree, the canonical skill is correct.
+
 An adapter carries the canonical skill's frontmatter and a pointer to it, and nothing else. If an adapter and its canonical skill disagree, the canonical skill is correct.
 
 ## Available skills

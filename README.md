@@ -104,6 +104,93 @@ If your tool does not support native skill discovery, use:
 Use skills/kickstart-pathfinder/SKILL.md to initialize this project.
 ```
 
+Claude Code users have a second option: install Pathfinder as a plugin, which
+brings every command without copying anything into the repository first. See
+[Install as a Claude Code plugin](#install-as-a-claude-code-plugin).
+
+## Install as a Claude Code plugin
+
+Pathfinder supports two installation paths. They install different things, and
+most people eventually want both.
+
+| | `npx create-pathfinder` | Claude Code plugin |
+| --- | --- | --- |
+| Installs | the project kit — `context/`, `roles/`, `templates/`, `skills/`, `CLAUDE.md`, `AGENTS.md` | the commands, nothing else |
+| Lives in | your repository, reviewed and tracked in Git | your Claude Code installation |
+| Command form | `/kickstart-pathfinder`, with a generated adapter | `/pathfinder:kickstart-pathfinder`, always |
+| Works with | any agent that can read files | Claude Code |
+| Updating | re-run the installer | `claude plugin update pathfinder` |
+
+Add the marketplace, then install:
+
+```text
+/plugin marketplace add rikilamadrid/pathfinder
+/plugin install pathfinder@lamadrid-labs
+```
+
+The same two steps from a terminal:
+
+```bash
+claude plugin marketplace add rikilamadrid/pathfinder
+claude plugin install pathfinder@lamadrid-labs
+```
+
+`rikilamadrid/pathfinder` is the repository; `lamadrid-labs` is the marketplace
+it declares. The marketplace name appears when you install and never again — it
+is not part of any command.
+
+### Commands are namespaced
+
+Claude Code namespaces every plugin skill, with no way to opt out. Through the
+plugin, each Pathfinder skill is `/pathfinder:<skill>`:
+
+```text
+/pathfinder:feature load
+/pathfinder:role planner
+/pathfinder:whereami
+```
+
+The bare `/feature` form comes from a generated adapter in your repository, which
+is the installer's job (`npx create-pathfinder --agents claude-code`). A
+repository with both installed has both forms. They run the same canonical skill
+body, so neither overrides the other and it does not matter which you type.
+
+### What the plugin does not install
+
+The plugin distributes commands. It does not distribute project state.
+`context/` is written per project and belongs to that project, so a repository
+reached only through `/plugin install` has every Pathfinder command and none of
+the files those commands read.
+
+`/pathfinder:kickstart-pathfinder` closes that gap: in a project missing the
+kit, it offers to install it from the plugin's own copy, names every file before
+writing, overwrites nothing without asking, and deletes nothing. `npx
+create-pathfinder` remains fully supported and is the only path that also
+generates adapters.
+
+### A local or custom marketplace
+
+Any clone can serve as its own marketplace — the repository *is* the plugin:
+
+```text
+/plugin marketplace add ./
+/plugin install pathfinder@lamadrid-labs
+```
+
+To try a working copy without installing anything, start Claude Code with
+`claude --plugin-dir /path/to/pathfinder`.
+
+### Updating, versions, and uninstalling
+
+The plugin's version is the kit's version: one number in `CHANGELOG.md`,
+`packages/create-pathfinder/package.json`, and `.claude-plugin/plugin.json`,
+which CI keeps in agreement. `claude plugin update pathfinder` hands you a new
+version when a release changes that number, and never between releases.
+
+`claude plugin uninstall pathfinder` removes the commands. Kit files in your
+repository are yours and survive it — deleting them is a Git operation you
+perform deliberately, not something an uninstall does behind you.
+
 ## The workflow
 
 The core Pathfinder flow is deliberately small:
@@ -302,6 +389,11 @@ the other's directory.
 Adapters are generated artifacts, not copy-list entries. The six paths in the
 table above are the kit; adapters are derived from `skills/` at install time and
 never added to `copy-list.json`.
+
+The Claude Code plugin is a third way to reach the same canonical skills, and it
+generates nothing: it exposes `skills/` directly, under the `/pathfinder:` prefix.
+Installing it adds no file to your repository, adapters included. See
+[Install as a Claude Code plugin](#install-as-a-claude-code-plugin).
 
 Re-running the installer refreshes Pathfinder-owned adapters while preserving
 your own configuration and unrelated skills.

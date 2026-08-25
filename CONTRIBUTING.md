@@ -49,7 +49,7 @@ That is a direct fix for a failure that happened three releases running — `v1.
 
 1. **Decide the version** using the scope rule above, and confirm validation is green: `python3 .github/scripts/validate-kit.py`.
 2. **Write the changelog entry.** Rename `[Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and add a fresh empty `[Unreleased]` above it. Write it carefully: the GitHub Release notes are this section, extracted verbatim by [`changelog-notes.py`](.github/scripts/changelog-notes.py), not written again later.
-3. **Derive the installer version:** `python3 .github/scripts/set-release-version.py`. This rewrites `packages/create-pathfinder/package.json` from the changelog. Do not type the version there yourself.
+3. **Derive the release version:** `python3 .github/scripts/set-release-version.py`. This rewrites the `version` line in `packages/create-pathfinder/package.json` and in `.claude-plugin/plugin.json` from the changelog, and nothing else in either file. Do not type the version into either one yourself. Plugin users receive an update only when that number changes, so a plugin left at the previous version is a release nobody gets.
 4. **Regenerate every version-bearing transcript, from a real run, after the bump:** `python3 .github/scripts/capture-transcript.py`. The installer prints its own version, so any captured output that shows it — the `getting-started` guide's transcript today — is stale the moment step 3 lands. The script drives the local release source under a pty, answers its questions, renders what the terminal is left showing, and rewrites the guide. `--check` captures and compares without writing.
 
    **Never search-and-replace the version inside captured output**, and never hand-edit a transcript for any other reason either: the point of a transcript is that a run actually produced it, and editing it by hand turns evidence into an illustration that agrees with itself. Running the script *is* the supported way to change those bytes. This has already caught a defect no test did.
@@ -58,9 +58,22 @@ That is a direct fix for a failure that happened three releases running — `v1.
 5. **First publication only** — remove `"private": true` from `packages/create-pathfinder/package.json`. This is the deliberate boundary before `create-pathfinder` exists publicly and permanently under that name. Do it once, knowingly.
 6. **Commit, open the PR, squash merge**, per the Git workflow above. Re-run validation on `main` afterwards; the version-agreement rule now has something to check.
 7. **Run the release workflow:** `gh workflow run release.yml --ref main -f version=X.Y.Z`, or the *Run workflow* button on the Actions tab. It refuses to start unless the dispatched version, the changelog, and the manifest all say the same thing and `main`'s tip is the commit being released. Then, in order: validate, test, publish to npm, confirm the registry serves the version and that its `gitHead` is the release commit, push the annotated tag, create the Release with notes taken verbatim from the changelog.
-8. **Verify from outside:** `npm view create-pathfinder version`, `gh release view vX.Y.Z`, and an `npx create-pathfinder@X.Y.Z` install into a scratch repository. Install from the published package, not from a local checkout — the point is to exercise what a user gets. In that scratch repository, confirm that adapters are generated (`npx create-pathfinder@X.Y.Z --agents claude-code`) and that a second identical run is idempotent: it writes the same bytes, reports the adapters as already up to date, and leaves the tree unchanged.
+8. **Verify the plugin, from the release commit:** `claude plugin validate .` — that is the documented check, without `--strict`. Run against the repository root it resolves to the marketplace manifest and passes. Validated as a plugin, `--strict` fails on one advisory warning, that root `CLAUDE.md` is not loaded as plugin context; that warning is caused only by Pathfinder's intentional `CLAUDE.md` and is not a reason to change the repository. Then do a real install and a smoke test:
+
+   ```sh
+   claude plugin marketplace add ./
+   claude plugin install pathfinder@lamadrid-labs
+   claude plugin details pathfinder@lamadrid-labs   # 21 skills, 0 of everything else
+   claude plugin uninstall pathfinder@lamadrid-labs
+   claude plugin marketplace remove lamadrid-labs
+   ```
+
+   The skill count must equal the number of directories under `skills/`, and agents, hooks, MCP servers, and LSP servers must all be zero. Install explicitly and remove it again — a marketplace pointing at a working copy is not something to leave configured.
+9. **Verify from outside:** `npm view create-pathfinder version`, `gh release view vX.Y.Z`, and an `npx create-pathfinder@X.Y.Z` install into a scratch repository. Install from the published package, not from a local checkout — the point is to exercise what a user gets. In that scratch repository, confirm that adapters are generated (`npx create-pathfinder@X.Y.Z --agents claude-code`) and that a second identical run is idempotent: it writes the same bytes, reports the adapters as already up to date, and leaves the tree unchanged.
 
 Never force-push, never move or delete a published tag, and never rewrite released history.
+
+**Submitting the plugin to a public marketplace is not part of a release.** Pathfinder declares its own marketplace and installs from this repository; listing it anywhere else is a separate, deliberate act with its own approval, and no release step performs one.
 
 ### When the workflow fails
 
@@ -128,6 +141,8 @@ The generator only rewrites files it wrote itself, identified by a marker commen
 **Pathfinder commits harness adapters only for the harness its own maintainers use.** That is Claude Code today, and it is one directory. Every other harness is generated on demand by users and is git-ignored here. Tracking a second one is a deliberate decision, not something a new harness should acquire by default.
 
 The documentation site reads `skills/` in place, so a new skill's page appears immediately while `site/` is running. Its **sidebar entry appears after a dev-server restart**, because the grouping is read at config load. Until you place it in a workflow loop in `site/src/nav.mjs`, it shows up under `Ungrouped skills` — that is deliberate, so a skill is never silently missing from the navigation.
+
+**To try a skill the way a plugin user gets it, start Claude Code with `claude --plugin-dir /path/to/pathfinder`** — it loads the working copy as the plugin, namespaced `/pathfinder:<skill>`, installing nothing.
 
 ## Changing existing skills
 
