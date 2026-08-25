@@ -27,6 +27,8 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-08-25
+
 ### Added
 
 - **Pathfinder installs as a Claude Code plugin.** `/plugin marketplace add rikilamadrid/pathfinder` then `/plugin install pathfinder@lamadrid-labs` brings every Pathfinder command without copying a skill file anywhere. The repository *is* the plugin: `.claude-plugin/plugin.json` exposes the canonical `skills/` tree verbatim, so there is no generated copy of any skill body and no second behavior contract to keep honest — the same rule the harness adapters already live under, applied to a third discovery surface. Claude Code namespaces every plugin skill with no opt-out, so plugin commands are `/pathfinder:feature load`, `/pathfinder:role planner`, and so on. The bare `/feature` form still comes from an installed kit's adapter; a repository with both has both, running the same canonical body.
