@@ -4,6 +4,30 @@ Compact record of completed work.
 
 ## Completed
 
+### 2026-08-26 — Feature 41: Submit Pathfinder to Anthropic's Claude Code community marketplace
+
+- Outcome: The human manually submitted Pathfinder through Anthropic's Console form for the `claude-community` marketplace. The Plugin submissions dashboard showed `Submitted and pending review`.
+- Submission record: Submitted 2026-08-26 in the Europe/Madrid timezone. Target: `claude-community`. Repository: `https://github.com/rikilamadrid/pathfinder`. Evidence: human-supplied Anthropic Console Plugin submissions dashboard screenshot in the Feature 41 completion conversation; no separate receipt identifier was displayed.
+- Completion-record wording:
+
+  The submission was made for the public Pathfinder repository at the repository
+  state available when submitted. Anthropic controls the catalog commit pin and
+  may update it automatically as repository commits land; no submitted SHA or tag
+  was selectable in the form.
+
+  The submitted plugin surface was verified to be byte-identical to the audited
+  `v3.1.0` snapshot:
+  - `.claude-plugin/`
+  - `skills/`
+  - plugin-relevant package metadata
+
+  The audited and installed release snapshot was `v3.1.0`, dereferenced at commit
+  `35eb15656b996b14066d06c8240110e3ef28d14a`. This SHA is evidence for the audited
+  snapshot, not a claim that Anthropic pinned that SHA.
+- Verification: Public `v3.1.0` readiness evidence and clean-install restoration were retained in the Feature 41 session scratchpad; final checks passed with 585/585 installer tests, 21 skills validated, and `claude plugin validate .` passing. `git diff --stat v3.1.0..HEAD -- .claude-plugin/ skills/ packages/create-pathfinder/package.json` produced no output.
+- Commit/PR: Pending the Feature 41 completion-record PR.
+- Follow-up: Anthropic review and catalog publication are external follow-up and are not Feature completion conditions.
+
 ### 2026-08-26 — Feature 40: `context/history.md` is tracked but never shipped
 
 - Outcome: Pathfinder now tracks its own durable `context/history.md` while excluding that kit-relative path from local installs, staged npm packages, and plugin bootstrap derivation. Destination projects keep their own history byte-for-byte through ordinary installs and `--force`; `templates/history.template.md` continues to ship for first completion.
