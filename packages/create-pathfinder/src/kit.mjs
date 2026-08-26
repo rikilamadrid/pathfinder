@@ -57,8 +57,8 @@ export function isExcluded(basename) {
  * real, hand-written files that live inside a copy-list directory and must
  * still never reach a destination project.
  *
- * All three are this repository's own working state, and every one of them
- * would be actively wrong in somebody else's project.
+ * Every one of them would be actively wrong in somebody else's project,
+ * though not all for the same reason — see `context/history.md` below.
  *
  * `context/tracker.md` is the original case. Work Tracking's off switch is the
  * *absence* of that file in a destination project, so shipping this
@@ -75,6 +75,16 @@ export function isExcluded(basename) {
  * opening its first session to a note about whichever feature a Pathfinder
  * maintainer had loaded on the day of the release.
  *
+ * `context/history.md` is the odd one out, and the reason this set now has two
+ * kinds in it. The other three are transient or local session state, ignored by
+ * Git as well as excluded here. This one is durable project truth, tracked in
+ * version control exactly as `README.md` says a project should track it — it is
+ * simply *another project's* truth. A destination project gets its own, written
+ * by `/feature complete` from `templates/history.template.md` on the day it
+ * first completes something, and that template must keep shipping. So the
+ * promise made about this path is the publication half only: never shipped, but
+ * emphatically tracked.
+ *
  * `context` is a *directory* entry in the copy list, so anything placed beneath
  * it ships by default. Making the invariant enforced rather than intended is
  * the same move `check_no_junk_tracked` made: an ignore rule is advisory, one
@@ -88,6 +98,7 @@ const NEVER_SHIPS = new Set([
   "context/tracker.md",
   "context/current-feature.md",
   "context/handoff.md",
+  "context/history.md",
 ]);
 
 /**

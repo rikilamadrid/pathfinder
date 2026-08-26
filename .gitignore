@@ -26,6 +26,16 @@ __MACOSX/
 /context/current-feature.md
 /context/handoff.md
 
+# Deliberately not listed above: /context/history.md. It is a never-ships file
+# like the three preceding it, and it is *not* ignored, which looks like an
+# oversight and is not. This repository's completed-work record is durable
+# project truth and is tracked, the same as any other project's; what it must
+# never be is copied into somebody else's project as though it were theirs.
+# Those are two different promises, and only `neverShips()` in the installer
+# and the staging script keeps the second one. Adding an ignore line here would
+# keep it out of the tarball by accident, which is how it was kept out before
+# — and would put Pathfinder's own history back out of version control.
+
 # Generated harness adapters. Pathfinder commits adapters only for the harness
 # its own maintainers use — `.claude/skills/` is tracked and CI checks it is
 # fresh. Every other harness is generated on demand, so its output is ignored

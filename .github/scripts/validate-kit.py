@@ -785,7 +785,7 @@ BOOTSTRAP_SKILL = SKILLS / "kickstart-pathfinder" / "SKILL.md"
 BOOTSTRAP_HEADING = "## Kit Bootstrap"
 
 
-def installer_never_ships() -> tuple[str, ...] | None:
+def installer_never_ships(rule: str) -> tuple[str, ...] | None:
     """The installer's exclusion set, read out of the one file that declares it.
 
     Parsed from source rather than imported, because `NEVER_SHIPS` is module
@@ -794,17 +794,21 @@ def installer_never_ships() -> tuple[str, ...] | None:
     `check_installer_copy_list` fell into once was a rule that quietly stopped
     checking anything, and a regex that silently matches nothing is that same
     rule with a different spelling.
+
+    Two rules derive from this set now — `bootstrap-exclusions` and
+    `never-ships` — so the caller says which one to report a parse failure
+    under. Both are equally stuck without it.
     """
     try:
         source = KIT_SOURCE.read_text(encoding="utf-8")
     except OSError as error:
-        fail(KIT_SOURCE, "bootstrap-exclusions", f"could not be read: {error}")
+        fail(KIT_SOURCE, rule, f"could not be read: {error}")
         return None
 
     block = re.search(r"const NEVER_SHIPS = new Set\(\[(.*?)\]\)",
                       source, re.DOTALL)
     if block is None:
-        fail(KIT_SOURCE, "bootstrap-exclusions",
+        fail(KIT_SOURCE, rule,
              "no `const NEVER_SHIPS = new Set([...])` to read; this rule "
              "derives the exclusions from here and cannot check anything "
              "without them")
@@ -812,7 +816,7 @@ def installer_never_ships() -> tuple[str, ...] | None:
 
     paths = tuple(re.findall(r'"([^"]+)"', block.group(1)))
     if not paths:
-        fail(KIT_SOURCE, "bootstrap-exclusions",
+        fail(KIT_SOURCE, rule,
              "`NEVER_SHIPS` parsed as empty; the exclusions could not be read")
         return None
     return paths
@@ -837,7 +841,7 @@ def check_bootstrap_exclusions() -> None:
     neither, which is the whole point — a checker carrying its own copy of the
     list would be the third thing to keep in step.
     """
-    never_ships = installer_never_ships()
+    never_ships = installer_never_ships("bootstrap-exclusions")
     copy_list = load_copy_list()
 
     try:
@@ -887,41 +891,85 @@ def check_bootstrap_exclusions() -> None:
 def check_never_ships() -> None:
     """Files that live in a copy-list directory but must never reach a project.
 
-    `context/tracker.md` is the whole list. Work Tracking's off switch is the
-    absence of that file in a destination project, so a committed copy here
-    would ship this repository's own tracker configuration to everyone and
-    defeat the switch on first install.
+    The set is read from `kit.mjs` rather than restated here, for the reason
+    `bootstrap-exclusions` established: a checker carrying its own copy of the
+    list is one more thing to keep in step, and the copy that falls behind is
+    always the one nobody is looking at.
 
-    `.gitignore` already covers it, and `neverShips()` filters both the
+    `.gitignore` covers most of them, and `neverShips()` filters both the
     installer and the staging script. This rule exists because an ignore rule
     is advisory — one `git add -f` defeats it — and because the installer
     filter is only as good as the memory of why it is there. Same argument as
     `check_no_junk_tracked`, applied to a second invariant.
 
-    Both routes out of this repository are checked, because the file only has
-    to escape through one of them:
+    Two routes lead out of this repository, and the entries do not all take
+    both:
 
-      1. **version control** — `git ls-files`, the `git add -f` case;
-      2. **the published tarball** — a staged copy under the installer package.
+      1. **the published tarball** — a staged copy under the installer package.
          `stage-kit.mjs` copies from the working tree, so `.gitignore` has no
          say here at all, and the staged path is itself ignored, which puts it
-         beyond the reach of the check above. This is the route that would
-         actually have leaked.
+         beyond the reach of the check below. This is the route that would
+         actually have leaked, and it applies to *every* entry: never shipping
+         is what the whole set means.
+      2. **version control** — `git ls-files`, the `git add -f` case. This one
+         applies only to the entries that are meant to be ignored, and
+         `context/history.md` is not one of them. That file is durable project
+         truth and is required to be tracked; demanding it be untracked would
+         enforce the opposite of the contract.
 
-    The two halves are independent: git being unavailable skips the first and
-    must not silently take the second with it.
+    Which entries are ignore-able is asked of Git rather than written down
+    again — `git check-ignore` answers from the ignore rules, and `--no-index`
+    makes it answer for a tracked path too, so a `git add -f` cannot talk its
+    way out of route two by having already succeeded.
+
+    The two halves are independent: git being unavailable skips route two and
+    must not silently take route one with it.
     """
-    never_ships = ("context/tracker.md",)
+    never_ships = installer_never_ships("never-ships")
+    if not never_ships:
+        return
 
-    _check_never_ships_untracked(never_ships)
     _check_never_ships_unstaged(never_ships)
 
+    ignorable = _never_ships_ignorable(never_ships)
+    if ignorable is None:
+        return
+    _check_never_ships_untracked(ignorable)
 
-def _check_never_ships_untracked(never_ships: tuple[str, ...]) -> None:
-    """Route one: the file must not be tracked by Git."""
+
+def _never_ships_ignorable(never_ships: tuple[str, ...]) -> tuple[str, ...] | None:
+    """Which never-ships entries `.gitignore` claims, asked of Git itself.
+
+    Returns None when the question could not be put — a missing git binary, or
+    a failure that is not the documented "nothing matched". Route two is then
+    skipped rather than guessed at.
+    """
     try:
         result = subprocess.run(
-            ["git", "ls-files", "--", *never_ships],
+            ["git", "check-ignore", "--no-index", "--", *never_ships],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        print("note: git unavailable, skipping never-ships (tracked)")
+        return None
+
+    # 0: at least one path is ignored. 1: none are, which is an answer.
+    if result.returncode not in (0, 1):
+        print("note: git check-ignore failed, skipping never-ships (tracked)")
+        return None
+
+    ignored = set(filter(None, result.stdout.splitlines()))
+    return tuple(entry for entry in never_ships if entry in ignored)
+
+
+def _check_never_ships_untracked(ignorable: tuple[str, ...]) -> None:
+    """Route two: an entry `.gitignore` claims must not be tracked anyway."""
+    if not ignorable:
+        return
+
+    try:
+        result = subprocess.run(
+            ["git", "ls-files", "--", *ignorable],
             cwd=ROOT, capture_output=True, text=True, check=False,
         )
     except OSError:
@@ -934,12 +982,13 @@ def _check_never_ships_untracked(never_ships: tuple[str, ...]) -> None:
 
     for tracked in sorted(filter(None, result.stdout.splitlines())):
         fail(tracked, "never-ships",
-             "is tracked, but must never reach a destination project; "
-             "remove it with `git rm --cached` and keep it local")
+             "is tracked, but `.gitignore` names it as this repository's own "
+             "local state; it was added past the ignore rule with `git add "
+             "-f`. Remove it with `git rm --cached` and keep it local")
 
 
 def _check_never_ships_unstaged(never_ships: tuple[str, ...]) -> None:
-    """Route two: the file must not be sitting in a staged kit.
+    """Route one: no entry may be sitting in a staged kit, whatever its kind.
 
     A staged kit is transient — `prepack` writes it and `postpack` removes it —
     so on a clean checkout this finds nothing. It fires when a crashed or
