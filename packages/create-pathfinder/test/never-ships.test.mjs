@@ -1,10 +1,16 @@
 /**
  * Files that live inside the kit but must never reach a destination project.
  *
- * `context/tracker.md` is the whole list, and its absence *is* Work Tracking's
- * off switch. Shipping this repository's copy would hand every new project a
- * configuration naming a tracker it does not own — with the switch already
- * flipped on before anybody asked for it.
+ * `context/tracker.md` is the original case, and its absence *is* Work
+ * Tracking's off switch. Shipping this repository's copy would hand every new
+ * project a configuration naming a tracker it does not own — with the switch
+ * already flipped on before anybody asked for it.
+ *
+ * `context/history.md` is the case that is not like the others. It is durable
+ * project truth, tracked in Git here exactly as a destination project tracks
+ * its own — and that is why it must never be copied: the receiving project
+ * would find somebody else's completed work filed as its own. Under `--force`
+ * it would find its own overwritten, which is data loss rather than noise.
  *
  * Two paths can carry a kit file to a project and both are tested here,
  * because the file only has to escape through one of them:
@@ -23,7 +29,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { planInstall } from "../src/install.mjs";
+import { applyPlan, planInstall } from "../src/install.mjs";
 import { COPY_LIST, findKitRoot, neverShips, neverShipsFilter } from "../src/kit.mjs";
 
 const temporaryRoots = [];
@@ -41,13 +47,15 @@ function temporaryDirectory(prefix) {
 }
 
 /**
- * A copy of the real kit with a `context/tracker.md` planted in it.
+ * A copy of the real kit with never-ships files planted in it.
  *
  * Copied rather than mutating the checkout, because the checkout is the
  * developer's working tree and a crashed test must not leave a stray config in
- * it — which is the very file this rule exists to keep out of places.
+ * it — which is the very kind of file this rule exists to keep out of places.
+ *
+ * @param {Record<string, string>} planted kit-relative path to contents
  */
-function kitWithTrackerConfig() {
+function kitWith(planted) {
   const kitRoot = findKitRoot();
   assert.ok(kitRoot, "the kit root should resolve from a checkout");
 
@@ -55,8 +63,20 @@ function kitWithTrackerConfig() {
   for (const entry of COPY_LIST) {
     cpSync(join(kitRoot, entry), join(fake, entry), { recursive: true });
   }
-  writeFileSync(join(fake, "context", "tracker.md"), "# Tracker\n\nlocal only\n");
+  for (const [relativePath, contents] of Object.entries(planted)) {
+    writeFileSync(join(fake, ...relativePath.split("/")), contents);
+  }
   return fake;
+}
+
+function kitWithTrackerConfig() {
+  return kitWith({ "context/tracker.md": "# Tracker\n\nlocal only\n" });
+}
+
+const PATHFINDER_HISTORY = "# History\n\n- Pathfinder's own completed work\n";
+
+function kitWithHistory() {
+  return kitWith({ "context/history.md": PATHFINDER_HISTORY });
 }
 
 describe("neverShips", () => {
@@ -87,13 +107,28 @@ describe("neverShips", () => {
     assert.equal(neverShips("docs/context/handoff.md"), false);
   });
 
+  it("matches this repository's own completed-work record", () => {
+    // The one entry that is tracked in Git rather than ignored. Being durable
+    // project truth is not a reason to ship it; it is a reason it belongs to
+    // exactly one project, which is this one.
+    assert.equal(neverShips("context/history.md"), true);
+  });
+
+  it("does not match a history.md living anywhere else", () => {
+    // The template is what a destination project's own history is created
+    // from, so it has to keep shipping. The rest are files a project wrote.
+    assert.equal(neverShips("templates/history.template.md"), false);
+    assert.equal(neverShips("history.md"), false);
+    assert.equal(neverShips("context/features/history.md"), false);
+    assert.equal(neverShips("docs/context/history.md"), false);
+  });
+
   it("leaves the durable context files alone", () => {
     // The durable half of `context/` is exactly what a destination project is
     // supposed to receive, and is tracked in Git rather than ignored.
     assert.equal(neverShips("context/ai-interaction.md"), false);
     assert.equal(neverShips("context/coding-standards.md"), false);
     assert.equal(neverShips("context/project-overview.md"), false);
-    assert.equal(neverShips("context/history.md"), false);
   });
 });
 
@@ -125,6 +160,67 @@ describe("the installer", () => {
     assert.ok(
       contextFiles.some((item) => item.relativePath === "context/ai-interaction.md"),
       "context/ai-interaction.md is part of the kit and must still install",
+    );
+  });
+});
+
+describe("a project's own history", () => {
+  /**
+   * The data-loss case, and the reason this file earns a test of its own.
+   *
+   * `planInstall` marks an existing destination file `overwrite` under
+   * `--force`, and `applyPlan` calls `copyFileSync`. A project that has been
+   * running Pathfinder for a year and re-runs the installer to refresh its
+   * skills would have had its completed-work record replaced by a stranger's.
+   * Asserting the plan is not enough here: what matters is the bytes on disk
+   * afterwards.
+   */
+  const OWN_HISTORY = "# History\n\n- 2026-01-01 — this project's own work\n";
+
+  function projectWithHistory() {
+    const target = temporaryDirectory("pathfinder-never-ships-target-");
+    mkdirSync(join(target, "context"), { recursive: true });
+    writeFileSync(join(target, "context", "history.md"), OWN_HISTORY);
+    return target;
+  }
+
+  for (const force of [false, true]) {
+    it(`survives an install byte for byte${force ? " under --force" : ""}`, () => {
+      const kitRoot = kitWithHistory();
+      const target = projectWithHistory();
+
+      const plan = planInstall(kitRoot, target, { force });
+      assert.equal(
+        plan.some((item) => item.relativePath === "context/history.md"),
+        false,
+        "context/history.md must never appear in an install plan",
+      );
+
+      applyPlan(plan);
+
+      assert.equal(
+        readFileSync(join(target, "context", "history.md"), "utf8"),
+        OWN_HISTORY,
+        "the project's own history must be exactly as it was",
+      );
+    });
+  }
+
+  it("is not created in a project that has none", () => {
+    const kitRoot = kitWithHistory();
+    const target = temporaryDirectory("pathfinder-never-ships-target-");
+
+    applyPlan(planInstall(kitRoot, target));
+
+    assert.equal(
+      existsSync(join(target, "context", "history.md")),
+      false,
+      "a project writes its own history on first completion, not at install",
+    );
+    assert.equal(
+      existsSync(join(target, "templates", "history.template.md")),
+      true,
+      "the template it writes that history from must still ship",
     );
   });
 });
