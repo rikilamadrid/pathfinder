@@ -46,7 +46,8 @@ Use the workflow skills instead of recreating their procedures in chat:
    the tickets that are now ready.
 6. `learn-feature` — optionally teach what was implemented.
 
-Roles are optional. The workflow must work without activating one.
+Lifecycle skills assume their responsible role automatically. Explicit
+activation with `/role` is optional and overrides that default for the session.
 
 ### Status
 

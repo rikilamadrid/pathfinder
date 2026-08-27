@@ -1,12 +1,16 @@
 ---
 name: role
-description: Activate one named Pathfinder role for the current session.
+description: Explicitly override the role Pathfinder's lifecycle would assume.
 argument-hint: planner|developer|tester
 ---
 
 # Role
 
-Activate exactly one role.
+Explicitly activate exactly one role for the current session.
+
+Normal lifecycle skills assume their responsible role automatically. Use this
+skill only when the human wants to override that default or inspect/debug work
+under a particular responsibility boundary.
 
 The human names it, for example:
 
@@ -27,6 +31,8 @@ The human names it, for example:
 ## Rules
 
 - Activate only the role the human named.
+- The explicit role overrides a lifecycle skill's automatic default for the
+  rest of the current session/conversation context.
 - Read only that role file.
 - Do not start the role's work.
 - Do not write project state just to remember the role.

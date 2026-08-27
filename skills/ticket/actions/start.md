@@ -2,6 +2,12 @@
 
 Implement the loaded ticket.
 
+## Assumed role
+
+Unless the human explicitly activated a role, assume `developer` for this
+invocation: read `roles/developer.md` and follow it. An explicit role overrides
+this default. A role narrows responsibility and never grants human authority.
+
 1. Read `context/current-ticket.md` and, from the store, the ticket it names.
    If neither exists, stop: an unloaded ticket is not approved for execution.
    Run `/ticket load`.

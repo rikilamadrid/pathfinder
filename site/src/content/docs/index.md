@@ -150,17 +150,22 @@ debug-issue      = an observed failure needs an explanation
 
 [See the full workflow](/guides/workflow/).
 
-## Optional roles
+## Automatic roles
 
 Pathfinder ships three roles:
 
 | Role | Responsibility |
 | --- | --- |
-| `planner` | Turns approved direction into clear Feature specs |
+| `planner` | Discovers project direction and produces Features and tickets |
 | `developer` | Implements approved work without accepting its own work |
 | `tester` | Independently verifies delivered work and reports findings |
 
-Activate one when the responsibility boundary is useful:
+Lifecycle skills read the responsible role automatically: planning assumes
+`planner`, ticket load/start/complete assume `developer`, and ticket review
+assumes `tester`.
+
+Use `/role` only to override that default explicitly or debug a workflow under
+a particular boundary:
 
 ```text
 /role developer

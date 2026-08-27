@@ -4,6 +4,14 @@ Compact record of completed work.
 
 ## Completed
 
+### 2026-08-27 — Feature 45: Roles are assumed automatically by the lifecycle
+
+- Outcome: Normal lifecycle invocations now read and assume their responsibility contract automatically: `kickstart-pathfinder`, `to-specs`, and `to-tickets` use `planner`; ticket `load`, `start`, and `complete` use `developer`; ticket `review` uses `tester`. `/role` remains an explicit human override and debugging tool, and assumed or explicit roles never grant approval, acceptance, merge, release, or other human authority.
+- Delivered as one ticket, 45.1, keeping lifecycle contracts, role files, structural validation, adapters, agent entry points, README/package guidance, changelog, and website documentation atomic.
+- Verification: `validate-kit.py` OK (21 skills), including exact file-to-role mapping and explicit-override checks; 585/585 installer tests; adapters up to date under `--check`; docs site builds, 37 pages; stale manual-role prerequisite language is absent from live public and internal surfaces.
+- Delivery: Committed on the dedicated redesign branch. Merge and release remain human-owned and are not part of this completion step.
+- Follow-up: Feature 46 performs the major version bump and full public-surface/release consistency pass, then verifies the lifecycle end to end from fresh releasable npm-package and plugin installs before any publication.
+
 ### 2026-08-27 — Feature 44: The configured ticket store is canonical
 
 - Outcome: Tickets now live in exactly one configured store. Local Markdown under `context/tickets/` is the default store, not a mirror or fallback; a project configured for GitHub Issues or another tracker has no parallel local ticket copy. `to-tickets` creates tickets in that store, and `/ticket load|start|review|complete` reads and writes the same artifact. `sync-tracker` and its adapter are removed because there is nothing left to synchronize, and the public and internal guidance now treats `context/tickets/` as conditional on the local-Markdown choice.

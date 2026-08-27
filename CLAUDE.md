@@ -28,11 +28,17 @@ rule; do not ignore `context/` wholesale.
 
 ## Roles
 
-When the human names a role, read `roles/<name>.md` before anything else and follow it for the session. A role says what a worker is responsible for, what it reads, and what it must not do, where a skill says how to perform a task.
+Lifecycle skills assume their responsible role for each invocation and read its
+contract themselves: planning uses `planner`, ticket implementation and
+completion use `developer`, and ticket review uses `tester`.
 
-The roles are `planner`, `developer`, and `tester`. Activate one with `/role <name>`.
+The human can explicitly override that default with `/role <name>`. Read the
+named `roles/<name>.md` before anything else and follow it for the session. A
+role says what a worker is responsible for, what it reads, and what it must not
+do, where a skill says how to perform a task.
 
-Naming a role is the only thing that activates one. If the human names none, ignore `roles/` and work as this guide otherwise describes. A role narrows what a session may do and never widens it. Human authority sits outside the role system: approval, acceptance, merge, and release are always the human's.
+A role narrows responsibility and never widens authority. Approval, acceptance,
+merge, and release remain the human's whether a role was assumed or explicit.
 
 ## Project-selected policies
 
@@ -94,7 +100,7 @@ An adapter carries the canonical skill's frontmatter and a pointer to it, and no
 - `learning-review` — review accumulated lessons, identify gaps, and create a reinforcement plan
 - `reflect` — review completed work, and the reflection itself, and propose reusable workflow improvements for human approval
 - `handoff` — preserve useful state between sessions or tools
-- `role` — activate one named role for the current session
+- `role` — explicitly override the role the lifecycle would assume
 - `whereami` — report a compact read-only snapshot of the current session
 - `skillsmith` — teach and create small local skills
 - `setup-tracker` — choose the canonical ticket store when it is not local Markdown

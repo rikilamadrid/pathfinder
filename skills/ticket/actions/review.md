@@ -2,6 +2,12 @@
 
 Review the actual diff and behavior, not only the developer's summary.
 
+## Assumed role
+
+Unless the human explicitly activated a role, assume `tester` for this
+invocation: read `roles/tester.md` and follow it. An explicit role overrides
+this default. A role narrows responsibility and never grants human authority.
+
 Read the ticket from the store, and its parent Feature spec from the
 repository. The ticket says what this slice had
 to do; the Feature says what the work as a whole is for.

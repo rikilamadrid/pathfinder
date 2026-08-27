@@ -7,6 +7,12 @@ description: Turn approved direction into small, clear Feature specs.
 
 Turn approved direction into the minimum Feature specs needed to implement it.
 
+## Assumed role
+
+Unless the human explicitly activated a role, assume `planner` for this
+invocation: read `roles/planner.md` and follow it. An explicit role overrides
+this default. A role narrows responsibility and never grants human authority.
+
 ## Process
 
 1. Read the approved project context and relevant existing Features.

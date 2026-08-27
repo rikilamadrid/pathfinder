@@ -1,6 +1,6 @@
 ---
 title: Roles
-description: Three declarative contracts that scope a session to one responsibility — plain Markdown, shipped with every install, and inert until a human names one.
+description: Three declarative responsibility contracts assumed by Pathfinder's lifecycle, with `/role` available as an explicit human override.
 ---
 
 Pathfinder already had a role contract before this page existed. It is
@@ -11,27 +11,22 @@ for a single worker that plays every part in sequence.
 
 Roles split that one implicit contract into three explicit ones.
 
-## You do not have to do anything
+## You do not have to activate one
 
-**Naming a role is the only thing that activates one.** The three files install
-with the kit and sit there. Nothing prompts you for one, no skill behaves
-differently because they exist, and a session where you never say the word works
-exactly as [the workflow page](/guides/workflow/) documents.
+The normal lifecycle reads its responsible role automatically for each
+invocation:
 
-If that is your whole interest in this page, you are done. Everything below
-describes something you switch on by typing a sentence — literally a sentence:
+| Invocation | Assumed role |
+| --- | --- |
+| `kickstart-pathfinder`, `to-specs`, `to-tickets` | `planner` |
+| `/ticket load`, `/ticket start`, `/ticket complete` | `developer` |
+| `/ticket review` | `tester` |
 
-```text
-Work as the developer role.
-```
-
-The [`role`](/skills/role/) skill is the shorthand for that sentence — `/role
-developer` reads the one file and confirms it in a line. Either way it is the
-naming that activates it. There is no flag and no file for you to create.
-
-The switch is deliberately not the presence of the directory. A capability that
-activates because a file was installed is a capability you have to opt *out* of,
-and you would have opted in by running an installer.
+There is no required `/role` setup step. The [`role`](/skills/role/) skill is an
+explicit human override and debugging tool: `/role developer` reads that role
+and applies it to the current session instead of the lifecycle default. An
+automatic role lasts for its invocation; an explicit role lasts for the
+session.
 
 ## The lifecycle
 
@@ -54,25 +49,21 @@ there is no file to name for them.
 
 Those arrows are the one thing on this page most likely to be misread.
 
-### Nothing here invokes anything
+### Assuming a role is not orchestration
 
 This is the part the arrows invite you to get wrong, so it is worth being blunt
 about:
 
 **Roles do not call one another, and Pathfinder is not an orchestration
-runtime.** There is no dispatcher, no queue, no scheduler, and no agent handing
-work to another agent. A handoff is a sentence in a Markdown file saying *this
-turn is over and what ends it* — a human reads that, and a human starts the next
-session by naming the next role.
+runtime.** There is no dispatcher, queue, scheduler, or agent handing work to
+another agent. The lifecycle skill simply reads one Markdown contract before
+following its own procedure. A handoff still ends where the skill says it ends,
+and the human still decides what invocation comes next.
 
-So the diagram above is a description of how work moves through people and
-sessions. It is not a machine, and nothing executes it. If you want the developer
-role to pick up where the planner stopped, you open a session and say so.
-
-The same goes for a role's constraints: **nothing enforces them at runtime.** A
-role is read at the start of a session and governs it for the duration. It is not
-consulted per tool call, and no checker validates that a session obeyed it. Like
-the rest of Pathfinder, it works because it is written down and read.
+Nothing enforces a role at runtime. The skill reads it and follows it because it
+is written down, like the rest of Pathfinder. The validator checks that every
+lifecycle entry point names exactly its intended role; it cannot prove that an
+agent obeyed the prose.
 
 ## Role versus skill
 
@@ -84,18 +75,16 @@ section inside a skill:
 | **What it is** | What a worker is responsible for | How to perform one task |
 | **Shape** | Responsibility, context boundary, handoff, constraints | A procedure, in order |
 | **Scope** | Across several tasks and handoffs | One task, start to finish |
-| **Lifetime** | A session | An invocation |
+| **Lifetime** | One invocation by default; a session when explicitly selected | An invocation |
 
 A role file that starts explaining *"first do X, then do Y"* has become a skill,
 and the layer has failed.
 
-Some constraints have no home in a skill, because **a skill cannot see what
-preceded it.** Nothing stops an agent from finishing a review and immediately
-implementing its own findings — the `review` action of
-[`ticket`](/skills/ticket/) says not to modify code, and that holds inside the
-skill, but the erosion that matters happens *between* skills. `roles/tester.md` is
-where "do not continue into `/ticket start` in this session to fix what you just
-found" can actually live. Reviewing your own repair is not a review.
+Some constraints have no home in a skill. The automatically assumed tester role
+keeps `/ticket review` read-only and ends before implementation. When a human
+needs that boundary to govern several invocations in one session, explicitly
+selecting `/role tester` extends it across those invocations. Reviewing your own
+repair is still not an independent review.
 
 ## The three shipped roles
 
@@ -104,12 +93,12 @@ role names an existing responsibility and bounds it.
 
 | Role | Responsible for | Skills it uses today |
 | --- | --- | --- |
-| `planner` | Turning approved direction into approved feature specs | [`debate-me`](/skills/debate-me/), [`to-specs`](/skills/to-specs/) |
-| `developer` | Implementing approved work, one ticket at a time | [`ticket`](/skills/ticket/) — its load and start actions, plus your project's build and test commands |
+| `planner` | Discovering project direction, writing feature specs, and slicing tickets | [`kickstart-pathfinder`](/skills/kickstart-pathfinder/), [`debate-me`](/skills/debate-me/), [`to-specs`](/skills/to-specs/), [`to-tickets`](/skills/to-tickets/) |
+| `developer` | Implementing and completing approved work, one ticket at a time | [`ticket`](/skills/ticket/) — its load, start, and complete actions, plus your project's build and test commands |
 | `tester` | Establishing whether delivered work meets its acceptance criteria | [`ticket`](/skills/ticket/) — its review action, plus your test commands and browser automation where a spec calls for it |
 
-Name one and the session reads that file before anything else, then follows it
-for the duration.
+Each lifecycle invocation reads the mapped role itself unless the human already
+selected an explicit override with `/role`.
 
 Each file is short by design: a responsibility, the context it may read, a
 `## Use` list, its rules, and the condition that ends its turn. Under `## Use`,

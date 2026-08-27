@@ -2,6 +2,12 @@
 
 Prepare one ticket for execution.
 
+## Assumed role
+
+Unless the human explicitly activated a role, assume `developer` for this
+invocation: read `roles/developer.md` and follow it. An explicit role overrides
+this default. A role narrows responsibility and never grants human authority.
+
 1. Resolve the ticket store. Read `skills/ticket/store.md` and follow it.
 2. Select the ticket the human named, by key. If none was named, list the ready
    tickets — see Readiness below — and stop.

@@ -7,6 +7,12 @@ description: Discover and initialize a new or existing project without writing p
 
 Use this skill to turn an idea or existing repository into durable, human-approved project context.
 
+## Assumed role
+
+Unless the human explicitly activated a role, assume `planner` for this
+invocation: read `roles/planner.md` and follow it. An explicit role overrides
+this default. A role narrows responsibility and never grants human authority.
+
 ## Rules
 
 - Do not install packages or write product code.

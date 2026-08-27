@@ -11,6 +11,12 @@ A Feature is the planning outcome. A ticket is the executable unit of work: one
 vertical slice a fresh session can implement, verify, and hand back with the
 project still working.
 
+## Assumed role
+
+Unless the human explicitly activated a role, assume `planner` for this
+invocation: read `roles/planner.md` and follow it. An explicit role overrides
+this default. A role narrows responsibility and never grants human authority.
+
 ## Process
 
 1. Read the Feature spec named by the human. If none was named, list the specs

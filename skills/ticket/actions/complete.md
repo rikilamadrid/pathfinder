@@ -3,6 +3,12 @@
 Invoking this action is the human's acceptance of the ticket. Do not ask for
 acceptance again.
 
+## Assumed role
+
+Unless the human explicitly activated a role, assume `developer` for this
+invocation: read `roles/developer.md` and follow it. An explicit role overrides
+this default. A role narrows responsibility and never grants human authority.
+
 Acceptance of the ticket is not approval of the delivery steps below. Each one
 that the project's documented workflow gates is still asked for.
 

@@ -6,7 +6,7 @@ Project truth lives in `context/`. Follow the technology and delivery choices do
 
 Use the smallest relevant context for the active task. Keep each ticket stable, reviewable, and verifiable.
 
-The roles are `planner`, `developer`, and `tester`. When the human names one, read `roles/<name>.md` before anything else and follow it for that session. A role is a declarative contract stating what a worker is responsible for and what it must not do, where a skill states how to perform a task. Naming one is the only thing that activates it, so a session where none is named behaves exactly as if `roles/` were not there.
+The roles are `planner`, `developer`, and `tester`. Lifecycle skills assume the responsible role for each invocation and read its contract themselves. When the human explicitly names a role, read `roles/<name>.md` before anything else and use it instead for that session. A role is a declarative contract stating what a worker is responsible for and what it must not do, where a skill states how to perform a task. Assumed or explicit, a role narrows responsibility and never grants human authority.
 
 Canonical skills live under `skills/` and are the only behavior contract; anything under `.claude/skills/` or `.agents/skills/` is a generated pointer to one, so edit the canonical file and regenerate the adapter.
 

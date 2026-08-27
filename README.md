@@ -234,25 +234,30 @@ See the
 [workflow guide](https://pathfinder-kit.vercel.app/guides/workflow/)
 for the complete model.
 
-## Optional roles
+## Automatic roles and explicit overrides
 
-Roles narrow what an AI session is responsible for.
+The normal lifecycle assumes its responsibility boundary automatically:
+
+| Invocation | Assumed role |
+| --- | --- |
+| `kickstart-pathfinder`, `to-specs`, `to-tickets` | `planner` |
+| `/ticket load`, `/ticket start`, `/ticket complete` | `developer` |
+| `/ticket review` | `tester` |
 
 Pathfinder ships three:
 
 | Role | Responsibility |
 | --- | --- |
-| `planner` | Turns approved direction into clear Feature specs |
+| `planner` | Discovers project direction and produces Features and tickets |
 | `developer` | Implements approved work without accepting its own work |
 | `tester` | Independently verifies delivered work and reports findings |
 
-Activate one in a supported tool:
+Use `/role` only when you want to override that default explicitly or debug a
+workflow under a particular boundary:
 
 ```text
 /role developer
 ```
-
-Roles are optional.
 
 They do not grant authority. The human always owns approval, acceptance,
 merge, release, and other decisions requiring judgment.

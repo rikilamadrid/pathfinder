@@ -119,8 +119,8 @@ const GUIDES = [
   { label: 'The workflow', link: '/guides/workflow/' },
   // After the workflow, because a role only means something once you know the
   // loops it scopes. Before ticket-store selection, because roles ship with
-  // every install — they are inert until named rather than absent until
-  // configured.
+  // every install and the lifecycle reads them automatically rather than only
+  // after separate configuration.
   { label: 'Roles', link: '/guides/roles/' },
   // Last, because a reader who is happy with the default store — local
   // Markdown, which every install has without asking — can skip it and miss

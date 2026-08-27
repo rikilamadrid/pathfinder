@@ -156,7 +156,7 @@ In the empty repository you just created, six things:
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — the interaction rules and coding standards; the rest is written when first needed |
-| `roles/` | Three declarative contracts — planner, developer, tester — inert until you name one |
+| `roles/` | Three declarative contracts — planner, developer, tester — assumed by lifecycle skills |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
 | `templates/` | Starting points the project copies when it needs them |
 

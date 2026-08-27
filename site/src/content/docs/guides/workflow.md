@@ -25,6 +25,12 @@ Nothing enforces the stops. They are written into the skills and into
 [`context/ai-interaction.md`](/context/ai-interaction/), which is a markdown file in
 your repository that you can widen, narrow, or pre-approve parts of.
 
+The lifecycle also reads its responsibility boundary automatically. Discovery
+and planning use `planner`; ticket load, start, and complete use `developer`;
+ticket review uses `tester`. `/role` is an explicit human override, not a setup
+step before any arrow on this page. Roles narrow responsibility and never grant
+the human authority that the decision points reserve.
+
 ## Discovery and validation
 
 From an idea, or an existing repository, to project context you approved.
