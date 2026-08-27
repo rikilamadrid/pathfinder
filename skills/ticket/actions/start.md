@@ -2,13 +2,15 @@
 
 Implement the loaded ticket.
 
-1. Read `context/current-ticket.md` and the ticket it names. If neither exists,
-   stop: an unloaded ticket is not approved for execution. Run `/ticket load`.
+1. Read `context/current-ticket.md` and, from the store, the ticket it names.
+   If neither exists, stop: an unloaded ticket is not approved for execution.
+   Run `/ticket load`.
 2. Read only the context the ticket names.
 3. Restate the pre-implementation summary the project's agent guide requires,
    and wait for it to be answered where it names a human decision. Do not edit
    any file before this step is done.
-4. Record the ticket's `## Status` as `In Progress`, before the first file edit:
+4. Record the ticket's status as `In Progress` in the store, before the first
+   file edit:
    - `Ready` becomes `In Progress`. That is the only value this action writes to
      the ticket.
    - `In Progress` is left exactly as it is. Continuing a ticket across sessions

@@ -2,7 +2,8 @@
 
 Review the actual diff and behavior, not only the developer's summary.
 
-Read the ticket and its parent Feature spec. The ticket says what this slice had
+Read the ticket from the store, and its parent Feature spec from the
+repository. The ticket says what this slice had
 to do; the Feature says what the work as a whole is for.
 
 ## Check

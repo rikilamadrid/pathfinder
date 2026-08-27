@@ -2,18 +2,16 @@
 
 Prepare one ticket for execution.
 
-1. Resolve where tickets live. `context/tickets/` is the default. If
-   `context/tracker.md` exists and names a ticket source, use what it names,
-   and stop rather than falling back if that source does not exist. A config
-   that names none leaves the default in place.
-2. Select the ticket the human named, by key or by filename. If none was named,
-   list the ready tickets — see Readiness below — and stop.
+1. Resolve the ticket store. Read `skills/ticket/store.md` and follow it.
+2. Select the ticket the human named, by key. If none was named, list the ready
+   tickets — see Readiness below — and stop.
 3. Read the ticket.
 4. Read its parent Feature spec, named under the ticket's `## Parent Feature`.
    Read the Feature for its Goal, Requirements, Out of Scope, and Acceptance
    Criteria. Do not read the other tickets of that Feature; the blocker check
    below reads their status and nothing else.
-5. Verify every blocker under `## Blocked by`:
+5. Verify every blocker under `## Blocked by`, reading each blocker's status
+   from the store:
    - A blocker that is `Complete` is satisfied.
    - A blocker that is `Cancelled` or `Superseded` is not satisfied. Report it
      and stop: an edge pointing at abandoned work is a planning question.
@@ -34,7 +32,7 @@ Prepare one ticket for execution.
    blocked load never leaves a promoted ticket behind.
 10. Create or update `context/current-ticket.md` — it does not ship, so the
     first load writes it — with:
-    - ticket key, title, and path
+    - ticket key, title, and where it is in the store
     - parent Feature number, name, and spec path
     - Git state
     - blocker, if any
@@ -43,9 +41,7 @@ Prepare one ticket for execution.
     Do not record the lifecycle status here. This file is transient workspace
     state belonging to one session on one machine; the ticket carries the
     durable status.
-11. If `context/tracker.md` exists, name the tracked item for this ticket — its
-    key is the ticket key. Do nothing here if it does not.
-12. Present a short readiness summary.
+11. Present a short readiness summary.
 
 ## Readiness
 
@@ -63,5 +59,8 @@ history, or roadmap by default.
 Do not rewrite the ticket's substance — its Goal, Context, Changes,
 Verification, Out of Scope, or Blocked by. `## Status` is the one field this
 action maintains.
+
+Do not copy the ticket into the repository. The store holds it, and
+`context/current-ticket.md` records only which ticket this session is on.
 
 Do not edit the parent Feature spec. `load` derives nothing.

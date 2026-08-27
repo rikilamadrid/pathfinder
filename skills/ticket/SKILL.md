@@ -22,7 +22,7 @@ The delivery loop, as one skill. The human names the action:
 
 ## Actions
 
-- `load` — prepare one ticket for execution. Resolves where tickets live, reads
+- `load` — prepare one ticket for execution. Resolves the ticket store, reads
   the ticket and its parent Feature spec, verifies every blocker, loads the
   minimum context the ticket names, and writes the session's workspace state.
 - `start` — implement the loaded ticket, restating the pre-implementation
@@ -35,8 +35,10 @@ The delivery loop, as one skill. The human names the action:
 
 ## Lifecycle
 
-A ticket's `## Status` holds the durable lifecycle state named in
-`context/ai-interaction.md`:
+A ticket's status holds the durable lifecycle state named in
+`context/ai-interaction.md`. It lives in the ticket store — see
+`skills/ticket/store.md`, which is where the store and ticket identity are
+defined:
 
 `Proposed` → `Ready` → `In Progress` → `Complete`
 

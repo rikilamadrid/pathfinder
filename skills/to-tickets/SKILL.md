@@ -19,29 +19,27 @@ project still working.
 3. Read only the source the Feature's `## Context` names, and only enough of it
    to size the work honestly.
 4. Decide the slices. See Slicing below.
-5. Create `context/tickets/` if it does not exist.
-6. Write each ticket from `templates/ticket.template.md`, named `NN.TT-slug.md`
-   — see Identity below.
+5. Resolve the ticket store. Read `skills/ticket/store.md` and follow it.
+6. Create each ticket in that store, from `templates/ticket.template.md`, with
+   the key and title the store carries — see Identity below.
 7. Record blockers as ticket keys under each ticket's `## Blocked by`. Verify
-   the edges form a directed acyclic graph before writing. A cycle is a slicing
-   mistake, not a ticket to write.
+   the edges form a directed acyclic graph before creating anything. A cycle is
+   a slicing mistake, not a ticket to write.
 8. Present the tickets, the blocker graph, and which tickets are ready now.
-9. If `context/tracker.md` exists, say that these tickets are not published:
-   `sync-tracker` projects Feature specs, not tickets. Do not publish them
-   yourself, and do nothing here when no config exists.
 
 ## Identity
 
-A ticket is `context/tickets/NN.TT-slug.md`, for example
-`context/tickets/27.3-csv-download-endpoint.md`.
+A ticket's key is `NN.TT`. `NN` is the parent Feature's number, taken from its
+spec filename. `TT` is the next unused ticket number within that Feature,
+counting every ticket already in the store whatever its status.
 
-`NN` is the parent Feature's number, taken from its spec filename. `TT` is the
-next unused ticket number within that Feature, counting every ticket already
-there whatever its status.
+In the local Markdown store that key is the filename — `context/tickets/`
+holds `NN.TT-slug.md`, for example `context/tickets/27.3-csv-download-endpoint.md`.
+In another store it is carried the way `context/tracker.md` says. Either way,
+`skills/ticket/store.md` is where identity is defined; read it there.
 
-The key is `NN.TT`, read from the basename and nowhere else. Keys are never
-reused and never renumbered: a blocker edge and a published tracker item are
-both matched on that key, and renumbering orphans them.
+Keys are never reused and never renumbered, because blocker edges are matched on
+them.
 
 ## Slicing
 
