@@ -42,7 +42,7 @@ coding tools to configure:
 
 ```text
      ━━━
-    ━━━━━      P A T H F I N D E R  v3.1.0
+    ━━━━━      P A T H F I N D E R  v4.0.0
    ━━━━━━━     trail markers for AI-assisted work
   ━━━━━━━━━
 
@@ -258,8 +258,8 @@ with its plugin name and offers no way to opt out, so through the plugin each sk
 is `/pathfinder:<skill>`:
 
 ```text
-/pathfinder:feature load
-/pathfinder:role planner
+/pathfinder:ticket load
+/pathfinder:to-specs
 /pathfinder:whereami
 ```
 

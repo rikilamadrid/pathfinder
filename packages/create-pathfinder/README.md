@@ -84,7 +84,7 @@ The installer copies six kit entries into your repository:
 | `skills/` | Reusable procedures for discovery, specs, delivery, debugging, review, learning, and ticket-store selection |
 | `templates/` | Minimal starting shapes; records are created from them later, when a workflow needs one |
 
-A fresh Pathfinder 2.0 project begins with only:
+A fresh Pathfinder project begins with only:
 
 ```text
 context/

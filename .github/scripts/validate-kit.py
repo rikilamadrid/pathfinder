@@ -77,7 +77,7 @@ THIN_LINE_THRESHOLD = 40
 # A role file states responsibility and constraint, never procedure. The
 # ceiling is the crude backstop for that: the moment a role grows past a page
 # it has started explaining how to do the work, which is what a skill is for.
-# For calibration, skills/feature/actions/complete.md is 22 lines.
+# For calibration, lifecycle action files remain shorter than this ceiling.
 ROLE_LINE_CEILING = 40
 
 # Lifecycle entry points assume one responsibility unless the human explicitly

@@ -27,6 +27,8 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-08-27
+
 ### Added
 
 - **`to-tickets`, and tickets as the executable unit of work.** A Feature is the planning outcome; a ticket is what one fresh session implements, verifies, and hands back with the project still working. `/to-tickets` reads one approved Feature spec and creates its tickets in the configured store; in the default local-Markdown store those are `context/tickets/NN.TT-slug.md` files. Each ticket names its parent Feature, what to read, what to change, how to verify it, and — by key, never by file order — what blocks it. Blocker edges are checked to be acyclic before anything is written.
@@ -45,6 +47,32 @@ The heading of the most recent released section below is the single source of tr
 - **The `feature` delivery loop.** `/feature load|start|review|complete` and `skills/feature/actions/` are gone, replaced by `/ticket`. There is one delivery loop, and it runs on the unit that `to-tickets` produces.
 
 - **Delivery Chunks are gone.** `## Delivery Chunks` is removed from `templates/feature-spec.template.md`, and every kit statement that a Feature is executed chunk by chunk now names the ticket instead — `CLAUDE.md`, `AGENTS.md`, `context/ai-interaction.md`, `to-specs`, `whereami`, and the delivery loop's own actions. There is one execution layer, not two. `to-specs` no longer offers chunks as an alternative to splitting a Feature: a coherent but large Feature stays one Feature, and `to-tickets` slices it.
+
+### Upgrading
+
+Re-running `create-pathfinder` never deletes files that an older release
+installed, and it does not overwrite files already present. Existing projects
+must review their local customizations, apply the changed kit files manually,
+or rerun with `--force` knowingly, and remove the retired surfaces deliberately:
+
+- Remove `skills/feature/` and `skills/sync-tracker/`, plus their generated
+  `.claude/skills/` or `.agents/skills/` adapters when present. Regenerate
+  adapters from the current `skills/` tree afterwards.
+- Add `skills/to-tickets/`, `skills/ticket/`, and
+  `templates/ticket.template.md` from this release.
+- Rename `context/current-feature.md` to `context/current-ticket.md` if an
+  in-flight session still needs it; otherwise discard the transient file. Keep
+  both paths ignored so neither can ship into another project.
+- Replace Feature delivery chunks with tickets. Existing Feature specs remain
+  valid planning records, but new work runs through `to-tickets` and
+  `/ticket load|start|review|complete`.
+- If `context/tracker.md` configured a projection, choose which existing place
+  now owns the tickets and rewrite the configuration to name that canonical
+  store and how it carries each `NN.TT` key. Migrate once, deliberately;
+  Pathfinder does not move or synchronize ticket data.
+- No `/role` setup step is needed. Lifecycle skills assume `planner`,
+  `developer`, or `tester` as appropriate; `/role` remains available only for
+  an explicit override or debugging session.
 
 ## [3.1.0] - 2026-08-25
 

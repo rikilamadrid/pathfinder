@@ -79,6 +79,6 @@ arriving late. Stop and re-scope rather than widening it.
 
 ## Related
 
-[Tickets](/concepts/tickets/) are the other half of this: the boundary limits
-what one feature loads, and a ticket limits what one session inside that feature
-has to hold at once.
+[Tickets](/concepts/tickets/) are the other half of this: the Feature boundary
+limits the total planned context, and a ticket limits what one implementation
+session inside that Feature has to hold at once.

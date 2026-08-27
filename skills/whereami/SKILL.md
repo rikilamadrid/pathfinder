@@ -12,9 +12,11 @@ action. It reports state. It never changes it.
 
 ## Process
 
-1. Role: report the role activated in this session via `/role`.
-   Roles are session state and are never written to disk, so if no role was
-   activated in this conversation, report `none`. Do not search `roles/`.
+1. Role: report an explicit `/role` override when one is active; otherwise
+   report `none`. Lifecycle role assumptions apply only to their own invocation,
+   so a previous `ticket` or planning action does not persist a role for
+   `whereami`. Roles are never written to disk. Do not infer one from the
+   current ticket or search `roles/`.
 2. Read `context/current-ticket.md` if it exists.
    Take Ticket, Feature, and Next from it verbatim. The ticket key and the
    Feature number are the ones recorded there, from their filenames.

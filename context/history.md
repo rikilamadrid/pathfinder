@@ -4,6 +4,14 @@ Compact record of completed work.
 
 ## Completed
 
+### 2026-08-27 — Feature 46: Prepare the major lifecycle release
+
+- Outcome: Pathfinder is prepared as a coherent `4.0.0` release candidate for the ticket-first redesign. The changelog is the version source, npm and plugin manifests agree, current website/GitHub/npm/plugin surfaces describe the canonical ticket store and automatic lifecycle roles consistently, retired commands remain only in historical or migration context, and the captured installer transcript comes from a real `v4.0.0` run.
+- Delivered as one accepted ticket, 46.1, so the release notes, public and internal documentation, version metadata, generated-adapter contract, package contents, plugin inventory, and fresh-install evidence form one reviewable snapshot.
+- Verification: `validate-kit.py` OK (21 skills); 585/585 installer tests; adapters current; docs site builds 37 pages; transcript, version-agreement, and `4.0.0` release-note extraction checks pass; `claude plugin validate .` passes; npm pack preview contains 60 intended files. Fresh npm-tarball and clean local-plugin installs each completed `kickstart-pathfinder -> to-specs -> configure ticket store -> to-tickets -> ticket load -> ticket start -> ticket review -> ticket complete`, including role contracts, `Proposed -> Ready -> In Progress -> Complete`, durable history, and no shadow `context/tickets/` for the configured non-default store. The plugin exposed 21 skills and zero agents, hooks, MCP servers, or LSP servers; isolated marketplace state was removed.
+- Delivery: Committed on the dedicated redesign branch. Merge, npm publication, tag creation, GitHub Release creation, release-workflow dispatch, and any plugin/marketplace release action remain explicit human-owned steps.
+- Follow-up: After squash merge and validation on `main`, dispatch the guarded `4.0.0` release workflow, then verify npm, the GitHub Release/tag, the plugin install, and a registry-backed fresh install as documented in `CONTRIBUTING.md`.
+
 ### 2026-08-27 — Feature 45: Roles are assumed automatically by the lifecycle
 
 - Outcome: Normal lifecycle invocations now read and assume their responsibility contract automatically: `kickstart-pathfinder`, `to-specs`, and `to-tickets` use `planner`; ticket `load`, `start`, and `complete` use `developer`; ticket `review` uses `tester`. `/role` remains an explicit human override and debugging tool, and assumed or explicit roles never grant approval, acceptance, merge, release, or other human authority.

@@ -369,7 +369,7 @@ For deeper onboarding or architectural understanding, use:
 
 Do not use `reverse-engineer` to analyze the repository Pathfinder is currently
 operating inside. That responsibility belongs to `kickstart-pathfinder`,
-`learn-codebase`, or the relevant feature skill.
+`learn-codebase`, or the active ticket's lifecycle action.
 
 ## Native to your tools
 

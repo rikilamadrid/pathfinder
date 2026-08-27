@@ -134,7 +134,7 @@ context/handoff.md
 Two lines in `.gitignore` are the whole mechanism:
 
 ```text
-context/current-feature.md
+context/current-ticket.md
 context/handoff.md
 ```
 

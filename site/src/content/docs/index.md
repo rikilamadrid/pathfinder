@@ -99,7 +99,7 @@ commands without copying anything into the repository:
 ```
 
 Plugin commands are namespaced — `/pathfinder:kickstart-pathfinder`,
-`/pathfinder:feature load` — and the plugin installs no project files. See
+`/pathfinder:ticket load` — and the plugin installs no project files. See
 [Getting started](/guides/getting-started/#or-install-the-claude-code-plugin)
 for what each path installs and when to use both.
 

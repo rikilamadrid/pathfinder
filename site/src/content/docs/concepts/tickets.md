@@ -71,6 +71,6 @@ restatement is a cheap chance to catch a misunderstanding while it is small.
 
 ## Related
 
-[Context boundaries](/concepts/context-boundaries/) limit what a feature loads;
-tickets limit how much of it has to be understood at once. A feature whose
+[Context boundaries](/concepts/context-boundaries/) limit what a Feature plans;
+tickets limit how much of it has to be understood at once. A Feature whose
 tickets cannot be made stable is usually a feature whose boundary is too wide.
