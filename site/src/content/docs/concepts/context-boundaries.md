@@ -40,11 +40,11 @@ or skill that understands the feature — not discovered by an agent halfway thr
 [`CLAUDE.md`](https://github.com/rikilamadrid/pathfinder/blob/main/CLAUDE.md) states
 the default reading order for feature work: the current feature, its spec, the
 relevant parts of the project overview and coding standards, the interaction rules,
-and *only the source files the current delivery chunk needs*.
+and *only the source files the current ticket needs*.
 
 [`context/ai-interaction.md`](/context/ai-interaction/) states the discipline as a
 rule: read only what the current work requires, prefer exact files or sections over
-broad repository scans, and work one delivery chunk at a time.
+broad repository scans, and work one ticket at a time.
 
 Neither is enforced by tooling. Both are markdown an agent reads.
 
@@ -69,16 +69,16 @@ person can look at or a machine can check — one visible behavior, one verifiab
 system change — and the reading list follows from that. Titles like these get split
 by outcome, not trimmed by wording.
 
-The `load` action of [`feature`](/skills/feature/) checks this before
+The `load` action of [`ticket`](/skills/ticket/) checks this before
 implementation starts and will recommend splitting rather than proceeding.
 [`to-specs`](/skills/to-specs/) tries to avoid producing such a feature in the
 first place, by sizing each one to a coherent, bounded set of context.
 
-A boundary that keeps getting exceeded during `/feature start` is the same signal
+A boundary that keeps getting exceeded during `/ticket start` is the same signal
 arriving late. Stop and re-scope rather than widening it.
 
 ## Related
 
-[Delivery chunks](/concepts/delivery-chunks/) are the other half of this: the
-boundary limits what one feature loads, and chunks limit what one session inside
-that feature has to hold at once.
+[Tickets](/concepts/tickets/) are the other half of this: the Feature boundary
+limits the total planned context, and a ticket limits what one implementation
+session inside that Feature has to hold at once.

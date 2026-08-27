@@ -99,7 +99,7 @@ commands without copying anything into the repository:
 ```
 
 Plugin commands are namespaced — `/pathfinder:kickstart-pathfinder`,
-`/pathfinder:feature load` — and the plugin installs no project files. See
+`/pathfinder:ticket load` — and the plugin installs no project files. See
 [Getting started](/guides/getting-started/#or-install-the-claude-code-plugin)
 for what each path installs and when to use both.
 
@@ -116,15 +116,19 @@ kickstart / debate / prototype
   ↓
 to-specs
   ↓
-/feature load
+to-tickets
   ↓
-/feature start
+/ticket load
   ↓
-optional /feature review
+/ticket start
+  ↓
+optional /ticket review
   ↓
 human acceptance
   ↓
-/feature complete
+/ticket complete
+  ↓
+the next ready ticket
 ```
 
 A prototype is optional.
@@ -132,8 +136,8 @@ A prototype is optional.
 Features are small, focused, and independently verifiable.
 
 Debugging, learning, external-reference analysis, handoff, reflection, and
-work tracking are supporting workflows you invoke when useful rather than
-mandatory stages every Feature must pass through.
+ticket-store selection are supporting workflows you invoke when useful rather
+than mandatory stages every Feature must pass through.
 
 When it is not obvious which one applies:
 
@@ -141,22 +145,27 @@ When it is not obvious which one applies:
 reverse-engineer = understand an external reference
 learn-codebase   = understand the current codebase
 debug-issue      = an observed failure needs an explanation
-/feature start   = planned construction is difficult
+/ticket start    = planned construction is difficult
 ```
 
 [See the full workflow](/guides/workflow/).
 
-## Optional roles
+## Automatic roles
 
 Pathfinder ships three roles:
 
 | Role | Responsibility |
 | --- | --- |
-| `planner` | Turns approved direction into clear Feature specs |
+| `planner` | Discovers project direction and produces Features and tickets |
 | `developer` | Implements approved work without accepting its own work |
 | `tester` | Independently verifies delivered work and reports findings |
 
-Activate one when the responsibility boundary is useful:
+Lifecycle skills read the responsible role automatically: planning assumes
+`planner`, ticket load/start/complete assume `developer`, and ticket review
+assumes `tester`.
+
+Use `/role` only to override that default explicitly or debug a workflow under
+a particular boundary:
 
 ```text
 /role developer
@@ -205,14 +214,15 @@ Durable project truth is tracked in Git:
 ```text
 context/project-overview.md
 context/features/
+context/tickets/          # when local Markdown is the ticket store
 context/history.md
-context/tracker.md
+context/tracker.md        # when it is not
 ```
 
 Temporary workspace state is normally ignored:
 
 ```text
-context/current-feature.md
+context/current-ticket.md
 context/handoff.md
 ```
 
@@ -263,28 +273,23 @@ For deeper understanding of an existing codebase:
 /learn-codebase
 ```
 
-## Optional work tracking
+## Where tickets live
 
-Pathfinder does not require a ticket system.
+Every project has a ticket store. With no configuration it is local Markdown
+files under `context/tickets/`.
 
-Feature specs in the repository remain canonical.
-
-If you want Features projected to GitHub Issues, local Markdown, or another
-tracker:
+If your tickets belong in GitHub Issues, Jira, Linear, Azure DevOps, or
+something internal:
 
 ```text
 /setup-tracker
 ```
 
-then:
+The store you choose is canonical — one ticket artifact, no copy in the
+repository, nothing to sync. Feature specs are not tickets and stay in the
+repository whatever you choose.
 
-```text
-/sync-tracker
-```
-
-Tracker state never silently becomes Pathfinder state.
-
-[Work tracking](/guides/work-tracking/) explains the optional model.
+[Ticket stores](/guides/ticket-stores/) explains the model.
 
 ## Who Pathfinder is for
 
@@ -319,4 +324,4 @@ For the deeper model, continue with:
 - [Workflow](/guides/workflow/)
 - [Roles](/guides/roles/)
 - [Human approval](/concepts/human-approval/)
-- [Work tracking](/guides/work-tracking/)
+- [Ticket stores](/guides/ticket-stores/)

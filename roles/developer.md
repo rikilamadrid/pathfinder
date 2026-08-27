@@ -17,7 +17,8 @@ Do not load unrelated history, roadmap, Features, or repository areas by default
 
 ## Use
 
-- `feature` — its load action to load the work, its start action to implement it.
+- `ticket` — its load action to load work, start action to implement it, and
+  complete action to record work the human accepted.
 - Use the project's existing build, test, and verification commands as needed.
 
 ## Rules

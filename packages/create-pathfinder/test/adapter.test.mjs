@@ -527,7 +527,7 @@ describe("against the real kit", () => {
 
     assert.deepEqual(
       hinted.map(([name]) => name),
-      ["challenge-me", "feature", "learning-review", "quiz-me", "role", "teach-architecture"],
+      ["challenge-me", "learning-review", "quiz-me", "role", "teach-architecture", "ticket"],
     );
 
     for (const [, metadata] of hinted) {

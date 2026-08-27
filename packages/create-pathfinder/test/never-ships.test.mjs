@@ -1,10 +1,9 @@
 /**
  * Files that live inside the kit but must never reach a destination project.
  *
- * `context/tracker.md` is the original case, and its absence *is* Work
- * Tracking's off switch. Shipping this repository's copy would hand every new
- * project a configuration naming a tracker it does not own — with the switch
- * already flipped on before anybody asked for it.
+ * `context/tracker.md` is the original case. Its absence selects the default
+ * local-Markdown ticket store. Shipping this repository's copy would hand
+ * every new project a configuration naming a store it does not own.
  *
  * `context/history.md` is the case that is not like the others. It is durable
  * project truth, tracked in Git here exactly as a destination project tracks
@@ -85,11 +84,14 @@ describe("neverShips", () => {
   });
 
   it("matches transient session state by kit-relative path", () => {
-    // Neither ships as a blank stencil any more — `/feature load` and `handoff`
+    // Neither ships as a blank stencil any more — `/ticket load` and `handoff`
     // write them on first use. What is being guarded against here is the
     // opposite leak: a maintainer's *filled-in* copy reaching a new project.
-    assert.equal(neverShips("context/current-feature.md"), true);
+    assert.equal(neverShips("context/current-ticket.md"), true);
     assert.equal(neverShips("context/handoff.md"), true);
+    // The name the ticket loop replaced. Still excluded, because a project
+    // installed before that change still has one.
+    assert.equal(neverShips("context/current-feature.md"), true);
   });
 
   it("does not match a tracker.md living anywhere else", () => {
@@ -102,6 +104,7 @@ describe("neverShips", () => {
   });
 
   it("does not match transient state living anywhere else", () => {
+    assert.equal(neverShips("current-ticket.md"), false);
     assert.equal(neverShips("current-feature.md"), false);
     assert.equal(neverShips("handoff.md"), false);
     assert.equal(neverShips("docs/context/handoff.md"), false);

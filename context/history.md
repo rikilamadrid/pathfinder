@@ -4,6 +4,45 @@ Compact record of completed work.
 
 ## Completed
 
+### 2026-08-27 — Feature 46: Prepare the major lifecycle release
+
+- Outcome: Pathfinder is prepared as a coherent `4.0.0` release candidate for the ticket-first redesign. The changelog is the version source, npm and plugin manifests agree, current website/GitHub/npm/plugin surfaces describe the canonical ticket store and automatic lifecycle roles consistently, retired commands remain only in historical or migration context, and the captured installer transcript comes from a real `v4.0.0` run.
+- Delivered as one accepted ticket, 46.1, so the release notes, public and internal documentation, version metadata, generated-adapter contract, package contents, plugin inventory, and fresh-install evidence form one reviewable snapshot.
+- Verification: `validate-kit.py` OK (21 skills); 585/585 installer tests; adapters current; docs site builds 37 pages; transcript, version-agreement, and `4.0.0` release-note extraction checks pass; `claude plugin validate .` passes; npm pack preview contains 60 intended files. Fresh npm-tarball and clean local-plugin installs each completed `kickstart-pathfinder -> to-specs -> configure ticket store -> to-tickets -> ticket load -> ticket start -> ticket review -> ticket complete`, including role contracts, `Proposed -> Ready -> In Progress -> Complete`, durable history, and no shadow `context/tickets/` for the configured non-default store. The plugin exposed 21 skills and zero agents, hooks, MCP servers, or LSP servers; isolated marketplace state was removed.
+- Delivery: Committed on the dedicated redesign branch. Merge, npm publication, tag creation, GitHub Release creation, release-workflow dispatch, and any plugin/marketplace release action remain explicit human-owned steps.
+- Follow-up: After squash merge and validation on `main`, dispatch the guarded `4.0.0` release workflow, then verify npm, the GitHub Release/tag, the plugin install, and a registry-backed fresh install as documented in `CONTRIBUTING.md`.
+
+### 2026-08-27 — Feature 45: Roles are assumed automatically by the lifecycle
+
+- Outcome: Normal lifecycle invocations now read and assume their responsibility contract automatically: `kickstart-pathfinder`, `to-specs`, and `to-tickets` use `planner`; ticket `load`, `start`, and `complete` use `developer`; ticket `review` uses `tester`. `/role` remains an explicit human override and debugging tool, and assumed or explicit roles never grant approval, acceptance, merge, release, or other human authority.
+- Delivered as one ticket, 45.1, keeping lifecycle contracts, role files, structural validation, adapters, agent entry points, README/package guidance, changelog, and website documentation atomic.
+- Verification: `validate-kit.py` OK (21 skills), including exact file-to-role mapping and explicit-override checks; 585/585 installer tests; adapters up to date under `--check`; docs site builds, 37 pages; stale manual-role prerequisite language is absent from live public and internal surfaces.
+- Delivery: Committed on the dedicated redesign branch. Merge and release remain human-owned and are not part of this completion step.
+- Follow-up: Feature 46 performs the major version bump and full public-surface/release consistency pass, then verifies the lifecycle end to end from fresh releasable npm-package and plugin installs before any publication.
+
+### 2026-08-27 — Feature 44: The configured ticket store is canonical
+
+- Outcome: Tickets now live in exactly one configured store. Local Markdown under `context/tickets/` is the default store, not a mirror or fallback; a project configured for GitHub Issues or another tracker has no parallel local ticket copy. `to-tickets` creates tickets in that store, and `/ticket load|start|review|complete` reads and writes the same artifact. `sync-tracker` and its adapter are removed because there is nothing left to synchronize, and the public and internal guidance now treats `context/tickets/` as conditional on the local-Markdown choice.
+- Delivered as three accepted tickets plus one superseded design: 44.1 configured the ticket store, 44.4 made it canonical across the lifecycle, 44.3 retired `sync-tracker`, and the earlier projection-based 44.2 was superseded.
+- Verification: `validate-kit.py` OK (21 skills); 585/585 installer tests; adapters up to date under `--check`; docs site builds, 37 pages; live kit, README, package, and site searches contain no retired `sync-tracker` or work-tracking surface outside historical records.
+- Delivery: Committed on the dedicated Feature 44 branch. Merge and release remain human-owned and are not part of this completion step.
+- Follow-up: After Features 42–45, make the redesign's major version bump and run a full release/docs consistency pass across the website, GitHub README/docs, npm package, plugin metadata, changelog and release notes, adapters and examples. Verify the new lifecycle from a fresh install before release.
+
+### 2026-08-27 — Feature 43: The ticket delivery loop replaces the feature delivery loop
+
+- Outcome: `/ticket load|start|review|complete` is the delivery loop, and `skills/feature/` is gone. `load` reads the ticket and its parent Feature, verifies every blocker, and stops without writing anything when one is unfinished — a blocker that is `Cancelled` or `Superseded` stops it too, because an edge into abandoned work is a planning question. `complete` names the tickets its completion just unblocked and leaves the choice of the next one to the human. A Feature's status is now derived from its tickets rather than maintained by hand: the first ticket to reach `In Progress` moves the Feature there, and a Feature whose tickets are all terminal becomes `Complete`. `context/current-feature.md` became `context/current-ticket.md`; both names stay on the installer's never-ships list so an upgrade cannot drop a maintainer's copy onto a project installed before the rename.
+- Delivered as three tickets — 43.1 the skill and its four actions, 43.2 the transient-state move, 43.3 retiring the `feature` loop and repointing every surface. The blocker chain was exercised as written: 43.2 blocked on 43.1, 43.3 on both.
+- Verification: `validate-kit.py` OK (22 skills); 585/585 installer tests; adapters up to date under `--check`; docs site builds, 38 pages; a clean `--agents claude-code` install into a scratch repository ships `ticket`, no `feature`, and no transient session state. A tester review found three skills — `whereami`, `teach-feature`, `quiz-me` — still reading `context/current-feature.md`, a file nothing writes any more; `whereami`'s read-at-most-one-file rule made that a guaranteed `none` on every snapshot. All three were fixed, along with `ticket load` requiring a ticket source that `setup-tracker` does not yet produce.
+- Delivery: Committed on the dedicated Feature 43 branch. Merge and release remain human-owned and are not part of this completion step.
+- Follow-up: `setup-tracker` and `sync-tracker` still speak in Features. Feature 44 makes the tracker a ticket projection and retires `sync-tracker`.
+
+### 2026-08-27 — Feature 42: Tickets are the executable unit of work
+
+- Outcome: Pathfinder plans in Features and executes in tickets. `to-tickets` slices one approved Feature spec into `context/tickets/NN.TT-slug.md`, each naming its parent Feature, what to read, what to change, how to verify it, and — by key, never by file order — what blocks it; the blocker edges are checked acyclic before anything is written. `## Delivery Chunks` is gone from the Feature template, and every kit statement that described execution chunk by chunk now names the ticket. One execution layer, not two. Ticket records are canonical in the repository; a tracker is a projection of them.
+- Verification: `validate-kit.py` OK (22 skills); 585/585 installer tests; adapters up to date under `--check`; docs site builds, 38 pages. `to-tickets` was dry-run against Feature 43's own spec — three tickets, unique keys, acyclic graph, ready set `43.1`. A tester review raised four findings; three were fixed (a publish `to-tickets` offered that no skill could perform, `to-tickets` missing from the `planner` role's `## Use`, `context/tickets/` missing from AGENTS.md's durable-context list).
+- Delivery: Committed on the dedicated Feature 42 branch. Merge and release remain human-owned and are not part of this completion step.
+- Follow-up: The `feature` loop still carries its old name while implementing the active ticket. Feature 43 replaces it with `/ticket load|start|review|complete`.
+
 ### 2026-08-26 — Feature 41: Submit Pathfinder to Anthropic's Claude Code community marketplace
 
 - Outcome: The human manually submitted Pathfinder through Anthropic's Console form for the `claude-community` marketplace. The Plugin submissions dashboard showed `Submitted and pending review`.

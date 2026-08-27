@@ -77,8 +77,22 @@ THIN_LINE_THRESHOLD = 40
 # A role file states responsibility and constraint, never procedure. The
 # ceiling is the crude backstop for that: the moment a role grows past a page
 # it has started explaining how to do the work, which is what a skill is for.
-# For calibration, skills/feature/actions/complete.md is 22 lines.
+# For calibration, lifecycle action files remain shorter than this ceiling.
 ROLE_LINE_CEILING = 40
+
+# Lifecycle entry points assume one responsibility unless the human explicitly
+# overrides it with `/role`. The paths are the contract: the `ticket` wrapper
+# dispatches to actions whose responsibilities differ, so the action files —
+# not the wrapper — carry its four mappings.
+LIFECYCLE_ROLE_ASSUMPTIONS = {
+    "skills/kickstart-pathfinder/SKILL.md": "planner",
+    "skills/to-specs/SKILL.md": "planner",
+    "skills/to-tickets/SKILL.md": "planner",
+    "skills/ticket/actions/load.md": "developer",
+    "skills/ticket/actions/start.md": "developer",
+    "skills/ticket/actions/review.md": "tester",
+    "skills/ticket/actions/complete.md": "developer",
+}
 
 # The one statement of what a destination project receives. Everything else
 # that names the list — the README install section, npm's `files` allowlist,
@@ -1308,6 +1322,38 @@ def check_role_skills(path: Path, skill_names: set[str]) -> None:
                  f"`skills/{name}/` directory")
 
 
+def check_lifecycle_role_assumptions() -> None:
+    """Every lifecycle entry point declares exactly its one default role."""
+    for relative_path, expected_role in LIFECYCLE_ROLE_ASSUMPTIONS.items():
+        path = ROOT / relative_path
+        if not path.is_file():
+            fail(relative_path, "lifecycle-role-assumption", "file is missing")
+            continue
+
+        text = path.read_text(encoding="utf-8")
+        headings = re.findall(r"^## Assumed role\s*$", text, re.MULTILINE)
+        if len(headings) != 1:
+            fail(path, "lifecycle-role-assumption",
+                 f"expected one `## Assumed role` section, found {len(headings)}")
+            continue
+
+        section = re.search(
+            r"^## Assumed role\s*$\n(.*?)(?=^## |\Z)",
+            text, re.MULTILINE | re.DOTALL,
+        )
+        body = section.group(1) if section else ""
+        named_roles = re.findall(r"`roles/(planner|developer|tester)\.md`", body)
+        if named_roles != [expected_role]:
+            fail(path, "lifecycle-role-assumption",
+                 f"expected only `roles/{expected_role}.md`, found {named_roles}")
+        if f"assume `{expected_role}`" not in body:
+            fail(path, "lifecycle-role-assumption",
+                 f"does not declare `{expected_role}` as its assumed role")
+        if "explicit role overrides" not in body:
+            fail(path, "lifecycle-role-override",
+                 "does not preserve the human's explicit `/role` override")
+
+
 def check_help_text() -> None:
     """`--help` must document every flag the parser accepts, and every harness.
 
@@ -1390,6 +1436,7 @@ def main() -> int:
     check_adapter_generation()
     check_copy_list()
     check_roles(skill_names)
+    check_lifecycle_role_assumptions()
     check_help_text()
     check_no_junk_tracked()
     check_never_ships()

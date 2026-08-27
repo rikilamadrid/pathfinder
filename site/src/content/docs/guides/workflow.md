@@ -25,6 +25,12 @@ Nothing enforces the stops. They are written into the skills and into
 [`context/ai-interaction.md`](/context/ai-interaction/), which is a markdown file in
 your repository that you can widen, narrow, or pre-approve parts of.
 
+The lifecycle also reads its responsibility boundary automatically. Discovery
+and planning use `planner`; ticket load, start, and complete use `developer`;
+ticket review uses `tester`. `/role` is an explicit human override, not a setup
+step before any arrow on this page. Roles narrow responsibility and never grant
+the human authority that the decision points reserve.
+
 ## Discovery and validation
 
 From an idea, or an existing repository, to project context you approved.
@@ -123,7 +129,7 @@ to-specs         = convert an approved direction into planned work
 ## Delivery loop
 
 The loop you spend most of your time in. One feature at a time, and inside a
-feature, one delivery chunk at a time.
+feature, one ticket at a time.
 
 ```text
 project context
@@ -131,16 +137,20 @@ project context
 → to-specs                 split the approved direction into small features
                            blockers are reported, not invented around
 
-→ /feature load            prepare exactly one feature
-                           fills context/current-feature.md
+→ to-tickets               slice one approved feature into executable tickets
+                           each names what blocks it, by key
 
-→ /feature start           implement one delivery chunk
+→ /ticket load             prepare exactly one ticket, and its feature
+                           fills context/current-ticket.md
+
+→ /ticket start            implement that ticket
      ◆ dependencies, migrations, destructive commands, and commits
        all stop here for approval
 
-→ /feature review          check against requirements, regressions, standards
+→ /ticket review           check against requirements, regressions, standards
 
-→ /feature complete        confirm each acceptance criterion with evidence
+→ /ticket complete         confirm each acceptance criterion with evidence
+                           and name the tickets that are now ready
      ◆ commit, merge, changelog, versioning, and release follow the policy
        you documented, requesting approval where that policy requires it
 
@@ -151,16 +161,16 @@ Features are sized for a focused context window, not for ambition. A good one
 creates a single visible or system-verifiable outcome, states what to load and what
 to ignore, and can be verified on its own. "Build the backend" is not a feature. Two
 ideas do the work here: [context boundaries](/concepts/context-boundaries/) and
-[delivery chunks](/concepts/delivery-chunks/).
+[tickets](/concepts/tickets/).
 
-`/feature start` restates the goal, the active chunk, the files it expects to
+`/ticket start` restates the goal, the active ticket, the files it expects to
 touch, the risks, its verification plan, and what it considers out of scope
 **before** it writes anything. Read that restatement. It is the cheapest place to
 catch a misunderstanding — cheaper than the review, and far cheaper than the merge.
 
-The [`feature`](/skills/feature/) page is the dispatcher: it names the four actions,
-says what each one is for, and states the lifecycle they move a feature through. Each
-action's full procedure ships in the kit, under `skills/feature/actions/`.
+The [`ticket`](/skills/ticket/) page is the dispatcher: it names the four actions,
+says what each one is for, and states the lifecycle they move a ticket through. Each
+action's full procedure ships in the kit, under `skills/ticket/actions/`.
 
 ### When something breaks
 
@@ -186,10 +196,10 @@ regression, incorrect output, an intermittent or environment-specific failure. I
 not for work that is merely hard:
 
 ```text
-debug-issue     = an observed failure needs an explanation
-/feature start  = planned construction is difficult
-/feature review = completed implementation needs inspection for defects
-learn-codebase  = the real question is understanding the repository
+debug-issue    = an observed failure needs an explanation
+/ticket start  = planned construction is difficult
+/ticket review = completed implementation needs inspection for defects
+learn-codebase = the real question is understanding the repository
 ```
 
 When the evidence runs out or the reproduction is too unstable to support a safe
@@ -269,26 +279,23 @@ skill owns the responsibility.
 
 Neither belongs to a loop, so neither is filed inside one.
 
-## Work tracking sits beside the loops, not inside one
+## Choosing a ticket store sits beside the loops, not inside one
 
-[`setup-tracker`](/skills/setup-tracker/) configures an optional projection of your
-feature specs onto GitHub Issues or local Markdown files, and
-[`sync-tracker`](/skills/sync-tracker/) publishes them. It is not a step in any
-loop above, and a project that never configures a tracker meets none of it — no
-file, no prompt, and no change to any diagram on this page.
+Every project already has a ticket store: with no configuration it is local
+Markdown files under `context/tickets/`, and the delivery loop above runs
+against it exactly as drawn.
+
+[`setup-tracker`](/skills/setup-tracker/) is for a project whose tickets belong
+in GitHub Issues, Jira, Linear, Azure DevOps, or something internal. It is not a
+step in any loop above, and running it changes no diagram on this page — the
+same four actions read and write the same one ticket, wherever that ticket
+lives.
 
 It is filed separately for that reason. Placing it in the delivery loop would
-imply every project has a step there, and most do not.
+imply every project has a step there, and most never run it.
 
-The delivery loop does carry it, though, when a config exists: `to-specs` offers
-to publish, `/feature load` names the tracked item, and `/feature complete`
-reconciles it after the merge. `/feature start` deliberately publishes nothing — a
-chunk boundary is internal, and the tracker does not need to hear about it. Each
-of those is one conditional line that does nothing without a config, which is why
-none of them appears on the diagrams above.
-
-[Work tracking](/guides/work-tracking/) covers what it does, why a second run
-should write nothing, and why the repository stays canonical.
+[Ticket stores](/guides/ticket-stores/) covers what a store is, why there is
+only ever one copy of a ticket, and what changing store later costs.
 
 ## Where you decide, in one list
 
@@ -318,5 +325,5 @@ that is still `TBD`.
 
 If you have not installed anything yet, [Getting started](/guides/getting-started/)
 runs the first loop end to end in a real repository. If you have, the skill you will
-read most is [`feature`](/skills/feature/), which dispatches the four actions,
+read most is [`ticket`](/skills/ticket/), which dispatches the four actions,
 and [all skills](/skills/) lists every one of them with its own summary.

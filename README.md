@@ -145,12 +145,12 @@ Claude Code namespaces every plugin skill, with no way to opt out. Through the
 plugin, each Pathfinder skill is `/pathfinder:<skill>`:
 
 ```text
-/pathfinder:feature load
+/pathfinder:ticket load
 /pathfinder:role planner
 /pathfinder:whereami
 ```
 
-The bare `/feature` form comes from a generated adapter in your repository, which
+The bare `/ticket` form comes from a generated adapter in your repository, which
 is the installer's job (`npx create-pathfinder --agents claude-code`). A
 repository with both installed has both forms. They run the same canonical skill
 body, so neither overrides the other and it does not matter which you type.
@@ -202,15 +202,19 @@ kickstart / debate / prototype
   ↓
 to-specs
   ↓
-/feature load
+to-tickets
   ↓
-/feature start
+/ticket load
   ↓
-optional /feature review
+/ticket start
+  ↓
+optional /ticket review
   ↓
 human acceptance
   ↓
-/feature complete
+/ticket complete
+  ↓
+the next ready ticket
 ```
 
 A prototype is optional. Use one when an important assumption is cheaper to
@@ -224,31 +228,36 @@ and tests hypotheses rather than editing at random. See
 [When something breaks](https://pathfinder-kit.vercel.app/guides/workflow/#when-something-breaks).
 
 Supporting skills handle learning, reference analysis, handoff, reflection, and
-optional work tracking when those are useful.
+ticket-store selection when those are useful.
 
 See the
 [workflow guide](https://pathfinder-kit.vercel.app/guides/workflow/)
 for the complete model.
 
-## Optional roles
+## Automatic roles and explicit overrides
 
-Roles narrow what an AI session is responsible for.
+The normal lifecycle assumes its responsibility boundary automatically:
+
+| Invocation | Assumed role |
+| --- | --- |
+| `kickstart-pathfinder`, `to-specs`, `to-tickets` | `planner` |
+| `/ticket load`, `/ticket start`, `/ticket complete` | `developer` |
+| `/ticket review` | `tester` |
 
 Pathfinder ships three:
 
 | Role | Responsibility |
 | --- | --- |
-| `planner` | Turns approved direction into clear Feature specs |
+| `planner` | Discovers project direction and produces Features and tickets |
 | `developer` | Implements approved work without accepting its own work |
 | `tester` | Independently verifies delivered work and reports findings |
 
-Activate one in a supported tool:
+Use `/role` only when you want to override that default explicitly or debug a
+workflow under a particular boundary:
 
 ```text
 /role developer
 ```
-
-Roles are optional.
 
 They do not grant authority. The human always owns approval, acceptance,
 merge, release, and other decisions requiring judgment.
@@ -360,7 +369,7 @@ For deeper onboarding or architectural understanding, use:
 
 Do not use `reverse-engineer` to analyze the repository Pathfinder is currently
 operating inside. That responsibility belongs to `kickstart-pathfinder`,
-`learn-codebase`, or the relevant feature skill.
+`learn-codebase`, or the active ticket's lifecycle action.
 
 ## Native to your tools
 
@@ -427,42 +436,36 @@ Some common entry points:
 | `debate-me` | Pressure-testing a direction before committing to it |
 | `prototype` | Proving an important assumption cheaply |
 | `to-specs` | Turning approved direction into Features |
-| `feature` | The delivery loop: `load`, `start`, `review`, `complete` |
+| `to-tickets` | Slicing one approved Feature into executable tickets |
+| `ticket` | The delivery loop: `load`, `start`, `review`, `complete` |
 | `debug-issue` | Something is observably broken |
 | `handoff` | Leaving factual state for another session |
 | `whereami` | Getting quick session orientation |
 | `learn-feature` | Learning from completed work |
 | `reflect` | Improving the workflow from actual experience |
-| `setup-tracker` | Opting into work tracking |
-| `sync-tracker` | Projecting Features to the configured tracker |
+| `setup-tracker` | Choosing where tickets live |
 
 The complete list lives in `skills/` and on the
 [Pathfinder website](https://pathfinder-kit.vercel.app/).
 
-## Optional work tracking
+## Ticket stores
 
-Pathfinder does not require a ticket system.
+Every project has a ticket store. With no configuration it is local Markdown
+files under `context/tickets/`, which needs no credentials and no dependency.
 
-Feature specs in the repository remain canonical.
-
-If you want work projected somewhere else, run:
+If your tickets belong somewhere else — GitHub Issues, Jira, Linear, Azure
+DevOps, something internal — run:
 
 ```text
 /setup-tracker
 ```
 
-A project can use GitHub Issues, local Markdown files, or another configured
-tracker.
+The store you choose is canonical. There is one ticket artifact and no copy of
+it in the repository, so there is nothing to sync and no way for a mirror to go
+stale. Feature specs are not tickets: they stay in the repository whatever store
+you pick.
 
-Then:
-
-```text
-/sync-tracker
-```
-
-projects the selected Features outward.
-
-Tracker state never silently becomes Pathfinder state.
+Changing store later is a deliberate migration, not a background job.
 
 ## Context stays small
 
@@ -481,9 +484,10 @@ For example:
 ```text
 context/project-overview.md
 context/features/
+context/tickets/          # only when local Markdown is the ticket store
 context/history.md
-context/tracker.md
-context/current-feature.md
+context/tracker.md        # only when the store is not local Markdown
+context/current-ticket.md
 context/handoff.md
 ```
 
@@ -500,8 +504,9 @@ Examples:
 ```text
 context/project-overview.md
 context/features/
+context/tickets/          # when local Markdown is the ticket store
 context/history.md
-context/tracker.md
+context/tracker.md        # when it is not
 ```
 
 **Temporary session state is normally ignored.**
@@ -510,7 +515,7 @@ Two paths belong to one session on one machine, and are two lines in
 `.gitignore`:
 
 ```gitignore
-context/current-feature.md
+context/current-ticket.md
 context/handoff.md
 ```
 
@@ -547,7 +552,6 @@ at `skills/`.
 │   ├── challenge-me/
 │   ├── debate-me/
 │   ├── debug-issue/
-│   ├── feature/
 │   ├── handoff/
 │   ├── kickstart-pathfinder/
 │   ├── learn-codebase/
@@ -560,17 +564,19 @@ at `skills/`.
 │   ├── role/
 │   ├── setup-tracker/
 │   ├── skillsmith/
-│   ├── sync-tracker/
 │   ├── teach-architecture/
 │   ├── teach-feature/
+│   ├── ticket/
 │   ├── to-specs/
+│   ├── to-tickets/
 │   └── whereami/
 └── templates/
     ├── CHANGELOG.template.md
     ├── feature-spec.template.md
     ├── history.template.md
     ├── lesson.template.md
-    └── project-overview.template.md
+    ├── project-overview.template.md
+    └── ticket.template.md
 ```
 
 </details>
@@ -592,7 +598,7 @@ README:
 - [Workflow](https://pathfinder-kit.vercel.app/guides/workflow/)
 - [Human approval](https://pathfinder-kit.vercel.app/concepts/human-approval/)
 - [Context boundaries](https://pathfinder-kit.vercel.app/concepts/context-boundaries/)
-- [Work tracking](https://pathfinder-kit.vercel.app/guides/work-tracking/)
+- [Ticket stores](https://pathfinder-kit.vercel.app/guides/ticket-stores/)
 
 ## Contributing
 

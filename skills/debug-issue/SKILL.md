@@ -29,9 +29,9 @@ Use Debug Issue when there is a concrete unexpected behavior such as:
 
 Do not use it merely because implementation work is difficult.
 
-If the task is planned feature construction, use `/feature start`.
+If the task is planned construction, use `/ticket start`.
 
-If the goal is reviewing completed implementation for possible defects, use `/feature review`.
+If the goal is reviewing completed implementation for possible defects, use `/ticket review`.
 
 If the real question is broad understanding of the repository, use `learn-codebase`.
 
@@ -202,8 +202,8 @@ It does not:
 
 * implement unrelated feature scope
 * perform a general repository review
-* replace `/feature review`
-* replace `/feature complete`
+* replace `/ticket review`
+* replace `/ticket complete`
 * silently change architecture or dependencies
 * turn debugging into opportunistic refactoring
 * hide uncertainty behind a successful-looking workaround

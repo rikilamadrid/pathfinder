@@ -13,7 +13,7 @@ The goal is not to produce generic documentation. The goal is to help the learne
 
 Read only the smallest useful context:
 
-1. `context/current-feature.md`
+1. `context/current-ticket.md`, and the ticket it names
 2. The source feature spec under `context/features/`
 3. `context/project-overview.md`
 4. The current branch, working tree status, and focused diff

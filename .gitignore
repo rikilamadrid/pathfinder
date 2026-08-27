@@ -19,10 +19,13 @@ __MACOSX/
 /context/tracker.md
 
 # This repository's own transient session state, ignored for the same reason
-# and by the same pair of mechanisms. `/feature load` and `handoff` write these
+# and by the same pair of mechanisms. `/ticket load` and `handoff` write these
 # on first use; neither is durable project truth, and a committed copy would
 # be one maintainer's in-flight work showing up in everybody's diff. Durable
-# context — project-overview.md, features/, history.md — is tracked normally.
+# context — project-overview.md, features/, tickets/, history.md — is tracked
+# normally. `current-feature.md` is the file `current-ticket.md` replaced, kept
+# here so a checkout that predates the ticket loop stays clean.
+/context/current-ticket.md
 /context/current-feature.md
 /context/handoff.md
 

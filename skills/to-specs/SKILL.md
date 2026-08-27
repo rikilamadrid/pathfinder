@@ -7,6 +7,12 @@ description: Turn approved direction into small, clear Feature specs.
 
 Turn approved direction into the minimum Feature specs needed to implement it.
 
+## Assumed role
+
+Unless the human explicitly activated a role, assume `planner` for this
+invocation: read `roles/planner.md` and follow it. An explicit role overrides
+this default. A role narrows responsibility and never grants human authority.
+
 ## Process
 
 1. Read the approved project context and relevant existing Features.
@@ -17,8 +23,11 @@ Turn approved direction into the minimum Feature specs needed to implement it.
    `NN-feature-name.md` — see Naming below.
 6. Fill only information that materially helps implementation and review.
 7. Present the created Features and recommend which one to start first.
-8. If `context/tracker.md` exists, offer to publish them with `sync-tracker`.
-   Do nothing here if it does not.
+   Recommend `to-tickets` on that Feature as the next action: a Feature is
+   planned work, and tickets are what a session executes.
+8. Do not consult or write the ticket store. Feature specs stay in the
+   repository; `to-tickets` owns creating their executable tickets wherever the
+   project keeps them.
 
 ## Naming
 
@@ -27,8 +36,8 @@ A Feature spec is named `NN-feature-name.md` in the spec source, for example
 
 `NN` is the Feature number: the next unused number in the spec source, counting
 every spec already there whatever its status. Numbers are never reused and never
-renumbered, because a published tracker item is matched on that number and
-renumbering would orphan it.
+renumbered, because every ticket of that Feature carries the number in its own
+key — `NN.TT` — and renumbering would orphan all of them.
 
 The number lives in the filename and nowhere else. The Feature template carries
 no number field, and nothing else in the spec records one.
@@ -46,7 +55,8 @@ Split only when separate outcomes:
 
 Prefer fewer Features and fewer artifacts.
 
-Use delivery chunks inside a Feature before creating additional Features.
+A Feature that is coherent but large is not two Features. It is one Feature
+that `to-tickets` will slice into several tickets.
 
 ## Rules
 

@@ -27,6 +27,53 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-08-27
+
+### Added
+
+- **`to-tickets`, and tickets as the executable unit of work.** A Feature is the planning outcome; a ticket is what one fresh session implements, verifies, and hands back with the project still working. `/to-tickets` reads one approved Feature spec and creates its tickets in the configured store; in the default local-Markdown store those are `context/tickets/NN.TT-slug.md` files. Each ticket names its parent Feature, what to read, what to change, how to verify it, and — by key, never by file order — what blocks it. Blocker edges are checked to be acyclic before anything is written.
+- **`templates/ticket.template.md`**, the stencil `to-tickets` writes from.
+- **The ticket delivery loop.** `/ticket load|start|review|complete` executes one ticket per session. `load` resolves where tickets live, reads the ticket and its parent Feature, and refuses to proceed while any blocker is unfinished — naming it, and writing no status on the way out. `complete` finishes the ticket and then names the tickets that its completion just unblocked, leaving the choice of the next one to you. A Feature's status is now derived from its tickets rather than maintained by hand: the first ticket to reach `In Progress` moves the Feature there, and a Feature whose tickets are all terminal becomes `Complete`.
+
+### Changed
+
+- **Lifecycle roles are automatic.** `kickstart-pathfinder`, `to-specs`, and `to-tickets` assume `planner`; ticket `load`, `start`, and `complete` assume `developer`; ticket `review` assumes `tester`. Each reads the role contract for that invocation, so the normal lifecycle needs no preceding `/role` step. `/role` remains as an explicit human override and debugging tool, and no role grants approval, acceptance, merge, release, or other human authority.
+- **The configured ticket store is canonical.** Tickets live in exactly one place, and local Markdown under `context/tickets/` is a store on the same footing as GitHub Issues, Jira, Linear, or Azure DevOps — not a mirror kept in step with one. `skills/ticket/store.md` is the single statement of how the store resolves (no `context/tracker.md` selects local Markdown, as the default rather than a fallback), how a ticket's `NN.TT` key is carried where tickets are not files, and that a Feature spec is never in the store. `to-tickets` creates tickets there; `load`, `start`, `review`, and `complete` read and write that same ticket; `complete` closes it where the store has a closed state. `setup-tracker` now chooses the store and says what the choice costs — changing it later is a deliberate human migration, and nothing moves tickets between stores automatically. `context/tickets/` therefore exists only in a local-Markdown project, which the agent entry files, README, and site now say.
+- **`context/current-feature.md` is now `context/current-ticket.md`.** Same file, same transience, named for what the loop actually loads. Both paths stay on the installer's never-ships list, so an upgrade cannot drop a maintainer's copy over the one an older project already has.
+
+### Removed
+
+- **`sync-tracker`.** There is nothing left to synchronize. Tickets live in one place — the configured store — so no second copy exists to reconcile, and no `/ticket sync` replaces it. The `work-tracking` guide is now `ticket-stores`, and it describes choosing where tickets live rather than projecting them somewhere.
+- **The `feature` delivery loop.** `/feature load|start|review|complete` and `skills/feature/actions/` are gone, replaced by `/ticket`. There is one delivery loop, and it runs on the unit that `to-tickets` produces.
+
+- **Delivery Chunks are gone.** `## Delivery Chunks` is removed from `templates/feature-spec.template.md`, and every kit statement that a Feature is executed chunk by chunk now names the ticket instead — `CLAUDE.md`, `AGENTS.md`, `context/ai-interaction.md`, `to-specs`, `whereami`, and the delivery loop's own actions. There is one execution layer, not two. `to-specs` no longer offers chunks as an alternative to splitting a Feature: a coherent but large Feature stays one Feature, and `to-tickets` slices it.
+
+### Upgrading
+
+Re-running `create-pathfinder` never deletes files that an older release
+installed, and it does not overwrite files already present. Existing projects
+must review their local customizations, apply the changed kit files manually,
+or rerun with `--force` knowingly, and remove the retired surfaces deliberately:
+
+- Remove `skills/feature/` and `skills/sync-tracker/`, plus their generated
+  `.claude/skills/` or `.agents/skills/` adapters when present. Regenerate
+  adapters from the current `skills/` tree afterwards.
+- Add `skills/to-tickets/`, `skills/ticket/`, and
+  `templates/ticket.template.md` from this release.
+- Rename `context/current-feature.md` to `context/current-ticket.md` if an
+  in-flight session still needs it; otherwise discard the transient file. Keep
+  both paths ignored so neither can ship into another project.
+- Replace Feature delivery chunks with tickets. Existing Feature specs remain
+  valid planning records, but new work runs through `to-tickets` and
+  `/ticket load|start|review|complete`.
+- If `context/tracker.md` configured a projection, choose which existing place
+  now owns the tickets and rewrite the configuration to name that canonical
+  store and how it carries each `NN.TT` key. Migrate once, deliberately;
+  Pathfinder does not move or synchronize ticket data.
+- No `/role` setup step is needed. Lifecycle skills assume `planner`,
+  `developer`, or `tester` as appropriate; `/role` remains available only for
+  an explicit override or debugging session.
+
 ## [3.1.0] - 2026-08-25
 
 ### Added

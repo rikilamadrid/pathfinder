@@ -1,6 +1,6 @@
 {
   "name": "lamadrid-labs",
-  "description": "Lamadrid Labs plugins for Claude Code. Currently: Pathfinder, an AI-assisted, human-in-the-loop delivery workflow.",
+  "description": "Lamadrid Labs plugins for Claude Code. Currently: Pathfinder, a ticket-first, human-in-the-loop software delivery workflow.",
   "owner": {
     "name": "Ricardo Lamadrid",
     "url": "https://github.com/rikilamadrid"

@@ -13,7 +13,7 @@ The goal is retrieval and diagnosis, not entertainment and not a long exam.
 ## Read First
 
 1. The relevant lesson in `context/learning/lessons/`
-2. `context/current-feature.md`
+2. `context/current-ticket.md`
 3. Only the implementation or tests needed to verify answers
 4. `context/learning/progress.md`
 

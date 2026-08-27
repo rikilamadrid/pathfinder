@@ -1,6 +1,6 @@
 ---
 name: role
-description: Activate one named Pathfinder role for the current session.
+description: Explicitly override the role Pathfinder's lifecycle would assume.
 argument-hint: planner|developer|tester
 ---
 

@@ -56,14 +56,15 @@ export const WORKFLOW_LOOPS = [
     label: 'Delivery loop',
     skills: [
       'to-specs',
-      'feature',
+      'to-tickets',
+      'ticket',
       'debug-issue',
     ],
     boundary: [
-      'debug-issue     = an observed failure needs an explanation',
-      '/feature start  = planned construction is difficult',
-      '/feature review = completed implementation needs inspection for defects',
-      'learn-codebase  = the real question is understanding the repository',
+      'debug-issue    = an observed failure needs an explanation',
+      '/ticket start  = planned construction is difficult',
+      '/ticket review = completed implementation needs inspection for defects',
+      'learn-codebase = the real question is understanding the repository',
     ],
   },
   {
@@ -84,12 +85,12 @@ export const WORKFLOW_LOOPS = [
   },
   {
     // Also not a loop, and deliberately its own group rather than a corner of
-    // the delivery loop. Work Tracking is *optional*: a project with no
-    // `context/tracker.md` never meets these skills at all. Filing them under
+    // the delivery loop. Every project has a ticket store, but a project happy
+    // with local Markdown never meets this skill at all. Filing it under
     // delivery would imply every project has a step here, which is the one
     // thing the design is careful not to claim.
-    label: 'Work tracking (optional)',
-    skills: ['setup-tracker', 'sync-tracker'],
+    label: 'Ticket store selection (optional)',
+    skills: ['setup-tracker'],
   },
   {
     // Not a sixth loop. These are cross-cutting utilities and the README does
@@ -117,13 +118,14 @@ const GUIDES = [
   { label: 'Getting started', link: '/guides/getting-started/' },
   { label: 'The workflow', link: '/guides/workflow/' },
   // After the workflow, because a role only means something once you know the
-  // loops it scopes. Before work tracking, because roles ship with every
-  // install — they are inert until named rather than absent until configured.
+  // loops it scopes. Before ticket-store selection, because roles ship with
+  // every install and the lifecycle reads them automatically rather than only
+  // after separate configuration.
   { label: 'Roles', link: '/guides/roles/' },
-  // Last, and labelled optional in its own heading, because it describes a
-  // capability a project only has if it asks for one. A reader who never
-  // configures a tracker should be able to skip this and miss nothing.
-  { label: 'Work tracking', link: '/guides/work-tracking/' },
+  // Last, because a reader who is happy with the default store — local
+  // Markdown, which every install has without asking — can skip it and miss
+  // nothing.
+  { label: 'Ticket stores', link: '/guides/ticket-stores/' },
 ];
 
 /**
@@ -133,7 +135,7 @@ const GUIDES = [
  */
 const CONCEPTS = [
   { label: 'Context boundaries', link: '/concepts/context-boundaries/' },
-  { label: 'Delivery chunks', link: '/concepts/delivery-chunks/' },
+  { label: 'Tickets', link: '/concepts/tickets/' },
   { label: 'Decision states', link: '/concepts/decision-states/' },
   { label: 'Human approval', link: '/concepts/human-approval/' },
 ];
