@@ -81,7 +81,7 @@ The installer copies six kit entries into your repository:
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell supported agents how to work in the project |
 | `context/` | Project standards and interaction rules; other context is created only when needed |
 | `roles/` | Three optional responsibility contracts: planner, developer, tester |
-| `skills/` | Reusable procedures for discovery, specs, delivery, debugging, review, learning, and optional work tracking |
+| `skills/` | Reusable procedures for discovery, specs, delivery, debugging, review, learning, and ticket-store selection |
 | `templates/` | Minimal starting shapes; records are created from them later, when a workflow needs one |
 
 A fresh Pathfinder 2.0 project begins with only:

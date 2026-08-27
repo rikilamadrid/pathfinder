@@ -1,6 +1,6 @@
 ---
 name: setup-tracker
-description: Configure optional work tracking for the project.
+description: Choose the canonical ticket store when it is not local Markdown.
 ---
 
 <!-- pathfinder:adapter v1 source=skills/setup-tracker/SKILL.md -->

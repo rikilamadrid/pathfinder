@@ -228,7 +228,7 @@ and tests hypotheses rather than editing at random. See
 [When something breaks](https://pathfinder-kit.vercel.app/guides/workflow/#when-something-breaks).
 
 Supporting skills handle learning, reference analysis, handoff, reflection, and
-optional work tracking when those are useful.
+ticket-store selection when those are useful.
 
 See the
 [workflow guide](https://pathfinder-kit.vercel.app/guides/workflow/)
@@ -438,36 +438,29 @@ Some common entry points:
 | `whereami` | Getting quick session orientation |
 | `learn-feature` | Learning from completed work |
 | `reflect` | Improving the workflow from actual experience |
-| `setup-tracker` | Opting into work tracking |
-| `sync-tracker` | Projecting Features to the configured tracker |
+| `setup-tracker` | Choosing where tickets live |
 
 The complete list lives in `skills/` and on the
 [Pathfinder website](https://pathfinder-kit.vercel.app/).
 
-## Optional work tracking
+## Ticket stores
 
-Pathfinder does not require a ticket system.
+Every project has a ticket store. With no configuration it is local Markdown
+files under `context/tickets/`, which needs no credentials and no dependency.
 
-Feature specs in the repository remain canonical.
-
-If you want work projected somewhere else, run:
+If your tickets belong somewhere else — GitHub Issues, Jira, Linear, Azure
+DevOps, something internal — run:
 
 ```text
 /setup-tracker
 ```
 
-A project can use GitHub Issues, local Markdown files, or another configured
-tracker.
+The store you choose is canonical. There is one ticket artifact and no copy of
+it in the repository, so there is nothing to sync and no way for a mirror to go
+stale. Feature specs are not tickets: they stay in the repository whatever store
+you pick.
 
-Then:
-
-```text
-/sync-tracker
-```
-
-projects the selected Features outward.
-
-Tracker state never silently becomes Pathfinder state.
+Changing store later is a deliberate migration, not a background job.
 
 ## Context stays small
 
@@ -486,9 +479,9 @@ For example:
 ```text
 context/project-overview.md
 context/features/
-context/tickets/
+context/tickets/          # only when local Markdown is the ticket store
 context/history.md
-context/tracker.md
+context/tracker.md        # only when the store is not local Markdown
 context/current-ticket.md
 context/handoff.md
 ```
@@ -506,9 +499,9 @@ Examples:
 ```text
 context/project-overview.md
 context/features/
-context/tickets/
+context/tickets/          # when local Markdown is the ticket store
 context/history.md
-context/tracker.md
+context/tracker.md        # when it is not
 ```
 
 **Temporary session state is normally ignored.**
@@ -566,7 +559,6 @@ at `skills/`.
 │   ├── role/
 │   ├── setup-tracker/
 │   ├── skillsmith/
-│   ├── sync-tracker/
 │   ├── teach-architecture/
 │   ├── teach-feature/
 │   ├── ticket/
@@ -601,7 +593,7 @@ README:
 - [Workflow](https://pathfinder-kit.vercel.app/guides/workflow/)
 - [Human approval](https://pathfinder-kit.vercel.app/concepts/human-approval/)
 - [Context boundaries](https://pathfinder-kit.vercel.app/concepts/context-boundaries/)
-- [Work tracking](https://pathfinder-kit.vercel.app/guides/work-tracking/)
+- [Ticket stores](https://pathfinder-kit.vercel.app/guides/ticket-stores/)
 
 ## Contributing
 

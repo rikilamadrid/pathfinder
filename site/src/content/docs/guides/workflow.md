@@ -273,26 +273,23 @@ skill owns the responsibility.
 
 Neither belongs to a loop, so neither is filed inside one.
 
-## Work tracking sits beside the loops, not inside one
+## Choosing a ticket store sits beside the loops, not inside one
 
-[`setup-tracker`](/skills/setup-tracker/) configures an optional projection of your
-feature specs onto GitHub Issues or local Markdown files, and
-[`sync-tracker`](/skills/sync-tracker/) publishes them. It is not a step in any
-loop above, and a project that never configures a tracker meets none of it — no
-file, no prompt, and no change to any diagram on this page.
+Every project already has a ticket store: with no configuration it is local
+Markdown files under `context/tickets/`, and the delivery loop above runs
+against it exactly as drawn.
+
+[`setup-tracker`](/skills/setup-tracker/) is for a project whose tickets belong
+in GitHub Issues, Jira, Linear, Azure DevOps, or something internal. It is not a
+step in any loop above, and running it changes no diagram on this page — the
+same four actions read and write the same one ticket, wherever that ticket
+lives.
 
 It is filed separately for that reason. Placing it in the delivery loop would
-imply every project has a step there, and most do not.
+imply every project has a step there, and most never run it.
 
-The delivery loop does carry it, though, when a config exists: `to-specs` offers
-to publish, `/ticket load` names the tracked item, and `/ticket complete`
-reconciles it after the merge. `/ticket start` deliberately publishes nothing — a
-chunk boundary is internal, and the tracker does not need to hear about it. Each
-of those is one conditional line that does nothing without a config, which is why
-none of them appears on the diagrams above.
-
-[Work tracking](/guides/work-tracking/) covers what it does, why a second run
-should write nothing, and why the repository stays canonical.
+[Ticket stores](/guides/ticket-stores/) covers what a store is, why there is
+only ever one copy of a ticket, and what changing store later costs.
 
 ## Where you decide, in one list
 

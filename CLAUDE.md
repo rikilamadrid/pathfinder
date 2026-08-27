@@ -18,9 +18,9 @@ Do not load the whole repo by default.
 Pathfinder ships two context files: `ai-interaction.md` and
 `coding-standards.md`. Everything else in `context/` — `project-overview.md`,
 `features/`, `tickets/`, `history.md`, `current-ticket.md`, `handoff.md` — is
-written by
-the workflow that first needs it. A missing file here is normal; skip it rather
-than treating it as an error.
+written by the workflow that first needs it. A missing file here is normal; skip
+it rather than treating it as an error. `tickets/` in particular exists only
+when local Markdown is the project's ticket store.
 
 Track the durable ones in Git and ignore the two transient ones,
 `current-ticket.md` and `handoff.md`. `context/coding-standards.md` carries the
@@ -97,5 +97,4 @@ An adapter carries the canonical skill's frontmatter and a pointer to it, and no
 - `role` — activate one named role for the current session
 - `whereami` — report a compact read-only snapshot of the current session
 - `skillsmith` — teach and create small local skills
-- `setup-tracker` — configure an optional external work tracker
-- `sync-tracker` — publish approved feature specs to the configured tracker, one-way and idempotently
+- `setup-tracker` — choose the canonical ticket store when it is not local Markdown

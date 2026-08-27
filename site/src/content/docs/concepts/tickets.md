@@ -7,8 +7,9 @@ A feature is a planning outcome. A ticket is the executable unit: one slice of a
 feature that a single session can implement, verify, and hand back with the
 project still working.
 
-[`to-tickets`](/skills/to-tickets/) reads one approved feature spec and writes
-the tickets that execute it:
+[`to-tickets`](/skills/to-tickets/) reads one approved feature spec and creates
+the tickets that execute it, in your [ticket store](/guides/ticket-stores/).
+With no store configured that is local Markdown, and the tickets are files:
 
 ```text
 context/tickets/27.1-read-saved-searches.md
@@ -16,8 +17,9 @@ context/tickets/27.2-csv-writer.md
 context/tickets/27.3-download-endpoint.md
 ```
 
-Each one carries the feature it belongs to, what blocks it, what to read, what to
-change, and how to verify it.
+In a project whose store is GitHub Issues they are issues instead, and nothing
+about the rest of this page changes. Each ticket carries the feature it belongs
+to, what blocks it, what to read, what to change, and how to verify it.
 
 ## Stable is the load-bearing word
 

@@ -136,8 +136,8 @@ A prototype is optional.
 Features are small, focused, and independently verifiable.
 
 Debugging, learning, external-reference analysis, handoff, reflection, and
-work tracking are supporting workflows you invoke when useful rather than
-mandatory stages every Feature must pass through.
+ticket-store selection are supporting workflows you invoke when useful rather
+than mandatory stages every Feature must pass through.
 
 When it is not obvious which one applies:
 
@@ -209,9 +209,9 @@ Durable project truth is tracked in Git:
 ```text
 context/project-overview.md
 context/features/
-context/tickets/
+context/tickets/          # when local Markdown is the ticket store
 context/history.md
-context/tracker.md
+context/tracker.md        # when it is not
 ```
 
 Temporary workspace state is normally ignored:
@@ -268,28 +268,23 @@ For deeper understanding of an existing codebase:
 /learn-codebase
 ```
 
-## Optional work tracking
+## Where tickets live
 
-Pathfinder does not require a ticket system.
+Every project has a ticket store. With no configuration it is local Markdown
+files under `context/tickets/`.
 
-Feature specs in the repository remain canonical.
-
-If you want Features projected to GitHub Issues, local Markdown, or another
-tracker:
+If your tickets belong in GitHub Issues, Jira, Linear, Azure DevOps, or
+something internal:
 
 ```text
 /setup-tracker
 ```
 
-then:
+The store you choose is canonical — one ticket artifact, no copy in the
+repository, nothing to sync. Feature specs are not tickets and stay in the
+repository whatever you choose.
 
-```text
-/sync-tracker
-```
-
-Tracker state never silently becomes Pathfinder state.
-
-[Work tracking](/guides/work-tracking/) explains the optional model.
+[Ticket stores](/guides/ticket-stores/) explains the model.
 
 ## Who Pathfinder is for
 
@@ -324,4 +319,4 @@ For the deeper model, continue with:
 - [Workflow](/guides/workflow/)
 - [Roles](/guides/roles/)
 - [Human approval](/concepts/human-approval/)
-- [Work tracking](/guides/work-tracking/)
+- [Ticket stores](/guides/ticket-stores/)

@@ -60,11 +60,9 @@ export function isExcluded(basename) {
  * Every one of them would be actively wrong in somebody else's project,
  * though not all for the same reason — see `context/history.md` below.
  *
- * `context/tracker.md` is the original case. Work Tracking's off switch is the
- * *absence* of that file in a destination project, so shipping this
- * repository's own copy would hand every new project a configuration naming a
- * tracker it does not own, pointing at a spec directory it does not have, with
- * the off switch already defeated on first install.
+ * `context/tracker.md` is the original case. Its absence selects the default
+ * local-Markdown ticket store, so shipping this repository's own copy would
+ * hand every new project a configuration naming a store it does not own.
  *
  * `context/current-ticket.md` and `context/handoff.md` are transient session
  * state, and they are here for the same reason one step further on: the kit

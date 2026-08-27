@@ -92,10 +92,12 @@ Keep durable truth in its appropriate project artifact.
   `context/project-overview.md`
 - Feature contracts:
   `context/features/`
+- executable tickets, when local Markdown is the configured store:
+  `context/tickets/`
 - completed outcomes:
   `context/history.md`
 - active workspace state:
-  `context/current-feature.md`
+  `context/current-ticket.md`
 - state handed to the next session:
   `context/handoff.md`
 
@@ -115,6 +117,7 @@ project", it outlives any session, and a reviewer should see it change:
 ```text
 context/project-overview.md
 context/features/
+context/tickets/ # only when local Markdown is the ticket store
 context/history.md
 context/tracker.md
 ```
@@ -124,7 +127,7 @@ it belongs to one session on one machine, and committing it puts one person's
 in-flight work in everybody's diff:
 
 ```text
-context/current-feature.md
+context/current-ticket.md
 context/handoff.md
 ```
 
@@ -144,7 +147,8 @@ A team that would rather share workspace state — a single-machine project, or 
 handoff meant to be read by a colleague — can track them instead. Nothing in the
 kit reads Git state to decide how to behave.
 
-`context/tracker.md` is durable and tracked, with one exception that does not
-apply to your project: Pathfinder's own repository ignores it, because `context`
-is a directory in the installer's copy list and a committed copy would ship
-Pathfinder's tracker config to every new install.
+`context/tracker.md` is durable and tracked when the project selects a store
+other than local Markdown. With local Markdown, `context/tickets/` is durable
+and tracked instead. Pathfinder's own repository ignores its tracker config,
+because `context` is a directory in the installer's copy list and a committed
+copy would ship Pathfinder's store selection to every new install.

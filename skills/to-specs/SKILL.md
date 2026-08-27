@@ -19,8 +19,9 @@ Turn approved direction into the minimum Feature specs needed to implement it.
 7. Present the created Features and recommend which one to start first.
    Recommend `to-tickets` on that Feature as the next action: a Feature is
    planned work, and tickets are what a session executes.
-8. If `context/tracker.md` exists, offer to publish them with `sync-tracker`.
-   Do nothing here if it does not.
+8. Do not consult or write the ticket store. Feature specs stay in the
+   repository; `to-tickets` owns creating their executable tickets wherever the
+   project keeps them.
 
 ## Naming
 
@@ -29,8 +30,8 @@ A Feature spec is named `NN-feature-name.md` in the spec source, for example
 
 `NN` is the Feature number: the next unused number in the spec source, counting
 every spec already there whatever its status. Numbers are never reused and never
-renumbered, because a published tracker item is matched on that number and
-renumbering would orphan it.
+renumbered, because every ticket of that Feature carries the number in its own
+key — `NN.TT` — and renumbering would orphan all of them.
 
 The number lives in the filename and nowhere else. The Feature template carries
 no number field, and nothing else in the spec records one.

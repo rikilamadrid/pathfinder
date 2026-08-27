@@ -2,7 +2,7 @@
 
 Read `CLAUDE.md` first.
 
-Project truth lives in `context/`. Follow the technology and delivery choices documented in `context/project-overview.md`; do not assume a framework, package manager, branch model, or release process. That file, like `context/features/`, `context/tickets/`, `context/history.md`, `context/current-ticket.md`, and `context/handoff.md`, is created by the workflow that first needs it — its absence is normal, not an error. Track the durable ones in Git; `context/current-ticket.md` and `context/handoff.md` are transient session state and belong in `.gitignore`. Never ignore `context/` as a whole.
+Project truth lives in `context/`. Follow the technology and delivery choices documented in `context/project-overview.md`; do not assume a framework, package manager, branch model, or release process. That file, like `context/features/`, `context/history.md`, `context/current-ticket.md`, and `context/handoff.md`, is created by the workflow that first needs it — its absence is normal, not an error. `context/tickets/` exists only when local Markdown is the project's ticket store; a project whose tickets are in GitHub Issues or another tracker has none, and that is not a gap. Track the durable ones in Git; `context/current-ticket.md` and `context/handoff.md` are transient session state and belong in `.gitignore`. Never ignore `context/` as a whole.
 
 Use the smallest relevant context for the active task. Keep each ticket stable, reviewable, and verifiable.
 

@@ -4,6 +4,14 @@ Compact record of completed work.
 
 ## Completed
 
+### 2026-08-27 — Feature 44: The configured ticket store is canonical
+
+- Outcome: Tickets now live in exactly one configured store. Local Markdown under `context/tickets/` is the default store, not a mirror or fallback; a project configured for GitHub Issues or another tracker has no parallel local ticket copy. `to-tickets` creates tickets in that store, and `/ticket load|start|review|complete` reads and writes the same artifact. `sync-tracker` and its adapter are removed because there is nothing left to synchronize, and the public and internal guidance now treats `context/tickets/` as conditional on the local-Markdown choice.
+- Delivered as three accepted tickets plus one superseded design: 44.1 configured the ticket store, 44.4 made it canonical across the lifecycle, 44.3 retired `sync-tracker`, and the earlier projection-based 44.2 was superseded.
+- Verification: `validate-kit.py` OK (21 skills); 585/585 installer tests; adapters up to date under `--check`; docs site builds, 37 pages; live kit, README, package, and site searches contain no retired `sync-tracker` or work-tracking surface outside historical records.
+- Delivery: Committed on the dedicated Feature 44 branch. Merge and release remain human-owned and are not part of this completion step.
+- Follow-up: After Features 42–45, make the redesign's major version bump and run a full release/docs consistency pass across the website, GitHub README/docs, npm package, plugin metadata, changelog and release notes, adapters and examples. Verify the new lifecycle from a fresh install before release.
+
 ### 2026-08-27 — Feature 43: The ticket delivery loop replaces the feature delivery loop
 
 - Outcome: `/ticket load|start|review|complete` is the delivery loop, and `skills/feature/` is gone. `load` reads the ticket and its parent Feature, verifies every blocker, and stops without writing anything when one is unfinished — a blocker that is `Cancelled` or `Superseded` stops it too, because an edge into abandoned work is a planning question. `complete` names the tickets its completion just unblocked and leaves the choice of the next one to the human. A Feature's status is now derived from its tickets rather than maintained by hand: the first ticket to reach `In Progress` moves the Feature there, and a Feature whose tickets are all terminal becomes `Complete`. `context/current-feature.md` became `context/current-ticket.md`; both names stay on the installer's never-ships list so an upgrade cannot drop a maintainer's copy onto a project installed before the rename.

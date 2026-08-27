@@ -20,7 +20,7 @@ Ask before:
 - Git history rewriting
 - commits, merges, releases, or deployments
 - adopting prototype code into production
-- writes outside the repository, such as shared tracker changes
+- writes outside the repository, such as tickets in a shared store
 
 The human owns judgment, acceptance, merge, and release decisions.
 
@@ -69,7 +69,7 @@ Ticket status records durable lifecycle state only:
 
 - Read only what the current work requires.
 - Prefer exact files or sections over broad repository scans.
-- Do not load history, roadmap, tracker data, or unrelated context by
+- Do not load history, roadmap, other tickets, or unrelated context by
   default.
 - Work one ticket at a time.
 - If the work can no longer be understood safely in a focused session,

@@ -1,10 +1,9 @@
 /**
  * Files that live inside the kit but must never reach a destination project.
  *
- * `context/tracker.md` is the original case, and its absence *is* Work
- * Tracking's off switch. Shipping this repository's copy would hand every new
- * project a configuration naming a tracker it does not own — with the switch
- * already flipped on before anybody asked for it.
+ * `context/tracker.md` is the original case. Its absence selects the default
+ * local-Markdown ticket store. Shipping this repository's copy would hand
+ * every new project a configuration naming a store it does not own.
  *
  * `context/history.md` is the case that is not like the others. It is durable
  * project truth, tracked in Git here exactly as a destination project tracks
