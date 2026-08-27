@@ -31,8 +31,15 @@ The heading of the most recent released section below is the single source of tr
 
 - **`to-tickets`, and tickets as the executable unit of work.** A Feature is the planning outcome; a ticket is what one fresh session implements, verifies, and hands back with the project still working. `/to-tickets` reads one approved Feature spec and writes `context/tickets/NN.TT-slug.md`, each ticket naming its parent Feature, what to read, what to change, how to verify it, and — by key, never by file order — what blocks it. Blocker edges are checked to be acyclic before anything is written. Tickets are canonical in your repository; a tracker is a projection of them, never the source.
 - **`templates/ticket.template.md`**, the stencil `to-tickets` writes from.
+- **The ticket delivery loop.** `/ticket load|start|review|complete` executes one ticket per session. `load` resolves where tickets live, reads the ticket and its parent Feature, and refuses to proceed while any blocker is unfinished — naming it, and writing no status on the way out. `complete` finishes the ticket and then names the tickets that its completion just unblocked, leaving the choice of the next one to you. A Feature's status is now derived from its tickets rather than maintained by hand: the first ticket to reach `In Progress` moves the Feature there, and a Feature whose tickets are all terminal becomes `Complete`.
 
 ### Changed
+
+- **`context/current-feature.md` is now `context/current-ticket.md`.** Same file, same transience, named for what the loop actually loads. Both paths stay on the installer's never-ships list, so an upgrade cannot drop a maintainer's copy over the one an older project already has.
+
+### Removed
+
+- **The `feature` delivery loop.** `/feature load|start|review|complete` and `skills/feature/actions/` are gone, replaced by `/ticket`. There is one delivery loop, and it runs on the unit that `to-tickets` produces.
 
 - **Delivery Chunks are gone.** `## Delivery Chunks` is removed from `templates/feature-spec.template.md`, and every kit statement that a Feature is executed chunk by chunk now names the ticket instead — `CLAUDE.md`, `AGENTS.md`, `context/ai-interaction.md`, `to-specs`, `whereami`, and the delivery loop's own actions. There is one execution layer, not two. `to-specs` no longer offers chunks as an alternative to splitting a Feature: a coherent but large Feature stays one Feature, and `to-tickets` slices it.
 

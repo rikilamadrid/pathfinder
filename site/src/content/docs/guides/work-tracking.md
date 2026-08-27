@@ -164,11 +164,11 @@ exists:
 
 - [`to-specs`](/skills/to-specs/) offers to publish specs once it has written
   them.
-- The `load` action of [`feature`](/skills/feature/) names the tracked item for
+- The `load` action of [`ticket`](/skills/ticket/) names the tracked item for
   the feature being loaded.
 - Its `complete` action reconciles that item after the merge.
 
-`/feature start` carries no such line, deliberately. A tracker cannot quietly
+`/ticket start` carries no such line, deliberately. A tracker cannot quietly
 become the thing you work *for*, updated at every internal boundary.
 
 You can still run [`sync-tracker`](/skills/sync-tracker/) directly whenever you

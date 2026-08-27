@@ -92,9 +92,9 @@ and the layer has failed.
 Some constraints have no home in a skill, because **a skill cannot see what
 preceded it.** Nothing stops an agent from finishing a review and immediately
 implementing its own findings — the `review` action of
-[`feature`](/skills/feature/) says not to modify code, and that holds inside the
+[`ticket`](/skills/ticket/) says not to modify code, and that holds inside the
 skill, but the erosion that matters happens *between* skills. `roles/tester.md` is
-where "do not continue into `/feature start` in this session to fix what you just
+where "do not continue into `/ticket start` in this session to fix what you just
 found" can actually live. Reviewing your own repair is not a review.
 
 ## The three shipped roles
@@ -105,8 +105,8 @@ role names an existing responsibility and bounds it.
 | Role | Responsible for | Skills it uses today |
 | --- | --- | --- |
 | `planner` | Turning approved direction into approved feature specs | [`debate-me`](/skills/debate-me/), [`to-specs`](/skills/to-specs/) |
-| `developer` | Implementing one approved feature, one chunk at a time | [`feature`](/skills/feature/) — its load and start actions, plus your project's build and test commands |
-| `tester` | Establishing whether delivered work meets its acceptance criteria | [`feature`](/skills/feature/) — its review action, plus your test commands and browser automation where a spec calls for it |
+| `developer` | Implementing approved work, one ticket at a time | [`ticket`](/skills/ticket/) — its load and start actions, plus your project's build and test commands |
+| `tester` | Establishing whether delivered work meets its acceptance criteria | [`ticket`](/skills/ticket/) — its review action, plus your test commands and browser automation where a spec calls for it |
 
 Name one and the session reads that file before anything else, then follows it
 for the duration.

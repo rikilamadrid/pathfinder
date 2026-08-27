@@ -66,21 +66,27 @@ export function isExcluded(basename) {
  * tracker it does not own, pointing at a spec directory it does not have, with
  * the off switch already defeated on first install.
  *
- * `context/current-feature.md` and `context/handoff.md` are transient session
+ * `context/current-ticket.md` and `context/handoff.md` are transient session
  * state, and they are here for the same reason one step further on: the kit
- * stopped shipping a blank `current-feature.md` stencil, because `/feature load`
+ * stopped shipping a blank `current-ticket.md` stencil, because `/ticket load`
  * writes the real one on first use and a placeholder is just a file a reader
  * has to recognise as empty. Having stopped shipping the blank one, the thing
  * to guard against is shipping a *filled-in* one — a destination project
- * opening its first session to a note about whichever feature a Pathfinder
+ * opening its first session to a note about whichever ticket a Pathfinder
  * maintainer had loaded on the day of the release.
  *
+ * `context/current-feature.md` is the same file under its former name. The
+ * delivery loop stopped writing it when tickets became the executable unit, and
+ * it stays on this list because a project installed before that change still
+ * has one sitting in `context/`, and an upgrade must not ship a maintainer's
+ * copy over it.
+ *
  * `context/history.md` is the odd one out, and the reason this set now has two
- * kinds in it. The other three are transient or local session state, ignored by
+ * kinds in it. The others are transient or local session state, ignored by
  * Git as well as excluded here. This one is durable project truth, tracked in
  * version control exactly as `README.md` says a project should track it — it is
  * simply *another project's* truth. A destination project gets its own, written
- * by `/feature complete` from `templates/history.template.md` on the day it
+ * by `/ticket complete` from `templates/history.template.md` on the day it
  * first completes something, and that template must keep shipping. So the
  * promise made about this path is the publication half only: never shipped, but
  * emphatically tracked.
@@ -96,6 +102,7 @@ export function isExcluded(basename) {
  */
 const NEVER_SHIPS = new Set([
   "context/tracker.md",
+  "context/current-ticket.md",
   "context/current-feature.md",
   "context/handoff.md",
   "context/history.md",

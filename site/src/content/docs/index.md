@@ -116,15 +116,19 @@ kickstart / debate / prototype
   ↓
 to-specs
   ↓
-/feature load
+to-tickets
   ↓
-/feature start
+/ticket load
   ↓
-optional /feature review
+/ticket start
+  ↓
+optional /ticket review
   ↓
 human acceptance
   ↓
-/feature complete
+/ticket complete
+  ↓
+the next ready ticket
 ```
 
 A prototype is optional.
@@ -141,7 +145,7 @@ When it is not obvious which one applies:
 reverse-engineer = understand an external reference
 learn-codebase   = understand the current codebase
 debug-issue      = an observed failure needs an explanation
-/feature start   = planned construction is difficult
+/ticket start    = planned construction is difficult
 ```
 
 [See the full workflow](/guides/workflow/).
@@ -205,6 +209,7 @@ Durable project truth is tracked in Git:
 ```text
 context/project-overview.md
 context/features/
+context/tickets/
 context/history.md
 context/tracker.md
 ```
@@ -212,7 +217,7 @@ context/tracker.md
 Temporary workspace state is normally ignored:
 
 ```text
-context/current-feature.md
+context/current-ticket.md
 context/handoff.md
 ```
 

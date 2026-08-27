@@ -145,12 +145,12 @@ Claude Code namespaces every plugin skill, with no way to opt out. Through the
 plugin, each Pathfinder skill is `/pathfinder:<skill>`:
 
 ```text
-/pathfinder:feature load
+/pathfinder:ticket load
 /pathfinder:role planner
 /pathfinder:whereami
 ```
 
-The bare `/feature` form comes from a generated adapter in your repository, which
+The bare `/ticket` form comes from a generated adapter in your repository, which
 is the installer's job (`npx create-pathfinder --agents claude-code`). A
 repository with both installed has both forms. They run the same canonical skill
 body, so neither overrides the other and it does not matter which you type.
@@ -204,15 +204,17 @@ to-specs
   ↓
 to-tickets
   ↓
-/feature load
+/ticket load
   ↓
-/feature start
+/ticket start
   ↓
-optional /feature review
+optional /ticket review
   ↓
 human acceptance
   ↓
-/feature complete
+/ticket complete
+  ↓
+the next ready ticket
 ```
 
 A prototype is optional. Use one when an important assumption is cheaper to
@@ -430,7 +432,7 @@ Some common entry points:
 | `prototype` | Proving an important assumption cheaply |
 | `to-specs` | Turning approved direction into Features |
 | `to-tickets` | Slicing one approved Feature into executable tickets |
-| `feature` | The delivery loop: `load`, `start`, `review`, `complete` |
+| `ticket` | The delivery loop: `load`, `start`, `review`, `complete` |
 | `debug-issue` | Something is observably broken |
 | `handoff` | Leaving factual state for another session |
 | `whereami` | Getting quick session orientation |
@@ -487,7 +489,7 @@ context/features/
 context/tickets/
 context/history.md
 context/tracker.md
-context/current-feature.md
+context/current-ticket.md
 context/handoff.md
 ```
 
@@ -515,7 +517,7 @@ Two paths belong to one session on one machine, and are two lines in
 `.gitignore`:
 
 ```gitignore
-context/current-feature.md
+context/current-ticket.md
 context/handoff.md
 ```
 
@@ -552,7 +554,6 @@ at `skills/`.
 │   ├── challenge-me/
 │   ├── debate-me/
 │   ├── debug-issue/
-│   ├── feature/
 │   ├── handoff/
 │   ├── kickstart-pathfinder/
 │   ├── learn-codebase/
@@ -568,6 +569,7 @@ at `skills/`.
 │   ├── sync-tracker/
 │   ├── teach-architecture/
 │   ├── teach-feature/
+│   ├── ticket/
 │   ├── to-specs/
 │   ├── to-tickets/
 │   └── whereami/

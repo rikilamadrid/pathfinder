@@ -4,6 +4,14 @@ Compact record of completed work.
 
 ## Completed
 
+### 2026-08-27 — Feature 43: The ticket delivery loop replaces the feature delivery loop
+
+- Outcome: `/ticket load|start|review|complete` is the delivery loop, and `skills/feature/` is gone. `load` reads the ticket and its parent Feature, verifies every blocker, and stops without writing anything when one is unfinished — a blocker that is `Cancelled` or `Superseded` stops it too, because an edge into abandoned work is a planning question. `complete` names the tickets its completion just unblocked and leaves the choice of the next one to the human. A Feature's status is now derived from its tickets rather than maintained by hand: the first ticket to reach `In Progress` moves the Feature there, and a Feature whose tickets are all terminal becomes `Complete`. `context/current-feature.md` became `context/current-ticket.md`; both names stay on the installer's never-ships list so an upgrade cannot drop a maintainer's copy onto a project installed before the rename.
+- Delivered as three tickets — 43.1 the skill and its four actions, 43.2 the transient-state move, 43.3 retiring the `feature` loop and repointing every surface. The blocker chain was exercised as written: 43.2 blocked on 43.1, 43.3 on both.
+- Verification: `validate-kit.py` OK (22 skills); 585/585 installer tests; adapters up to date under `--check`; docs site builds, 38 pages; a clean `--agents claude-code` install into a scratch repository ships `ticket`, no `feature`, and no transient session state. A tester review found three skills — `whereami`, `teach-feature`, `quiz-me` — still reading `context/current-feature.md`, a file nothing writes any more; `whereami`'s read-at-most-one-file rule made that a guaranteed `none` on every snapshot. All three were fixed, along with `ticket load` requiring a ticket source that `setup-tracker` does not yet produce.
+- Delivery: Committed on the dedicated Feature 43 branch. Merge and release remain human-owned and are not part of this completion step.
+- Follow-up: `setup-tracker` and `sync-tracker` still speak in Features. Feature 44 makes the tracker a ticket projection and retires `sync-tracker`.
+
 ### 2026-08-27 — Feature 42: Tickets are the executable unit of work
 
 - Outcome: Pathfinder plans in Features and executes in tickets. `to-tickets` slices one approved Feature spec into `context/tickets/NN.TT-slug.md`, each naming its parent Feature, what to read, what to change, how to verify it, and — by key, never by file order — what blocks it; the blocker edges are checked acyclic before anything is written. `## Delivery Chunks` is gone from the Feature template, and every kit statement that described execution chunk by chunk now names the ticket. One execution layer, not two. Ticket records are canonical in the repository; a tracker is a projection of them.

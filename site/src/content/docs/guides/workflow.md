@@ -134,16 +134,17 @@ project context
 → to-tickets               slice one approved feature into executable tickets
                            each names what blocks it, by key
 
-→ /feature load            prepare exactly one feature
-                           fills context/current-feature.md
+→ /ticket load             prepare exactly one ticket, and its feature
+                           fills context/current-ticket.md
 
-→ /feature start           implement one ticket
+→ /ticket start            implement that ticket
      ◆ dependencies, migrations, destructive commands, and commits
        all stop here for approval
 
-→ /feature review          check against requirements, regressions, standards
+→ /ticket review           check against requirements, regressions, standards
 
-→ /feature complete        confirm each acceptance criterion with evidence
+→ /ticket complete         confirm each acceptance criterion with evidence
+                           and name the tickets that are now ready
      ◆ commit, merge, changelog, versioning, and release follow the policy
        you documented, requesting approval where that policy requires it
 
@@ -156,14 +157,14 @@ to ignore, and can be verified on its own. "Build the backend" is not a feature.
 ideas do the work here: [context boundaries](/concepts/context-boundaries/) and
 [tickets](/concepts/tickets/).
 
-`/feature start` restates the goal, the active ticket, the files it expects to
+`/ticket start` restates the goal, the active ticket, the files it expects to
 touch, the risks, its verification plan, and what it considers out of scope
 **before** it writes anything. Read that restatement. It is the cheapest place to
 catch a misunderstanding — cheaper than the review, and far cheaper than the merge.
 
-The [`feature`](/skills/feature/) page is the dispatcher: it names the four actions,
-says what each one is for, and states the lifecycle they move a feature through. Each
-action's full procedure ships in the kit, under `skills/feature/actions/`.
+The [`ticket`](/skills/ticket/) page is the dispatcher: it names the four actions,
+says what each one is for, and states the lifecycle they move a ticket through. Each
+action's full procedure ships in the kit, under `skills/ticket/actions/`.
 
 ### When something breaks
 
@@ -189,10 +190,10 @@ regression, incorrect output, an intermittent or environment-specific failure. I
 not for work that is merely hard:
 
 ```text
-debug-issue     = an observed failure needs an explanation
-/feature start  = planned construction is difficult
-/feature review = completed implementation needs inspection for defects
-learn-codebase  = the real question is understanding the repository
+debug-issue    = an observed failure needs an explanation
+/ticket start  = planned construction is difficult
+/ticket review = completed implementation needs inspection for defects
+learn-codebase = the real question is understanding the repository
 ```
 
 When the evidence runs out or the reproduction is too unstable to support a safe
@@ -284,8 +285,8 @@ It is filed separately for that reason. Placing it in the delivery loop would
 imply every project has a step there, and most do not.
 
 The delivery loop does carry it, though, when a config exists: `to-specs` offers
-to publish, `/feature load` names the tracked item, and `/feature complete`
-reconciles it after the merge. `/feature start` deliberately publishes nothing — a
+to publish, `/ticket load` names the tracked item, and `/ticket complete`
+reconciles it after the merge. `/ticket start` deliberately publishes nothing — a
 chunk boundary is internal, and the tracker does not need to hear about it. Each
 of those is one conditional line that does nothing without a config, which is why
 none of them appears on the diagrams above.
@@ -321,5 +322,5 @@ that is still `TBD`.
 
 If you have not installed anything yet, [Getting started](/guides/getting-started/)
 runs the first loop end to end in a real repository. If you have, the skill you will
-read most is [`feature`](/skills/feature/), which dispatches the four actions,
+read most is [`ticket`](/skills/ticket/), which dispatches the four actions,
 and [all skills](/skills/) lists every one of them with its own summary.

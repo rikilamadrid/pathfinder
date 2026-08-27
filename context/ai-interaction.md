@@ -34,21 +34,23 @@ or deployment workflow.
 Inspect current Git state before acting. If the workflow is unclear or
 `TBD`, ask.
 
-## Feature Workflow
+## Delivery Workflow
 
 Use the workflow skills instead of recreating their procedures in chat:
 
-1. `/feature load` — load the active work and relevant context.
-2. `/feature start` — implement the current ticket.
-3. `/feature review` — verify the work and report findings.
-4. `/feature complete` — complete accepted work and durable records.
-5. `learn-feature` — optionally teach what was implemented.
+1. `to-tickets` — slice one approved Feature into executable tickets.
+2. `/ticket load` — load one ticket, its Feature, and relevant context.
+3. `/ticket start` — implement that ticket.
+4. `/ticket review` — verify the work and report findings.
+5. `/ticket complete` — complete accepted work and durable records, and name
+   the tickets that are now ready.
+6. `learn-feature` — optionally teach what was implemented.
 
 Roles are optional. The workflow must work without activating one.
 
 ### Status
 
-Feature status records durable lifecycle state only:
+Ticket status records durable lifecycle state only:
 
 `Proposed` → `Ready` → `In Progress` → `Complete`
 
@@ -56,8 +58,11 @@ Feature status records durable lifecycle state only:
 
 - `Ready` means the human approved execution.
 - Review and testing are optional workflow activity, not a status.
-  A Feature stays `In Progress` until it is complete.
-- `Blocked` is not a status; record the blocker in current workspace state.
+  A ticket stays `In Progress` until it is complete.
+- `Blocked` is not a status. A ticket's blockers are the edges under its
+  `## Blocked by`, and anything else that stops work is recorded in current
+  workspace state.
+- A Feature's status is derived from its tickets, never maintained by hand.
 - The human decides approval, acceptance, cancellation, and supersession.
 
 ## Context Discipline

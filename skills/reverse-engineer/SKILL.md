@@ -173,7 +173,7 @@ Use one of these:
 * `debate-me` — when major product or technical decisions remain
 * `prototype` — when the experience or technical assumption needs validation
 * `to-specs` — when the direction is approved and ready to become feature files
-* `/feature load` — when the analysis applies to one already-planned feature
+* `/ticket load` — when the analysis applies to one already-planned ticket
 * `learn-codebase` — when the user wants to understand their own repository instead
 * no handoff — when the user only requested analysis
 

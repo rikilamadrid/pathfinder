@@ -57,14 +57,14 @@ export const WORKFLOW_LOOPS = [
     skills: [
       'to-specs',
       'to-tickets',
-      'feature',
+      'ticket',
       'debug-issue',
     ],
     boundary: [
-      'debug-issue     = an observed failure needs an explanation',
-      '/feature start  = planned construction is difficult',
-      '/feature review = completed implementation needs inspection for defects',
-      'learn-codebase  = the real question is understanding the repository',
+      'debug-issue    = an observed failure needs an explanation',
+      '/ticket start  = planned construction is difficult',
+      '/ticket review = completed implementation needs inspection for defects',
+      'learn-codebase = the real question is understanding the repository',
     ],
   },
   {

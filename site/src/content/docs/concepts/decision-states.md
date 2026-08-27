@@ -42,7 +42,7 @@ it directly: if a policy is `TBD`, do not invent it — ask, or clearly mark it
 unresolved. [`kickstart-pathfinder`](/skills/kickstart-pathfinder/) writes `TBD`
 rather than choosing when it hears uncertainty. [`to-specs`](/skills/to-specs/)
 reports blockers instead of specifying around them.
-The `load` action of [`feature`](/skills/feature/) checks for missing decisions
+The `load` action of [`ticket`](/skills/ticket/) checks for missing decisions
 before implementation and does not resolve them either.
 
 ## Where they appear

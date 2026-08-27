@@ -4,10 +4,10 @@ This repository uses an AI-assisted, human-in-the-loop workflow. Project truth l
 
 ## Read only what is needed
 
-For feature work, usually read:
+For delivery work, usually read:
 
-1. `context/current-feature.md`
-2. its referenced feature spec
+1. `context/current-ticket.md`
+2. the ticket it names, and that ticket's parent feature spec
 3. relevant sections of `context/project-overview.md`
 4. relevant rules from `context/coding-standards.md`
 5. `context/ai-interaction.md`
@@ -17,12 +17,13 @@ Do not load the whole repo by default.
 
 Pathfinder ships two context files: `ai-interaction.md` and
 `coding-standards.md`. Everything else in `context/` — `project-overview.md`,
-`features/`, `history.md`, `current-feature.md`, `handoff.md` — is written by
+`features/`, `tickets/`, `history.md`, `current-ticket.md`, `handoff.md` — is
+written by
 the workflow that first needs it. A missing file here is normal; skip it rather
 than treating it as an error.
 
 Track the durable ones in Git and ignore the two transient ones,
-`current-feature.md` and `handoff.md`. `context/coding-standards.md` carries the
+`current-ticket.md` and `handoff.md`. `context/coding-standards.md` carries the
 rule; do not ignore `context/` wholesale.
 
 ## Roles
@@ -82,7 +83,7 @@ An adapter carries the canonical skill's frontmatter and a pointer to it, and no
 - `prototype` — create and iterate the cheapest useful validation artifact
 - `to-specs` — generate context-sized feature specs
 - `to-tickets` — decompose one approved Feature into blocker-linked tickets
-- `feature` — run one action of the Feature delivery loop: `load`, `start`, `review`, `complete`
+- `ticket` — run one action of the ticket delivery loop: `load`, `start`, `review`, `complete`
 - `debug-issue` — diagnose an observed failure to its root cause, apply the smallest justified fix, and verify it
 - `learn-feature` — create an interactive lesson for a completed feature
 - `learn-codebase` — create a modular learning portal for the repository

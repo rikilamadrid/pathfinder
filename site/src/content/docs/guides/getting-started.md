@@ -184,12 +184,12 @@ divides cleanly, and the division is worth setting up before your first commit.
 true about this project*. They outlive any session and a reviewer should see them
 change.
 
-**Transient session state is ignored.** `context/current-feature.md` and
+**Transient session state is ignored.** `context/current-ticket.md` and
 `context/handoff.md` answer *what was I doing*. They belong to one session on one
 machine, and committing them puts your in-flight work in everybody else's diff:
 
 ```text
-context/current-feature.md
+context/current-ticket.md
 context/handoff.md
 ```
 
@@ -263,7 +263,7 @@ is `/pathfinder:<skill>`:
 /pathfinder:whereami
 ```
 
-The bare `/feature` form is not a plugin feature — it comes from an adapter the
+The bare `/ticket` form is not a plugin feature — it comes from an adapter the
 installer generated in your repository. A project with both installed has both
 forms, running the same canonical skill body, and neither shadows the other.
 
@@ -356,14 +356,15 @@ inventing decisions. That refusal is the feature.
 From there, one feature at a time:
 
 ```text
-→ /feature load      prepare exactly one feature; fills context/current-feature.md
-→ /feature start     implement one ticket, leaving the project stable
-→ /feature review    check it against requirements, regressions, and standards
-→ /feature complete  verify, close, and record it in context/history.md
+→ to-tickets        slice that feature into executable tickets
+→ /ticket load      prepare exactly one ticket; fills context/current-ticket.md
+→ /ticket start     implement it, leaving the project stable
+→ /ticket review    check it against requirements, regressions, and standards
+→ /ticket complete  verify, close, record it, and name the next ready tickets
 ```
 
 Run them one at a time and read what comes back —
-`/feature start` restates the goal, the active chunk, the files it expects to
+`/ticket start` restates the goal, the active ticket, the files it expects to
 touch, the risks, its verification plan, and what it considers out of scope
 *before* it writes anything. That restatement is your cheapest chance to catch a
 misunderstanding.
@@ -416,7 +417,7 @@ or two behind you and the shape will already be familiar.
 
 Every skill in the sidebar is rendered from the kit's own `skills/` directory, so
 what you read here is exactly what your agent reads. The two worth reading before
-your second feature are [`feature`](/skills/feature/), the dispatcher for the four
+your second feature are [`ticket`](/skills/ticket/), the dispatcher for the four
 delivery actions and where most of your time goes, and
 [`reflect`](/skills/reflect/), which is how the workflow gets better at your
 project rather than staying generic.

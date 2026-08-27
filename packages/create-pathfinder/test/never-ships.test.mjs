@@ -85,11 +85,14 @@ describe("neverShips", () => {
   });
 
   it("matches transient session state by kit-relative path", () => {
-    // Neither ships as a blank stencil any more — `/feature load` and `handoff`
+    // Neither ships as a blank stencil any more — `/ticket load` and `handoff`
     // write them on first use. What is being guarded against here is the
     // opposite leak: a maintainer's *filled-in* copy reaching a new project.
-    assert.equal(neverShips("context/current-feature.md"), true);
+    assert.equal(neverShips("context/current-ticket.md"), true);
     assert.equal(neverShips("context/handoff.md"), true);
+    // The name the ticket loop replaced. Still excluded, because a project
+    // installed before that change still has one.
+    assert.equal(neverShips("context/current-feature.md"), true);
   });
 
   it("does not match a tracker.md living anywhere else", () => {
@@ -102,6 +105,7 @@ describe("neverShips", () => {
   });
 
   it("does not match transient state living anywhere else", () => {
+    assert.equal(neverShips("current-ticket.md"), false);
     assert.equal(neverShips("current-feature.md"), false);
     assert.equal(neverShips("handoff.md"), false);
     assert.equal(neverShips("docs/context/handoff.md"), false);
