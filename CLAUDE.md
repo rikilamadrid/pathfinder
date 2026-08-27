@@ -11,7 +11,7 @@ For feature work, usually read:
 3. relevant sections of `context/project-overview.md`
 4. relevant rules from `context/coding-standards.md`
 5. `context/ai-interaction.md`
-6. only the source files needed for the current delivery chunk
+6. only the source files needed for the current ticket
 
 Do not load the whole repo by default.
 
@@ -44,7 +44,7 @@ If a policy is `TBD`, do not invent it. Ask the human or clearly mark it unresol
 Restate:
 
 1. Goal
-2. Active delivery chunk
+2. Active ticket
 3. Expected files or areas
 4. Required context
 5. Risks
@@ -60,8 +60,8 @@ Ask before actions identified in `context/ai-interaction.md`, especially depende
 
 ## Scope and quality
 
-- Implement only the active feature and current delivery chunk.
-- Keep the project stable after each chunk.
+- Implement only the active feature and current ticket.
+- Keep the project stable after each ticket.
 - Do not convert prototype code into production code without an explicit feature decision.
 - Prefer concrete verification over confident narration.
 - Report conflicts between specs, repository reality, and durable context.
@@ -81,6 +81,7 @@ An adapter carries the canonical skill's frontmatter and a pointer to it, and no
 - `reverse-engineer` — analyze an external reference and produce an evidence-based reconstruction blueprint
 - `prototype` — create and iterate the cheapest useful validation artifact
 - `to-specs` — generate context-sized feature specs
+- `to-tickets` — decompose one approved Feature into blocker-linked tickets
 - `feature` — run one action of the Feature delivery loop: `load`, `start`, `review`, `complete`
 - `debug-issue` — diagnose an observed failure to its root cause, apply the smallest justified fix, and verify it
 - `learn-feature` — create an interactive lesson for a completed feature

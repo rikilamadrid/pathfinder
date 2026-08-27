@@ -42,7 +42,7 @@ over is a finished artifact, shown under its arrow:
 Planner   →   Developer   →   Tester
    │             │             │
    │             │             └─ findings, and the risk that remains
-   │             └─ a verified delivery chunk
+   │             └─ a verified ticket
    └─ an approved feature spec
 
         ── the human decides, at every arrow ──

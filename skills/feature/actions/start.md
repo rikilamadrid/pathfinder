@@ -1,16 +1,16 @@
 # Feature: Start
 
-Implement the active delivery chunk.
+Implement the active ticket.
 
 1. Read only the context needed for the current work.
 2. Restate the pre-implementation summary the project's agent guide requires,
    and wait for it to be answered where it names a human decision. Do not edit
    any file before this step is done.
 3. Record the Feature spec's `## Status` as `In Progress`, before the first file
-   edit of the first chunk:
+   edit of the first ticket:
    - `Ready` becomes `In Progress`. That is the only value this action writes.
    - `In Progress` is left exactly as it is. Continuing a Feature across
-     sessions and chunks is normal and must not rewrite its state.
+     sessions and tickets is normal and must not rewrite its state.
    - Any other status stops the session. Report it. A Feature that was never
      loaded is not approved for execution, and terminal work is the human's to
      reopen.
@@ -29,5 +29,5 @@ Implement the active delivery chunk.
 - Follow the project's approval and Git rules.
 - Do not decide that your own work is accepted.
 
-When the chunk is done, report what changed, what was verified, and anything
+When the ticket is done, report what changed, what was verified, and anything
 unresolved.

@@ -27,6 +27,15 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Added
+
+- **`to-tickets`, and tickets as the executable unit of work.** A Feature is the planning outcome; a ticket is what one fresh session implements, verifies, and hands back with the project still working. `/to-tickets` reads one approved Feature spec and writes `context/tickets/NN.TT-slug.md`, each ticket naming its parent Feature, what to read, what to change, how to verify it, and — by key, never by file order — what blocks it. Blocker edges are checked to be acyclic before anything is written. Tickets are canonical in your repository; a tracker is a projection of them, never the source.
+- **`templates/ticket.template.md`**, the stencil `to-tickets` writes from.
+
+### Changed
+
+- **Delivery Chunks are gone.** `## Delivery Chunks` is removed from `templates/feature-spec.template.md`, and every kit statement that a Feature is executed chunk by chunk now names the ticket instead — `CLAUDE.md`, `AGENTS.md`, `context/ai-interaction.md`, `to-specs`, `whereami`, and the delivery loop's own actions. There is one execution layer, not two. `to-specs` no longer offers chunks as an alternative to splitting a Feature: a coherent but large Feature stays one Feature, and `to-tickets` slices it.
+
 ## [3.1.0] - 2026-08-25
 
 ### Added

@@ -23,7 +23,7 @@ Prepare one Feature for execution.
 7. Create or update `context/current-feature.md` — it does not ship, so the
    first load writes it — with:
    - Feature number, name, and spec path
-   - active delivery chunk
+   - active ticket
    - Git state
    - blocker, if any
    - next action
@@ -41,5 +41,5 @@ Do not scan unrelated repository areas, load history or roadmap by default, or
 silently resolve `TBD` decisions.
 
 Do not rewrite the Feature's substance — its Goal, Context, Requirements, Out of
-Scope, Delivery Chunks, or Acceptance Criteria. `## Status` is the one field this
+Scope, or Acceptance Criteria. `## Status` is the one field this
 action maintains.

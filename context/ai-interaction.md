@@ -39,7 +39,7 @@ Inspect current Git state before acting. If the workflow is unclear or
 Use the workflow skills instead of recreating their procedures in chat:
 
 1. `/feature load` — load the active work and relevant context.
-2. `/feature start` — implement the current delivery chunk.
+2. `/feature start` — implement the current ticket.
 3. `/feature review` — verify the work and report findings.
 4. `/feature complete` — complete accepted work and durable records.
 5. `learn-feature` — optionally teach what was implemented.
@@ -66,7 +66,7 @@ Feature status records durable lifecycle state only:
 - Prefer exact files or sections over broad repository scans.
 - Do not load history, roadmap, tracker data, or unrelated context by
   default.
-- Work one delivery chunk at a time.
+- Work one ticket at a time.
 - If the work can no longer be understood safely in a focused session,
   stop and split or hand off.
 - Extra scaffolding must earn its cost by reducing downstream context.

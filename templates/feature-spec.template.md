@@ -26,13 +26,6 @@ Include only what materially helps someone implement this Feature.
 
 - `[explicit exclusion]`
 
-## Delivery Chunks
-
-1. `[small, stable, verifiable increment]`
-2. `[next increment, if needed]`
-
-Use one chunk when the Feature is already small.
-
 ## Acceptance Criteria
 
 - `[observable result proving the Feature works]`

@@ -202,6 +202,8 @@ kickstart / debate / prototype
   ↓
 to-specs
   ↓
+to-tickets
+  ↓
 /feature load
   ↓
 /feature start
@@ -427,6 +429,7 @@ Some common entry points:
 | `debate-me` | Pressure-testing a direction before committing to it |
 | `prototype` | Proving an important assumption cheaply |
 | `to-specs` | Turning approved direction into Features |
+| `to-tickets` | Slicing one approved Feature into executable tickets |
 | `feature` | The delivery loop: `load`, `start`, `review`, `complete` |
 | `debug-issue` | Something is observably broken |
 | `handoff` | Leaving factual state for another session |
@@ -481,6 +484,7 @@ For example:
 ```text
 context/project-overview.md
 context/features/
+context/tickets/
 context/history.md
 context/tracker.md
 context/current-feature.md
@@ -500,6 +504,7 @@ Examples:
 ```text
 context/project-overview.md
 context/features/
+context/tickets/
 context/history.md
 context/tracker.md
 ```
@@ -564,13 +569,15 @@ at `skills/`.
 │   ├── teach-architecture/
 │   ├── teach-feature/
 │   ├── to-specs/
+│   ├── to-tickets/
 │   └── whereami/
 └── templates/
     ├── CHANGELOG.template.md
     ├── feature-spec.template.md
     ├── history.template.md
     ├── lesson.template.md
-    └── project-overview.template.md
+    ├── project-overview.template.md
+    └── ticket.template.md
 ```
 
 </details>

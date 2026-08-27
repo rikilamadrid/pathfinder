@@ -20,6 +20,7 @@ Inspect implementation code only when necessary to understand the work.
 
 - `debate-me` when direction still needs pressure-testing.
 - `to-specs` to create Feature specs.
+- `to-tickets` to slice one approved Feature into executable tickets.
 
 ## Rules
 

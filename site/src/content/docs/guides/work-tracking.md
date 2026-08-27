@@ -3,8 +3,8 @@ title: Work tracking
 description: An optional, prose-configured projection of Pathfinder's feature specs onto GitHub Issues or local Markdown — off by default, and off until you configure it.
 ---
 
-Pathfinder already has the units of work. A feature spec is a work item, and a
-delivery chunk is a planning step inside one. What they lack is an *external
+Pathfinder already has the units of work. A feature spec is planned work, and a
+ticket is the executable slice of one. What they lack is an *external
 identity*: a stable ID and a status somebody outside your repository can see.
 
 Work tracking adds that, and only if you ask for it.
@@ -168,10 +168,8 @@ exists:
   the feature being loaded.
 - Its `complete` action reconciles that item after the merge.
 
-`/feature start` carries no such line, deliberately. A delivery chunk is a
-planning device inside a feature, and finishing one is not an event the outside
-world needs to hear about — so a tracker cannot quietly become the thing you work
-*for*, updated at every internal boundary.
+`/feature start` carries no such line, deliberately. A tracker cannot quietly
+become the thing you work *for*, updated at every internal boundary.
 
 You can still run [`sync-tracker`](/skills/sync-tracker/) directly whenever you
 want. The wiring means you rarely have to.
@@ -197,7 +195,7 @@ reason the kit does not need an adapter per vendor.
 
 Earlier versions shipped a `templates/tracker.template.md` carrying a full
 backend-neutral work-item model: item kinds, blocked-by edges, tag mapping tables,
-chunk projections, and a machine-readable marker block. None of it ships now. It
+ticket projections, and a machine-readable marker block. None of it ships now. It
 was a project-management taxonomy the kit was asking you to adopt in order to use
 a feature most projects do not turn on, and the great majority of a 370-line
 stencil was fields for trackers nobody had configured.
@@ -218,11 +216,10 @@ number both work, and [`setup-tracker`](/skills/setup-tracker/) asks which. What
 the kit requires is only the property: a re-run has to recognise the item it
 published last time. Without that, sync is a duplicate generator.
 
-Pathfinder does not decompose a Feature into smaller assignable tickets, and
-[`sync-tracker`](/skills/sync-tracker/) says so in as many words. Splitting work
-between people or agents is a judgement, and the skill does not make it for you.
-Delivery chunks stay a planning device inside a spec, which is why finishing one
-publishes nothing.
+[`to-tickets`](/skills/to-tickets/) is what decomposes a Feature into tickets,
+and it does that in your repository. `sync-tracker` publishes Feature specs and
+derives nothing: it does not slice a spec, and it does not read a ticket graph
+back out of a tracker.
 
 ## Related
 

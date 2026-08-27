@@ -123,7 +123,7 @@ to-specs         = convert an approved direction into planned work
 ## Delivery loop
 
 The loop you spend most of your time in. One feature at a time, and inside a
-feature, one delivery chunk at a time.
+feature, one ticket at a time.
 
 ```text
 project context
@@ -131,10 +131,13 @@ project context
 → to-specs                 split the approved direction into small features
                            blockers are reported, not invented around
 
+→ to-tickets               slice one approved feature into executable tickets
+                           each names what blocks it, by key
+
 → /feature load            prepare exactly one feature
                            fills context/current-feature.md
 
-→ /feature start           implement one delivery chunk
+→ /feature start           implement one ticket
      ◆ dependencies, migrations, destructive commands, and commits
        all stop here for approval
 
@@ -151,9 +154,9 @@ Features are sized for a focused context window, not for ambition. A good one
 creates a single visible or system-verifiable outcome, states what to load and what
 to ignore, and can be verified on its own. "Build the backend" is not a feature. Two
 ideas do the work here: [context boundaries](/concepts/context-boundaries/) and
-[delivery chunks](/concepts/delivery-chunks/).
+[tickets](/concepts/tickets/).
 
-`/feature start` restates the goal, the active chunk, the files it expects to
+`/feature start` restates the goal, the active ticket, the files it expects to
 touch, the risks, its verification plan, and what it considers out of scope
 **before** it writes anything. Read that restatement. It is the cheapest place to
 catch a misunderstanding — cheaper than the review, and far cheaper than the merge.

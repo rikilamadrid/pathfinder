@@ -25,7 +25,7 @@ The Feature delivery loop, as one skill. The human names the action:
 - `load` — prepare one Feature for execution. Reads its spec and the minimum
   context around it, checks for blockers, records the approval in the spec, and
   writes the session's workspace state.
-- `start` — implement the active delivery chunk in small, stable increments,
+- `start` — implement the active ticket in small, stable increments,
   restating the pre-implementation summary before editing anything.
 - `review` — verify implemented work against its Feature and report findings.
   It changes no implementation and accepts nothing.

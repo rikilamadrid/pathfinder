@@ -4,6 +4,13 @@ Compact record of completed work.
 
 ## Completed
 
+### 2026-08-27 — Feature 42: Tickets are the executable unit of work
+
+- Outcome: Pathfinder plans in Features and executes in tickets. `to-tickets` slices one approved Feature spec into `context/tickets/NN.TT-slug.md`, each naming its parent Feature, what to read, what to change, how to verify it, and — by key, never by file order — what blocks it; the blocker edges are checked acyclic before anything is written. `## Delivery Chunks` is gone from the Feature template, and every kit statement that described execution chunk by chunk now names the ticket. One execution layer, not two. Ticket records are canonical in the repository; a tracker is a projection of them.
+- Verification: `validate-kit.py` OK (22 skills); 585/585 installer tests; adapters up to date under `--check`; docs site builds, 38 pages. `to-tickets` was dry-run against Feature 43's own spec — three tickets, unique keys, acyclic graph, ready set `43.1`. A tester review raised four findings; three were fixed (a publish `to-tickets` offered that no skill could perform, `to-tickets` missing from the `planner` role's `## Use`, `context/tickets/` missing from AGENTS.md's durable-context list).
+- Delivery: Committed on the dedicated Feature 42 branch. Merge and release remain human-owned and are not part of this completion step.
+- Follow-up: The `feature` loop still carries its old name while implementing the active ticket. Feature 43 replaces it with `/ticket load|start|review|complete`.
+
 ### 2026-08-26 — Feature 41: Submit Pathfinder to Anthropic's Claude Code community marketplace
 
 - Outcome: The human manually submitted Pathfinder through Anthropic's Console form for the `claude-community` marketplace. The Plugin submissions dashboard showed `Submitted and pending review`.

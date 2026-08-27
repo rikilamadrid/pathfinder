@@ -17,6 +17,8 @@ Turn approved direction into the minimum Feature specs needed to implement it.
    `NN-feature-name.md` — see Naming below.
 6. Fill only information that materially helps implementation and review.
 7. Present the created Features and recommend which one to start first.
+   Recommend `to-tickets` on that Feature as the next action: a Feature is
+   planned work, and tickets are what a session executes.
 8. If `context/tracker.md` exists, offer to publish them with `sync-tracker`.
    Do nothing here if it does not.
 
@@ -46,7 +48,8 @@ Split only when separate outcomes:
 
 Prefer fewer Features and fewer artifacts.
 
-Use delivery chunks inside a Feature before creating additional Features.
+A Feature that is coherent but large is not two Features. It is one Feature
+that `to-tickets` will slice into several tickets.
 
 ## Rules
 

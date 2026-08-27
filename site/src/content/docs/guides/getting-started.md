@@ -357,7 +357,7 @@ From there, one feature at a time:
 
 ```text
 → /feature load      prepare exactly one feature; fills context/current-feature.md
-→ /feature start     implement it in stable delivery chunks
+→ /feature start     implement one ticket, leaving the project stable
 → /feature review    check it against requirements, regressions, and standards
 → /feature complete  verify, close, and record it in context/history.md
 ```

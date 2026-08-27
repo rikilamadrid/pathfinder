@@ -56,6 +56,7 @@ export const WORKFLOW_LOOPS = [
     label: 'Delivery loop',
     skills: [
       'to-specs',
+      'to-tickets',
       'feature',
       'debug-issue',
     ],
@@ -133,7 +134,7 @@ const GUIDES = [
  */
 const CONCEPTS = [
   { label: 'Context boundaries', link: '/concepts/context-boundaries/' },
-  { label: 'Delivery chunks', link: '/concepts/delivery-chunks/' },
+  { label: 'Tickets', link: '/concepts/tickets/' },
   { label: 'Decision states', link: '/concepts/decision-states/' },
   { label: 'Human approval', link: '/concepts/human-approval/' },
 ];
