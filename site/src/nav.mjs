@@ -99,12 +99,14 @@ export const WORKFLOW_LOOPS = [
     //
     // Ordered by when a session meets them: `role` scopes the session, then
     // `whereami` reports where it stands, then `handoff` preserves it for the
-    // next one. `skillsmith` is last because it is about the kit rather than
-    // the session. `role` and `whereami` belong here rather than inside a loop
+    // next one. `skillsmith` and `hooksmith` come last because they are about
+    // the kit rather than the session — `skillsmith` first, since a hook is
+    // reached for once a skill turns out to be the wrong instrument.
+    // `role` and `whereami` belong here rather than inside a loop
     // for the same reason as the other two — every loop can use them, and none
     // owns them.
     label: 'Session and kit utilities',
-    skills: ['role', 'whereami', 'handoff', 'skillsmith'],
+    skills: ['role', 'whereami', 'handoff', 'skillsmith', 'hooksmith'],
   },
 ];
 
