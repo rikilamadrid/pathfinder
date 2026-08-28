@@ -63,7 +63,7 @@ That is a direct fix for a failure that happened three releases running — `v1.
    ```sh
    claude plugin marketplace add ./
    claude plugin install pathfinder@lamadrid-labs
-   claude plugin details pathfinder@lamadrid-labs   # 21 skills, 0 of everything else
+   claude plugin details pathfinder@lamadrid-labs   # 22 skills, 0 of everything else
    claude plugin uninstall pathfinder@lamadrid-labs
    claude plugin marketplace remove lamadrid-labs
    ```

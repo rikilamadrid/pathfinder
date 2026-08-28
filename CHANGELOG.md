@@ -27,6 +27,10 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Added
+
+- **`hooksmith`.** Turns a described automation or deterministic guarantee into the smallest working, correctly scoped, verified hook for the harness the session is running in. It decides first whether the behavior is a hook at all — deterministic lifecycle behavior is, judgment is a skill, a one-off is a script — then describes the hook in harness-independent terms (lifecycle moment, trigger, action, blocking or not, ownership, failure behavior, verification) before naming any harness, identifies the active one and reads what it can actually do, and only then translates. Claude Code is the first concrete supported harness and the reference translation, not the definition of a hook; where a harness has no equivalent primitive, or none that can block, the skill says so instead of simulating enforcement. It merges into existing hook configuration rather than overwriting it, and refuses to report success without having run the hook against both a case it must allow and a case it must block. Two approval gates apply: writing outside the repository, and installing or changing any hook whose behavior reaches past the human's own local configuration — a shared project hook, or one shipped by a plugin. Building and testing a candidate locally is not gated.
+
 ## [4.0.0] - 2026-08-27
 
 ### Added

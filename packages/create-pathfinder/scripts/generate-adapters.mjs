@@ -4,7 +4,7 @@
  *
  * Pathfinder commits harness adapters only for the harness its own maintainers
  * use. That is Claude Code today, and it is one directory: `.claude/skills/`,
- * twenty-one small generated files. Every other harness is generated on demand by
+ * twenty-two small generated files. Every other harness is generated on demand by
  * users and is git-ignored here.
  *
  * Committing generated files is only tolerable because of two properties this

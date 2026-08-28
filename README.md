@@ -553,6 +553,7 @@ at `skills/`.
 │   ├── debate-me/
 │   ├── debug-issue/
 │   ├── handoff/
+│   ├── hooksmith/
 │   ├── kickstart-pathfinder/
 │   ├── learn-codebase/
 │   ├── learn-feature/
