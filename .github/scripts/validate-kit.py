@@ -59,6 +59,18 @@ PLUGIN_NAME = "pathfinder"
 ADAPTERS = ROOT / ".claude" / "skills"
 ADAPTER_GENERATOR = INSTALLER / "scripts" / "generate-adapters.mjs"
 
+# The session hook handlers the installer generates, and the script that proves
+# an installed one is the canonical one. Unlike an adapter, a handler is not
+# rendered from frontmatter — it is shipped verbatim — so freshness is not the
+# question; byte-identity with the canonical source is.
+HOOK_SOURCES = INSTALLER / "src" / "hooks"
+HOOK_CHECKER = INSTALLER / "scripts" / "check-hooks.mjs"
+
+# The marker that makes a generated handler's ownership decidable, in the
+# comment syntax a script actually supports. Matched here so the validator and
+# the installer cannot disagree about which handlers are generated.
+HOOK_MARKER = re.compile(r"^//\s*pathfinder:hook v(\d+)(?:\s+name=(\S+))?\s*$")
+
 # The marker that makes ownership decidable. Written by the installer's
 # renderer; matched here so the validator and the installer cannot disagree
 # about which files are generated.
@@ -430,6 +442,51 @@ def check_adapter_generation() -> None:
             )
             fail(".claude/skills/", "adapter-generation-deterministic",
                  "two runs produced different output: " + ", ".join(differing))
+
+
+def check_hook_generation() -> None:
+    """Run the real check: `hook-marker` and `hook-matches-canonical`.
+
+    A handler is the one generated artifact whose bytes *are* its behavior, so
+    the property worth enforcing is that the file a destination receives is the
+    file this repository reviewed. `check-hooks.mjs` installs into a scratch
+    directory and compares, which also proves the two negatives that no amount
+    of reading the installer can: a harness without a lifecycle event receives
+    nothing, and installing writes no settings file.
+
+    The marker rule is checked here in Python as well, so a handler that could
+    never be regenerated is still named without Node.
+
+    Skipped without Node, following the same convention as
+    `check_adapter_generation`: the pure-Python rule below still runs, and CI
+    has Node.
+    """
+    for source in sorted(HOOK_SOURCES.glob("*.mjs")) if HOOK_SOURCES.is_dir() else []:
+        text = source.read_text(encoding="utf-8")
+        if not any(HOOK_MARKER.match(line.strip()) for line in text.splitlines()):
+            fail(source, "hook-marker",
+                 "no `pathfinder:hook` marker; the installer would treat its own "
+                 "handler as a user-authored file and never regenerate it")
+
+    if not HOOK_CHECKER.is_file():
+        fail("packages/create-pathfinder/scripts/check-hooks.mjs",
+             "hook-matches-canonical", "the checker is missing")
+        return
+
+    try:
+        result = subprocess.run(
+            ["node", str(HOOK_CHECKER)],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        print("note: node unavailable, skipping hook-matches-canonical")
+        return
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip() or "the checker failed"
+        fail(HOOK_SOURCES, "hook-matches-canonical",
+             "an installed handler is not the canonical implementation:\n    "
+             + "\n    ".join(detail.splitlines()))
 
 
 def released_version() -> str | None:
@@ -1434,6 +1491,7 @@ def main() -> int:
     check_claude_md(skill_names)
     check_adapters(skill_names)
     check_adapter_generation()
+    check_hook_generation()
     check_copy_list()
     check_roles(skill_names)
     check_lifecycle_role_assumptions()

@@ -7,7 +7,14 @@
  */
 
 import { findKitRoot, COPY_LIST, VERSION } from "./kit.mjs";
-import { applyAdapterPlan, applyPlan, planAdapters, planInstall } from "./install.mjs";
+import {
+  applyAdapterPlan,
+  applyHookPlan,
+  applyPlan,
+  planAdapters,
+  planHooks,
+  planInstall,
+} from "./install.mjs";
 import { detect, detectedToolLabels } from "./detect.mjs";
 import { initRepository } from "./git.mjs";
 import { nonInteractivePrompter } from "./prompt.mjs";
@@ -239,12 +246,20 @@ export async function run(
       ? planAdapters(harnesses, { kitRoot, targetRoot: cwd, force: options.force })
       : [];
 
+  // Planned here for the same reasons, and safe for one more: a handler lives
+  // under a harness's hooks directory, which no copy-list entry writes to
+  // either. A harness with no session lifecycle event contributes nothing, so
+  // this is empty for every destination but Claude Code — and empty is the
+  // whole of what a Codex destination receives.
+  const hookPlan =
+    harnesses.length > 0 ? planHooks(harnesses, { targetRoot: cwd, force: options.force }) : [];
+
   // Zero on a dry run, which disables the bar. A dry run carries nothing out,
   // and a bar filling for work that is not happening would be the exact species
   // of theatre this treatment was designed to avoid.
   const progress = createProgress({
     theme,
-    total: options.dryRun ? 0 : plan.length + adapterPlan.length,
+    total: options.dryRun ? 0 : plan.length + adapterPlan.length + hookPlan.length,
     out,
   });
 
@@ -286,6 +301,14 @@ export async function run(
       ),
   });
 
+  const hooks = generateHooks({
+    plan: hookPlan,
+    harnesses,
+    options,
+    result,
+    onProgress: (unit) => progress.advance(unit),
+  });
+
   progress.finish();
   if (!options.dryRun && theme.tier !== "contract") out("\n");
 
@@ -293,7 +316,7 @@ export async function run(
   // plan or a result: the two renderings disagree about everything except the
   // facts, and this is what makes "except the facts" true rather than a hope
   // about two functions being edited together.
-  const outcome = summarize({ plan, result, adapters, harnesses, options });
+  const outcome = summarize({ plan, result, adapters, hooks, harnesses, options });
 
   report({ outcome, harnesses, customTools, cwd, gitRoot, options, out, err, theme });
 
@@ -513,6 +536,35 @@ function generateAdapters({ plan, harnesses, options, result, onProgress, onHarn
   flush();
 
   return { plan, result: applied, blocked: false };
+}
+
+/**
+ * Generate the session hook handlers for the selected harnesses.
+ *
+ * Returns the plan and the result together, exactly as `generateAdapters`
+ * does, so the report can tell "no harness has a handler" from "a handler was
+ * planned and produced nothing".
+ *
+ * No per-harness milestone. A handler is one file, and a milestone line
+ * announcing it would give a single inert file the same weight as the
+ * twenty-two adapters above it. The summary states it once, where the reader
+ * can act on it.
+ *
+ * Blocked by a failed copy for the same reason adapters are: the handler reads
+ * `context/` to orient a session, and putting one down beside a copy that did
+ * not finish would generate a file whose whole subject may be missing.
+ */
+function generateHooks({ plan, harnesses, options, result, onProgress }) {
+  const none = { plan: [], result: applyHookPlan([]), blocked: false };
+
+  if (harnesses.length === 0 || plan.length === 0) return none;
+  if (result.errors.length > 0) return { ...none, blocked: true };
+
+  return {
+    plan,
+    result: applyHookPlan(plan, { dryRun: options.dryRun, onProgress }),
+    blocked: false,
+  };
 }
 
 /**
@@ -1261,7 +1313,7 @@ function contractAdapterLines({ outcome, options, theme }) {
 
   const lines = [];
 
-  for (const { harness, generated, replaced, unchanged, conflicts, orphans } of outcome.harnessRows) {
+  for (const { harness, generated, replaced, unchanged, conflicts, orphans, handlers } of outcome.harnessRows) {
     lines.push(
       `  ${generated} ${harness.label} skill adapter${plural(generated)} ` +
         (options.dryRun ? "to generate" : "generated"),
@@ -1294,6 +1346,52 @@ function contractAdapterLines({ outcome, options, theme }) {
       lines.push(`  ${path} delegates to a skill this version no longer`);
       lines.push("  ships. It was left in place; delete it yourself if you want it gone.");
     }
+
+    lines.push(...contractHandlerLines({ harness, handlers, options }));
+  }
+
+  return lines;
+}
+
+/**
+ * The hook handler half, for a harness that has one.
+ *
+ * Silent when nothing was generated and nothing needs a human, which is every
+ * harness with no session lifecycle event. A tool that has no handlers should
+ * print no sentence about handlers.
+ *
+ * The inert clause is the one thing this must say. A file appearing under
+ * `.claude/hooks/` looks like something that runs, and it does not: Pathfinder
+ * writes no settings file, so nothing references it until a human says so.
+ */
+function contractHandlerLines({ harness, handlers, options }) {
+  const { generated, replaced, unchanged, conflicts, orphans } = handlers;
+  const lines = [];
+
+  if (generated > 0) {
+    lines.push(
+      `  ${generated} ${harness.label} session hook handler${plural(generated)} ` +
+        (options.dryRun ? "to generate" : "generated") +
+        " (inert; nothing runs it yet)",
+    );
+  }
+
+  if (replaced > 0) {
+    lines.push(`  ${replaced} ${harness.label} session hook handler${plural(replaced)} replaced (--force)`);
+  }
+
+  if (unchanged > 0) {
+    lines.push(`  ${unchanged} ${harness.label} session hook handler${plural(unchanged)} already up to date`);
+  }
+
+  for (const path of conflicts) {
+    lines.push(`  ${path} was left untouched because Pathfinder`);
+    lines.push("  did not write it. Re-run with --force to replace it.");
+  }
+
+  for (const path of orphans) {
+    lines.push(`  ${path} is a handler this version no longer`);
+    lines.push("  ships. It was left in place; delete it yourself if you want it gone.");
   }
 
   return lines;
@@ -1524,7 +1622,7 @@ function expressiveAdapterLines({ outcome, options, theme }) {
 
   const lines = [];
 
-  for (const { harness, generated, replaced, unchanged, conflicts, orphans } of outcome.harnessRows) {
+  for (const { harness, generated, replaced, unchanged, conflicts, orphans, handlers } of outcome.harnessRows) {
     lines.push(
       railed(
         theme,
@@ -1566,6 +1664,74 @@ function expressiveAdapterLines({ outcome, options, theme }) {
         ),
       );
     }
+
+    lines.push(...expressiveHandlerLines({ harness, handlers, options, theme }));
+  }
+
+  return lines;
+}
+
+/**
+ * The hook handler counts for one harness, on the gutter.
+ *
+ * Nothing at all for a harness with no handlers. The inert clause rides the
+ * generated line rather than a line of its own, because it is not news — it is
+ * what the file *is*, and a separate line would read as a warning about
+ * something going wrong.
+ */
+function expressiveHandlerLines({ harness, handlers, options, theme }) {
+  const mark = theme.glyph;
+  const { generated, replaced, unchanged, conflicts, orphans } = handlers;
+  const lines = [];
+
+  if (generated > 0) {
+    lines.push(
+      railed(
+        theme,
+        theme.ok(
+          `${mark.ok} ${generated} ${harness.label} session hook handler${plural(generated)} ` +
+            (options.dryRun ? "to generate" : "generated"),
+        ) + theme.dim(" (inert; nothing runs it yet)"),
+      ),
+    );
+  }
+
+  if (replaced > 0) {
+    lines.push(
+      railed(
+        theme,
+        theme.info(`${mark.info} ${replaced} ${harness.label} session hook handler${plural(replaced)} replaced (--force)`),
+      ),
+    );
+  }
+
+  if (unchanged > 0) {
+    lines.push(
+      railed(
+        theme,
+        theme.dim(`${mark.info} ${unchanged} ${harness.label} session hook handler${plural(unchanged)} already up to date`),
+      ),
+    );
+  }
+
+  if (conflicts.length > 0) {
+    lines.push(
+      railed(
+        theme,
+        theme.warn(`${mark.warn} ${conflicts.length} ${harness.label} hook file${plural(conflicts.length)} left untouched`) +
+          theme.dim(conflicts.length === 1 ? " (Pathfinder did not write it)" : " (Pathfinder did not write them)"),
+      ),
+    );
+  }
+
+  if (orphans.length > 0) {
+    lines.push(
+      railed(
+        theme,
+        theme.warn(`${mark.warn} ${orphans.length} ${harness.label} orphan hook handler${plural(orphans.length)}`) +
+          theme.dim(" (this version no longer ships it)"),
+      ),
+    );
   }
 
   return lines;
@@ -1577,7 +1743,7 @@ function expressiveAdapterBlocks({ outcome, theme }) {
 
   const blocks = [];
 
-  for (const { harness, conflicts, orphans } of outcome.harnessRows) {
+  for (const { harness, conflicts, orphans, handlers } of outcome.harnessRows) {
     if (conflicts.length > 0) {
       const one = conflicts.length === 1;
       blocks.push(
@@ -1604,6 +1770,39 @@ function expressiveAdapterBlocks({ outcome, theme }) {
           paths: orphans,
           advice: [
             `Left in place. Delete ${one ? "it" : "them"} yourself if you want ${one ? "it" : "them"} gone.`,
+          ],
+        }),
+      );
+    }
+
+    if (handlers.conflicts.length > 0) {
+      const one = handlers.conflicts.length === 1;
+      blocks.push(
+        ...warnBlock({
+          theme,
+          word: "Conflict",
+          summary: `${handlers.conflicts.length} ${harness.label} file${plural(handlers.conflicts.length)} at ${one ? "a path a session hook handler wants" : "paths session hook handlers want"}, which Pathfinder did not write`,
+          paths: handlers.conflicts,
+          advice: [
+            `Re-run with --force to replace ${one ? "it" : "them"} ${theme.glyph.dash} note that --force also`,
+            "overwrites Pathfinder kit files you have edited.",
+          ],
+        }),
+      );
+    }
+
+    if (handlers.orphans.length > 0) {
+      const one = handlers.orphans.length === 1;
+      blocks.push(
+        ...warnBlock({
+          theme,
+          word: "Orphan",
+          summary: `${handlers.orphans.length} ${harness.label} session hook handler${plural(handlers.orphans.length)} this version no longer ships`,
+          paths: handlers.orphans,
+          advice: [
+            `Left in place, deliberately: if you activated ${one ? "it" : "them"} by hand, removing`,
+            `${one ? "it" : "them"} would break that. Delete ${one ? "it" : "them"} yourself, and the hook`,
+            "configuration pointing at it, whenever you like.",
           ],
         }),
       );

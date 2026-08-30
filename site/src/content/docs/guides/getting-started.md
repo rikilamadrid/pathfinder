@@ -77,6 +77,7 @@ and undo it. It will not touch an existing history.
   │  Installed the Pathfinder kit into /path/to/my-project
   │  ✓ N files written
   │  ✓ N Claude Code skill adapters generated
+  │  ✓ 1 Claude Code session hook handler generated (inert; nothing runs it yet)
 
      ━━━
     ━━━━━      🎉  YOU'RE ALL SET

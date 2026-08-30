@@ -582,14 +582,20 @@ at `skills/`.
 
 </details>
 
-Generated Claude Code or Codex adapters may also appear under:
+Generated harness files may also appear under:
 
 ```text
 .claude/skills/
 .agents/skills/
+.claude/hooks/pathfinder-session-orientation.mjs
 ```
 
-They are derived from the canonical files under `skills/`.
+The two skills directories hold adapters, derived from the canonical files
+under `skills/`.
+
+The third is a session orientation handler, generated only for Claude Code. It
+is inert: Pathfinder writes no settings file, so nothing references it and
+nothing runs it.
 
 ## Learn more
 

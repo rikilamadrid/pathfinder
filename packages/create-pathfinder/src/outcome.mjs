@@ -38,11 +38,15 @@
  * @param {{written: number, skipped: number, overwritten: number,
  *          errors: {relativePath: string, message: string}[]}} args.result
  * @param {{plan: object[], result: object, blocked: boolean}} args.adapters
+ * @param {{plan: object[], result: object, blocked: boolean}} [args.hooks]
+ *   the session hook handler plan and result, shaped exactly like `adapters`.
+ *   Optional, and absent means "no handler was planned" — a harness with no
+ *   lifecycle event has none, which is the ordinary case rather than an error.
  * @param {{label: string}[]} args.harnesses the selected harnesses, registry order
  * @param {{dryRun?: boolean}} args.options
  * @returns {Readonly<object>} frozen; rows and lists frozen with it
  */
-export function summarize({ plan, result, adapters, harnesses, options }) {
+export function summarize({ plan, result, adapters, hooks = NO_HOOKS, harnesses, options }) {
   // A dry run has no `result.written` to report, because nothing was written.
   // The plan is counted instead, which is the same number the run would have
   // produced had it been allowed to write.
@@ -54,9 +58,14 @@ export function summarize({ plan, result, adapters, harnesses, options }) {
     .filter((item) => item.status === "skip")
     .map((item) => item.relativePath);
 
-  // Copy errors before adapter errors, because that is the order they happened
-  // in and the order the failure list has always printed.
-  const failures = Object.freeze([...result.errors, ...adapters.result.errors]);
+  // Copy errors before adapter errors before handler errors, because that is
+  // the order they happened in and the order the failure list has always
+  // printed.
+  const failures = Object.freeze([
+    ...result.errors,
+    ...adapters.result.errors,
+    ...hooks.result.errors,
+  ]);
 
   return Object.freeze({
     written,
@@ -71,10 +80,34 @@ export function summarize({ plan, result, adapters, harnesses, options }) {
     // that errored and this does not, so the two disagree exactly when a write
     // fails — and this is the number the closing headline speaks for.
     built: adapters.result.generated + adapters.result.replaced,
-    attention: attentionCount(adapters),
-    harnessRows: harnessRows({ adapters, harnesses }),
+    // Counted apart from `built`, and never folded into it. A handler is not
+    // an adapter — it delegates to nothing and is inert until a human
+    // activates it — so adding one to the adapter count would make the closing
+    // line state a number that is not true.
+    handlers: hooks.result.generated + hooks.result.replaced,
+    attention: attentionCount(adapters) + attentionCount(hooks),
+    harnessRows: harnessRows({ adapters, hooks, harnesses }),
   });
 }
+
+/**
+ * What a run with no hook plan looks like.
+ *
+ * The same shape `generateHooks` returns, so a caller that has none and a
+ * caller whose harnesses have none reach identical code below.
+ */
+const NO_HOOKS = Object.freeze({
+  plan: Object.freeze([]),
+  result: Object.freeze({
+    generated: 0,
+    replaced: 0,
+    unchanged: 0,
+    conflicts: Object.freeze([]),
+    orphans: Object.freeze([]),
+    errors: Object.freeze([]),
+  }),
+  blocked: false,
+});
 
 /**
  * What actually wants a human: a contested path, or an adapter pointing at a
@@ -89,9 +122,9 @@ export function summarize({ plan, result, adapters, harnesses, options }) {
  * errored paths included, because a path that could not be written is still a
  * path somebody has to go and look at.
  */
-function attentionCount(adapters) {
-  if (adapters.blocked) return 0;
-  return adapters.plan.filter(
+function attentionCount(generated) {
+  if (generated.blocked) return 0;
+  return generated.plan.filter(
     (item) => item.action === "conflict" || item.action === "orphan",
   ).length;
 }
@@ -110,38 +143,57 @@ function attentionCount(adapters) {
  * empty plan, so that a harness which was chosen and never reached is never
  * described as having generated zero adapters.
  *
- * Paths that failed to write are excluded from every count and list here: an
- * adapter that could not be written was not generated, is not up to date, and
- * is not a conflict the user can resolve by re-running with `--force`. They are
- * reported once, as failures.
+ * Each row carries a harness's adapters and, under `handlers`, that harness's
+ * hook handlers — the same five facts twice, because they are the same five
+ * questions about two different kinds of generated file.
  */
-function harnessRows({ adapters, harnesses }) {
+function harnessRows({ adapters, hooks, harnesses }) {
   if (harnesses.length === 0 || adapters.blocked) return Object.freeze([]);
 
-  const failed = new Set(adapters.result.errors.map((error) => error.relativePath));
-
   return Object.freeze(
-    harnesses.map((harness) => {
-      // Identity, not label: the harness object on a plan item is the registry
-      // entry itself, and two entries could plausibly share a label one day.
-      const mine = adapters.plan.filter(
+    harnesses.map((harness) =>
+      Object.freeze({
+        harness,
+        ...tally(adapters, harness),
+        // The same five facts for this harness's hook handlers, under their
+        // own names. A harness with no lifecycle event has no handlers, and
+        // every one of these is then zero or empty — which is what a report
+        // needs in order to say nothing at all about them.
+        handlers: Object.freeze(tally(hooks, harness)),
+      }),
+    ),
+  );
+}
+
+/**
+ * One harness's share of a generated plan, as the five facts a report prints.
+ *
+ * Paths that failed to write are excluded from every count and list: a file
+ * that could not be written was not generated, is not up to date, and is not a
+ * conflict the user can resolve by re-running with `--force`. They are
+ * reported once, as failures.
+ */
+function tally(generated, harness) {
+  const failed = new Set(generated.result.errors.map((error) => error.relativePath));
+
+  // Identity, not label: the harness object on a plan item is the registry
+  // entry itself, and two entries could plausibly share a label one day.
+  const mine = generated.blocked
+    ? []
+    : generated.plan.filter(
         (item) => item.harness === harness && !failed.has(item.relativePath),
       );
-      const count = (action) => mine.filter((item) => item.action === action).length;
-      const paths = (action) =>
-        Object.freeze(
-          mine.filter((item) => item.action === action).map((item) => item.relativePath),
-        );
 
-      return Object.freeze({
-        harness,
-        generated: count("write"),
-        replaced: count("replace"),
-        unchanged: count("up-to-date"),
-        // `planAdapters` order, which is the order they will be printed in.
-        conflicts: paths("conflict"),
-        orphans: paths("orphan"),
-      });
-    }),
-  );
+  const count = (action) => mine.filter((item) => item.action === action).length;
+  const paths = (action) =>
+    Object.freeze(mine.filter((item) => item.action === action).map((item) => item.relativePath));
+
+  return {
+    generated: count("write"),
+    replaced: count("replace"),
+    unchanged: count("up-to-date"),
+    // Plan order, which is the order they will be printed in.
+    conflicts: paths("conflict"),
+    orphans: paths("orphan"),
+  };
 }

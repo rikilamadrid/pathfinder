@@ -2,10 +2,12 @@
  * The harness registry.
  *
  * A harness is a coding tool that discovers skills by reading files from a
- * fixed directory in the project. This table says where each one looks and how
- * a user invokes what it finds there — nothing more. It is a table, not a
- * plugin system: a new harness is one object, and there is deliberately no
- * loader, no manifest format, and no way for a user to register their own.
+ * fixed directory in the project. This table says where each one looks, how a
+ * user invokes what it finds there, and — where the tool has a session
+ * lifecycle event — which handler files Pathfinder generates for it. Nothing
+ * more: it is a table, not a plugin system. A new harness is one object, and
+ * there is deliberately no loader, no manifest format, and no way for a user
+ * to register their own.
  *
  * Two entries today, and the second one cost exactly what this shape promised:
  * one object. Adding Codex changed no renderer, no ownership rule, no planner,
@@ -30,9 +32,22 @@
  * - `invocation` is how a user calls the skill once the harness has found it.
  *   Reporting only; nothing branches on it.
  *
+ * - `hooksDir` and `hooks` are optional and describe session lifecycle
+ *   handlers this harness can run. A harness that omits them receives no
+ *   handler and no substitute for one — which is the honest answer for a tool
+ *   with no lifecycle primitive, not a gap to fill. `name` names the canonical
+ *   handler in `src/hooks/<name>.mjs`; `file` is its destination name, stable
+ *   so a human who activated it once keeps a valid activation across updates
+ *   with no settings rewrite.
+ *
+ *   Pathfinder owns the handler file and nothing else. It writes no settings
+ *   file, so a generated handler is inert until a human activates it.
+ *
  * @type {ReadonlyArray<{id: string, label: string, skillsDir: string,
  *                       detect: (findings: object) => boolean,
- *                       invocation: (name: string) => string}>}
+ *                       invocation: (name: string) => string,
+ *                       hooksDir?: string,
+ *                       hooks?: ReadonlyArray<{name: string, file: string}>}>}
  */
 export const HARNESSES = Object.freeze([
   Object.freeze({
@@ -41,6 +56,10 @@ export const HARNESSES = Object.freeze([
     skillsDir: ".claude/skills",
     detect: (findings) => toolDetected(findings, "claude-code"),
     invocation: (name) => `/${name}`,
+    hooksDir: ".claude/hooks",
+    hooks: Object.freeze([
+      Object.freeze({ name: "session-orientation", file: "pathfinder-session-orientation.mjs" }),
+    ]),
   }),
   Object.freeze({
     id: "codex",
