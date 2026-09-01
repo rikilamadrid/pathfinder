@@ -582,14 +582,25 @@ at `skills/`.
 
 </details>
 
-Generated Claude Code or Codex adapters may also appear under:
+Generated harness files may also appear under:
 
 ```text
 .claude/skills/
 .agents/skills/
+.claude/hooks/pathfinder-session-orientation.mjs
 ```
 
-They are derived from the canonical files under `skills/`.
+The two skills directories hold adapters, derived from the canonical files
+under `skills/`.
+
+The third is a session orientation handler, generated only for Claude Code. It
+is inert: Pathfinder writes no settings file, so nothing references it and
+nothing runs it. Add one `SessionStart` fragment to
+`.claude/settings.local.json` and a starting session receives your work state
+automatically; leave it alone and there is no automatic orientation and no other
+difference — `whereami` gives the same picture on demand. The fragment, the two
+activation surfaces, and the two-step removal are in
+[Session orientation](https://pathfinder-kit.vercel.app/guides/session-orientation/).
 
 ## Learn more
 
@@ -600,6 +611,7 @@ README:
 - [Human approval](https://pathfinder-kit.vercel.app/concepts/human-approval/)
 - [Context boundaries](https://pathfinder-kit.vercel.app/concepts/context-boundaries/)
 - [Ticket stores](https://pathfinder-kit.vercel.app/guides/ticket-stores/)
+- [Session orientation](https://pathfinder-kit.vercel.app/guides/session-orientation/)
 
 ## Contributing
 

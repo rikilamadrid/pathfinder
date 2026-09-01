@@ -42,7 +42,7 @@ coding tools to configure:
 
 ```text
      ━━━
-    ━━━━━      P A T H F I N D E R  v4.1.0
+    ━━━━━      P A T H F I N D E R  v4.2.0
    ━━━━━━━     trail markers for AI-assisted work
   ━━━━━━━━━
 
@@ -77,6 +77,36 @@ and undo it. It will not touch an existing history.
   │  Installed the Pathfinder kit into /path/to/my-project
   │  ✓ N files written
   │  ✓ N Claude Code skill adapters generated
+  │  ✓ 1 Claude Code session hook handler generated (inert; nothing runs it yet)
+
+  ·  Claude Code session orientation is optional
+
+     The handler is inert. It runs only if you add this to
+     .claude/settings.local.json:
+
+     {
+       "hooks": {
+         "SessionStart": [
+           {
+             "hooks": [
+               {
+                 "type": "command",
+                 "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/pathfinder-session-orientation.mjs\""
+               }
+             ]
+           }
+         ]
+       }
+     }
+
+     .claude/settings.local.json keeps the choice yours and
+     per-machine. Use .claude/settings.json only to turn it on for everyone
+     who clones the repository.
+     Without the fragment there is no automatic orientation. Nothing else
+     changes: run /whereami whenever you want the same picture.
+     To remove it later, delete the handler and drop the fragment. Either order
+     is fine, and so is doing only one: an unreferenced handler never runs.
+     A fragment for a missing handler is a no-op that cannot block a session.
 
      ━━━
     ━━━━━      🎉  YOU'RE ALL SET
@@ -223,6 +253,15 @@ Your tool's own configuration is not Pathfinder's to touch. It owns a file under
 the file carries the marker it wrote. Your `settings.json`, agents, commands, hooks,
 and any skill of your own are never read and never written, and nothing is ever
 deleted.
+
+A Claude Code install also receives one generated handler,
+`.claude/hooks/pathfinder-session-orientation.mjs`. It is inert: because
+Pathfinder writes no settings file, nothing references it and nothing runs it.
+Adding one fragment to `.claude/settings.local.json` makes a starting session
+receive your work state automatically; leaving it alone means no automatic
+orientation and nothing else — run `/whereami` when you want the same picture.
+[Session orientation](/guides/session-orientation/) has the fragment and the
+removal steps.
 
 Options worth knowing before you run it anywhere real:
 

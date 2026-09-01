@@ -178,7 +178,15 @@ describe("summarize — a blocked adapter phase", () => {
 
     assert.equal(outcome.blocked, false);
     assert.deepEqual(outcome.harnessRows, [
-      { harness: CLAUDE, generated: 0, replaced: 0, unchanged: 0, conflicts: [], orphans: [] },
+      {
+        harness: CLAUDE,
+        generated: 0,
+        replaced: 0,
+        unchanged: 0,
+        conflicts: [],
+        orphans: [],
+        handlers: { generated: 0, replaced: 0, unchanged: 0, conflicts: [], orphans: [] },
+      },
     ]);
   });
 });
@@ -293,6 +301,7 @@ describe("summarize — the shape it returns", () => {
       "blocked",
       "built",
       "failures",
+      "handlers",
       "harnessRows",
       "overwritten",
       "skipped",

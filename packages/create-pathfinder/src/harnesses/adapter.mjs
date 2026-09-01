@@ -72,6 +72,41 @@ export const ADAPTER_STATE = Object.freeze({
 const OWNED_STATES = new Set([ADAPTER_STATE.ABSENT, ADAPTER_STATE.STALE, ADAPTER_STATE.CURRENT]);
 
 /**
+ * The state table above, as a function, for every generated artifact.
+ *
+ * Deliberately knows nothing about adapters, skills, markers, or comment
+ * syntax. It takes the two facts a caller has already established — does this
+ * file carry a marker *this build owns*, and does this version still ship the
+ * thing at this path — plus the bytes, and returns which of the six states
+ * that is. `classifyAdapter` below is the skill-adapter spelling of it, and a
+ * generated hook handler is another; both get one table rather than two that
+ * drift.
+ *
+ * Ownership is the caller's to decide because the marker is where artifacts
+ * genuinely differ: an adapter is Markdown and carries an HTML comment, a
+ * handler is a script and carries a line comment, and each owns its own format
+ * version. Nothing else about the decision changes.
+ *
+ * @param {{existing: string|null, expected?: string|null,
+ *          ours?: boolean, shipped?: boolean}} input
+ * @returns {string} one of ADAPTER_STATE
+ */
+export function classifyOwnership({ existing = null, expected = null, ours = false, shipped = true }) {
+  // A marked file naming something this version does not ship. Reported so it
+  // cannot rot unnoticed, and left alone: deleting in someone else's
+  // repository is a different authority than writing, and is not claimed.
+  if (!shipped) return ours ? ADAPTER_STATE.ORPHAN : ADAPTER_STATE.UNMANAGED;
+  if (existing === null) return ADAPTER_STATE.ABSENT;
+  if (!ours) return ADAPTER_STATE.CONFLICT;
+  return existing === expected ? ADAPTER_STATE.CURRENT : ADAPTER_STATE.STALE;
+}
+
+/** May Pathfinder write this state without `--force`? */
+export function isOwnedState(state) {
+  return OWNED_STATES.has(state);
+}
+
+/**
  * Where a canonical skill lives, relative to the project root.
  *
  * Always forward slashes. This string is rendered into the adapter body, so it
@@ -251,23 +286,19 @@ export function isPathfinderAdapter(content) {
  */
 export function classifyAdapter({ name, isCanonicalSkill, existing = null, expected = null }) {
   const marker = readMarker(existing);
-  const ours = marker?.version === MARKER_VERSION;
 
-  const state = (() => {
-    // A marked file naming a skill this version does not ship. Reported so it
-    // cannot rot unnoticed, and left alone: deleting in someone else's
-    // repository is a different authority than writing, and is not claimed.
-    if (!isCanonicalSkill) return ours ? ADAPTER_STATE.ORPHAN : ADAPTER_STATE.UNMANAGED;
-    if (existing === null) return ADAPTER_STATE.ABSENT;
-    if (!ours) return ADAPTER_STATE.CONFLICT;
-    return existing === expected ? ADAPTER_STATE.CURRENT : ADAPTER_STATE.STALE;
-  })();
+  const state = classifyOwnership({
+    existing,
+    expected,
+    ours: marker?.version === MARKER_VERSION,
+    shipped: isCanonicalSkill,
+  });
 
   return {
     name,
     state,
     marker,
-    owned: OWNED_STATES.has(state),
+    owned: isOwnedState(state),
     forceReplaceable: state === ADAPTER_STATE.CONFLICT,
   };
 }

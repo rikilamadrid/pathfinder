@@ -27,6 +27,20 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+## [4.2.0] - 2026-09-01
+
+### Added
+
+- **An inert session orientation handler for Claude Code.** A Claude Code destination now receives one generated handler at `.claude/hooks/pathfinder-session-orientation.mjs`. Run, it emits a bounded, read-only snapshot of Pathfinder work state — lifecycle source, branch and dirty count, which context files exist, an explicit `Role: none`, and `context/current-ticket.md` quoted verbatim and truncated — so a session does not rediscover that by hand. It transports; it does not interpret: `whereami` remains the only reader of Pathfinder workflow state, and the handler parses nothing.
+
+  **It is inert, and nothing activates it.** Pathfinder writes no settings file — not `.claude/settings.json`, not `.claude/settings.local.json`, not an entry inside either — so the handler is referenced by nothing and runs nowhere until you add native hook configuration yourself. Installing changes no settings file that already existed, which holds by construction rather than by a merge algorithm. Pathfinder still works exactly as before with the handler absent, unactivated, or on a harness that has no lifecycle event at all, where the answer is simply `/whereami`.
+
+  A destination whose harness has no session lifecycle event — Codex today — receives no handler, no `.claude` artifact of any kind, and no substitute for one. The handler is owned by a marker in its own comment syntax, on the same terms the skill adapters already use: an update replaces it only where Pathfinder positively wrote it, a file of yours at that path is left alone without `--force`, and a handler this version no longer ships is reported as an orphan and left exactly where it is. The path is stable, so an activation you added once survives updates with no settings rewrite. Nothing here deletes.
+
+- **The activation fragment, in the installer and on the site.** A run at a terminal that generates the handler now prints the exact `SessionStart` fragment that switches it on, correct for the stable path it just wrote, along with the answer for anyone who skips it: no automatic orientation, and `/whereami` on demand. A piped or redirected run prints none of it: that output is a byte promise kept to scripts written against 1.4.1, and a multi-line JSON fragment in the middle of somebody's parse is not a place to put a new fact. `.claude/settings.local.json` is the documented default, because turning orientation on should be one person's per-machine choice; `.claude/settings.json` is named only as the deliberate alternative for a team that wants it on for everyone. The two-step removal is stated in the same breath — delete the handler, drop the fragment — and so is the fact that doing only one is survivable in either order.
+
+  [Session orientation](https://pathfinder-kit.vercel.app/guides/session-orientation/) is the long form. The fragment there is checked against the one the installer prints, so a guide that drifts fails the build rather than handing a reader a paste that quietly activates nothing.
+
 ## [4.1.0] - 2026-08-28
 
 ### Added

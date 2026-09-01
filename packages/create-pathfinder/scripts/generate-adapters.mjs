@@ -27,6 +27,21 @@
  *
  * `--check` is what CI and `validate-kit.py` use. `--out` renders into a scratch
  * directory, which is how freshness is compared without touching the checkout.
+ *
+ * Session hook handlers are deliberately *not* generated here, and this is not
+ * an omission to finish. Committing an adapter is safe because an adapter is
+ * *rendered*: `--check` re-renders it and compares, so the committed file has a
+ * canonical form to be stale against. A handler has none — its bytes are
+ * shipped verbatim — and Pathfinder commits no handler at all, because putting
+ * one in this repository would be activating the capability on itself, which is
+ * a per-machine choice rather than a repository artifact. (This checkout keeps
+ * `.claude/hooks/` out of Git through `.git/info/exclude`, which is local to the
+ * clone and not a rule the repository carries.) With nothing committed to
+ * compare, `--check` would call a missing handler stale on every run, for ever.
+ *
+ * What CI checks instead is the property that actually matters for a file
+ * shipped verbatim: that an *installed* handler is the canonical one, byte for
+ * byte — `scripts/check-hooks.mjs`.
  */
 
 import { resolve, dirname } from "node:path";
