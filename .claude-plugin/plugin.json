@@ -1,7 +1,7 @@
 {
   "name": "pathfinder",
   "description": "An AI-assisted, human-in-the-loop delivery workflow: discovery, Feature specs, canonical ticket stores, a four-action ticket loop, automatic roles, and teaching skills. Commands are namespaced /pathfinder:<skill>.",
-  "version": "4.1.0",
+  "version": "4.2.0",
   "author": {
     "name": "Ricardo Lamadrid",
     "url": "https://github.com/rikilamadrid"

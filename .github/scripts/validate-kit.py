@@ -65,6 +65,8 @@ ADAPTER_GENERATOR = INSTALLER / "scripts" / "generate-adapters.mjs"
 # question; byte-identity with the canonical source is.
 HOOK_SOURCES = INSTALLER / "src" / "hooks"
 HOOK_CHECKER = INSTALLER / "scripts" / "check-hooks.mjs"
+ACTIVATION_SOURCE = INSTALLER / "src" / "activation.mjs"
+ACTIVATION_GUIDE = ROOT / "site" / "src" / "content" / "docs" / "guides" / "session-orientation.md"
 
 # The marker that makes a generated handler's ownership decidable, in the
 # comment syntax a script actually supports. Matched here so the validator and
@@ -487,6 +489,101 @@ def check_hook_generation() -> None:
         fail(HOOK_SOURCES, "hook-matches-canonical",
              "an installed handler is not the canonical implementation:\n    "
              + "\n    ".join(detail.splitlines()))
+
+
+def check_activation_fragment() -> None:
+    """Run the real check: `activation-fragment-documented`.
+
+    A generated handler is inert, so the fragment that activates it is the
+    whole of the capability from a reader's side. It is written in two places —
+    the installer prints it, the guide documents it — and only one of them is
+    derived from the registry's stable handler path. A guide that drifts is not
+    a stale paragraph; it is a fragment that silently activates nothing, and the
+    person who pasted it has no way to tell the difference from a hook that ran
+    and had nothing to say.
+
+    So the guide is checked against what the installer actually prints, rather
+    than both being checked against a third copy written here.
+
+    The set of fragments comes from `activationTargets()`, which enumerates the
+    registry and throws where a harness that declares a hooks directory does not
+    resolve to exactly one handler. That is what stops this rule from passing
+    vacuously: an empty result, an unresolvable handler, or a second handler
+    added without documenting it each fail here rather than checking nothing
+    and reporting success. A rule whose skip condition is "there was nothing to
+    check" is a rule that reports green on the day the thing it guards
+    disappears.
+
+    Skipped without Node, following `check_hook_generation`. Node missing is a
+    fact about this machine; every other outcome is a fact about the kit.
+    """
+    if not ACTIVATION_SOURCE.is_file():
+        fail(ACTIVATION_SOURCE, "activation-fragment-documented",
+             "the module that owns the activation fragment is missing")
+        return
+
+    if not ACTIVATION_GUIDE.is_file():
+        fail(ACTIVATION_GUIDE, "activation-fragment-documented",
+             "the guide that documents activation is missing")
+        return
+
+    script = (
+        "import { activationFragmentLines, activationTargets }"
+        " from './packages/create-pathfinder/src/activation.mjs';"
+        "const targets = activationTargets().map(({ harness, hook }) => ({"
+        "  id: harness.id,"
+        "  fragment: activationFragmentLines(harness, hook).join('\\n'),"
+        "}));"
+        "process.stdout.write(JSON.stringify(targets));"
+    )
+
+    try:
+        result = subprocess.run(
+            ["node", "--input-type=module", "-e", script],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+    except OSError:
+        print("note: node unavailable, skipping activation-fragment-documented")
+        return
+
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip() or "the fragment could not be rendered"
+        fail(ACTIVATION_SOURCE, "activation-fragment-documented",
+             "the activatable handlers could not be resolved:\n    "
+             + "\n    ".join(detail.splitlines()))
+        return
+
+    try:
+        targets = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        fail(ACTIVATION_SOURCE, "activation-fragment-documented",
+             "the activatable handlers could not be read")
+        return
+
+    # The invariant this rule exists to hold. v1 ships one orientation handler
+    # for one capable harness; zero means the capability evaporated and the
+    # check below would compare nothing against nothing.
+    if not targets:
+        fail(ACTIVATION_SOURCE, "activation-fragment-documented",
+             "no harness resolves an activatable session orientation handler, "
+             "so there is no fragment to check the guide against")
+        return
+
+    guide = ACTIVATION_GUIDE.read_text(encoding="utf-8")
+
+    for target in targets:
+        fragment = target.get("fragment", "").strip()
+
+        if not fragment:
+            fail(ACTIVATION_SOURCE, "activation-fragment-documented",
+                 f"{target.get('id')} resolves a handler but renders an empty fragment")
+            continue
+
+        if fragment not in guide:
+            fail(ACTIVATION_GUIDE, "activation-fragment-documented",
+                 f"the documented fragment is not the one the installer prints for "
+                 f"{target.get('id')}; a reader who pastes it activates nothing. Expected:\n    "
+                 + "\n    ".join(fragment.splitlines()))
 
 
 def released_version() -> str | None:
@@ -1492,6 +1589,7 @@ def main() -> int:
     check_adapters(skill_names)
     check_adapter_generation()
     check_hook_generation()
+    check_activation_fragment()
     check_copy_list()
     check_roles(skill_names)
     check_lifecycle_role_assumptions()

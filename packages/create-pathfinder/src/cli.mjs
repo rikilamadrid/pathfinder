@@ -24,6 +24,7 @@ import { kickstartPrompt, kickstartPromptLines } from "./kickstart-prompt.mjs";
 import { createTheme } from "./theme.mjs";
 import { createProgress } from "./progress.mjs";
 import { summarize } from "./outcome.mjs";
+import { activationLines } from "./activation.mjs";
 import {
   HARNESSES,
   HARNESS_IDS,
@@ -1398,6 +1399,59 @@ function contractHandlerLines({ harness, handlers, options }) {
 }
 
 /**
+ * The harnesses whose handler this run put on disk, or would.
+ *
+ * Generated, replaced, or already up to date — all three mean the file is
+ * there, or will be, and the fragment below is worth pasting. Under
+ * `--dry-run` none of it has happened yet, which is what the note's tense is
+ * for rather than a second membership rule here. A conflict deliberately does
+ * not count: that path holds a file Pathfinder did not write, so telling
+ * someone to activate "the handler" would point their settings at a stranger's
+ * script.
+ */
+function activatable(outcome) {
+  if (outcome.blocked) return [];
+  return outcome.harnessRows
+    .filter(({ handlers }) => handlers.generated + handlers.replaced + handlers.unchanged > 0)
+    .map(({ harness }) => harness);
+}
+
+/**
+ * The activation note, as a block in the expressive rendering.
+ *
+ * This rendering, and only this one. `contractReport` is a promise kept to
+ * scripts written against 1.4.1 and every byte of it is pinned; a multi-line
+ * JSON fragment appended to that output is a new fact in the middle of a
+ * stream somebody is parsing, and no amount of usefulness makes that a safe
+ * place to put it. A person at a terminal reads the note here; everyone else
+ * reads the guide, which is checked against this same text by the validator.
+ *
+ * A heading and a payload, like `warnBlock`, and pointedly not one: nothing
+ * here went wrong, and a warning glyph over an optional capability is how a
+ * tool teaches people to ignore its warnings. The fragment stays undecorated
+ * for the reason the warning blocks keep their paths undecorated — selecting
+ * it in a terminal must copy characters, not escapes.
+ *
+ * `--dry-run` gets the same block in the future tense. The handler it names
+ * has not been written, and telling somebody to activate a file that is not
+ * there is exactly the kind of confident narration a dry run exists to avoid.
+ */
+function expressiveActivationBlock({ outcome, options, theme }) {
+  const lines = [];
+
+  for (const harness of activatable(outcome)) {
+    lines.push("");
+    lines.push(`  ${theme.glyph.info}  ${theme.bold(`${harness.label} session orientation is optional`)}`);
+    lines.push("");
+    for (const line of activationLines(harness, { dryRun: options.dryRun })) {
+      lines.push(line === "" ? "" : `     ${line}`);
+    }
+  }
+
+  return lines;
+}
+
+/**
  * The tools this run was told about and cannot configure.
  *
  * The point of the whole option, and the reason it is worth a prompt: it is an
@@ -1520,6 +1574,7 @@ function expressiveReport({ outcome, harnesses, customTools, cwd, gitRoot, optio
   }
 
   lines.push(...expressiveAdapterBlocks({ outcome, theme }));
+  lines.push(...expressiveActivationBlock({ outcome, options, theme }));
 
   if (customTools.length > 0) lines.push(...customToolLines(customTools));
 

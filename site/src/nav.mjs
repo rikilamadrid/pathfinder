@@ -124,6 +124,11 @@ const GUIDES = [
   // every install and the lifecycle reads them automatically rather than only
   // after separate configuration.
   { label: 'Roles', link: '/guides/roles/' },
+  // After roles, because it is the first page that is genuinely optional: the
+  // capability is inert until a human activates it, and a reader who never
+  // does misses nothing. Before ticket stores for the same reason ticket
+  // stores come last — both are choices, and this one ships already made.
+  { label: 'Session orientation', link: '/guides/session-orientation/' },
   // Last, because a reader who is happy with the default store — local
   // Markdown, which every install has without asking — can skip it and miss
   // nothing.

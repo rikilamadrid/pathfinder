@@ -37,6 +37,14 @@ import { after, describe, it } from "node:test";
 import { run } from "../src/cli.mjs";
 import { findHarness } from "../src/harnesses/index.mjs";
 import { hookPath, hookSourcePath, hooksFor, isPathfinderHook } from "../src/harnesses/hook.mjs";
+import {
+  DEFAULT_SURFACE,
+  SHARED_SURFACE,
+  activationFragmentLines,
+  activationHandler,
+  activationLines,
+  activationTargets,
+} from "../src/activation.mjs";
 
 const CLAUDE = findHarness("claude-code");
 const [ORIENTATION] = hooksFor(CLAUDE);
@@ -60,7 +68,7 @@ function handler(cwd) {
   return join(cwd, ...HANDLER_RELATIVE.split("/"));
 }
 
-async function invoke(argv, { cwd } = {}) {
+async function invoke(argv, { cwd, stdoutIsTTY = false } = {}) {
   let out = "";
   let err = "";
   const code = await run(argv, {
@@ -69,9 +77,23 @@ async function invoke(argv, { cwd } = {}) {
     err: (text) => (err += text),
     env: { LANG: "en_US.UTF-8" },
     platform: "linux",
+    stdoutIsTTY,
     prompter: { interactive: false, confirm: async () => false, close: () => {} },
   });
   return { code, out, err };
+}
+
+/**
+ * A run with somebody watching it.
+ *
+ * The activation note is a terminal-only block — `contractReport` is a byte
+ * promise kept to scripts and this feature does not reach it — so every
+ * assertion about that note has to come from a run with a TTY, and the
+ * assertion that it stays out of the piped output has to come from one
+ * without.
+ */
+function invokeAtTerminal(argv, { cwd } = {}) {
+  return invoke(argv, { cwd, stdoutIsTTY: true });
 }
 
 /** Every file in the tree, path and bytes. The "nothing moved" comparison. */
@@ -141,7 +163,7 @@ describe("the handler a Claude Code destination receives", () => {
     assert.equal(out.includes("inert; nothing runs it yet"), true);
   });
 
-  it("creates no settings file, and changes none that was already there", async () => {
+  it("creates no settings file, and preserves existing settings through reinstallation", async () => {
     const cwd = makeRepository();
     mkdirSync(join(cwd, ".claude"), { recursive: true });
     writeFileSync(join(cwd, ".claude", "settings.json"), '{"hooks":{"SessionStart":[]}}\n');
@@ -149,17 +171,19 @@ describe("the handler a Claude Code destination receives", () => {
 
     const before = snapshot(cwd);
     await invoke(["--agents", "claude-code"], { cwd });
-    const after = snapshot(cwd);
+    const afterInstall = snapshot(cwd);
+    await invoke(["--agents", "claude-code"], { cwd });
+    const afterReinstall = snapshot(cwd);
 
     assert.deepEqual(settingsFiles(cwd), [".claude/settings.json", ".claude/settings.local.json"]);
-    assert.equal(
-      changedPaths(before, after).includes(".claude/settings.json"),
-      false,
-    );
-    assert.equal(
-      changedPaths(before, after).includes(".claude/settings.local.json"),
-      false,
-    );
+    for (const path of settingsFiles(cwd)) {
+      assert.equal(afterInstall.get(path), before.get(path), `${path} changed during installation`);
+      assert.equal(
+        afterReinstall.get(path),
+        afterInstall.get(path),
+        `${path} changed during reinstallation`,
+      );
+    }
   });
 
   it("is reported by --dry-run without writing anything", async () => {
@@ -170,6 +194,194 @@ describe("the handler a Claude Code destination receives", () => {
 
     assert.deepEqual(changedPaths(before, snapshot(cwd)), []);
     assert.equal(out.includes("session hook handler to generate"), true);
+  });
+});
+
+describe("what the installer says about activating it", () => {
+  /**
+   * AC-7, and the reason it is a separate claim from AC-1: a handler nobody
+   * knows how to switch on is not an optional capability, it is a stray file.
+   *
+   * Every assertion here runs at a terminal. The note is deliberately absent
+   * from the contract rendering — see the last test in this block — so a
+   * non-TTY run is the wrong place to look for it, and AC-7's "installer
+   * output" is satisfied by the rendering a human actually reads plus the
+   * guide, which the validator checks against this same text.
+   *
+   * The fragment is asserted against `activationFragmentLines` rather than
+   * against a copy written out here. A literal would pass this test while the
+   * installer printed a path that activates nothing — and a fragment that is
+   * merely self-consistent is exactly the failure mode. What makes it *correct*
+   * is that the same lines, pasted into a real destination, produced a live
+   * session that received the block; that is verification, not a unit test.
+   */
+  it("gives the exact fragment, the honest default, and the fallback", async () => {
+    const cwd = makeRepository();
+
+    const { out } = await invokeAtTerminal(["--agents", "claude-code"], { cwd });
+
+    const fragment = activationFragmentLines(CLAUDE, ORIENTATION);
+    for (const line of fragment) {
+      assert.ok(out.includes(line.trim()), `the fragment is missing: ${line.trim()}`);
+    }
+
+    // The command is the one line that has to be exactly right: `node`, because
+    // the handler ships 0644 and its shebang is decoration, and
+    // `$CLAUDE_PROJECT_DIR` so a session started in a subdirectory still finds it.
+    assert.ok(out.includes(`node \\"$CLAUDE_PROJECT_DIR/${HANDLER_RELATIVE}\\"`));
+
+    assert.ok(out.includes(DEFAULT_SURFACE), "the default surface is not named");
+    assert.ok(out.includes(SHARED_SURFACE), "the shared alternative is not named");
+    assert.ok(out.includes("no automatic orientation"), "the unactivated answer is not stated");
+    assert.ok(out.includes("/whereami"), "the fallback is not named");
+  });
+
+  it("states the two-step removal, and that either half alone is survivable", async () => {
+    const cwd = makeRepository();
+
+    const { out } = await invokeAtTerminal(["--agents", "claude-code"], { cwd });
+
+    assert.ok(out.includes("delete the handler"), "removing the handler is not stated");
+    assert.ok(out.includes("drop the fragment"), "removing the fragment is not stated");
+    assert.ok(out.includes("an unreferenced handler never runs"));
+    assert.ok(out.includes("no-op that cannot block a session"));
+  });
+
+  it("says none of it to a destination that got no handler", async () => {
+    const cwd = makeRepository();
+
+    const { out } = await invokeAtTerminal(["--agents", "codex"], { cwd });
+
+    assert.equal(out.includes(DEFAULT_SURFACE), false);
+    assert.equal(out.includes("SessionStart"), false);
+  });
+
+  it("says none of it when the path holds a file Pathfinder did not write", async () => {
+    // A conflict means that path is somebody else's script. Printing "activate
+    // the handler" here would talk a person into pointing their settings at it.
+    const cwd = makeRepository();
+    mkdirSync(join(cwd, ".claude", "hooks"), { recursive: true });
+    writeFileSync(handler(cwd), "#!/usr/bin/env node\n// mine\n");
+
+    const { out } = await invokeAtTerminal(["--agents", "claude-code"], { cwd });
+
+    assert.equal(out.includes("SessionStart"), false);
+  });
+
+  /**
+   * The contract rendering is a promise kept to scripts written against 1.4.1,
+   * pinned byte for byte elsewhere. A multi-line JSON fragment appended to it
+   * is a new fact in the middle of somebody's parse, so this feature stays out
+   * of it — and this is the assertion that keeps it out, since the block above
+   * would otherwise pass just as well if the note were printed in both.
+   */
+  it("keeps all of it out of the rendering scripts read", async () => {
+    const cwd = makeRepository();
+
+    const { out } = await invoke(["--agents", "claude-code"], { cwd });
+
+    assert.equal(out.includes("SessionStart"), false, "the fragment reached the contract output");
+    assert.equal(out.includes(DEFAULT_SURFACE), false, "the surface reached the contract output");
+    assert.equal(out.includes("no automatic orientation"), false);
+    assert.ok(existsSync(handler(cwd)), "the handler was still generated");
+  });
+
+  /**
+   * A dry run has written nothing, so the note must not describe a file that is
+   * not there. The fragment is identical in both modes — the path it points at
+   * is the path the real run will write — and only the tense moves.
+   */
+  it("speaks of the handler in the future tense under --dry-run", async () => {
+    const cwd = makeRepository();
+
+    const { out } = await invokeAtTerminal(["--agents", "claude-code", "--dry-run"], { cwd });
+
+    assert.equal(existsSync(handler(cwd)), false, "a dry run wrote the handler");
+
+    for (const line of activationFragmentLines(CLAUDE, ORIENTATION)) {
+      assert.ok(out.includes(line.trim()), `the fragment is missing: ${line.trim()}`);
+    }
+
+    assert.ok(out.includes("The handler would be inert"), "the dry run claims a handler exists");
+    assert.ok(out.includes("Once installed it would run only if"));
+    assert.equal(out.includes("The handler is inert."), false, "present tense survived --dry-run");
+    assert.equal(out.includes("It runs only if"), false, "present tense survived --dry-run");
+  });
+
+  it("speaks of the handler in the present tense on a real install", async () => {
+    const cwd = makeRepository();
+
+    const { out } = await invokeAtTerminal(["--agents", "claude-code"], { cwd });
+
+    assert.ok(existsSync(handler(cwd)), "the handler was not written");
+    assert.ok(out.includes("The handler is inert."), "the present tense is missing");
+    assert.ok(out.includes("It runs only if"));
+    assert.equal(out.includes("would be inert"), false, "future tense survived a real install");
+  });
+
+  it("keeps install and dry-run prose inside the expressive output width", () => {
+    const fragment = activationFragmentLines(CLAUDE, ORIENTATION);
+
+    for (const dryRun of [false, true]) {
+      const lines = activationLines(CLAUDE, { dryRun });
+      const fragmentStart = lines.findIndex((_, index) =>
+        fragment.every((line, offset) => lines[index + offset] === line),
+      );
+
+      assert.notEqual(fragmentStart, -1, "the activation fragment changed shape");
+      assert.deepEqual(lines.slice(fragmentStart, fragmentStart + fragment.length), fragment);
+
+      for (const [index, line] of lines.entries()) {
+        if (index >= fragmentStart && index < fragmentStart + fragment.length) continue;
+        assert.ok(`     ${line}`.length < 80, `activation prose exceeds terminal width: ${line}`);
+      }
+    }
+  });
+});
+
+describe("the one-handler assumption, stated rather than assumed", () => {
+  /**
+   * v1 ships exactly one orientation handler for one capable harness. The
+   * hazard is not that the assumption is wrong today — it is that
+   * `hooksFor(harness)[0]` reads identically whether the registry holds one
+   * handler, none, or three, so the day it stops being true nothing says so.
+   * The installer would print a fragment for the first of two, or none at all,
+   * and the validator would have nothing to compare the guide against.
+   *
+   * These run against synthesized harnesses rather than the real registry,
+   * because the point is what happens when the registry is wrong.
+   */
+  const capable = (hooks) => ({ id: "test-harness", label: "Test", hooksDir: ".test/hooks", hooks });
+
+  it("resolves the single handler of the real capable harness", () => {
+    assert.equal(activationHandler(CLAUDE), ORIENTATION);
+    assert.deepEqual(
+      activationTargets().map(({ harness }) => harness.id),
+      ["claude-code"],
+    );
+  });
+
+  it("says nothing for a harness with nowhere to put a handler", () => {
+    assert.equal(activationHandler(findHarness("codex")), null);
+  });
+
+  it("fails loudly when a capable harness resolves no handler", () => {
+    assert.throws(() => activationHandler(capable([])), /exactly one handler/);
+  });
+
+  it("fails loudly when a capable harness resolves more than one", () => {
+    const two = capable([
+      { name: "session-orientation", file: "a.mjs" },
+      { name: "second", file: "b.mjs" },
+    ]);
+
+    assert.throws(() => activationHandler(two), /exactly one handler/);
+  });
+
+  it("fails loudly when handlers are declared with nowhere to put them", () => {
+    const homeless = { id: "test-harness", label: "Test", hooks: [{ name: "x", file: "x.mjs" }] };
+
+    assert.throws(() => activationHandler(homeless), /no hooksDir/);
   });
 });
 
@@ -420,19 +632,37 @@ describe("what the capability deliberately is not", () => {
     assert.equal(/\.(match|matchAll|exec)\(|new RegExp/.test(CANONICAL), false);
   });
 
-  it("writes no settings file from anywhere in the installer", () => {
+  it("confines settings-file names and keeps activation.mjs free of filesystem writes", () => {
+    // The guard used to be "no file under `src/` may contain the string", which
+    // held only while nothing had to *say* the word. Documenting activation
+    // means printing the path a human types, so the rule is now the one that
+    // is enforced directly: naming a settings file is confined to
+    // `activation.mjs`, and that module itself names no filesystem module and
+    // contains no filesystem write API. This deliberately makes no claim about
+    // the dependency graph. Every other module may not name a settings file,
+    // which keeps the confinement from quietly widening.
+    //
+    // The behavioral proof is still the one above: a byte comparison of the
+    // whole fixture, before and after a run. This is its cheap backstop.
     const source = fileURLToPath(new URL("../src", import.meta.url));
+    const allowed = join(source, "activation.mjs");
     const offenders = [];
 
     const walk = (directory) => {
       for (const entry of readdirSync(directory, { withFileTypes: true })) {
         const path = join(directory, entry.name);
         if (entry.isDirectory()) walk(path);
-        else if (/settings(\.[^/]+)?\.json/.test(readFileSync(path, "utf8"))) offenders.push(path);
+        else if (path !== allowed && /settings(\.[^/]+)?\.json/.test(readFileSync(path, "utf8"))) {
+          offenders.push(path);
+        }
       }
     };
 
     walk(source);
     assert.deepEqual(offenders, []);
+
+    const prose = readFileSync(allowed, "utf8");
+    assert.equal(/["'](?:node:)?fs(?:\/promises)?["']/.test(prose), false);
+    assert.equal(/writeFileSync|appendFileSync|mkdirSync|renameSync|rmSync|cpSync/.test(prose), false);
   });
 });
