@@ -1,7 +1,7 @@
 ---
 name: render-artifact
 description: Compile a typed semantic specification into a self-contained, deterministic HTML artifact carrying the Pathfinder visual identity. Use when a skill must deliver a visual artifact instead of hand-authoring HTML.
-argument-hint: [validate|deliver|doctor] [specification path]
+argument-hint: validate|deliver|doctor <spec path>
 ---
 
 <!-- pathfinder:adapter v1 source=skills/render-artifact/SKILL.md -->
