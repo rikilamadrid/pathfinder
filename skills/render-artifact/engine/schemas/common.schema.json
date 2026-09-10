@@ -1,0 +1,101 @@
+{
+  "$id": "common.schema.json",
+  "title": "Pathfinder artifact specification — shared contract",
+  "description": "Carried by every artifact kind. schema_version, kind, artifact metadata, source identity, and the one citation shape. The kind discriminator selects the kind-specific schema and renderer.",
+  "$defs": {
+    "schema_version": {
+      "description": "The contract version this specification is written against.",
+      "const": "1.0"
+    },
+    "kind": {
+      "description": "The artifact kind. Selects the kind schema and the renderer. `lesson` is the only supported kind; anything else is refused rather than improvised.",
+      "enum": ["lesson"]
+    },
+    "artifact": {
+      "description": "Metadata about the artifact itself. Carries no presentation control: theme, colour, and layout belong to the renderer.",
+      "type": "object",
+      "required": ["title"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "subtitle": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "locale": {
+          "description": "BCP 47 language tag, passed through to the document's lang attribute. Not a translation instruction.",
+          "type": "string",
+          "pattern": "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$"
+        }
+      }
+    },
+    "source": {
+      "description": "Where the artifact's claims come from. `commit` is what evidence resolves against — never the working tree.",
+      "type": "object",
+      "required": ["repo", "commit"],
+      "additionalProperties": false,
+      "properties": {
+        "repo": {
+          "description": "Identifies the repository the evidence belongs to, so a diagnostic can say whose commit is missing.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "commit": {
+          "description": "A full or abbreviated Git object name. Evidence resolves against this and nothing else.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$"
+        },
+        "generated_at": {
+          "description": "Supplied by the producer if it exists at all. Part of the deterministic input: the renderer never reads a clock.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      }
+    },
+    "citation": {
+      "description": "The one evidence shape, used identically wherever evidence appears, in this and every future kind.",
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "Repository-relative, forward-slashed. Never absolute, never a machine path.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400,
+          "pattern": "^[^/][^\\\\]*$"
+        },
+        "lines": {
+          "description": "Inclusive [start, end] line range, 1-based. Must lie within the file at the resolved commit.",
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "integer", "minimum": 1 }
+        },
+        "commit": {
+          "description": "Overrides source.commit for this citation alone. Present when a claim is about a different point in history.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{7,40}$"
+        }
+      }
+    },
+    "evidence": {
+      "description": "A list of citations. Emptiness is legal structurally and rejected by the evidence layer, so the failure is reported as the evidence claim it is.",
+      "type": "array",
+      "maxItems": 50,
+      "items": { "$ref": "common.schema.json#/$defs/citation" }
+    },
+    "identifier": {
+      "description": "A specification-supplied identifier. Every id the renderer emits is derived from one of these, never generated from ambient state.",
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$"
+    },
+    "prose": {
+      "description": "Plain-text paragraphs. Not Markdown and not HTML: the renderer escapes every character it emits.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 40,
+      "items": { "type": "string", "minLength": 1, "maxLength": 4000 }
+    }
+  }
+}
