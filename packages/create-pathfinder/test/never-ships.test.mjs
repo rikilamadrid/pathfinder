@@ -228,6 +228,48 @@ describe("a project's own history", () => {
   });
 });
 
+describe("a project's own session state", () => {
+  /**
+   * The upgrade case. `current-feature.md` is the name the ticket loop
+   * replaced, so a project installed before that change still has one — and a
+   * maintainer running the installer has a filled-in `current-ticket.md` of
+   * their own, since neither name ships as a stencil any more.
+   *
+   * Asserting set membership proves nothing here: `neverShips` is consulted by
+   * `planInstall` with a kit-relative path, and it is that arithmetic, not the
+   * set, that has something to get wrong.
+   */
+  const OWN_STATE = "# Current ticket\n\n01.02 — this project's own work\n";
+
+  it("is not delivered from a maintainer's checkout", () => {
+    const kitRoot = kitWith({ "context/current-ticket.md": "# Current ticket\n\n07.03 — a maintainer's\n" });
+    const target = temporaryDirectory("pathfinder-never-ships-target-");
+
+    applyPlan(planInstall(kitRoot, target));
+
+    assert.equal(
+      existsSync(join(target, "context", "current-ticket.md")),
+      false,
+      "`/ticket load` writes the real one on first use; the installer writes none",
+    );
+  });
+
+  it("survives an upgrade under --force byte for byte", () => {
+    const kitRoot = kitWith({ "context/current-feature.md": "# Current feature\n\na maintainer's\n" });
+    const target = temporaryDirectory("pathfinder-never-ships-target-");
+    mkdirSync(join(target, "context"), { recursive: true });
+    writeFileSync(join(target, "context", "current-feature.md"), OWN_STATE);
+
+    applyPlan(planInstall(kitRoot, target, { force: true }));
+
+    assert.equal(
+      readFileSync(join(target, "context", "current-feature.md"), "utf8"),
+      OWN_STATE,
+      "a project installed before the rename keeps its own session state",
+    );
+  });
+});
+
 describe("staging for publication", () => {
   /**
    * `stage-kit.mjs` resolves the repository from its own location, so it cannot
