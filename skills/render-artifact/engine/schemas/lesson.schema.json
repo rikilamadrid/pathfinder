@@ -1,0 +1,210 @@
+{
+  "$id": "lesson.schema.json",
+  "title": "Pathfinder artifact specification — lesson",
+  "description": "One lesson artifact. `learn-feature` supplies one module; `learn-codebase` supplies many. The same fields serve both: there is no consumer-specific field, branch, or escape hatch.",
+  "type": "object",
+  "required": ["schema_version", "kind", "artifact", "source", "lesson"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/$defs/schema_version" },
+    "kind": { "const": "lesson" },
+    "artifact": { "$ref": "common.schema.json#/$defs/artifact" },
+    "source": { "$ref": "common.schema.json#/$defs/source" },
+    "lesson": {
+      "type": "object",
+      "required": ["modules"],
+      "additionalProperties": false,
+      "properties": {
+        "objectives": {
+          "description": "What a reader should be able to do afterwards. Renderer-owned chrome labels it; the producer owns the claims.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": { "type": "string", "minLength": 1, "maxLength": 400 }
+        },
+        "modules": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 60,
+          "items": { "$ref": "lesson.schema.json#/$defs/module" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "module": {
+      "description": "One unit of the lesson. A single module and sixty modules render through the same path; nothing branches on the count.",
+      "type": "object",
+      "required": ["id", "title", "sections"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "requires": {
+          "description": "Module ids this module builds on. Optional: the module graph is allowed to be a flat list. Edges must resolve and must not form a cycle.",
+          "type": "array",
+          "maxItems": 20,
+          "items": { "$ref": "common.schema.json#/$defs/identifier" }
+        },
+        "sections": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 60,
+          "items": { "$ref": "lesson.schema.json#/$defs/section" }
+        }
+      }
+    },
+    "section": {
+      "description": "A section of a module, discriminated by `type`.",
+      "oneOf": [
+        { "$ref": "lesson.schema.json#/$defs/prose_section" },
+        { "$ref": "lesson.schema.json#/$defs/concept_section" },
+        { "$ref": "lesson.schema.json#/$defs/code_section" },
+        { "$ref": "lesson.schema.json#/$defs/flow_section" },
+        { "$ref": "lesson.schema.json#/$defs/quiz_section" },
+        { "$ref": "lesson.schema.json#/$defs/exercise_section" }
+      ]
+    },
+    "prose_section": {
+      "description": "Explanatory text carrying no claim that needs citing.",
+      "type": "object",
+      "required": ["type", "id", "body"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "prose" },
+        "id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "body": { "$ref": "common.schema.json#/$defs/prose" }
+      }
+    },
+    "concept_section": {
+      "description": "A claim about the source. `evidence` is required and the evidence layer rejects it empty: a concept without evidence is an error, not a warning.",
+      "type": "object",
+      "required": ["type", "id", "title", "body", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "concept" },
+        "id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "body": { "$ref": "common.schema.json#/$defs/prose" },
+        "evidence": { "$ref": "common.schema.json#/$defs/evidence" }
+      }
+    },
+    "code_section": {
+      "description": "A literal excerpt. `language` names the code's language for the reader; it selects no highlighter and no styling.",
+      "type": "object",
+      "required": ["type", "id", "language", "lines"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "code" },
+        "id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "language": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9+#.-]{0,20}$"
+        },
+        "caption": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "first_line": {
+          "description": "The source line number the first emitted line had. Renders the gutter; changes nothing else.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "lines": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 400,
+          "items": { "type": "string", "maxLength": 500 }
+        },
+        "evidence": { "$ref": "common.schema.json#/$defs/evidence" }
+      }
+    },
+    "flow_section": {
+      "description": "An ordered process. The first step is the entry; every other step must be reachable from it, and the graph must be acyclic.",
+      "type": "object",
+      "required": ["type", "id", "title", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "flow" },
+        "id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": {
+            "type": "object",
+            "required": ["id", "title"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "$ref": "common.schema.json#/$defs/identifier" },
+              "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "detail": { "type": "string", "minLength": 1, "maxLength": 2000 },
+              "next": {
+                "description": "Step ids this step leads to. Absent means the following step in the array, which is what a linear flow wants.",
+                "type": "array",
+                "maxItems": 10,
+                "items": { "$ref": "common.schema.json#/$defs/identifier" }
+              },
+              "evidence": { "$ref": "common.schema.json#/$defs/evidence" }
+            }
+          }
+        }
+      }
+    },
+    "quiz_section": {
+      "description": "Comprehension questions. Each answer is an index into that question's own options.",
+      "type": "object",
+      "required": ["type", "id", "questions"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "quiz" },
+        "id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "questions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "items": {
+            "type": "object",
+            "required": ["id", "prompt", "options", "answer"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "$ref": "common.schema.json#/$defs/identifier" },
+              "prompt": { "type": "string", "minLength": 1, "maxLength": 1000 },
+              "options": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 8,
+                "uniqueItems": true,
+                "items": { "type": "string", "minLength": 1, "maxLength": 500 }
+              },
+              "answer": { "type": "integer", "minimum": 0 },
+              "explanation": { "type": "string", "minLength": 1, "maxLength": 2000 },
+              "evidence": { "$ref": "common.schema.json#/$defs/evidence" }
+            }
+          }
+        }
+      }
+    },
+    "exercise_section": {
+      "description": "Something for the reader to do. The renderer supplies the disclosure chrome around hints; the producer supplies their text.",
+      "type": "object",
+      "required": ["type", "id", "title", "body"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "exercise" },
+        "id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "body": { "$ref": "common.schema.json#/$defs/prose" },
+        "hints": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        },
+        "evidence": { "$ref": "common.schema.json#/$defs/evidence" }
+      }
+    }
+  }
+}

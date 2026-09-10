@@ -1,0 +1,242 @@
+{
+  "schema_version": "1.0",
+  "kind": "lesson",
+  "artifact": {
+    "title": "What the Pathfinder kit hands over",
+    "subtitle": "The copy list, the files that are tracked but never shipped, and the checks that keep both honest.",
+    "summary": "Pathfinder is copied into a project rather than depended on, so the exact set of files that crosses that boundary is the product. This lesson follows that set from the list that declares it to the checks that stop it drifting.",
+    "locale": "en"
+  },
+  "source": {
+    "repo": "rikilamadrid/pathfinder",
+    "commit": "78fbc34",
+    "generated_at": "2026-09-10"
+  },
+  "lesson": {
+    "objectives": [
+      "Name the single file that decides what an installed project receives.",
+      "Explain why a file can be tracked in Git and still never ship.",
+      "Point at the check that would fail if a manifest appeared at the repository root."
+    ],
+    "modules": [
+      {
+        "id": "what-ships",
+        "title": "What ships",
+        "summary": "One list decides it, and every other statement of the list is checked against that one.",
+        "sections": [
+          {
+            "type": "prose",
+            "id": "why-a-list",
+            "title": "Why a list at all",
+            "body": [
+              "Pathfinder installs by copying. There is no package to depend on at runtime, no import to resolve, and nothing that reaches back to this repository after the copy. The destination project ends up holding files, and the question of which files is the whole contract.",
+              "A contract spread across an installer, a staging script, a README and a validator is four contracts. So there is one file, and everything else is checked against it."
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "copy-list-is-canonical",
+            "title": "The copy list is the single source of truth",
+            "body": [
+              "copy-list.json names the top-level entries a destination project receives. The installer reads it at runtime, the structural validator checks every other statement of the list against it, and npm publishes it inside the package so the installer stays self-contained.",
+              "Note that `context` is a directory entry. Anything placed beneath it ships by default, which is what makes the exclusions in the next section necessary rather than tidy."
+            ],
+            "evidence": [
+              { "path": "packages/create-pathfinder/copy-list.json", "lines": [1, 11] }
+            ]
+          },
+          {
+            "type": "code",
+            "id": "copy-list-entries",
+            "title": "The entries themselves",
+            "language": "json",
+            "caption": "Six entries. A destination project receives these and nothing else.",
+            "first_line": 3,
+            "lines": [
+              "  \"entries\": [",
+              "    \"AGENTS.md\",",
+              "    \"CLAUDE.md\",",
+              "    \"context\",",
+              "    \"roles\",",
+              "    \"skills\",",
+              "    \"templates\"",
+              "  ]",
+              "}"
+            ],
+            "evidence": [
+              { "path": "packages/create-pathfinder/copy-list.json", "lines": [3, 11] }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "never-ships",
+            "title": "Tracked, and never shipped",
+            "body": [
+              "Five paths under context/ are excluded from the copy even though the directory ships. Four of them are transient session state — one maintainer's in-flight work, meaningless in another checkout.",
+              "The fifth, context/history.md, is the interesting one. It is durable project truth, tracked in version control exactly as a project should track it. It is simply another project's truth, so the promise made about it is the publication half only: never shipped, emphatically tracked.",
+              "An ignore rule could not carry this. .gitignore is advisory, a single `git add -f` defeats it, and the staging script copies from the working tree without consulting it at all."
+            ],
+            "evidence": [
+              { "path": "packages/create-pathfinder/src/kit.mjs", "lines": [97, 105] },
+              { "path": "packages/create-pathfinder/src/kit.mjs", "lines": [80, 96] }
+            ]
+          },
+          {
+            "type": "flow",
+            "id": "install-flow",
+            "title": "What an install actually does",
+            "steps": [
+              {
+                "id": "read-the-list",
+                "title": "Read the copy list",
+                "detail": "The installer reads copy-list.json from inside its own package, so the list it obeys travelled with it."
+              },
+              {
+                "id": "copy-entries",
+                "title": "Copy each entry",
+                "detail": "Files are copied verbatim. Directory entries are copied recursively, which is why skills/ arrives whole."
+              },
+              {
+                "id": "apply-filter",
+                "title": "Drop the never-ships paths",
+                "detail": "A filter matched on the kit-relative path — never the basename — removes the five excluded files as the copy walks.",
+                "evidence": [
+                  { "path": "packages/create-pathfinder/src/kit.mjs", "lines": [106, 130] }
+                ]
+              },
+              {
+                "id": "generate-adapters",
+                "title": "Generate harness adapters, if asked",
+                "detail": "Adapters are rendered from skill frontmatter. They carry a pointer to the canonical skill and no behaviour of their own."
+              }
+            ]
+          },
+          {
+            "type": "quiz",
+            "id": "what-ships-quiz",
+            "title": "Check your understanding",
+            "questions": [
+              {
+                "id": "which-file",
+                "prompt": "A contributor wants to add a new top-level directory to what installed projects receive. Which file do they change?",
+                "options": [
+                  "packages/create-pathfinder/copy-list.json",
+                  "The installer's src/kit.mjs",
+                  ".gitignore",
+                  "Both the installer and the README, together"
+                ],
+                "answer": 0,
+                "explanation": "The list is declared once. The installer reads it, and validation checks every other statement of the list against it, so changing it anywhere else is what the checks exist to catch.",
+                "evidence": [
+                  { "path": "packages/create-pathfinder/copy-list.json", "lines": [2, 2] }
+                ]
+              },
+              {
+                "id": "history-md",
+                "prompt": "Why is context/history.md excluded from the copy but still tracked in Git?",
+                "options": [
+                  "It is generated, so tracking it would create merge conflicts",
+                  "It is this repository's own completed-work record — durable truth, but somebody else's project should write its own",
+                  "It is too large to ship inside an npm package",
+                  "It is transient session state, like the handoff file"
+                ],
+                "answer": 1,
+                "explanation": "The other four excluded paths are transient and are ignored by Git as well. This one is durable and tracked; only publication is withheld."
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "keeping-it-honest",
+        "title": "Keeping it honest",
+        "summary": "The promises above are only worth what enforces them.",
+        "requires": ["what-ships"],
+        "sections": [
+          {
+            "type": "concept",
+            "id": "no-root-manifest",
+            "title": "No manifest at the repository root",
+            "body": [
+              "The kit promises a destination project acquires no runtime and no package manager. A package.json at this repository's root would contradict that in the most visible place possible, so CI asserts its absence by name for eight different manifest files.",
+              "Nested tooling may carry its own manifest — the installer under packages/ does. The rule is about the root, because the root is what a reader looks at to decide what kind of project this is."
+            ],
+            "evidence": [
+              { "path": ".github/workflows/validate.yml", "lines": [43, 54] },
+              { "path": "NOT_A_FRAMEWORK.md", "lines": [1, 5] }
+            ]
+          },
+          {
+            "type": "code",
+            "id": "root-manifest-check",
+            "title": "The assertion itself",
+            "language": "yaml",
+            "caption": "Named manifests, checked one at a time, with the reason in the comment above them.",
+            "first_line": 43,
+            "lines": [
+              "      - name: Assert no root manifest",
+              "        # NOT_A_FRAMEWORK.md promises the kit has no runtime and no package",
+              "        # manager. Nested tooling may carry its own manifest; the root may not.",
+              "        run: |",
+              "          for f in package.json package-lock.json pnpm-lock.yaml yarn.lock \\",
+              "                   requirements.txt pyproject.toml Gemfile go.mod; do",
+              "            if [ -e \"$f\" ]; then",
+              "              echo \"::error file=$f::$f at the repository root contradicts NOT_A_FRAMEWORK.md\""
+            ],
+            "evidence": [
+              { "path": ".github/workflows/validate.yml", "lines": [43, 50] }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "one-store",
+            "title": "One artifact, never a mirror",
+            "body": [
+              "The same instinct governs tickets. A project's tickets live in exactly one store, and nothing publishes, projects, or synchronizes them, because there is never a second copy to reconcile.",
+              "Local Markdown is a store in its own right rather than a fallback or a mirror of a real one. A project using GitHub Issues has nothing under context/tickets/, and a project using Markdown has its tickets there and nowhere else."
+            ],
+            "evidence": [
+              { "path": "skills/ticket/store.md", "lines": [7, 16] }
+            ]
+          },
+          {
+            "type": "exercise",
+            "id": "trace-a-file",
+            "title": "Trace a file across the boundary",
+            "body": [
+              "Pick any file in this repository and decide, without running the installer, whether an installed project receives it. Then check yourself against copy-list.json and the never-ships set.",
+              "Try context/coding-standards.md, context/handoff.md, and CONTRIBUTING.md. One of the three is a different answer from what the directory it sits in would suggest."
+            ],
+            "hints": [
+              "Start from the top-level entry. If the file's first path segment is not in the copy list, nothing below it ships.",
+              "If the first segment is `context`, check the never-ships set before answering — the directory entry ships its contents by default.",
+              "CONTRIBUTING.md is not a top-level entry in the list at all."
+            ],
+            "evidence": [
+              { "path": "packages/create-pathfinder/copy-list.json", "lines": [3, 10] },
+              { "path": "packages/create-pathfinder/src/kit.mjs", "lines": [97, 105] }
+            ]
+          },
+          {
+            "type": "quiz",
+            "id": "honesty-quiz",
+            "questions": [
+              {
+                "id": "root-manifest-why",
+                "prompt": "Why does CI name eight specific manifest files rather than checking for any dependency file?",
+                "options": [
+                  "Because a glob would be slower in CI",
+                  "Because the rule is about the root only, and naming the files makes what it forbids readable in the failure message",
+                  "Because the repository might legitimately contain a package.json at the root",
+                  "Because GitHub Actions cannot express a glob"
+                ],
+                "answer": 1,
+                "explanation": "The check prints the offending filename and the promise it contradicts. A reader who trips it learns why, not just that."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
