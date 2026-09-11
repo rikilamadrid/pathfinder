@@ -135,6 +135,56 @@ describe("determinism across environments", () => {
   });
 });
 
+describe("determinism of the producer's own specimen", () => {
+  // The citation-free fixture above isolates the renderer. This one does the
+  // opposite on purpose: it is the real lesson `learn-feature` produced, it
+  // cites this repository at the commit it teaches, and the evidence layer
+  // actually resolves those citations against Git.
+  //
+  // So this suite answers a question the fixture cannot — whether the
+  // *integration* is deterministic, not just the render. Evidence resolution
+  // reads blobs at a fixed commit, which no environment variable can move; if
+  // that were ever untrue, the digest would part company with the golden here.
+  const EXPECTED_PRODUCER = readFileSync(goldenPaths("learn-feature").digest, "utf8").trim();
+
+  const directories = [
+    { name: "the repository root", cwd: undefined },
+    { name: "an unrelated temporary directory", cwd: temporaryDirectory("cwd-p-") },
+    { name: "a directory with a space and non-ASCII in its name",
+      cwd: temporaryDirectory("cwd q ünïcödé-") },
+  ];
+
+  const seen = [];
+
+  for (const environment of ENVIRONMENTS) {
+    for (const directory of directories) {
+      it(`${environment.name}, from ${directory.name}`, () => {
+        const options = { spec: SPECS["learn-feature"], env: environment.env };
+        if (directory.cwd !== undefined) options.cwd = directory.cwd;
+
+        const delivery = deliverInSubprocess(options);
+
+        assert.equal(delivery.status, 0,
+          `the producer's specimen failed to deliver under ${environment.name}: ` +
+          `${JSON.stringify(delivery.receipt, null, 2)}\n${delivery.stderr}`);
+
+        seen.push(delivery.receipt.artifact.sha256);
+        assert.equal(delivery.receipt.artifact.sha256, EXPECTED_PRODUCER,
+          `the producer's artifact digest moved under ${describeEnvironment({
+            cwd: options.cwd ?? "(repository root)", env: environment.env,
+          })}`);
+      });
+    }
+  }
+
+  it("every environment agreed on one digest", () => {
+    assert.equal(new Set(seen).size, 1,
+      `${seen.length} renders of the producer's specimen produced ` +
+      `${new Set(seen).size} distinct digests`);
+    assert.equal(seen.length, ENVIRONMENTS.length * directories.length);
+  });
+});
+
 describe("determinism of the renderer version itself", () => {
   it("the receipt names the version that is part of the deterministic input", () => {
     const delivery = deliverInSubprocess({ spec: SPECS.fixture });

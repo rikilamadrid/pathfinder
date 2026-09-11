@@ -37,10 +37,17 @@ export const ENGINE_BIN = join(ENGINE_ROOT, "bin", "render.mjs");
  * `example` is the engine's shipped example and does cite the repository, so
  * it is the specimen that proves evidence resolution and the provenance block
  * on a real lesson.
+ *
+ * `learn-feature` is the producer's own output, frozen. It is a real lesson
+ * `learn-feature` produced for a real completed feature, copied here unchanged
+ * — not a fixture shaped to pass. That is what makes it evidence about the
+ * integration rather than about this package: if the producer contract and the
+ * renderer contract ever disagree, they disagree here first.
  */
 export const SPECS = Object.freeze({
   fixture: join(PACKAGE_ROOT, "fixtures", "deterministic-lesson.json"),
   example: join(ENGINE_ROOT, "examples", "lesson.json"),
+  "learn-feature": join(PACKAGE_ROOT, "fixtures", "learn-feature.json"),
 });
 
 export const GOLDEN_DIR = join(PACKAGE_ROOT, "golden");
