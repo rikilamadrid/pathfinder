@@ -1,0 +1,1384 @@
+<!doctype html>
+<html lang="en" data-pf-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Pathfinder Codebase</title>
+<meta name="description" content="Pathfinder is a workflow kit, not a framework. This portal walks the repository as it stands at the commit that landed the shared visual artifact renderer&#39;s first producer integration, and explains how four subsystems keep that promise: the canonical skills, the installer that copies them, the renderer that compiles artifacts, and the CI that refuses the shortcuts.">
+<meta name="generator" content="Pathfinder render-artifact 0.1.0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
+<style>:root {
+  color-scheme: light;
+  --pf-page: #FDFCFB;
+  --pf-surface: #FFFFFF;
+  --pf-surface-2: #F5F2EF;
+  --pf-ink: #1B1815;
+  --pf-muted: #5C5550;
+  --pf-line: #E2DCD6;
+  --pf-line-strong: #8C837A;
+  --pf-accent: #E0611F;
+  --pf-accent-ink: #1B1815;
+  --pf-link: #B34A13;
+  --pf-ok: #1F6F43;
+  --pf-no: #A62B1E;
+  --pf-shadow: 0 1px 2px rgba(27, 24, 21, .06), 0 8px 24px rgba(27, 24, 21, .05);
+
+  --pf-space-1: .25rem;
+  --pf-space-2: .5rem;
+  --pf-space-3: .75rem;
+  --pf-space-4: 1rem;
+  --pf-space-5: 1.5rem;
+  --pf-space-6: 2rem;
+  --pf-space-7: 3rem;
+  --pf-space-8: 4rem;
+
+  --pf-radius: 10px;
+  --pf-radius-sm: 6px;
+  --pf-measure: 68ch;
+
+  --pf-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+             "Helvetica Neue", Arial, sans-serif;
+  --pf-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+             "Liberation Mono", monospace;
+}
+
+/* Light is the base, so a reader whose system states no preference gets a
+   readable page rather than whichever branch happened to be written first.
+   "auto" follows the system; "light" and "dark" are the reader overriding it,
+   and both win over the media query because they are on the element. */
+:root[data-pf-theme="dark"] {
+  color-scheme: dark;
+  --pf-page: #14120F;
+  --pf-surface: #1D1A16;
+  --pf-surface-2: #262218;
+  --pf-ink: #F2EEE9;
+  --pf-muted: #B0A79E;
+  --pf-line: #35302A;
+  --pf-line-strong: #7A7168;
+  --pf-accent: #E0611F;
+  --pf-accent-ink: #1B1815;
+  --pf-link: #F0A97E;
+  --pf-ok: #6FD39B;
+  --pf-no: #F09085;
+  --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-pf-theme="auto"] {
+    color-scheme: dark;
+    --pf-page: #14120F;
+    --pf-surface: #1D1A16;
+    --pf-surface-2: #262218;
+    --pf-ink: #F2EEE9;
+    --pf-muted: #B0A79E;
+    --pf-line: #35302A;
+    --pf-line-strong: #7A7168;
+    --pf-accent: #E0611F;
+    --pf-accent-ink: #1B1815;
+    --pf-link: #F0A97E;
+    --pf-ok: #6FD39B;
+    --pf-no: #F09085;
+    --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--pf-page);
+  color: var(--pf-ink);
+  font-family: var(--pf-sans);
+  font-size: 16px;
+  line-height: 1.65;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 {
+  line-height: 1.25;
+  letter-spacing: -.011em;
+  margin: 0;
+  font-weight: 650;
+}
+
+p { margin: 0 0 var(--pf-space-4); max-width: var(--pf-measure); }
+p:last-child { margin-bottom: 0; }
+
+a { color: var(--pf-link); text-underline-offset: .18em; }
+a:hover { text-decoration-thickness: 2px; }
+
+:focus-visible {
+  outline: 3px solid var(--pf-accent);
+  outline-offset: 2px;
+  border-radius: var(--pf-radius-sm);
+}
+
+code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
+
+/* ---------- skip link ---------- */
+
+.pf-skip {
+  position: absolute;
+  left: var(--pf-space-3);
+  top: var(--pf-space-3);
+  z-index: 40;
+  padding: var(--pf-space-2) var(--pf-space-4);
+  background: var(--pf-accent);
+  color: var(--pf-accent-ink);
+  border-radius: var(--pf-radius-sm);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+.pf-skip:focus { transform: translateY(0); }
+
+/* ---------- header ---------- */
+
+.pf-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--pf-space-4);
+  padding: var(--pf-space-4) var(--pf-space-5);
+  background: var(--pf-surface);
+  border-bottom: 1px solid var(--pf-line);
+}
+
+.pf-mark { flex: none; color: var(--pf-accent); display: block; }
+
+.pf-identity { min-width: 0; flex: 1 1 auto; }
+.pf-title {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-eyebrow {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+
+.pf-theme-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pf-space-2);
+  padding: var(--pf-space-2) var(--pf-space-3);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--pf-ink);
+  background: var(--pf-surface-2);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.pf-theme-toggle:hover { border-color: var(--pf-accent); }
+
+/* ---------- layout ---------- */
+
+.pf-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.pf-main {
+  min-width: 0;
+  padding: var(--pf-space-6) var(--pf-space-5) var(--pf-space-8);
+}
+
+/* ---------- navigation ---------- */
+
+.pf-nav {
+  position: sticky;
+  top: 64px;
+  z-index: 20;
+  background: var(--pf-page);
+  border-bottom: 1px solid var(--pf-line);
+  padding: var(--pf-space-3) var(--pf-space-5);
+  overflow-x: auto;
+}
+
+.pf-nav-label {
+  display: none;
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+  margin-bottom: var(--pf-space-3);
+}
+
+.pf-nav-list {
+  display: flex;
+  gap: var(--pf-space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pf-nav-link {
+  display: block;
+  white-space: nowrap;
+  padding: var(--pf-space-2) var(--pf-space-3);
+  border-radius: 999px;
+  border: 1px solid var(--pf-line);
+  color: var(--pf-ink);
+  text-decoration: none;
+  font-size: .875rem;
+  font-weight: 550;
+}
+.pf-nav-link:hover { border-color: var(--pf-accent); }
+.pf-nav-link[aria-current="true"] {
+  border-color: var(--pf-accent);
+  background: var(--pf-surface-2);
+  font-weight: 650;
+}
+.pf-nav-index {
+  color: var(--pf-muted);
+  font-variant-numeric: tabular-nums;
+  margin-right: var(--pf-space-2);
+}
+
+/* ---------- lesson head ---------- */
+
+.pf-lead {
+  margin: 0 0 var(--pf-space-7);
+  padding-bottom: var(--pf-space-6);
+  border-bottom: 1px solid var(--pf-line);
+}
+.pf-lead h1 { font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.5rem); }
+.pf-lead-sub {
+  margin-top: var(--pf-space-3);
+  font-size: 1.0625rem;
+  color: var(--pf-muted);
+  max-width: var(--pf-measure);
+}
+.pf-lead-summary { margin-top: var(--pf-space-4); }
+
+.pf-objectives {
+  margin: var(--pf-space-5) 0 0;
+  padding: var(--pf-space-4) var(--pf-space-5);
+  background: var(--pf-surface-2);
+  border-radius: var(--pf-radius);
+  border: 1px solid var(--pf-line);
+  max-width: var(--pf-measure);
+}
+.pf-objectives ul { margin: var(--pf-space-2) 0 0; padding-left: 1.25rem; }
+.pf-objectives li { margin-bottom: var(--pf-space-2); }
+.pf-objectives li:last-child { margin-bottom: 0; }
+
+/* ---------- modules and sections ---------- */
+
+.pf-module { margin-bottom: var(--pf-space-8); scroll-margin-top: 128px; }
+.pf-module-head { margin-bottom: var(--pf-space-5); }
+/* --pf-link, not --pf-accent. This is 11px text, so WCAG 2.1 AA wants 4.5:1
+   and the accent gives 3.47:1 on the light page — it clears the 3:1 non-text
+   bar the mark and the focus ring rely on, and fails as soon as it becomes
+   words. --pf-link is the accent darkened for exactly this: 5.25:1 light,
+   9.51:1 dark. Any future accent-coloured *text* takes this token. */
+.pf-module-index {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-link);
+}
+.pf-module-title { font-size: 1.5rem; margin-top: var(--pf-space-2); }
+.pf-module-summary { margin-top: var(--pf-space-3); color: var(--pf-muted); }
+
+.pf-requires {
+  margin-top: var(--pf-space-3);
+  font-size: .8125rem;
+  color: var(--pf-muted);
+}
+.pf-requires a { color: var(--pf-link); }
+
+.pf-section { margin-bottom: var(--pf-space-6); scroll-margin-top: 128px; }
+.pf-section-title { font-size: 1.125rem; margin-bottom: var(--pf-space-3); }
+
+.pf-card {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  padding: var(--pf-space-5);
+  box-shadow: var(--pf-shadow);
+}
+.pf-card--concept { border-left: 3px solid var(--pf-accent); }
+
+.pf-kicker {
+  display: inline-block;
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+  margin-bottom: var(--pf-space-2);
+}
+
+/* ---------- evidence ---------- */
+
+.pf-evidence {
+  margin: var(--pf-space-5) 0 0;
+  padding-top: var(--pf-space-4);
+  border-top: 1px dashed var(--pf-line);
+}
+.pf-evidence-label {
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+.pf-evidence ul { list-style: none; margin: var(--pf-space-2) 0 0; padding: 0; }
+.pf-evidence li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pf-space-2);
+  padding: var(--pf-space-1) 0;
+  font-family: var(--pf-mono);
+  font-size: .8125rem;
+  overflow-wrap: anywhere;
+}
+.pf-cite-path { color: var(--pf-ink); }
+.pf-cite-lines, .pf-cite-commit {
+  padding: 0 var(--pf-space-2);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface-2);
+  color: var(--pf-muted);
+  font-size: .75rem;
+  white-space: nowrap;
+}
+
+/* ---------- code ---------- */
+
+.pf-code { margin: 0; }
+.pf-code figcaption {
+  color: var(--pf-muted);
+  font-size: .875rem;
+  margin-bottom: var(--pf-space-3);
+  max-width: var(--pf-measure);
+}
+.pf-code-frame {
+  background: var(--pf-surface-2);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  overflow: hidden;
+}
+.pf-code-lang {
+  display: block;
+  padding: var(--pf-space-2) var(--pf-space-4);
+  border-bottom: 1px solid var(--pf-line);
+  font-family: var(--pf-mono);
+  font-size: .6875rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+.pf-code pre {
+  margin: 0;
+  padding: var(--pf-space-4) 0;
+  overflow-x: auto;
+  line-height: 1.7;
+  tab-size: 2;
+}
+.pf-code-line { display: block; padding: 0 var(--pf-space-4); white-space: pre; }
+.pf-code-no {
+  display: inline-block;
+  width: 3ch;
+  margin-right: var(--pf-space-4);
+  text-align: right;
+  color: var(--pf-muted);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- flow ---------- */
+
+.pf-flow { list-style: none; margin: 0; padding: 0; counter-reset: pf-step; }
+.pf-flow > li {
+  position: relative;
+  counter-increment: pf-step;
+  padding: 0 0 var(--pf-space-5) var(--pf-space-7);
+}
+.pf-flow > li:last-child { padding-bottom: 0; }
+.pf-flow > li::before {
+  content: counter(pf-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--pf-accent);
+  color: var(--pf-accent-ink);
+  font-size: .8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pf-flow > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: calc(.875rem - 1px);
+  top: 2rem;
+  bottom: var(--pf-space-2);
+  width: 2px;
+  background: var(--pf-line);
+}
+.pf-step-title { font-weight: 650; }
+.pf-step-detail { margin-top: var(--pf-space-2); color: var(--pf-muted); }
+.pf-step-next {
+  margin-top: var(--pf-space-2);
+  font-size: .8125rem;
+  color: var(--pf-muted);
+}
+
+/* ---------- quiz ---------- */
+
+.pf-quiz { display: grid; gap: var(--pf-space-4); }
+.pf-question { border: 0; margin: 0; padding: 0; }
+.pf-question legend {
+  padding: 0;
+  font-weight: 650;
+  margin-bottom: var(--pf-space-3);
+  max-width: var(--pf-measure);
+}
+.pf-options { display: grid; gap: var(--pf-space-2); margin-bottom: var(--pf-space-3); }
+.pf-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pf-space-3);
+  padding: var(--pf-space-3) var(--pf-space-4);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface);
+  cursor: pointer;
+}
+.pf-option:hover { border-color: var(--pf-accent); }
+.pf-option input { margin: .35rem 0 0; accent-color: var(--pf-accent); flex: none; }
+.pf-option[data-pf-verdict="correct"] {
+  border-color: var(--pf-ok);
+  box-shadow: inset 0 0 0 1px var(--pf-ok);
+}
+.pf-option[data-pf-verdict="incorrect"] {
+  border-color: var(--pf-no);
+  box-shadow: inset 0 0 0 1px var(--pf-no);
+}
+.pf-verdict { font-weight: 650; font-size: .8125rem; margin-left: auto; }
+.pf-option[data-pf-verdict="correct"] .pf-verdict { color: var(--pf-ok); }
+.pf-option[data-pf-verdict="incorrect"] .pf-verdict { color: var(--pf-no); }
+
+/* ---------- disclosure ---------- */
+
+.pf-reveal {
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface-2);
+  padding: var(--pf-space-2) var(--pf-space-4);
+}
+.pf-reveal > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: .875rem;
+  padding: var(--pf-space-1) 0;
+}
+.pf-reveal[open] > summary { margin-bottom: var(--pf-space-3); }
+.pf-reveal ol { margin: 0; padding-left: 1.25rem; }
+.pf-reveal li { margin-bottom: var(--pf-space-2); }
+.pf-reveal li:last-child { margin-bottom: 0; }
+
+/* ---------- provenance ---------- */
+
+.pf-provenance {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--pf-space-6) var(--pf-space-5) var(--pf-space-8);
+  border-top: 1px solid var(--pf-line);
+  color: var(--pf-muted);
+  font-size: .8125rem;
+}
+.pf-provenance dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--pf-space-2) var(--pf-space-4);
+  margin: 0 0 var(--pf-space-5);
+}
+.pf-provenance dt { font-weight: 650; color: var(--pf-ink); }
+.pf-provenance dd { margin: 0; font-family: var(--pf-mono); overflow-wrap: anywhere; }
+.pf-caveat { max-width: var(--pf-measure); }
+
+/* ---------- wide ---------- */
+
+@media (min-width: 900px) {
+  .pf-layout {
+    grid-template-columns: 248px minmax(0, 1fr);
+    gap: var(--pf-space-6);
+    padding: 0 var(--pf-space-5);
+  }
+  .pf-nav {
+    top: 76px;
+    align-self: start;
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--pf-space-6) 0 var(--pf-space-6);
+    border-bottom: 0;
+    background: transparent;
+  }
+  .pf-nav-label { display: block; }
+  .pf-nav-list { display: block; }
+  .pf-nav-list li { margin-bottom: var(--pf-space-1); }
+  .pf-nav-link {
+    white-space: normal;
+    border: 0;
+    border-left: 2px solid var(--pf-line);
+    border-radius: 0;
+    padding: var(--pf-space-2) var(--pf-space-3);
+  }
+  .pf-nav-link[aria-current="true"] {
+    border-left-color: var(--pf-accent);
+    background: var(--pf-surface-2);
+  }
+  .pf-main { padding: var(--pf-space-7) 0 var(--pf-space-8); }
+  .pf-provenance { padding-left: calc(248px + var(--pf-space-6) + var(--pf-space-5)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
+
+@media print {
+  .pf-header, .pf-nav, .pf-skip, .pf-theme-toggle { display: none; }
+  .pf-card { box-shadow: none; break-inside: avoid; }
+  .pf-reveal[open] > summary { list-style: none; }
+}</style>
+</head>
+<body>
+<a class="pf-skip" href="#pf-content">Skip to content</a>
+<header class="pf-header">
+<svg class="pf-mark" width="26" height="26" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><g fill="currentColor"><rect x="4" y="23" width="24" height="6.4" rx="3.2" transform="rotate(-3 16 26.2)"/><rect x="7" y="14.6" width="18" height="6" rx="3" transform="rotate(4 16 17.6)"/><rect x="9.6" y="7" width="12.8" height="5.4" rx="2.7" transform="rotate(-6 16 9.7)"/><rect x="12.4" y="1" width="7.2" height="4.4" rx="2.2" transform="rotate(5 16 3.2)"/></g></svg>
+<div class="pf-identity">
+<div class="pf-eyebrow">Pathfinder lesson</div>
+<div class="pf-title">The Pathfinder Codebase</div>
+</div>
+<button type="button" class="pf-theme-toggle" id="pf-theme-toggle" hidden>Theme: auto</button>
+</header>
+<div class="pf-layout">
+<nav class="pf-nav" aria-label="Modules">
+<div class="pf-nav-label">Modules</div>
+<ul class="pf-nav-list">
+<li><a class="pf-nav-link" href="#m--orientation" data-pf-nav="m--orientation"><span class="pf-nav-index">1</span>Orientation: a kit, not a framework</a></li>
+<li><a class="pf-nav-link" href="#m--the-kit" data-pf-nav="m--the-kit"><span class="pf-nav-index">2</span>The kit: one contract, three surfaces</a></li>
+<li><a class="pf-nav-link" href="#m--the-installer" data-pf-nav="m--the-installer"><span class="pf-nav-index">3</span>The installer: a shipping boundary with teeth</a></li>
+<li><a class="pf-nav-link" href="#m--the-renderer" data-pf-nav="m--the-renderer"><span class="pf-nav-index">4</span>The renderer: a deterministic compiler</a></li>
+<li><a class="pf-nav-link" href="#m--the-lifecycle" data-pf-nav="m--the-lifecycle"><span class="pf-nav-index">5</span>The delivery lifecycle</a></li>
+<li><a class="pf-nav-link" href="#m--verification" data-pf-nav="m--verification"><span class="pf-nav-index">6</span>Verification: the checks that hold it together</a></li>
+<li><a class="pf-nav-link" href="#m--putting-it-together" data-pf-nav="m--putting-it-together"><span class="pf-nav-index">7</span>Putting it together</a></li>
+</ul>
+</nav>
+<main class="pf-main" id="pf-content">
+<div class="pf-lead">
+<h1>The Pathfinder Codebase</h1>
+<p class="pf-lead-sub">A milestone tour of the kit, the installer, the renderer, and the checks that hold them apart</p>
+<div class="pf-lead-summary"><p>Pathfinder is a workflow kit, not a framework. This portal walks the repository as it stands at the commit that landed the shared visual artifact renderer&#39;s first producer integration, and explains how four subsystems keep that promise: the canonical skills, the installer that copies them, the renderer that compiles artifacts, and the CI that refuses the shortcuts.</p></div>
+<div class="pf-objectives">
+<div class="pf-kicker">What you should be able to do</div>
+<ul>
+<li>Explain what Pathfinder ships to a destination project and what it deliberately withholds.</li>
+<li>Trace a skill from its canonical file to each of the three surfaces that expose it.</li>
+<li>Say why the renderer&#39;s version is an input to rendering rather than a label on it.</li>
+<li>Locate the checks that would fail if the kit quietly became a framework.</li>
+<li>Decide which subsystem owns a given change before making it.</li>
+</ul>
+</div>
+</div>
+<section class="pf-module" id="m--orientation" aria-labelledby="m--orientation--h">
+<div class="pf-module-head">
+<div class="pf-module-index">Module 1</div>
+<h2 class="pf-module-title" id="m--orientation--h">Orientation: a kit, not a framework</h2>
+<p class="pf-module-summary">What this repository is, what it hands over, and the promise that shapes every other decision in it.</p>
+</div>
+<section class="pf-section" id="s--what-you-are-looking-at">
+<h3 class="pf-section-title" id="s--what-you-are-looking-at--h">What you are looking at</h3>
+<div class="pf-card">
+<p>Pathfinder is a set of skills, roles, context files, and templates that get copied into somebody else&#39;s software project. Once copied, they give an AI agent a repeatable way to discover, plan, build, test, complete, debug, and reflect on work.</p>
+<p>That single sentence explains most of the repository&#39;s shape. Because the kit is copied rather than depended on, it cannot assume a language, a package manager, a runtime, or a build step in the project receiving it. Almost every constraint you are about to meet is that assumption being enforced somewhere.</p>
+</div>
+</section>
+<section class="pf-section" id="s--the-kit-owns-the-workflow">
+<h3 class="pf-section-title" id="s--the-kit-owns-the-workflow--h">The kit owns the workflow; the project owns the stack</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>A destination project receives six entries and nothing else. There is no dependency to install, no configuration file to wire up, and no code that runs at the project&#39;s runtime.</p>
+<p>The list lives in exactly one place. The installer reads it at runtime, the kit validator checks every other statement of the list against it, and npm publishes it inside the package so the installer is self-contained — which is why the file describes itself as the single source of truth rather than one copy among several.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 2–10</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--the-copy-list">
+<h3 class="pf-section-title">Everything a project receives</h3>
+<figure class="pf-code">
+<figcaption>Six entries. Adding a seventh is a decision made here and nowhere else.</figcaption>
+<div class="pf-code-frame"><span class="pf-code-lang">json</span>
+<pre><code>
+<span class="pf-code-line"><span class="pf-code-no">3</span>  &quot;entries&quot;: [</span>
+<span class="pf-code-line"><span class="pf-code-no">4</span>    &quot;AGENTS.md&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">5</span>    &quot;CLAUDE.md&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">6</span>    &quot;context&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">7</span>    &quot;roles&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">8</span>    &quot;skills&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">9</span>    &quot;templates&quot;</span>
+<span class="pf-code-line"><span class="pf-code-no">10</span>  ]</span>
+</code></pre></div>
+<div class="pf-card"><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 3–10</span></li>
+</ul>
+</div></div>
+</figure>
+</section>
+<section class="pf-section" id="s--no-root-manifest">
+<h3 class="pf-section-title" id="s--no-root-manifest--h">The absence of a root manifest is load-bearing</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>A manifest at the repository root would make Pathfinder look like a package with a runtime, which is the exact claim the kit does not make. Nested tooling may carry its own manifest — the installer and the renderer&#39;s test package both do — but the root may not.</p>
+<p>This is not left to good intentions. Continuous integration fails the build if any of eight common manifest files appears at the root, and names the promise it would have contradicted.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">.github/workflows/validate.yml</span><span class="pf-cite-lines">lines 58–69</span></li>
+<li><span class="pf-cite-path">NOT_A_FRAMEWORK.md</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--root-manifest-check">
+<h3 class="pf-section-title">The check that keeps the promise honest</h3>
+<figure class="pf-code">
+<figcaption>Eight filenames, one exit code. The error message cites the document it is defending.</figcaption>
+<div class="pf-code-frame"><span class="pf-code-lang">bash</span>
+<pre><code>
+<span class="pf-code-line"><span class="pf-code-no">62</span>          for f in package.json package-lock.json pnpm-lock.yaml yarn.lock \</span>
+<span class="pf-code-line"><span class="pf-code-no">63</span>                   requirements.txt pyproject.toml Gemfile go.mod; do</span>
+<span class="pf-code-line"><span class="pf-code-no">64</span>            if [ -e &quot;$f&quot; ]; then</span>
+<span class="pf-code-line"><span class="pf-code-no">65</span>              echo &quot;::error file=$f::$f at the repository root contradicts NOT_A_FRAMEWORK.md&quot;</span>
+<span class="pf-code-line"><span class="pf-code-no">66</span>              exit 1</span>
+<span class="pf-code-line"><span class="pf-code-no">67</span>            fi</span>
+<span class="pf-code-line"><span class="pf-code-no">68</span>          done</span>
+<span class="pf-code-line"><span class="pf-code-no">69</span>          echo &quot;OK — no manifest at the repository root.&quot;</span>
+</code></pre></div>
+<div class="pf-card"><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">.github/workflows/validate.yml</span><span class="pf-cite-lines">lines 62–69</span></li>
+</ul>
+</div></div>
+</figure>
+</section>
+</section>
+<section class="pf-module" id="m--the-kit" aria-labelledby="m--the-kit--h">
+<div class="pf-module-head">
+<div class="pf-module-index">Module 2</div>
+<h2 class="pf-module-title" id="m--the-kit--h">The kit: one contract, three surfaces</h2>
+<p class="pf-module-summary">How a skill reaches an agent, and why two of the three ways are generated rather than written.</p>
+<p class="pf-requires">Builds on: <a href="#m--orientation">Orientation: a kit, not a framework</a></p>
+</div>
+<section class="pf-section" id="s--canonical-and-derived">
+<h3 class="pf-section-title" id="s--canonical-and-derived--h">Canonical skills, derived adapters</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>A skill&#39;s behavior is defined once, in a tool-neutral file under the skills directory. Harness-specific representations are generated integration artifacts carrying the canonical file&#39;s frontmatter and a pointer back to it, and they must never grow behavior of their own.</p>
+<p>The Claude Code plugin is the third surface and the only one that generates nothing: it exposes the canonical tree directly, namespaced. When a surface and its canonical skill disagree, the canonical skill is correct — which is a rule about who wins, not a hope that they stay in step.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">CLAUDE.md</span><span class="pf-cite-lines">lines 78–80</span></li>
+<li><span class="pf-cite-path">.claude-plugin/plugin.json</span><span class="pf-cite-lines">lines 1–4</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--skill-to-agent">
+<h3 class="pf-section-title" id="s--skill-to-agent--h">How one skill reaches an agent</h3>
+<div class="pf-card">
+<span class="pf-kicker">Walkthrough</span>
+<ol class="pf-flow">
+<li>
+<div class="pf-step-title">The canonical file is edited</div>
+<p class="pf-step-detail">A skill&#39;s behavior changes in skills/&lt;name&gt;/SKILL.md. This is the only file a human edits.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/ticket/SKILL.md</span></li>
+</ul>
+</div>
+</li>
+<li>
+<div class="pf-step-title">Adapters are regenerated</div>
+<p class="pf-step-detail">A generator rewrites the harness adapters from the canonical frontmatter. An adapter that drifts is a bug in the generator, not a variant to preserve.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/scripts/generate-adapters.mjs</span></li>
+</ul>
+</div>
+</li>
+<li>
+<div class="pf-step-title">The plugin surface needs nothing</div>
+<p class="pf-step-detail">It points at the canonical tree, so it is never stale and never copied.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">.claude-plugin/plugin.json</span></li>
+</ul>
+</div>
+</li>
+<li>
+<div class="pf-step-title">Validation refuses drift</div>
+<p class="pf-step-detail">The kit validator checks adapter freshness and the skills list in the agent guide, so a skill added without its obligations fails the build.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">.github/scripts/validate-kit.py</span></li>
+</ul>
+</div>
+</li>
+</ol>
+</div>
+</section>
+<section class="pf-section" id="s--roles-narrow">
+<h3 class="pf-section-title" id="s--roles-narrow--h">Roles narrow responsibility without widening authority</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>Three role files describe what a worker is responsible for, what it reads, and what it must not do. A lifecycle skill assumes the role its action implies; a human can override that by name.</p>
+<p>The distinction that matters: a role never grants authority. Approval, acceptance, merge, and release stay with the human whether a role was assumed automatically or chosen explicitly.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">roles/developer.md</span></li>
+<li><span class="pf-cite-path">CLAUDE.md</span><span class="pf-cite-lines">lines 31–42</span></li>
+</ul>
+</div>
+</div>
+</section>
+</section>
+<section class="pf-module" id="m--the-installer" aria-labelledby="m--the-installer--h">
+<div class="pf-module-head">
+<div class="pf-module-index">Module 3</div>
+<h2 class="pf-module-title" id="m--the-installer--h">The installer: a shipping boundary with teeth</h2>
+<p class="pf-module-summary">What copying the kit actually does, and the two lists that decide what never crosses.</p>
+<p class="pf-requires">Builds on: <a href="#m--the-kit">The kit: one contract, three surfaces</a></p>
+</div>
+<section class="pf-section" id="s--install-shape">
+<h3 class="pf-section-title" id="s--install-shape--h">One command, one copy</h3>
+<div class="pf-card">
+<p>Installation copies the six entries into a destination project. There is nothing to link, nothing to compile, and nothing left running afterwards. The installer is a Node package only because something has to do the copying.</p>
+<p>Two separate filters decide what a copy leaves behind, and they exist for different reasons.</p>
+</div>
+</section>
+<section class="pf-section" id="s--never-ships">
+<h3 class="pf-section-title" id="s--never-ships--h">Session state must never reach another project</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>Some files in this repository describe this repository&#39;s own work in progress: its ticket store, the ticket currently loaded, a handoff note, its history. Handing those to a destination project would hand over somebody else&#39;s session as if it were the new project&#39;s own.</p>
+<p>They are matched on the kit-relative path rather than the basename, and the comment above the list says why: a project&#39;s own tracker file somewhere else is not this file and must not be caught by it. A basename match would have been shorter and wrong.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 95–107</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--never-ships-list">
+<h3 class="pf-section-title">The five paths that stay behind</h3>
+<figure class="pf-code">
+<figcaption>Kit-relative paths, not basenames. The distinction is the point.</figcaption>
+<div class="pf-code-frame"><span class="pf-code-lang">javascript</span>
+<pre><code>
+<span class="pf-code-line"><span class="pf-code-no">101</span>const NEVER_SHIPS = new Set([</span>
+<span class="pf-code-line"><span class="pf-code-no">102</span>  &quot;context/tracker.md&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">103</span>  &quot;context/current-ticket.md&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">104</span>  &quot;context/current-feature.md&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">105</span>  &quot;context/handoff.md&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">106</span>  &quot;context/history.md&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">107</span>]);</span>
+</code></pre></div>
+<div class="pf-card"><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 101–107</span></li>
+</ul>
+</div></div>
+</figure>
+</section>
+<section class="pf-section" id="s--excluded-junk">
+<h3 class="pf-section-title" id="s--excluded-junk--h">The second filter exists because two install sources disagree</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>Editor and operating-system junk is git-ignored here, so it sits in a maintainer&#39;s working tree but not in version control, and npm strips it from the published tarball on its own.</p>
+<p>Without an explicit exclusion the installer would copy that junk when run from a checkout and not when run from npm. The comment calls that the worst kind of difference: invisible, and only on someone else&#39;s machine. The filter exists to make the two install paths agree.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 36–50</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--add-an-entry">
+<h3 class="pf-section-title" id="s--add-an-entry--h">Decide where a new kit entry belongs</h3>
+<div class="pf-card">
+<span class="pf-kicker">Practice</span>
+<p>Suppose Pathfinder gains a top-level directory of shared checklists that destination projects should receive. Work out every file you would have to touch for the build to pass, without reading the answer first.</p>
+<details class="pf-reveal">
+<summary>Hints</summary>
+<ol>
+<li>Start from the file that calls itself the single source of truth, and ask what reads it.</li>
+<li>The kit validator checks every other statement of the list against that file. What counts as a statement?</li>
+<li>Ask whether the new directory contains anything that describes this repository&#39;s own session.</li>
+</ol>
+</details>
+</div>
+</section>
+</section>
+<section class="pf-module" id="m--the-renderer" aria-labelledby="m--the-renderer--h">
+<div class="pf-module-head">
+<div class="pf-module-index">Module 4</div>
+<h2 class="pf-module-title" id="m--the-renderer--h">The renderer: a deterministic compiler</h2>
+<p class="pf-module-summary">Why a producer skill writes meaning instead of markup, and what makes the same input give the same bytes.</p>
+<p class="pf-requires">Builds on: <a href="#m--orientation">Orientation: a kit, not a framework</a></p>
+</div>
+<section class="pf-section" id="s--renderer-why">
+<h3 class="pf-section-title" id="s--renderer-why--h">The problem it removes</h3>
+<div class="pf-card">
+<p>Skills that produced a visual artifact used to end at &#39;self-contained HTML/CSS/JS&#39; with no tooling, which meant every run reinvented a page and no two looked alike. The renderer replaces that with a split: a producer skill writes a small typed specification describing what is true, and one engine compiles it into a self-contained artifact.</p>
+<p>The portal you are reading was produced that way. Its producer skill wrote meaning; every pixel here belongs to the engine.</p>
+</div>
+</section>
+<section class="pf-section" id="s--version-is-input">
+<h3 class="pf-section-title" id="s--version-is-input--h">The renderer&#39;s version is an input, not a label</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>The determinism invariant is: the same specification bytes and the same renderer version produce byte-identical HTML. That makes the version part of the compiler&#39;s input, so it has to move exactly when rendered output can move, and at no other time.</p>
+<p>It deliberately is not the kit&#39;s release version and deliberately is not carried by a manifest. A manifest under the skills tree would ship into destination projects and read as a dependency the kit does not have; tying the constant to the kit version would make every release look like an intentional output change.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/render-artifact/engine/version.mjs</span><span class="pf-cite-lines">lines 1–21</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--renderer-version">
+<h3 class="pf-section-title">One constant, carefully placed</h3>
+<figure class="pf-code">
+<figcaption>The comment above it is the reasoning; the constant is the consequence.</figcaption>
+<div class="pf-code-frame"><span class="pf-code-lang">javascript</span>
+<pre><code>
+<span class="pf-code-line"><span class="pf-code-no">18</span> * Bump this in the same commit as any change that can alter rendered HTML --</span>
+<span class="pf-code-line"><span class="pf-code-no">19</span> * markup, CSS, inline behaviour, ordering, or escaping.</span>
+<span class="pf-code-line"><span class="pf-code-no">20</span> */</span>
+<span class="pf-code-line"><span class="pf-code-no">21</span>export const RENDERER_VERSION = &quot;0.1.0&quot;;</span>
+<span class="pf-code-line"><span class="pf-code-no">22</span></span>
+<span class="pf-code-line"><span class="pf-code-no">23</span>/** The specification `schema_version` this engine understands. */</span>
+<span class="pf-code-line"><span class="pf-code-no">24</span>export const SCHEMA_VERSION = &quot;1.0&quot;;</span>
+</code></pre></div>
+<div class="pf-card"><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/render-artifact/engine/version.mjs</span><span class="pf-cite-lines">lines 18–24</span></li>
+</ul>
+</div></div>
+</figure>
+</section>
+<section class="pf-section" id="s--atomic-delivery">
+<h3 class="pf-section-title" id="s--atomic-delivery--h">A failed delivery leaves the previous artifact alone</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>Delivery writes the artifact to a temporary file beside its destination, flushes it to disk, and renames it over the target. A rename within a directory is atomic, so a reader never sees a half-written page.</p>
+<p>The flush matters as much as the rename: without it the rename can be durable while the content behind it is not, which is how a crash leaves a correctly named, empty artifact. The temporary name carries the process id so two concurrent deliveries to one path do not stage over each other.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/render-artifact/engine/deliver.mjs</span><span class="pf-cite-lines">lines 150–172</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--producer-to-artifact">
+<h3 class="pf-section-title" id="s--producer-to-artifact--h">From evidence to artifact</h3>
+<div class="pf-card">
+<span class="pf-kicker">Walkthrough</span>
+<ol class="pf-flow">
+<li>
+<div class="pf-step-title">The producer gathers evidence</div>
+<p class="pf-step-detail">Reading finishes before writing starts, so claims are not chosen to fit paragraphs already written.</p>
+</li>
+<li>
+<div class="pf-step-title">It pins the commit being taught</div>
+<p class="pf-step-detail">Evidence resolves against that commit and never against the working tree, so a later refactor cannot silently change what the artifact claims.</p>
+</li>
+<li>
+<div class="pf-step-title">It writes a semantic specification</div>
+<p class="pf-step-detail">Modules, concepts, flows, exercises and questions — and no colour, class, coordinate, or markup.</p>
+</li>
+<li>
+<div class="pf-step-title">Four validation layers run</div>
+<p class="pf-step-detail">Structure, composition, evidence, and delivery, each supporting a distinct claim and reported distinctly.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/render-artifact/engine/validate/index.mjs</span></li>
+</ul>
+</div>
+</li>
+<li>
+<div class="pf-step-title">The engine compiles and commits atomically</div>
+<p class="pf-step-detail">It returns a receipt naming the renderer version and the digests of both specification and artifact.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/render-artifact/engine/deliver.mjs</span><span class="pf-cite-lines">lines 1–30</span></li>
+</ul>
+</div>
+</li>
+</ol>
+</div>
+</section>
+<section class="pf-section" id="s--one-path-two-producers">
+<h3 class="pf-section-title" id="s--one-path-two-producers--h">One path serves both producers</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>Two skills produce lessons: one teaches a single completed feature and supplies one module, the other teaches a repository and supplies many. Nothing in the renderer asks which is calling.</p>
+<p>The module list is rendered by iteration and the navigation is built from that same list, so there is no mode flag, no consumer branch, and no count-dependent layout. A portal with seven modules and a lesson with one take the identical path through the engine.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/render-artifact/engine/render/lesson.mjs</span><span class="pf-cite-lines">lines 1–14</span></li>
+<li><span class="pf-cite-path">skills/render-artifact/engine/schemas/lesson.schema.json</span><span class="pf-cite-lines">lines 4–4</span></li>
+</ul>
+</div>
+</div>
+</section>
+</section>
+<section class="pf-module" id="m--the-lifecycle" aria-labelledby="m--the-lifecycle--h">
+<div class="pf-module-head">
+<div class="pf-module-index">Module 5</div>
+<h2 class="pf-module-title" id="m--the-lifecycle--h">The delivery lifecycle</h2>
+<p class="pf-module-summary">The four-action loop a ticket moves through, and where human authority sits in it.</p>
+<p class="pf-requires">Builds on: <a href="#m--the-kit">The kit: one contract, three surfaces</a></p>
+</div>
+<section class="pf-section" id="s--four-actions">
+<h3 class="pf-section-title" id="s--four-actions--h">One skill, four actions</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>Ticket delivery is a single skill taking one action at a time: load prepares a ticket and verifies its blockers, start implements it, review verifies the work without accepting it, and complete records work the human already accepted.</p>
+<p>Each action reads only its own instructions. The other three are not context for the work, which is what keeps a review from quietly turning into more implementation.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/ticket/SKILL.md</span><span class="pf-cite-lines">lines 1–20</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--ticket-lifecycle">
+<h3 class="pf-section-title" id="s--ticket-lifecycle--h">A ticket&#39;s status, and who moves it</h3>
+<div class="pf-card">
+<span class="pf-kicker">Walkthrough</span>
+<ol class="pf-flow">
+<li>
+<div class="pf-step-title">Proposed</div>
+<p class="pf-step-detail">The ticket exists and is not yet approved for execution.</p>
+</li>
+<li>
+<div class="pf-step-title">Ready</div>
+<p class="pf-step-detail">Load verified every blocker is complete and promoted it. This is the only value load writes.</p>
+</li>
+<li>
+<div class="pf-step-title">In Progress</div>
+<p class="pf-step-detail">Start wrote this before the first file edit, so an interrupted session is still legible.</p>
+</li>
+<li>
+<div class="pf-step-title">Complete</div>
+<p class="pf-step-detail">Complete records work the human accepted. Review deliberately writes no status: review is workflow activity, not lifecycle state.</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="pf-section" id="s--derived-feature-status">
+<h3 class="pf-section-title" id="s--derived-feature-status--h">A Feature&#39;s status is derived, never maintained</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>A parent Feature becomes In Progress when its first ticket does, and Complete only when every one of its tickets is Complete, Cancelled, or Superseded with at least one Complete. Two actions write it, and only as a consequence of the ticket transition they just made.</p>
+<p>The effect is that nobody edits a Feature&#39;s status directly. A ticket that leaves its Feature unfinished is an increment, not a completed outcome, which is also why the durable history record is written per Feature rather than per ticket.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/ticket/SKILL.md</span><span class="pf-cite-lines">lines 40–52</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--authority-stays">
+<h3 class="pf-section-title" id="s--authority-stays--h">Approval never moves to the agent</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>Invoking an action is not the same as approving its consequences. Acceptance of a ticket is not approval of the delivery steps that follow it, and each step the documented workflow gates is still asked for separately.</p>
+<p>This is the difference between an assistant that executes decisions and one that makes them. Pathfinder is deliberately the first kind.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">CLAUDE.md</span><span class="pf-cite-lines">lines 64–67</span></li>
+</ul>
+</div>
+</div>
+</section>
+</section>
+<section class="pf-module" id="m--verification" aria-labelledby="m--verification--h">
+<div class="pf-module-head">
+<div class="pf-module-index">Module 6</div>
+<h2 class="pf-module-title" id="m--verification--h">Verification: the checks that hold it together</h2>
+<p class="pf-module-summary">What CI actually runs, and which promise each check is defending.</p>
+<p class="pf-requires">Builds on: <a href="#m--the-installer">The installer: a shipping boundary with teeth</a>, <a href="#m--the-renderer">The renderer: a deterministic compiler</a></p>
+</div>
+<section class="pf-section" id="s--one-job">
+<h3 class="pf-section-title" id="s--one-job--h">A single job, four obligations</h3>
+<div class="pf-card">
+<p>Continuous integration runs one job on one Node version. It validates the kit&#39;s structure, tests the installer, tests the renderer engine, and asserts that no manifest sits at the repository root.</p>
+<p>Reading it top to bottom is the fastest way to learn what this repository is unwilling to break.</p>
+</div>
+</section>
+<section class="pf-section" id="s--engine-tests-outside-skills">
+<h3 class="pf-section-title" id="s--engine-tests-outside-skills--h">The engine ships; its tests do not</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>The engine lives under the skills tree so the install, the adapters, and the plugin surface all carry it with no change to the copy list. Its tests live outside that tree in a repository-only package, so an installed project never receives them.</p>
+<p>Placement is the whole mechanism. The skills tree is copied whole and the never-ships list names only session files, so nothing would have excluded tests that were stored alongside the engine. No exclusion mechanism was added; the tests were simply put somewhere the copy does not reach.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">.github/workflows/validate.yml</span><span class="pf-cite-lines">lines 44–57</span></li>
+<li><span class="pf-cite-path">packages/render-artifact/lib/harness.mjs</span><span class="pf-cite-lines">lines 47–51</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--specimen-registry">
+<h3 class="pf-section-title">Every specimen registered in one place</h3>
+<figure class="pf-code">
+<figcaption>Goldens and determinism assertions are driven from this registry rather than named one at a time.</figcaption>
+<div class="pf-code-frame"><span class="pf-code-lang">javascript</span>
+<pre><code>
+<span class="pf-code-line"><span class="pf-code-no">47</span>export const SPECS = Object.freeze({</span>
+<span class="pf-code-line"><span class="pf-code-no">48</span>  fixture: join(PACKAGE_ROOT, &quot;fixtures&quot;, &quot;deterministic-lesson.json&quot;),</span>
+<span class="pf-code-line"><span class="pf-code-no">49</span>  example: join(ENGINE_ROOT, &quot;examples&quot;, &quot;lesson.json&quot;),</span>
+<span class="pf-code-line"><span class="pf-code-no">50</span>  &quot;learn-feature&quot;: join(PACKAGE_ROOT, &quot;fixtures&quot;, &quot;learn-feature.json&quot;),</span>
+<span class="pf-code-line"><span class="pf-code-no">51</span>});</span>
+</code></pre></div>
+<div class="pf-card"><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/render-artifact/lib/harness.mjs</span><span class="pf-cite-lines">lines 47–51</span></li>
+</ul>
+</div></div>
+</figure>
+</section>
+<section class="pf-section" id="s--determinism-in-ci">
+<h3 class="pf-section-title" id="s--determinism-in-ci--h">The determinism invariant is executed, not asserted in prose</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>The engine&#39;s suite varies the working directory, the timezone, the locale, and the ambient environment itself, then compares digests. That is where the invariant stops being a claim in a reference file and becomes something a run either passes or does not.</p>
+<p>It needs one thing from the workflow around it: Git history, because the shipped example cites this repository at a fixed commit. The checkout step fetches full depth for exactly that reason.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">.github/workflows/validate.yml</span><span class="pf-cite-lines">lines 44–57</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--verification-check">
+<h3 class="pf-section-title" id="s--verification-check--h">Check your understanding</h3>
+<div class="pf-card">
+<span class="pf-kicker">Check your understanding</span>
+<div class="pf-quiz">
+<fieldset class="pf-question" data-pf-question="q--verification-check--why-no-root-manifest">
+<legend>Why does CI fail the build when a package.json appears at the repository root, while packages/create-pathfinder/package.json is fine?</legend>
+<div class="pf-options"><label class="pf-option" for="q--verification-check--why-no-root-manifest--0"><input type="radio" id="q--verification-check--why-no-root-manifest--0" name="q--verification-check--why-no-root-manifest" value="0" data-pf-answer="correct"><span>A root manifest would assert a runtime and package manager the kit promises not to have; nested tooling may carry its own.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--verification-check--why-no-root-manifest--1"><input type="radio" id="q--verification-check--why-no-root-manifest--1" name="q--verification-check--why-no-root-manifest" value="1" data-pf-answer="other"><span>Root manifests break the npm publish step.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--verification-check--why-no-root-manifest--2"><input type="radio" id="q--verification-check--why-no-root-manifest--2" name="q--verification-check--why-no-root-manifest" value="2" data-pf-answer="other"><span>The installer would copy it into destination projects.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--verification-check--why-no-root-manifest--3"><input type="radio" id="q--verification-check--why-no-root-manifest--3" name="q--verification-check--why-no-root-manifest" value="3" data-pf-answer="other"><span>It would conflict with the plugin manifest.</span><span class="pf-verdict" aria-live="polite"></span></label></div>
+<details class="pf-reveal">
+<summary>Show the answer</summary>
+<p><strong>Correct:</strong> A root manifest would assert a runtime and package manager the kit promises not to have; nested tooling may carry its own.</p>
+<p>The check&#39;s own comment names the promise it is defending: the kit has no runtime and no package manager, and nested tooling is explicitly permitted a manifest.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">.github/workflows/validate.yml</span><span class="pf-cite-lines">lines 58–61</span></li>
+</ul>
+</div>
+</details>
+</fieldset>
+<fieldset class="pf-question" data-pf-question="q--verification-check--why-path-not-basename">
+<legend>The never-ships list matches kit-relative paths rather than basenames. What breaks if it matched basenames instead?</legend>
+<div class="pf-options"><label class="pf-option" for="q--verification-check--why-path-not-basename--0"><input type="radio" id="q--verification-check--why-path-not-basename--0" name="q--verification-check--why-path-not-basename" value="0" data-pf-answer="correct"><span>A destination project&#39;s own unrelated tracker file would be caught and dropped by the filter.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--verification-check--why-path-not-basename--1"><input type="radio" id="q--verification-check--why-path-not-basename--1" name="q--verification-check--why-path-not-basename" value="1" data-pf-answer="other"><span>Nothing; the two are equivalent for these five files.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--verification-check--why-path-not-basename--2"><input type="radio" id="q--verification-check--why-path-not-basename--2" name="q--verification-check--why-path-not-basename" value="2" data-pf-answer="other"><span>The installer would run more slowly on large repositories.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--verification-check--why-path-not-basename--3"><input type="radio" id="q--verification-check--why-path-not-basename--3" name="q--verification-check--why-path-not-basename" value="3" data-pf-answer="other"><span>Editor junk would start shipping.</span><span class="pf-verdict" aria-live="polite"></span></label></div>
+<details class="pf-reveal">
+<summary>Show the answer</summary>
+<p><strong>Correct:</strong> A destination project&#39;s own unrelated tracker file would be caught and dropped by the filter.</p>
+<p>The comment above the list makes this the reason for the choice: a project&#39;s own file of the same name somewhere else is not this file and must not be caught by it.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 98–100</span></li>
+</ul>
+</div>
+</details>
+</fieldset>
+<fieldset class="pf-question" data-pf-question="q--verification-check--version-bump-timing">
+<legend>A change reorders the CSS rules the engine emits, producing different bytes from identical input. What does that require?</legend>
+<div class="pf-options"><label class="pf-option" for="q--verification-check--version-bump-timing--0"><input type="radio" id="q--verification-check--version-bump-timing--0" name="q--verification-check--version-bump-timing" value="0" data-pf-answer="correct"><span>Bumping the renderer version in the same commit, because the version is part of the deterministic input.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--verification-check--version-bump-timing--1"><input type="radio" id="q--verification-check--version-bump-timing--1" name="q--verification-check--version-bump-timing" value="1" data-pf-answer="other"><span>Regenerating the goldens only; the version tracks kit releases.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--verification-check--version-bump-timing--2"><input type="radio" id="q--verification-check--version-bump-timing--2" name="q--verification-check--version-bump-timing" value="2" data-pf-answer="other"><span>Nothing, as long as the rendered page looks the same.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--verification-check--version-bump-timing--3"><input type="radio" id="q--verification-check--version-bump-timing--3" name="q--verification-check--version-bump-timing" value="3" data-pf-answer="other"><span>A new artifact kind, since output changed.</span><span class="pf-verdict" aria-live="polite"></span></label></div>
+<details class="pf-reveal">
+<summary>Show the answer</summary>
+<p><strong>Correct:</strong> Bumping the renderer version in the same commit, because the version is part of the deterministic input.</p>
+<p>The constant&#39;s own comment says to bump it in the same commit as any change that can alter rendered HTML, and warns that regenerating goldens to make a red test green is how the invariant stops meaning anything.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/render-artifact/engine/version.mjs</span><span class="pf-cite-lines">lines 15–21</span></li>
+</ul>
+</div>
+</details>
+</fieldset>
+</div>
+</div>
+</section>
+</section>
+<section class="pf-module" id="m--putting-it-together" aria-labelledby="m--putting-it-together--h">
+<div class="pf-module-head">
+<div class="pf-module-index">Module 7</div>
+<h2 class="pf-module-title" id="m--putting-it-together--h">Putting it together</h2>
+<p class="pf-module-summary">Deciding which subsystem owns a change, and a last check across everything above.</p>
+<p class="pf-requires">Builds on: <a href="#m--the-lifecycle">The delivery lifecycle</a>, <a href="#m--verification">Verification: the checks that hold it together</a></p>
+</div>
+<section class="pf-section" id="s--ownership">
+<h3 class="pf-section-title" id="s--ownership--h">Ask who owns it before you change it</h3>
+<div class="pf-card">
+<p>Most mistakes in this repository are ownership mistakes rather than coding mistakes: presentation added to a producer, behavior added to an adapter, a status edited by hand, a golden regenerated to make a test pass.</p>
+<p>Each of those has a subsystem that already owns the decision. Finding it first is usually the whole task.</p>
+</div>
+</section>
+<section class="pf-section" id="s--place-the-change">
+<h3 class="pf-section-title" id="s--place-the-change--h">Place four changes</h3>
+<div class="pf-card">
+<span class="pf-kicker">Practice</span>
+<p>For each of these, name the file you would edit first and the check that would catch you doing it wrong: (1) a lesson artifact should show the module count in its header; (2) a new harness needs to discover Pathfinder&#39;s skills; (3) destination projects should stop receiving the templates directory; (4) a skill&#39;s description is wrong in the Claude Code adapter.</p>
+<details class="pf-reveal">
+<summary>Hints</summary>
+<ol>
+<li>Three of the four are owned by a file that calls itself a single source of truth, or by a generator.</li>
+<li>Exactly one of them is a renderer change, and it is not the one that mentions a header.</li>
+<li>For the adapter, ask what an adapter is allowed to contain.</li>
+</ol>
+</details>
+</div>
+</section>
+<section class="pf-section" id="s--cumulative">
+<h3 class="pf-section-title" id="s--cumulative--h">Across the whole repository</h3>
+<div class="pf-card">
+<span class="pf-kicker">Check your understanding</span>
+<div class="pf-quiz">
+<fieldset class="pf-question" data-pf-question="q--cumulative--who-owns-presentation">
+<legend>A producer skill wants its lesson&#39;s key term rendered in bold. What does the contract allow?</legend>
+<div class="pf-options"><label class="pf-option" for="q--cumulative--who-owns-presentation--0"><input type="radio" id="q--cumulative--who-owns-presentation--0" name="q--cumulative--who-owns-presentation" value="0" data-pf-answer="correct"><span>Nothing: no field is Markdown or HTML, every string is escaped, and emphasis is not the producer&#39;s to assign.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--cumulative--who-owns-presentation--1"><input type="radio" id="q--cumulative--who-owns-presentation--1" name="q--cumulative--who-owns-presentation" value="1" data-pf-answer="other"><span>A style field on the section.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--cumulative--who-owns-presentation--2"><input type="radio" id="q--cumulative--who-owns-presentation--2" name="q--cumulative--who-owns-presentation" value="2" data-pf-answer="other"><span>Inline HTML in the body, which the renderer passes through.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--cumulative--who-owns-presentation--3"><input type="radio" id="q--cumulative--who-owns-presentation--3" name="q--cumulative--who-owns-presentation" value="3" data-pf-answer="other"><span>A theme override in the artifact metadata.</span><span class="pf-verdict" aria-live="polite"></span></label></div>
+<details class="pf-reveal">
+<summary>Show the answer</summary>
+<p><strong>Correct:</strong> Nothing: no field is Markdown or HTML, every string is escaped, and emphasis is not the producer&#39;s to assign.</p>
+<p>Text is text: every string is escaped on the way out, so markup in a title renders as its literal characters. Content that smuggles markup is a producer reaching for presentation by another route.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/render-artifact/engine/schemas/common.schema.json</span></li>
+</ul>
+</div>
+</details>
+</fieldset>
+<fieldset class="pf-question" data-pf-question="q--cumulative--three-surfaces">
+<legend>Which of the three discovery surfaces generates no copy of a skill?</legend>
+<div class="pf-options"><label class="pf-option" for="q--cumulative--three-surfaces--0"><input type="radio" id="q--cumulative--three-surfaces--0" name="q--cumulative--three-surfaces" value="0" data-pf-answer="correct"><span>The Claude Code plugin, which exposes the canonical skills tree directly.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--cumulative--three-surfaces--1"><input type="radio" id="q--cumulative--three-surfaces--1" name="q--cumulative--three-surfaces" value="1" data-pf-answer="other"><span>The .claude/skills adapters.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--cumulative--three-surfaces--2"><input type="radio" id="q--cumulative--three-surfaces--2" name="q--cumulative--three-surfaces" value="2" data-pf-answer="other"><span>The .agents/skills adapters.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--cumulative--three-surfaces--3"><input type="radio" id="q--cumulative--three-surfaces--3" name="q--cumulative--three-surfaces" value="3" data-pf-answer="other"><span>All three generate copies.</span><span class="pf-verdict" aria-live="polite"></span></label></div>
+<details class="pf-reveal">
+<summary>Show the answer</summary>
+<p><strong>Correct:</strong> The Claude Code plugin, which exposes the canonical skills tree directly.</p>
+<p>The plugin is described as the third surface and the only one that generates nothing; there is no plugin copy of any skill and there must never be one.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">CLAUDE.md</span><span class="pf-cite-lines">lines 80–82</span></li>
+</ul>
+</div>
+</details>
+</fieldset>
+<fieldset class="pf-question" data-pf-question="q--cumulative--review-writes-nothing">
+<legend>Why does the review action write no ticket status?</legend>
+<div class="pf-options"><label class="pf-option" for="q--cumulative--review-writes-nothing--0"><input type="radio" id="q--cumulative--review-writes-nothing--0" name="q--cumulative--review-writes-nothing" value="0" data-pf-answer="correct"><span>Review is workflow activity rather than lifecycle state, and it accepts nothing.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--cumulative--review-writes-nothing--1"><input type="radio" id="q--cumulative--review-writes-nothing--1" name="q--cumulative--review-writes-nothing" value="1" data-pf-answer="other"><span>Review runs before a ticket has a status.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--cumulative--review-writes-nothing--2"><input type="radio" id="q--cumulative--review-writes-nothing--2" name="q--cumulative--review-writes-nothing" value="2" data-pf-answer="other"><span>Status is only written by the human.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--cumulative--review-writes-nothing--3"><input type="radio" id="q--cumulative--review-writes-nothing--3" name="q--cumulative--review-writes-nothing" value="3" data-pf-answer="other"><span>Review writes it, but only when findings are clean.</span><span class="pf-verdict" aria-live="polite"></span></label></div>
+<details class="pf-reveal">
+<summary>Show the answer</summary>
+<p><strong>Correct:</strong> Review is workflow activity rather than lifecycle state, and it accepts nothing.</p>
+<p>The lifecycle section states it directly: review writes no status, because review is workflow activity, not lifecycle state. Acceptance is the human&#39;s.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/ticket/SKILL.md</span><span class="pf-cite-lines">lines 40–52</span></li>
+</ul>
+</div>
+</details>
+</fieldset>
+</div>
+</div>
+</section>
+</section>
+</main>
+</div>
+<footer class="pf-provenance">
+<dl>
+<dt>Repository</dt>
+<dd>rikilamadrid/pathfinder</dd>
+<dt>Commit</dt>
+<dd>25bf9b55efa757f54dffe88eecbac5225f3a59f2</dd>
+<dt>Renderer</dt>
+<dd>Pathfinder render-artifact 0.1.0</dd>
+</dl>
+<p class="pf-caveat">This artifact was checked deterministically: its specification satisfied the schema, its references and graphs resolved, and every citation above was verified against the commit named here. That is what was checked. It is not a judgement that the page reads well or looks right — a person has to open it to know that.</p>
+</footer>
+<script>(function () {
+  "use strict";
+
+  var root = document.documentElement;
+  var MODES = ["auto", "light", "dark"];
+  var LABELS = { auto: "Theme: auto", light: "Theme: light", dark: "Theme: dark" };
+  var KEY = "pathfinder.artifact.theme";
+
+  function stored() {
+    try {
+      var value = window.localStorage.getItem(KEY);
+      return MODES.indexOf(value) >= 0 ? value : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function remember(mode) {
+    try {
+      window.localStorage.setItem(KEY, mode);
+    } catch (error) {
+      /* A reader who cannot store a preference still gets to use it. */
+    }
+  }
+
+  function apply(mode, button) {
+    root.setAttribute("data-pf-theme", mode);
+    if (button) {
+      button.textContent = LABELS[mode];
+      button.setAttribute("aria-label", LABELS[mode] + ". Activate to change.");
+    }
+  }
+
+  var toggle = document.getElementById("pf-theme-toggle");
+  var initial = stored() || "auto";
+  apply(initial, toggle);
+
+  if (toggle) {
+    toggle.hidden = false;
+    toggle.addEventListener("click", function () {
+      var next = MODES[(MODES.indexOf(root.getAttribute("data-pf-theme")) + 1) % MODES.length];
+      apply(next, toggle);
+      remember(next);
+    });
+  }
+
+  /* Mark the module the reader is in. Falls back to doing nothing where
+     IntersectionObserver is unavailable; the nav still navigates. */
+  var links = Array.prototype.slice.call(document.querySelectorAll("[data-pf-nav]"));
+  if (links.length > 0 && "IntersectionObserver" in window) {
+    var byId = {};
+    links.forEach(function (link) { byId[link.getAttribute("data-pf-nav")] = link; });
+
+    var visible = {};
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        visible[entry.target.id] = entry.isIntersecting;
+      });
+      var current = null;
+      for (var i = 0; i < links.length; i += 1) {
+        var id = links[i].getAttribute("data-pf-nav");
+        if (visible[id]) { current = id; break; }
+      }
+      links.forEach(function (link) {
+        var isCurrent = link.getAttribute("data-pf-nav") === current;
+        if (isCurrent) {
+          link.setAttribute("aria-current", "true");
+        } else {
+          link.removeAttribute("aria-current");
+        }
+      });
+    }, { rootMargin: "-30% 0px -60% 0px" });
+
+    Object.keys(byId).forEach(function (id) {
+      var target = document.getElementById(id);
+      if (target) observer.observe(target);
+    });
+  }
+
+  /* Quiz feedback. The correct answer is in the document either way; choosing
+     an option just says so sooner, and opens the explanation that was always
+     one click away. */
+  document.addEventListener("change", function (event) {
+    var input = event.target;
+    if (!input || input.type !== "radio" || !input.hasAttribute("data-pf-answer")) return;
+
+    var question = input.closest("[data-pf-question]");
+    if (!question) return;
+
+    var chosenIsCorrect = input.getAttribute("data-pf-answer") === "correct";
+    Array.prototype.forEach.call(question.querySelectorAll(".pf-option"), function (option) {
+      var field = option.querySelector("input[type=radio]");
+      var verdict = option.querySelector(".pf-verdict");
+      var correct = field.getAttribute("data-pf-answer") === "correct";
+      if (field.checked && !correct) {
+        option.setAttribute("data-pf-verdict", "incorrect");
+        if (verdict) verdict.textContent = "Not this one";
+      } else if (correct && (field.checked || !chosenIsCorrect)) {
+        option.setAttribute("data-pf-verdict", "correct");
+        if (verdict) verdict.textContent = "Correct";
+      } else {
+        option.removeAttribute("data-pf-verdict");
+        if (verdict) verdict.textContent = "";
+      }
+    });
+
+    var reveal = question.querySelector(".pf-reveal");
+    if (reveal) reveal.open = true;
+  });
+})();</script>
+</body>
+</html>
