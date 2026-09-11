@@ -38,17 +38,31 @@ export const ENGINE_BIN = join(ENGINE_ROOT, "bin", "render.mjs");
  * it is the specimen that proves evidence resolution and the provenance block
  * on a real lesson.
  *
- * `learn-feature` is the producer's own output, frozen. It is a real lesson
- * `learn-feature` produced for a real completed feature, copied here unchanged
- * — not a fixture shaped to pass. That is what makes it evidence about the
- * integration rather than about this package: if the producer contract and the
- * renderer contract ever disagree, they disagree here first.
+ * `learn-feature` and `learn-codebase` are the producers' own output, frozen.
+ * Each is a real lesson its skill produced — one for a completed feature, one
+ * for this repository at a milestone — copied here unchanged, not a fixture
+ * shaped to pass. That is what makes them evidence about the integration
+ * rather than about this package: if the producer contract and the renderer
+ * contract ever disagree, they disagree here first.
  */
 export const SPECS = Object.freeze({
   fixture: join(PACKAGE_ROOT, "fixtures", "deterministic-lesson.json"),
   example: join(ENGINE_ROOT, "examples", "lesson.json"),
   "learn-feature": join(PACKAGE_ROOT, "fixtures", "learn-feature.json"),
+  "learn-codebase": join(PACKAGE_ROOT, "fixtures", "learn-codebase.json"),
 });
+
+/**
+ * The specimens that are a producer skill's real output, as opposed to the two
+ * the engine owns.
+ *
+ * Tests iterate this rather than naming a producer, so registering a third
+ * producer is one line here and no new assertions. That matters beyond tidiness:
+ * a suite that named its producers would let a new one land with weaker coverage
+ * than the old ones, and the whole claim of Feature 50 is that the producers are
+ * interchangeable from the renderer's side.
+ */
+export const PRODUCER_SPECIMENS = Object.freeze(["learn-feature", "learn-codebase"]);
 
 export const GOLDEN_DIR = join(PACKAGE_ROOT, "golden");
 

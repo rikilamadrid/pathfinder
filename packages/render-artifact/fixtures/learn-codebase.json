@@ -1,0 +1,830 @@
+{
+  "schema_version": "1.0",
+  "kind": "lesson",
+  "artifact": {
+    "title": "The Pathfinder Codebase",
+    "subtitle": "A milestone tour of the kit, the installer, the renderer, and the checks that hold them apart",
+    "summary": "Pathfinder is a workflow kit, not a framework. This portal walks the repository as it stands at the commit that landed the shared visual artifact renderer's first producer integration, and explains how four subsystems keep that promise: the canonical skills, the installer that copies them, the renderer that compiles artifacts, and the CI that refuses the shortcuts.",
+    "locale": "en"
+  },
+  "source": {
+    "repo": "rikilamadrid/pathfinder",
+    "commit": "25bf9b55efa757f54dffe88eecbac5225f3a59f2"
+  },
+  "lesson": {
+    "objectives": [
+      "Explain what Pathfinder ships to a destination project and what it deliberately withholds.",
+      "Trace a skill from its canonical file to each of the three surfaces that expose it.",
+      "Say why the renderer's version is an input to rendering rather than a label on it.",
+      "Locate the checks that would fail if the kit quietly became a framework.",
+      "Decide which subsystem owns a given change before making it."
+    ],
+    "modules": [
+      {
+        "id": "orientation",
+        "title": "Orientation: a kit, not a framework",
+        "summary": "What this repository is, what it hands over, and the promise that shapes every other decision in it.",
+        "sections": [
+          {
+            "type": "prose",
+            "id": "what-you-are-looking-at",
+            "title": "What you are looking at",
+            "body": [
+              "Pathfinder is a set of skills, roles, context files, and templates that get copied into somebody else's software project. Once copied, they give an AI agent a repeatable way to discover, plan, build, test, complete, debug, and reflect on work.",
+              "That single sentence explains most of the repository's shape. Because the kit is copied rather than depended on, it cannot assume a language, a package manager, a runtime, or a build step in the project receiving it. Almost every constraint you are about to meet is that assumption being enforced somewhere."
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "the-kit-owns-the-workflow",
+            "title": "The kit owns the workflow; the project owns the stack",
+            "body": [
+              "A destination project receives six entries and nothing else. There is no dependency to install, no configuration file to wire up, and no code that runs at the project's runtime.",
+              "The list lives in exactly one place. The installer reads it at runtime, the kit validator checks every other statement of the list against it, and npm publishes it inside the package so the installer is self-contained — which is why the file describes itself as the single source of truth rather than one copy among several."
+            ],
+            "evidence": [
+              {
+                "path": "packages/create-pathfinder/copy-list.json",
+                "lines": [
+                  2,
+                  10
+                ]
+              }
+            ]
+          },
+          {
+            "type": "code",
+            "id": "the-copy-list",
+            "title": "Everything a project receives",
+            "language": "json",
+            "caption": "Six entries. Adding a seventh is a decision made here and nowhere else.",
+            "first_line": 3,
+            "lines": [
+              "  \"entries\": [",
+              "    \"AGENTS.md\",",
+              "    \"CLAUDE.md\",",
+              "    \"context\",",
+              "    \"roles\",",
+              "    \"skills\",",
+              "    \"templates\"",
+              "  ]"
+            ],
+            "evidence": [
+              {
+                "path": "packages/create-pathfinder/copy-list.json",
+                "lines": [
+                  3,
+                  10
+                ]
+              }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "no-root-manifest",
+            "title": "The absence of a root manifest is load-bearing",
+            "body": [
+              "A manifest at the repository root would make Pathfinder look like a package with a runtime, which is the exact claim the kit does not make. Nested tooling may carry its own manifest — the installer and the renderer's test package both do — but the root may not.",
+              "This is not left to good intentions. Continuous integration fails the build if any of eight common manifest files appears at the root, and names the promise it would have contradicted."
+            ],
+            "evidence": [
+              {
+                "path": ".github/workflows/validate.yml",
+                "lines": [
+                  58,
+                  69
+                ]
+              },
+              {
+                "path": "NOT_A_FRAMEWORK.md"
+              }
+            ]
+          },
+          {
+            "type": "code",
+            "id": "root-manifest-check",
+            "title": "The check that keeps the promise honest",
+            "language": "bash",
+            "caption": "Eight filenames, one exit code. The error message cites the document it is defending.",
+            "first_line": 62,
+            "lines": [
+              "          for f in package.json package-lock.json pnpm-lock.yaml yarn.lock \\",
+              "                   requirements.txt pyproject.toml Gemfile go.mod; do",
+              "            if [ -e \"$f\" ]; then",
+              "              echo \"::error file=$f::$f at the repository root contradicts NOT_A_FRAMEWORK.md\"",
+              "              exit 1",
+              "            fi",
+              "          done",
+              "          echo \"OK — no manifest at the repository root.\""
+            ],
+            "evidence": [
+              {
+                "path": ".github/workflows/validate.yml",
+                "lines": [
+                  62,
+                  69
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "the-kit",
+        "title": "The kit: one contract, three surfaces",
+        "summary": "How a skill reaches an agent, and why two of the three ways are generated rather than written.",
+        "requires": [
+          "orientation"
+        ],
+        "sections": [
+          {
+            "type": "concept",
+            "id": "canonical-and-derived",
+            "title": "Canonical skills, derived adapters",
+            "body": [
+              "A skill's behavior is defined once, in a tool-neutral file under the skills directory. Harness-specific representations are generated integration artifacts carrying the canonical file's frontmatter and a pointer back to it, and they must never grow behavior of their own.",
+              "The Claude Code plugin is the third surface and the only one that generates nothing: it exposes the canonical tree directly, namespaced. When a surface and its canonical skill disagree, the canonical skill is correct — which is a rule about who wins, not a hope that they stay in step."
+            ],
+            "evidence": [
+              {
+                "path": "CLAUDE.md",
+                "lines": [
+                  78,
+                  80
+                ]
+              },
+              {
+                "path": ".claude-plugin/plugin.json",
+                "lines": [
+                  1,
+                  4
+                ]
+              }
+            ]
+          },
+          {
+            "type": "flow",
+            "id": "skill-to-agent",
+            "title": "How one skill reaches an agent",
+            "steps": [
+              {
+                "id": "canonical",
+                "title": "The canonical file is edited",
+                "detail": "A skill's behavior changes in skills/<name>/SKILL.md. This is the only file a human edits.",
+                "evidence": [
+                  {
+                    "path": "skills/ticket/SKILL.md"
+                  }
+                ]
+              },
+              {
+                "id": "adapter",
+                "title": "Adapters are regenerated",
+                "detail": "A generator rewrites the harness adapters from the canonical frontmatter. An adapter that drifts is a bug in the generator, not a variant to preserve.",
+                "evidence": [
+                  {
+                    "path": "packages/create-pathfinder/scripts/generate-adapters.mjs"
+                  }
+                ]
+              },
+              {
+                "id": "plugin",
+                "title": "The plugin surface needs nothing",
+                "detail": "It points at the canonical tree, so it is never stale and never copied.",
+                "evidence": [
+                  {
+                    "path": ".claude-plugin/plugin.json"
+                  }
+                ]
+              },
+              {
+                "id": "validated",
+                "title": "Validation refuses drift",
+                "detail": "The kit validator checks adapter freshness and the skills list in the agent guide, so a skill added without its obligations fails the build.",
+                "evidence": [
+                  {
+                    "path": ".github/scripts/validate-kit.py"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "roles-narrow",
+            "title": "Roles narrow responsibility without widening authority",
+            "body": [
+              "Three role files describe what a worker is responsible for, what it reads, and what it must not do. A lifecycle skill assumes the role its action implies; a human can override that by name.",
+              "The distinction that matters: a role never grants authority. Approval, acceptance, merge, and release stay with the human whether a role was assumed automatically or chosen explicitly."
+            ],
+            "evidence": [
+              {
+                "path": "roles/developer.md"
+              },
+              {
+                "path": "CLAUDE.md",
+                "lines": [
+                  31,
+                  42
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "the-installer",
+        "title": "The installer: a shipping boundary with teeth",
+        "summary": "What copying the kit actually does, and the two lists that decide what never crosses.",
+        "requires": [
+          "the-kit"
+        ],
+        "sections": [
+          {
+            "type": "prose",
+            "id": "install-shape",
+            "title": "One command, one copy",
+            "body": [
+              "Installation copies the six entries into a destination project. There is nothing to link, nothing to compile, and nothing left running afterwards. The installer is a Node package only because something has to do the copying.",
+              "Two separate filters decide what a copy leaves behind, and they exist for different reasons."
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "never-ships",
+            "title": "Session state must never reach another project",
+            "body": [
+              "Some files in this repository describe this repository's own work in progress: its ticket store, the ticket currently loaded, a handoff note, its history. Handing those to a destination project would hand over somebody else's session as if it were the new project's own.",
+              "They are matched on the kit-relative path rather than the basename, and the comment above the list says why: a project's own tracker file somewhere else is not this file and must not be caught by it. A basename match would have been shorter and wrong."
+            ],
+            "evidence": [
+              {
+                "path": "packages/create-pathfinder/src/kit.mjs",
+                "lines": [
+                  95,
+                  107
+                ]
+              }
+            ]
+          },
+          {
+            "type": "code",
+            "id": "never-ships-list",
+            "title": "The five paths that stay behind",
+            "language": "javascript",
+            "caption": "Kit-relative paths, not basenames. The distinction is the point.",
+            "first_line": 101,
+            "lines": [
+              "const NEVER_SHIPS = new Set([",
+              "  \"context/tracker.md\",",
+              "  \"context/current-ticket.md\",",
+              "  \"context/current-feature.md\",",
+              "  \"context/handoff.md\",",
+              "  \"context/history.md\",",
+              "]);"
+            ],
+            "evidence": [
+              {
+                "path": "packages/create-pathfinder/src/kit.mjs",
+                "lines": [
+                  101,
+                  107
+                ]
+              }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "excluded-junk",
+            "title": "The second filter exists because two install sources disagree",
+            "body": [
+              "Editor and operating-system junk is git-ignored here, so it sits in a maintainer's working tree but not in version control, and npm strips it from the published tarball on its own.",
+              "Without an explicit exclusion the installer would copy that junk when run from a checkout and not when run from npm. The comment calls that the worst kind of difference: invisible, and only on someone else's machine. The filter exists to make the two install paths agree."
+            ],
+            "evidence": [
+              {
+                "path": "packages/create-pathfinder/src/kit.mjs",
+                "lines": [
+                  36,
+                  50
+                ]
+              }
+            ]
+          },
+          {
+            "type": "exercise",
+            "id": "add-an-entry",
+            "title": "Decide where a new kit entry belongs",
+            "body": [
+              "Suppose Pathfinder gains a top-level directory of shared checklists that destination projects should receive. Work out every file you would have to touch for the build to pass, without reading the answer first."
+            ],
+            "hints": [
+              "Start from the file that calls itself the single source of truth, and ask what reads it.",
+              "The kit validator checks every other statement of the list against that file. What counts as a statement?",
+              "Ask whether the new directory contains anything that describes this repository's own session."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "the-renderer",
+        "title": "The renderer: a deterministic compiler",
+        "summary": "Why a producer skill writes meaning instead of markup, and what makes the same input give the same bytes.",
+        "requires": [
+          "orientation"
+        ],
+        "sections": [
+          {
+            "type": "prose",
+            "id": "renderer-why",
+            "title": "The problem it removes",
+            "body": [
+              "Skills that produced a visual artifact used to end at 'self-contained HTML/CSS/JS' with no tooling, which meant every run reinvented a page and no two looked alike. The renderer replaces that with a split: a producer skill writes a small typed specification describing what is true, and one engine compiles it into a self-contained artifact.",
+              "The portal you are reading was produced that way. Its producer skill wrote meaning; every pixel here belongs to the engine."
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "version-is-input",
+            "title": "The renderer's version is an input, not a label",
+            "body": [
+              "The determinism invariant is: the same specification bytes and the same renderer version produce byte-identical HTML. That makes the version part of the compiler's input, so it has to move exactly when rendered output can move, and at no other time.",
+              "It deliberately is not the kit's release version and deliberately is not carried by a manifest. A manifest under the skills tree would ship into destination projects and read as a dependency the kit does not have; tying the constant to the kit version would make every release look like an intentional output change."
+            ],
+            "evidence": [
+              {
+                "path": "skills/render-artifact/engine/version.mjs",
+                "lines": [
+                  1,
+                  21
+                ]
+              }
+            ]
+          },
+          {
+            "type": "code",
+            "id": "renderer-version",
+            "title": "One constant, carefully placed",
+            "language": "javascript",
+            "caption": "The comment above it is the reasoning; the constant is the consequence.",
+            "first_line": 18,
+            "lines": [
+              " * Bump this in the same commit as any change that can alter rendered HTML --",
+              " * markup, CSS, inline behaviour, ordering, or escaping.",
+              " */",
+              "export const RENDERER_VERSION = \"0.1.0\";",
+              "",
+              "/** The specification `schema_version` this engine understands. */",
+              "export const SCHEMA_VERSION = \"1.0\";"
+            ],
+            "evidence": [
+              {
+                "path": "skills/render-artifact/engine/version.mjs",
+                "lines": [
+                  18,
+                  24
+                ]
+              }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "atomic-delivery",
+            "title": "A failed delivery leaves the previous artifact alone",
+            "body": [
+              "Delivery writes the artifact to a temporary file beside its destination, flushes it to disk, and renames it over the target. A rename within a directory is atomic, so a reader never sees a half-written page.",
+              "The flush matters as much as the rename: without it the rename can be durable while the content behind it is not, which is how a crash leaves a correctly named, empty artifact. The temporary name carries the process id so two concurrent deliveries to one path do not stage over each other."
+            ],
+            "evidence": [
+              {
+                "path": "skills/render-artifact/engine/deliver.mjs",
+                "lines": [
+                  150,
+                  172
+                ]
+              }
+            ]
+          },
+          {
+            "type": "flow",
+            "id": "producer-to-artifact",
+            "title": "From evidence to artifact",
+            "steps": [
+              {
+                "id": "gather",
+                "title": "The producer gathers evidence",
+                "detail": "Reading finishes before writing starts, so claims are not chosen to fit paragraphs already written."
+              },
+              {
+                "id": "pin",
+                "title": "It pins the commit being taught",
+                "detail": "Evidence resolves against that commit and never against the working tree, so a later refactor cannot silently change what the artifact claims."
+              },
+              {
+                "id": "specify",
+                "title": "It writes a semantic specification",
+                "detail": "Modules, concepts, flows, exercises and questions — and no colour, class, coordinate, or markup."
+              },
+              {
+                "id": "validate",
+                "title": "Four validation layers run",
+                "detail": "Structure, composition, evidence, and delivery, each supporting a distinct claim and reported distinctly.",
+                "evidence": [
+                  {
+                    "path": "skills/render-artifact/engine/validate/index.mjs"
+                  }
+                ]
+              },
+              {
+                "id": "deliver",
+                "title": "The engine compiles and commits atomically",
+                "detail": "It returns a receipt naming the renderer version and the digests of both specification and artifact.",
+                "evidence": [
+                  {
+                    "path": "skills/render-artifact/engine/deliver.mjs",
+                    "lines": [
+                      1,
+                      30
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "one-path-two-producers",
+            "title": "One path serves both producers",
+            "body": [
+              "Two skills produce lessons: one teaches a single completed feature and supplies one module, the other teaches a repository and supplies many. Nothing in the renderer asks which is calling.",
+              "The module list is rendered by iteration and the navigation is built from that same list, so there is no mode flag, no consumer branch, and no count-dependent layout. A portal with seven modules and a lesson with one take the identical path through the engine."
+            ],
+            "evidence": [
+              {
+                "path": "skills/render-artifact/engine/render/lesson.mjs",
+                "lines": [
+                  1,
+                  14
+                ]
+              },
+              {
+                "path": "skills/render-artifact/engine/schemas/lesson.schema.json",
+                "lines": [
+                  4,
+                  4
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "the-lifecycle",
+        "title": "The delivery lifecycle",
+        "summary": "The four-action loop a ticket moves through, and where human authority sits in it.",
+        "requires": [
+          "the-kit"
+        ],
+        "sections": [
+          {
+            "type": "concept",
+            "id": "four-actions",
+            "title": "One skill, four actions",
+            "body": [
+              "Ticket delivery is a single skill taking one action at a time: load prepares a ticket and verifies its blockers, start implements it, review verifies the work without accepting it, and complete records work the human already accepted.",
+              "Each action reads only its own instructions. The other three are not context for the work, which is what keeps a review from quietly turning into more implementation."
+            ],
+            "evidence": [
+              {
+                "path": "skills/ticket/SKILL.md",
+                "lines": [
+                  1,
+                  20
+                ]
+              }
+            ]
+          },
+          {
+            "type": "flow",
+            "id": "ticket-lifecycle",
+            "title": "A ticket's status, and who moves it",
+            "steps": [
+              {
+                "id": "proposed",
+                "title": "Proposed",
+                "detail": "The ticket exists and is not yet approved for execution."
+              },
+              {
+                "id": "ready",
+                "title": "Ready",
+                "detail": "Load verified every blocker is complete and promoted it. This is the only value load writes."
+              },
+              {
+                "id": "in-progress",
+                "title": "In Progress",
+                "detail": "Start wrote this before the first file edit, so an interrupted session is still legible."
+              },
+              {
+                "id": "complete",
+                "title": "Complete",
+                "detail": "Complete records work the human accepted. Review deliberately writes no status: review is workflow activity, not lifecycle state."
+              }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "derived-feature-status",
+            "title": "A Feature's status is derived, never maintained",
+            "body": [
+              "A parent Feature becomes In Progress when its first ticket does, and Complete only when every one of its tickets is Complete, Cancelled, or Superseded with at least one Complete. Two actions write it, and only as a consequence of the ticket transition they just made.",
+              "The effect is that nobody edits a Feature's status directly. A ticket that leaves its Feature unfinished is an increment, not a completed outcome, which is also why the durable history record is written per Feature rather than per ticket."
+            ],
+            "evidence": [
+              {
+                "path": "skills/ticket/SKILL.md",
+                "lines": [
+                  40,
+                  52
+                ]
+              }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "authority-stays",
+            "title": "Approval never moves to the agent",
+            "body": [
+              "Invoking an action is not the same as approving its consequences. Acceptance of a ticket is not approval of the delivery steps that follow it, and each step the documented workflow gates is still asked for separately.",
+              "This is the difference between an assistant that executes decisions and one that makes them. Pathfinder is deliberately the first kind."
+            ],
+            "evidence": [
+              {
+                "path": "CLAUDE.md",
+                "lines": [
+                  64,
+                  67
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "verification",
+        "title": "Verification: the checks that hold it together",
+        "summary": "What CI actually runs, and which promise each check is defending.",
+        "requires": [
+          "the-installer",
+          "the-renderer"
+        ],
+        "sections": [
+          {
+            "type": "prose",
+            "id": "one-job",
+            "title": "A single job, four obligations",
+            "body": [
+              "Continuous integration runs one job on one Node version. It validates the kit's structure, tests the installer, tests the renderer engine, and asserts that no manifest sits at the repository root.",
+              "Reading it top to bottom is the fastest way to learn what this repository is unwilling to break."
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "engine-tests-outside-skills",
+            "title": "The engine ships; its tests do not",
+            "body": [
+              "The engine lives under the skills tree so the install, the adapters, and the plugin surface all carry it with no change to the copy list. Its tests live outside that tree in a repository-only package, so an installed project never receives them.",
+              "Placement is the whole mechanism. The skills tree is copied whole and the never-ships list names only session files, so nothing would have excluded tests that were stored alongside the engine. No exclusion mechanism was added; the tests were simply put somewhere the copy does not reach."
+            ],
+            "evidence": [
+              {
+                "path": ".github/workflows/validate.yml",
+                "lines": [
+                  44,
+                  57
+                ]
+              },
+              {
+                "path": "packages/render-artifact/lib/harness.mjs",
+                "lines": [
+                  47,
+                  51
+                ]
+              }
+            ]
+          },
+          {
+            "type": "code",
+            "id": "specimen-registry",
+            "title": "Every specimen registered in one place",
+            "language": "javascript",
+            "caption": "Goldens and determinism assertions are driven from this registry rather than named one at a time.",
+            "first_line": 47,
+            "lines": [
+              "export const SPECS = Object.freeze({",
+              "  fixture: join(PACKAGE_ROOT, \"fixtures\", \"deterministic-lesson.json\"),",
+              "  example: join(ENGINE_ROOT, \"examples\", \"lesson.json\"),",
+              "  \"learn-feature\": join(PACKAGE_ROOT, \"fixtures\", \"learn-feature.json\"),",
+              "});"
+            ],
+            "evidence": [
+              {
+                "path": "packages/render-artifact/lib/harness.mjs",
+                "lines": [
+                  47,
+                  51
+                ]
+              }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "determinism-in-ci",
+            "title": "The determinism invariant is executed, not asserted in prose",
+            "body": [
+              "The engine's suite varies the working directory, the timezone, the locale, and the ambient environment itself, then compares digests. That is where the invariant stops being a claim in a reference file and becomes something a run either passes or does not.",
+              "It needs one thing from the workflow around it: Git history, because the shipped example cites this repository at a fixed commit. The checkout step fetches full depth for exactly that reason."
+            ],
+            "evidence": [
+              {
+                "path": ".github/workflows/validate.yml",
+                "lines": [
+                  44,
+                  57
+                ]
+              }
+            ]
+          },
+          {
+            "type": "quiz",
+            "id": "verification-check",
+            "title": "Check your understanding",
+            "questions": [
+              {
+                "id": "why-no-root-manifest",
+                "prompt": "Why does CI fail the build when a package.json appears at the repository root, while packages/create-pathfinder/package.json is fine?",
+                "options": [
+                  "A root manifest would assert a runtime and package manager the kit promises not to have; nested tooling may carry its own.",
+                  "Root manifests break the npm publish step.",
+                  "The installer would copy it into destination projects.",
+                  "It would conflict with the plugin manifest."
+                ],
+                "answer": 0,
+                "explanation": "The check's own comment names the promise it is defending: the kit has no runtime and no package manager, and nested tooling is explicitly permitted a manifest.",
+                "evidence": [
+                  {
+                    "path": ".github/workflows/validate.yml",
+                    "lines": [
+                      58,
+                      61
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "why-path-not-basename",
+                "prompt": "The never-ships list matches kit-relative paths rather than basenames. What breaks if it matched basenames instead?",
+                "options": [
+                  "A destination project's own unrelated tracker file would be caught and dropped by the filter.",
+                  "Nothing; the two are equivalent for these five files.",
+                  "The installer would run more slowly on large repositories.",
+                  "Editor junk would start shipping."
+                ],
+                "answer": 0,
+                "explanation": "The comment above the list makes this the reason for the choice: a project's own file of the same name somewhere else is not this file and must not be caught by it.",
+                "evidence": [
+                  {
+                    "path": "packages/create-pathfinder/src/kit.mjs",
+                    "lines": [
+                      98,
+                      100
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "version-bump-timing",
+                "prompt": "A change reorders the CSS rules the engine emits, producing different bytes from identical input. What does that require?",
+                "options": [
+                  "Bumping the renderer version in the same commit, because the version is part of the deterministic input.",
+                  "Regenerating the goldens only; the version tracks kit releases.",
+                  "Nothing, as long as the rendered page looks the same.",
+                  "A new artifact kind, since output changed."
+                ],
+                "answer": 0,
+                "explanation": "The constant's own comment says to bump it in the same commit as any change that can alter rendered HTML, and warns that regenerating goldens to make a red test green is how the invariant stops meaning anything.",
+                "evidence": [
+                  {
+                    "path": "skills/render-artifact/engine/version.mjs",
+                    "lines": [
+                      15,
+                      21
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "putting-it-together",
+        "title": "Putting it together",
+        "summary": "Deciding which subsystem owns a change, and a last check across everything above.",
+        "requires": [
+          "the-lifecycle",
+          "verification"
+        ],
+        "sections": [
+          {
+            "type": "prose",
+            "id": "ownership",
+            "title": "Ask who owns it before you change it",
+            "body": [
+              "Most mistakes in this repository are ownership mistakes rather than coding mistakes: presentation added to a producer, behavior added to an adapter, a status edited by hand, a golden regenerated to make a test pass.",
+              "Each of those has a subsystem that already owns the decision. Finding it first is usually the whole task."
+            ]
+          },
+          {
+            "type": "exercise",
+            "id": "place-the-change",
+            "title": "Place four changes",
+            "body": [
+              "For each of these, name the file you would edit first and the check that would catch you doing it wrong: (1) a lesson artifact should show the module count in its header; (2) a new harness needs to discover Pathfinder's skills; (3) destination projects should stop receiving the templates directory; (4) a skill's description is wrong in the Claude Code adapter."
+            ],
+            "hints": [
+              "Three of the four are owned by a file that calls itself a single source of truth, or by a generator.",
+              "Exactly one of them is a renderer change, and it is not the one that mentions a header.",
+              "For the adapter, ask what an adapter is allowed to contain."
+            ]
+          },
+          {
+            "type": "quiz",
+            "id": "cumulative",
+            "title": "Across the whole repository",
+            "questions": [
+              {
+                "id": "who-owns-presentation",
+                "prompt": "A producer skill wants its lesson's key term rendered in bold. What does the contract allow?",
+                "options": [
+                  "Nothing: no field is Markdown or HTML, every string is escaped, and emphasis is not the producer's to assign.",
+                  "A style field on the section.",
+                  "Inline HTML in the body, which the renderer passes through.",
+                  "A theme override in the artifact metadata."
+                ],
+                "answer": 0,
+                "explanation": "Text is text: every string is escaped on the way out, so markup in a title renders as its literal characters. Content that smuggles markup is a producer reaching for presentation by another route.",
+                "evidence": [
+                  {
+                    "path": "skills/render-artifact/engine/schemas/common.schema.json"
+                  }
+                ]
+              },
+              {
+                "id": "three-surfaces",
+                "prompt": "Which of the three discovery surfaces generates no copy of a skill?",
+                "options": [
+                  "The Claude Code plugin, which exposes the canonical skills tree directly.",
+                  "The .claude/skills adapters.",
+                  "The .agents/skills adapters.",
+                  "All three generate copies."
+                ],
+                "answer": 0,
+                "explanation": "The plugin is described as the third surface and the only one that generates nothing; there is no plugin copy of any skill and there must never be one.",
+                "evidence": [
+                  {
+                    "path": "CLAUDE.md",
+                    "lines": [
+                      80,
+                      82
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "review-writes-nothing",
+                "prompt": "Why does the review action write no ticket status?",
+                "options": [
+                  "Review is workflow activity rather than lifecycle state, and it accepts nothing.",
+                  "Review runs before a ticket has a status.",
+                  "Status is only written by the human.",
+                  "Review writes it, but only when findings are clean."
+                ],
+                "answer": 0,
+                "explanation": "The lifecycle section states it directly: review writes no status, because review is workflow activity, not lifecycle state. Acceptance is the human's.",
+                "evidence": [
+                  {
+                    "path": "skills/ticket/SKILL.md",
+                    "lines": [
+                      40,
+                      52
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

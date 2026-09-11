@@ -16,6 +16,7 @@ import { strict as assert } from "node:assert";
 import { readFileSync } from "node:fs";
 import { after, describe, it } from "node:test";
 
+import { esc } from "../../../skills/render-artifact/engine/render/escape.mjs";
 import { SPECS, cleanUpTemporaryDirectories, deliverInSubprocess } from "../lib/harness.mjs";
 
 after(cleanUpTemporaryDirectories);
@@ -91,7 +92,7 @@ for (const name of Object.keys(SPECS)) {
       const declared = spec.lesson.objectives ?? [];
       if (declared.length === 0) return;
 
-      assertAppearInOrder(delivery.html, declared.map(escapeForHtml), "objectives");
+      assertAppearInOrder(delivery.html, declared.map(esc), "objectives");
     });
 
     it("opens from the filesystem with nothing fetched", () => {
@@ -129,11 +130,4 @@ function assertAppearInOrder(haystack, needles, what) {
   }
 }
 
-/** The subset of escaping the renderer applies to prose, for locating text. */
-function escapeForHtml(text) {
-  return text
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
-}
+
