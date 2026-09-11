@@ -1,0 +1,829 @@
+<!doctype html>
+<html lang="en" data-pf-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A specification that cites nothing</title>
+<meta name="description" content="This fixture exists so the determinism tests measure the renderer and nothing else. It carries no evidence, so no commit is resolved, no blob is read, and no Git history has to exist for it to deliver — which means a digest that moves has exactly one place it can have come from.">
+<meta name="generator" content="Pathfinder render-artifact 0.1.0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
+<style>:root {
+  color-scheme: light;
+  --pf-page: #FDFCFB;
+  --pf-surface: #FFFFFF;
+  --pf-surface-2: #F5F2EF;
+  --pf-ink: #1B1815;
+  --pf-muted: #5C5550;
+  --pf-line: #E2DCD6;
+  --pf-line-strong: #8C837A;
+  --pf-accent: #E0611F;
+  --pf-accent-ink: #1B1815;
+  --pf-link: #B34A13;
+  --pf-ok: #1F6F43;
+  --pf-no: #A62B1E;
+  --pf-shadow: 0 1px 2px rgba(27, 24, 21, .06), 0 8px 24px rgba(27, 24, 21, .05);
+
+  --pf-space-1: .25rem;
+  --pf-space-2: .5rem;
+  --pf-space-3: .75rem;
+  --pf-space-4: 1rem;
+  --pf-space-5: 1.5rem;
+  --pf-space-6: 2rem;
+  --pf-space-7: 3rem;
+  --pf-space-8: 4rem;
+
+  --pf-radius: 10px;
+  --pf-radius-sm: 6px;
+  --pf-measure: 68ch;
+
+  --pf-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+             "Helvetica Neue", Arial, sans-serif;
+  --pf-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+             "Liberation Mono", monospace;
+}
+
+/* Light is the base, so a reader whose system states no preference gets a
+   readable page rather than whichever branch happened to be written first.
+   "auto" follows the system; "light" and "dark" are the reader overriding it,
+   and both win over the media query because they are on the element. */
+:root[data-pf-theme="dark"] {
+  color-scheme: dark;
+  --pf-page: #14120F;
+  --pf-surface: #1D1A16;
+  --pf-surface-2: #262218;
+  --pf-ink: #F2EEE9;
+  --pf-muted: #B0A79E;
+  --pf-line: #35302A;
+  --pf-line-strong: #7A7168;
+  --pf-accent: #E0611F;
+  --pf-accent-ink: #1B1815;
+  --pf-link: #F0A97E;
+  --pf-ok: #6FD39B;
+  --pf-no: #F09085;
+  --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-pf-theme="auto"] {
+    color-scheme: dark;
+    --pf-page: #14120F;
+    --pf-surface: #1D1A16;
+    --pf-surface-2: #262218;
+    --pf-ink: #F2EEE9;
+    --pf-muted: #B0A79E;
+    --pf-line: #35302A;
+    --pf-line-strong: #7A7168;
+    --pf-accent: #E0611F;
+    --pf-accent-ink: #1B1815;
+    --pf-link: #F0A97E;
+    --pf-ok: #6FD39B;
+    --pf-no: #F09085;
+    --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--pf-page);
+  color: var(--pf-ink);
+  font-family: var(--pf-sans);
+  font-size: 16px;
+  line-height: 1.65;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 {
+  line-height: 1.25;
+  letter-spacing: -.011em;
+  margin: 0;
+  font-weight: 650;
+}
+
+p { margin: 0 0 var(--pf-space-4); max-width: var(--pf-measure); }
+p:last-child { margin-bottom: 0; }
+
+a { color: var(--pf-link); text-underline-offset: .18em; }
+a:hover { text-decoration-thickness: 2px; }
+
+:focus-visible {
+  outline: 3px solid var(--pf-accent);
+  outline-offset: 2px;
+  border-radius: var(--pf-radius-sm);
+}
+
+code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
+
+/* ---------- skip link ---------- */
+
+.pf-skip {
+  position: absolute;
+  left: var(--pf-space-3);
+  top: var(--pf-space-3);
+  z-index: 40;
+  padding: var(--pf-space-2) var(--pf-space-4);
+  background: var(--pf-accent);
+  color: var(--pf-accent-ink);
+  border-radius: var(--pf-radius-sm);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+.pf-skip:focus { transform: translateY(0); }
+
+/* ---------- header ---------- */
+
+.pf-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--pf-space-4);
+  padding: var(--pf-space-4) var(--pf-space-5);
+  background: var(--pf-surface);
+  border-bottom: 1px solid var(--pf-line);
+}
+
+.pf-mark { flex: none; color: var(--pf-accent); display: block; }
+
+.pf-identity { min-width: 0; flex: 1 1 auto; }
+.pf-title {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-eyebrow {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+
+.pf-theme-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pf-space-2);
+  padding: var(--pf-space-2) var(--pf-space-3);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--pf-ink);
+  background: var(--pf-surface-2);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.pf-theme-toggle:hover { border-color: var(--pf-accent); }
+
+/* ---------- layout ---------- */
+
+.pf-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.pf-main {
+  min-width: 0;
+  padding: var(--pf-space-6) var(--pf-space-5) var(--pf-space-8);
+}
+
+/* ---------- navigation ---------- */
+
+.pf-nav {
+  position: sticky;
+  top: 64px;
+  z-index: 20;
+  background: var(--pf-page);
+  border-bottom: 1px solid var(--pf-line);
+  padding: var(--pf-space-3) var(--pf-space-5);
+  overflow-x: auto;
+}
+
+.pf-nav-label {
+  display: none;
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+  margin-bottom: var(--pf-space-3);
+}
+
+.pf-nav-list {
+  display: flex;
+  gap: var(--pf-space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pf-nav-link {
+  display: block;
+  white-space: nowrap;
+  padding: var(--pf-space-2) var(--pf-space-3);
+  border-radius: 999px;
+  border: 1px solid var(--pf-line);
+  color: var(--pf-ink);
+  text-decoration: none;
+  font-size: .875rem;
+  font-weight: 550;
+}
+.pf-nav-link:hover { border-color: var(--pf-accent); }
+.pf-nav-link[aria-current="true"] {
+  border-color: var(--pf-accent);
+  background: var(--pf-surface-2);
+  font-weight: 650;
+}
+.pf-nav-index {
+  color: var(--pf-muted);
+  font-variant-numeric: tabular-nums;
+  margin-right: var(--pf-space-2);
+}
+
+/* ---------- lesson head ---------- */
+
+.pf-lead {
+  margin: 0 0 var(--pf-space-7);
+  padding-bottom: var(--pf-space-6);
+  border-bottom: 1px solid var(--pf-line);
+}
+.pf-lead h1 { font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.5rem); }
+.pf-lead-sub {
+  margin-top: var(--pf-space-3);
+  font-size: 1.0625rem;
+  color: var(--pf-muted);
+  max-width: var(--pf-measure);
+}
+.pf-lead-summary { margin-top: var(--pf-space-4); }
+
+.pf-objectives {
+  margin: var(--pf-space-5) 0 0;
+  padding: var(--pf-space-4) var(--pf-space-5);
+  background: var(--pf-surface-2);
+  border-radius: var(--pf-radius);
+  border: 1px solid var(--pf-line);
+  max-width: var(--pf-measure);
+}
+.pf-objectives ul { margin: var(--pf-space-2) 0 0; padding-left: 1.25rem; }
+.pf-objectives li { margin-bottom: var(--pf-space-2); }
+.pf-objectives li:last-child { margin-bottom: 0; }
+
+/* ---------- modules and sections ---------- */
+
+.pf-module { margin-bottom: var(--pf-space-8); scroll-margin-top: 128px; }
+.pf-module-head { margin-bottom: var(--pf-space-5); }
+/* --pf-link, not --pf-accent. This is 11px text, so WCAG 2.1 AA wants 4.5:1
+   and the accent gives 3.47:1 on the light page — it clears the 3:1 non-text
+   bar the mark and the focus ring rely on, and fails as soon as it becomes
+   words. --pf-link is the accent darkened for exactly this: 5.25:1 light,
+   9.51:1 dark. Any future accent-coloured *text* takes this token. */
+.pf-module-index {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-link);
+}
+.pf-module-title { font-size: 1.5rem; margin-top: var(--pf-space-2); }
+.pf-module-summary { margin-top: var(--pf-space-3); color: var(--pf-muted); }
+
+.pf-requires {
+  margin-top: var(--pf-space-3);
+  font-size: .8125rem;
+  color: var(--pf-muted);
+}
+.pf-requires a { color: var(--pf-link); }
+
+.pf-section { margin-bottom: var(--pf-space-6); scroll-margin-top: 128px; }
+.pf-section-title { font-size: 1.125rem; margin-bottom: var(--pf-space-3); }
+
+.pf-card {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  padding: var(--pf-space-5);
+  box-shadow: var(--pf-shadow);
+}
+.pf-card--concept { border-left: 3px solid var(--pf-accent); }
+
+.pf-kicker {
+  display: inline-block;
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+  margin-bottom: var(--pf-space-2);
+}
+
+/* ---------- evidence ---------- */
+
+.pf-evidence {
+  margin: var(--pf-space-5) 0 0;
+  padding-top: var(--pf-space-4);
+  border-top: 1px dashed var(--pf-line);
+}
+.pf-evidence-label {
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+.pf-evidence ul { list-style: none; margin: var(--pf-space-2) 0 0; padding: 0; }
+.pf-evidence li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pf-space-2);
+  padding: var(--pf-space-1) 0;
+  font-family: var(--pf-mono);
+  font-size: .8125rem;
+  overflow-wrap: anywhere;
+}
+.pf-cite-path { color: var(--pf-ink); }
+.pf-cite-lines, .pf-cite-commit {
+  padding: 0 var(--pf-space-2);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface-2);
+  color: var(--pf-muted);
+  font-size: .75rem;
+  white-space: nowrap;
+}
+
+/* ---------- code ---------- */
+
+.pf-code { margin: 0; }
+.pf-code figcaption {
+  color: var(--pf-muted);
+  font-size: .875rem;
+  margin-bottom: var(--pf-space-3);
+  max-width: var(--pf-measure);
+}
+.pf-code-frame {
+  background: var(--pf-surface-2);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  overflow: hidden;
+}
+.pf-code-lang {
+  display: block;
+  padding: var(--pf-space-2) var(--pf-space-4);
+  border-bottom: 1px solid var(--pf-line);
+  font-family: var(--pf-mono);
+  font-size: .6875rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+.pf-code pre {
+  margin: 0;
+  padding: var(--pf-space-4) 0;
+  overflow-x: auto;
+  line-height: 1.7;
+  tab-size: 2;
+}
+.pf-code-line { display: block; padding: 0 var(--pf-space-4); white-space: pre; }
+.pf-code-no {
+  display: inline-block;
+  width: 3ch;
+  margin-right: var(--pf-space-4);
+  text-align: right;
+  color: var(--pf-muted);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- flow ---------- */
+
+.pf-flow { list-style: none; margin: 0; padding: 0; counter-reset: pf-step; }
+.pf-flow > li {
+  position: relative;
+  counter-increment: pf-step;
+  padding: 0 0 var(--pf-space-5) var(--pf-space-7);
+}
+.pf-flow > li:last-child { padding-bottom: 0; }
+.pf-flow > li::before {
+  content: counter(pf-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--pf-accent);
+  color: var(--pf-accent-ink);
+  font-size: .8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pf-flow > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: calc(.875rem - 1px);
+  top: 2rem;
+  bottom: var(--pf-space-2);
+  width: 2px;
+  background: var(--pf-line);
+}
+.pf-step-title { font-weight: 650; }
+.pf-step-detail { margin-top: var(--pf-space-2); color: var(--pf-muted); }
+.pf-step-next {
+  margin-top: var(--pf-space-2);
+  font-size: .8125rem;
+  color: var(--pf-muted);
+}
+
+/* ---------- quiz ---------- */
+
+.pf-quiz { display: grid; gap: var(--pf-space-4); }
+.pf-question { border: 0; margin: 0; padding: 0; }
+.pf-question legend {
+  padding: 0;
+  font-weight: 650;
+  margin-bottom: var(--pf-space-3);
+  max-width: var(--pf-measure);
+}
+.pf-options { display: grid; gap: var(--pf-space-2); margin-bottom: var(--pf-space-3); }
+.pf-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pf-space-3);
+  padding: var(--pf-space-3) var(--pf-space-4);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface);
+  cursor: pointer;
+}
+.pf-option:hover { border-color: var(--pf-accent); }
+.pf-option input { margin: .35rem 0 0; accent-color: var(--pf-accent); flex: none; }
+.pf-option[data-pf-verdict="correct"] {
+  border-color: var(--pf-ok);
+  box-shadow: inset 0 0 0 1px var(--pf-ok);
+}
+.pf-option[data-pf-verdict="incorrect"] {
+  border-color: var(--pf-no);
+  box-shadow: inset 0 0 0 1px var(--pf-no);
+}
+.pf-verdict { font-weight: 650; font-size: .8125rem; margin-left: auto; }
+.pf-option[data-pf-verdict="correct"] .pf-verdict { color: var(--pf-ok); }
+.pf-option[data-pf-verdict="incorrect"] .pf-verdict { color: var(--pf-no); }
+
+/* ---------- disclosure ---------- */
+
+.pf-reveal {
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface-2);
+  padding: var(--pf-space-2) var(--pf-space-4);
+}
+.pf-reveal > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: .875rem;
+  padding: var(--pf-space-1) 0;
+}
+.pf-reveal[open] > summary { margin-bottom: var(--pf-space-3); }
+.pf-reveal ol { margin: 0; padding-left: 1.25rem; }
+.pf-reveal li { margin-bottom: var(--pf-space-2); }
+.pf-reveal li:last-child { margin-bottom: 0; }
+
+/* ---------- provenance ---------- */
+
+.pf-provenance {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--pf-space-6) var(--pf-space-5) var(--pf-space-8);
+  border-top: 1px solid var(--pf-line);
+  color: var(--pf-muted);
+  font-size: .8125rem;
+}
+.pf-provenance dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--pf-space-2) var(--pf-space-4);
+  margin: 0 0 var(--pf-space-5);
+}
+.pf-provenance dt { font-weight: 650; color: var(--pf-ink); }
+.pf-provenance dd { margin: 0; font-family: var(--pf-mono); overflow-wrap: anywhere; }
+.pf-caveat { max-width: var(--pf-measure); }
+
+/* ---------- wide ---------- */
+
+@media (min-width: 900px) {
+  .pf-layout {
+    grid-template-columns: 248px minmax(0, 1fr);
+    gap: var(--pf-space-6);
+    padding: 0 var(--pf-space-5);
+  }
+  .pf-nav {
+    top: 76px;
+    align-self: start;
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--pf-space-6) 0 var(--pf-space-6);
+    border-bottom: 0;
+    background: transparent;
+  }
+  .pf-nav-label { display: block; }
+  .pf-nav-list { display: block; }
+  .pf-nav-list li { margin-bottom: var(--pf-space-1); }
+  .pf-nav-link {
+    white-space: normal;
+    border: 0;
+    border-left: 2px solid var(--pf-line);
+    border-radius: 0;
+    padding: var(--pf-space-2) var(--pf-space-3);
+  }
+  .pf-nav-link[aria-current="true"] {
+    border-left-color: var(--pf-accent);
+    background: var(--pf-surface-2);
+  }
+  .pf-main { padding: var(--pf-space-7) 0 var(--pf-space-8); }
+  .pf-provenance { padding-left: calc(248px + var(--pf-space-6) + var(--pf-space-5)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
+
+@media print {
+  .pf-header, .pf-nav, .pf-skip, .pf-theme-toggle { display: none; }
+  .pf-card { box-shadow: none; break-inside: avoid; }
+  .pf-reveal[open] > summary { list-style: none; }
+}</style>
+</head>
+<body>
+<a class="pf-skip" href="#pf-content">Skip to content</a>
+<header class="pf-header">
+<svg class="pf-mark" width="26" height="26" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><g fill="currentColor"><rect x="4" y="23" width="24" height="6.4" rx="3.2" transform="rotate(-3 16 26.2)"/><rect x="7" y="14.6" width="18" height="6" rx="3" transform="rotate(4 16 17.6)"/><rect x="9.6" y="7" width="12.8" height="5.4" rx="2.7" transform="rotate(-6 16 9.7)"/><rect x="12.4" y="1" width="7.2" height="4.4" rx="2.2" transform="rotate(5 16 3.2)"/></g></svg>
+<div class="pf-identity">
+<div class="pf-eyebrow">Pathfinder lesson</div>
+<div class="pf-title">A specification that cites nothing</div>
+</div>
+<button type="button" class="pf-theme-toggle" id="pf-theme-toggle" hidden>Theme: auto</button>
+</header>
+<div class="pf-layout">
+<nav class="pf-nav" aria-label="Modules">
+<div class="pf-nav-label">Modules</div>
+<ul class="pf-nav-list">
+<li><a class="pf-nav-link" href="#m--prose-and-code" data-pf-nav="m--prose-and-code"><span class="pf-nav-index">1</span>Prose and code</a></li>
+<li><a class="pf-nav-link" href="#m--flow-and-quiz" data-pf-nav="m--flow-and-quiz"><span class="pf-nav-index">2</span>Flow and quiz</a></li>
+</ul>
+</nav>
+<main class="pf-main" id="pf-content">
+<div class="pf-lead">
+<h1>A specification that cites nothing</h1>
+<p class="pf-lead-sub">Every section type the lesson kind has, and not one citation between them.</p>
+<div class="pf-lead-summary"><p>This fixture exists so the determinism tests measure the renderer and nothing else. It carries no evidence, so no commit is resolved, no blob is read, and no Git history has to exist for it to deliver — which means a digest that moves has exactly one place it can have come from.</p></div>
+<div class="pf-objectives">
+<div class="pf-kicker">What you should be able to do</div>
+<ul>
+<li>Exercise every section type the lesson kind defines.</li>
+<li>Deliver without resolving a single citation.</li>
+<li>Give the golden digest one and only one input: the specification bytes and the renderer version.</li>
+</ul>
+</div>
+</div>
+<section class="pf-module" id="m--prose-and-code" aria-labelledby="m--prose-and-code--h">
+<div class="pf-module-head">
+<div class="pf-module-index">Module 1</div>
+<h2 class="pf-module-title" id="m--prose-and-code--h">Prose and code</h2>
+<p class="pf-module-summary">The two section types that carry text the renderer must escape rather than interpret.</p>
+</div>
+<section class="pf-section" id="s--why-citation-free">
+<h3 class="pf-section-title" id="s--why-citation-free--h">Why this fixture cites nothing</h3>
+<div class="pf-card">
+<p>The evidence layer resolves citations against a commit using local Git. That is the right behaviour for a real lesson and the wrong dependency for a determinism test: a digest that changed would leave two suspects, the renderer and the repository, and the test could not tell them apart.</p>
+<p>So this specification carries no citations at all. The evidence layer still runs and still reports its claim; it simply has nothing to resolve.</p>
+</div>
+</section>
+<section class="pf-section" id="s--escaping-probe">
+<h3 class="pf-section-title">Characters the renderer must escape</h3>
+<figure class="pf-code">
+<figcaption>Angle brackets, ampersands, quotes and a backslash, so an escaping regression moves the digest.</figcaption>
+<div class="pf-code-frame"><span class="pf-code-lang">html</span>
+<pre><code>
+<span class="pf-code-line"><span class="pf-code-no">1</span>&lt;script&gt;alert(&quot;not executed&quot;)&lt;/script&gt;</span>
+<span class="pf-code-line"><span class="pf-code-no">2</span>a &amp; b &lt; c &gt; d &quot;quoted&quot; &#39;single&#39; \backslash</span>
+<span class="pf-code-line"><span class="pf-code-no">3</span>unicode: é 中文 🗺</span>
+</code></pre></div>
+</figure>
+</section>
+<section class="pf-section" id="s--change-one-byte">
+<h3 class="pf-section-title" id="s--change-one-byte--h">Change one byte</h3>
+<div class="pf-card">
+<span class="pf-kicker">Practice</span>
+<p>Edit any character in this fixture and re-run the golden test. It fails, and the failure names the digest that moved.</p>
+<p>That is the whole contract: same specification bytes and same renderer version, same artifact bytes.</p>
+<details class="pf-reveal">
+<summary>Hints</summary>
+<ol>
+<li>The renderer version lives in `skills/render-artifact/engine/version.mjs`.</li>
+<li>A deliberate output change is a version bump plus a regenerated golden, in one commit.</li>
+</ol>
+</details>
+</div>
+</section>
+</section>
+<section class="pf-module" id="m--flow-and-quiz" aria-labelledby="m--flow-and-quiz--h">
+<div class="pf-module-head">
+<div class="pf-module-index">Module 2</div>
+<h2 class="pf-module-title" id="m--flow-and-quiz--h">Flow and quiz</h2>
+<p class="pf-module-summary">The two section types whose ordering and identifiers the renderer derives rather than invents.</p>
+<p class="pf-requires">Builds on: <a href="#m--prose-and-code">Prose and code</a></p>
+</div>
+<section class="pf-section" id="s--delivery-path">
+<h3 class="pf-section-title" id="s--delivery-path--h">What delivery does, in order</h3>
+<div class="pf-card">
+<span class="pf-kicker">Walkthrough</span>
+<ol class="pf-flow">
+<li>
+<div class="pf-step-title">Parse the frozen bytes</div>
+<p class="pf-step-detail">Delivery copies the specification bytes first and parses that copy, so the receipt cannot describe a specification that was never rendered.</p>
+</li>
+<li>
+<div class="pf-step-title">Validate the parse</div>
+<p class="pf-step-detail">Structural, then composition and evidence together. A failure stops here and writes nothing.</p>
+</li>
+<li>
+<div class="pf-step-title">Render against an attestation</div>
+<p class="pf-step-detail">The attestation is minted from the validation just performed, which is the only route to a verification claim in the artifact.</p>
+</li>
+<li>
+<div class="pf-step-title">Commit atomically</div>
+<p class="pf-step-detail">Write beside the destination, fsync, rename over it. A failure leaves the previous artifact untouched.</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="pf-section" id="s--determinism-quiz">
+<h3 class="pf-section-title" id="s--determinism-quiz--h">Check yourself</h3>
+<div class="pf-card">
+<span class="pf-kicker">Check your understanding</span>
+<div class="pf-quiz">
+<fieldset class="pf-question" data-pf-question="q--determinism-quiz--what-moves-output">
+<legend>Rendering the same specification twice produces different HTML. What is the defect?</legend>
+<div class="pf-options"><label class="pf-option" for="q--determinism-quiz--what-moves-output--0"><input type="radio" id="q--determinism-quiz--what-moves-output--0" name="q--determinism-quiz--what-moves-output" value="0" data-pf-answer="other"><span>The specification is stale and should be regenerated.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--determinism-quiz--what-moves-output--1"><input type="radio" id="q--determinism-quiz--what-moves-output--1" name="q--determinism-quiz--what-moves-output" value="1" data-pf-answer="correct"><span>The renderer read something ambient — a clock, the environment, the locale, or the filesystem&#39;s ordering.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--determinism-quiz--what-moves-output--2"><input type="radio" id="q--determinism-quiz--what-moves-output--2" name="q--determinism-quiz--what-moves-output" value="2" data-pf-answer="other"><span>The reader&#39;s browser is in a different theme.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--determinism-quiz--what-moves-output--3"><input type="radio" id="q--determinism-quiz--what-moves-output--3" name="q--determinism-quiz--what-moves-output" value="3" data-pf-answer="other"><span>The artifact was not committed atomically.</span><span class="pf-verdict" aria-live="polite"></span></label></div>
+<details class="pf-reveal">
+<summary>Show the answer</summary>
+<p><strong>Correct:</strong> The renderer read something ambient — a clock, the environment, the locale, or the filesystem&#39;s ordering.</p>
+<p>Rendering is a pure function of the specification and the renderer. If it is not, the renderer reached for something outside both.</p>
+</details>
+</fieldset>
+<fieldset class="pf-question" data-pf-question="q--determinism-quiz--version-bump">
+<legend>A change to the renderer&#39;s CSS intentionally alters every artifact&#39;s bytes. What must the same commit do?</legend>
+<div class="pf-options"><label class="pf-option" for="q--determinism-quiz--version-bump--0"><input type="radio" id="q--determinism-quiz--version-bump--0" name="q--determinism-quiz--version-bump" value="0" data-pf-answer="other"><span>Nothing — determinism is about one machine, not one release.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--determinism-quiz--version-bump--1"><input type="radio" id="q--determinism-quiz--version-bump--1" name="q--determinism-quiz--version-bump" value="1" data-pf-answer="other"><span>Delete the golden files, because they can no longer be trusted.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--determinism-quiz--version-bump--2"><input type="radio" id="q--determinism-quiz--version-bump--2" name="q--determinism-quiz--version-bump" value="2" data-pf-answer="correct"><span>Bump RENDERER_VERSION and regenerate the goldens.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--determinism-quiz--version-bump--3"><input type="radio" id="q--determinism-quiz--version-bump--3" name="q--determinism-quiz--version-bump" value="3" data-pf-answer="other"><span>Add the CSS change to the specification schema.</span><span class="pf-verdict" aria-live="polite"></span></label></div>
+<details class="pf-reveal">
+<summary>Show the answer</summary>
+<p><strong>Correct:</strong> Bump RENDERER_VERSION and regenerate the goldens.</p>
+<p>The renderer version is part of the deterministic input. An intentional output change is a version change; without the bump it is indistinguishable from a determinism failure.</p>
+</details>
+</fieldset>
+</div>
+</div>
+</section>
+</section>
+</main>
+</div>
+<footer class="pf-provenance">
+<dl>
+<dt>Repository</dt>
+<dd>pathfinder/determinism-fixture</dd>
+<dt>Commit</dt>
+<dd>0000000</dd>
+<dt>Specification generated</dt>
+<dd>2026-01-01</dd>
+<dt>Renderer</dt>
+<dd>Pathfinder render-artifact 0.1.0</dd>
+</dl>
+<p class="pf-caveat">This artifact was checked deterministically: its specification satisfied the schema, its references and graphs resolved, and every citation above was verified against the commit named here. That is what was checked. It is not a judgement that the page reads well or looks right — a person has to open it to know that.</p>
+</footer>
+<script>(function () {
+  "use strict";
+
+  var root = document.documentElement;
+  var MODES = ["auto", "light", "dark"];
+  var LABELS = { auto: "Theme: auto", light: "Theme: light", dark: "Theme: dark" };
+  var KEY = "pathfinder.artifact.theme";
+
+  function stored() {
+    try {
+      var value = window.localStorage.getItem(KEY);
+      return MODES.indexOf(value) >= 0 ? value : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function remember(mode) {
+    try {
+      window.localStorage.setItem(KEY, mode);
+    } catch (error) {
+      /* A reader who cannot store a preference still gets to use it. */
+    }
+  }
+
+  function apply(mode, button) {
+    root.setAttribute("data-pf-theme", mode);
+    if (button) {
+      button.textContent = LABELS[mode];
+      button.setAttribute("aria-label", LABELS[mode] + ". Activate to change.");
+    }
+  }
+
+  var toggle = document.getElementById("pf-theme-toggle");
+  var initial = stored() || "auto";
+  apply(initial, toggle);
+
+  if (toggle) {
+    toggle.hidden = false;
+    toggle.addEventListener("click", function () {
+      var next = MODES[(MODES.indexOf(root.getAttribute("data-pf-theme")) + 1) % MODES.length];
+      apply(next, toggle);
+      remember(next);
+    });
+  }
+
+  /* Mark the module the reader is in. Falls back to doing nothing where
+     IntersectionObserver is unavailable; the nav still navigates. */
+  var links = Array.prototype.slice.call(document.querySelectorAll("[data-pf-nav]"));
+  if (links.length > 0 && "IntersectionObserver" in window) {
+    var byId = {};
+    links.forEach(function (link) { byId[link.getAttribute("data-pf-nav")] = link; });
+
+    var visible = {};
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        visible[entry.target.id] = entry.isIntersecting;
+      });
+      var current = null;
+      for (var i = 0; i < links.length; i += 1) {
+        var id = links[i].getAttribute("data-pf-nav");
+        if (visible[id]) { current = id; break; }
+      }
+      links.forEach(function (link) {
+        var isCurrent = link.getAttribute("data-pf-nav") === current;
+        if (isCurrent) {
+          link.setAttribute("aria-current", "true");
+        } else {
+          link.removeAttribute("aria-current");
+        }
+      });
+    }, { rootMargin: "-30% 0px -60% 0px" });
+
+    Object.keys(byId).forEach(function (id) {
+      var target = document.getElementById(id);
+      if (target) observer.observe(target);
+    });
+  }
+
+  /* Quiz feedback. The correct answer is in the document either way; choosing
+     an option just says so sooner, and opens the explanation that was always
+     one click away. */
+  document.addEventListener("change", function (event) {
+    var input = event.target;
+    if (!input || input.type !== "radio" || !input.hasAttribute("data-pf-answer")) return;
+
+    var question = input.closest("[data-pf-question]");
+    if (!question) return;
+
+    var chosenIsCorrect = input.getAttribute("data-pf-answer") === "correct";
+    Array.prototype.forEach.call(question.querySelectorAll(".pf-option"), function (option) {
+      var field = option.querySelector("input[type=radio]");
+      var verdict = option.querySelector(".pf-verdict");
+      var correct = field.getAttribute("data-pf-answer") === "correct";
+      if (field.checked && !correct) {
+        option.setAttribute("data-pf-verdict", "incorrect");
+        if (verdict) verdict.textContent = "Not this one";
+      } else if (correct && (field.checked || !chosenIsCorrect)) {
+        option.setAttribute("data-pf-verdict", "correct");
+        if (verdict) verdict.textContent = "Correct";
+      } else {
+        option.removeAttribute("data-pf-verdict");
+        if (verdict) verdict.textContent = "";
+      }
+    });
+
+    var reveal = question.querySelector(".pf-reveal");
+    if (reveal) reveal.open = true;
+  });
+})();</script>
+</body>
+</html>

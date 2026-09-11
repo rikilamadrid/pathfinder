@@ -1,0 +1,959 @@
+<!doctype html>
+<html lang="en" data-pf-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What the Pathfinder kit hands over</title>
+<meta name="description" content="Pathfinder is copied into a project rather than depended on, so the exact set of files that crosses that boundary is the product. This lesson follows that set from the list that declares it to the checks that stop it drifting.">
+<meta name="generator" content="Pathfinder render-artifact 0.1.0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
+<style>:root {
+  color-scheme: light;
+  --pf-page: #FDFCFB;
+  --pf-surface: #FFFFFF;
+  --pf-surface-2: #F5F2EF;
+  --pf-ink: #1B1815;
+  --pf-muted: #5C5550;
+  --pf-line: #E2DCD6;
+  --pf-line-strong: #8C837A;
+  --pf-accent: #E0611F;
+  --pf-accent-ink: #1B1815;
+  --pf-link: #B34A13;
+  --pf-ok: #1F6F43;
+  --pf-no: #A62B1E;
+  --pf-shadow: 0 1px 2px rgba(27, 24, 21, .06), 0 8px 24px rgba(27, 24, 21, .05);
+
+  --pf-space-1: .25rem;
+  --pf-space-2: .5rem;
+  --pf-space-3: .75rem;
+  --pf-space-4: 1rem;
+  --pf-space-5: 1.5rem;
+  --pf-space-6: 2rem;
+  --pf-space-7: 3rem;
+  --pf-space-8: 4rem;
+
+  --pf-radius: 10px;
+  --pf-radius-sm: 6px;
+  --pf-measure: 68ch;
+
+  --pf-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+             "Helvetica Neue", Arial, sans-serif;
+  --pf-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+             "Liberation Mono", monospace;
+}
+
+/* Light is the base, so a reader whose system states no preference gets a
+   readable page rather than whichever branch happened to be written first.
+   "auto" follows the system; "light" and "dark" are the reader overriding it,
+   and both win over the media query because they are on the element. */
+:root[data-pf-theme="dark"] {
+  color-scheme: dark;
+  --pf-page: #14120F;
+  --pf-surface: #1D1A16;
+  --pf-surface-2: #262218;
+  --pf-ink: #F2EEE9;
+  --pf-muted: #B0A79E;
+  --pf-line: #35302A;
+  --pf-line-strong: #7A7168;
+  --pf-accent: #E0611F;
+  --pf-accent-ink: #1B1815;
+  --pf-link: #F0A97E;
+  --pf-ok: #6FD39B;
+  --pf-no: #F09085;
+  --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-pf-theme="auto"] {
+    color-scheme: dark;
+    --pf-page: #14120F;
+    --pf-surface: #1D1A16;
+    --pf-surface-2: #262218;
+    --pf-ink: #F2EEE9;
+    --pf-muted: #B0A79E;
+    --pf-line: #35302A;
+    --pf-line-strong: #7A7168;
+    --pf-accent: #E0611F;
+    --pf-accent-ink: #1B1815;
+    --pf-link: #F0A97E;
+    --pf-ok: #6FD39B;
+    --pf-no: #F09085;
+    --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--pf-page);
+  color: var(--pf-ink);
+  font-family: var(--pf-sans);
+  font-size: 16px;
+  line-height: 1.65;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 {
+  line-height: 1.25;
+  letter-spacing: -.011em;
+  margin: 0;
+  font-weight: 650;
+}
+
+p { margin: 0 0 var(--pf-space-4); max-width: var(--pf-measure); }
+p:last-child { margin-bottom: 0; }
+
+a { color: var(--pf-link); text-underline-offset: .18em; }
+a:hover { text-decoration-thickness: 2px; }
+
+:focus-visible {
+  outline: 3px solid var(--pf-accent);
+  outline-offset: 2px;
+  border-radius: var(--pf-radius-sm);
+}
+
+code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
+
+/* ---------- skip link ---------- */
+
+.pf-skip {
+  position: absolute;
+  left: var(--pf-space-3);
+  top: var(--pf-space-3);
+  z-index: 40;
+  padding: var(--pf-space-2) var(--pf-space-4);
+  background: var(--pf-accent);
+  color: var(--pf-accent-ink);
+  border-radius: var(--pf-radius-sm);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+.pf-skip:focus { transform: translateY(0); }
+
+/* ---------- header ---------- */
+
+.pf-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--pf-space-4);
+  padding: var(--pf-space-4) var(--pf-space-5);
+  background: var(--pf-surface);
+  border-bottom: 1px solid var(--pf-line);
+}
+
+.pf-mark { flex: none; color: var(--pf-accent); display: block; }
+
+.pf-identity { min-width: 0; flex: 1 1 auto; }
+.pf-title {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-eyebrow {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+
+.pf-theme-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pf-space-2);
+  padding: var(--pf-space-2) var(--pf-space-3);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--pf-ink);
+  background: var(--pf-surface-2);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.pf-theme-toggle:hover { border-color: var(--pf-accent); }
+
+/* ---------- layout ---------- */
+
+.pf-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.pf-main {
+  min-width: 0;
+  padding: var(--pf-space-6) var(--pf-space-5) var(--pf-space-8);
+}
+
+/* ---------- navigation ---------- */
+
+.pf-nav {
+  position: sticky;
+  top: 64px;
+  z-index: 20;
+  background: var(--pf-page);
+  border-bottom: 1px solid var(--pf-line);
+  padding: var(--pf-space-3) var(--pf-space-5);
+  overflow-x: auto;
+}
+
+.pf-nav-label {
+  display: none;
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+  margin-bottom: var(--pf-space-3);
+}
+
+.pf-nav-list {
+  display: flex;
+  gap: var(--pf-space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pf-nav-link {
+  display: block;
+  white-space: nowrap;
+  padding: var(--pf-space-2) var(--pf-space-3);
+  border-radius: 999px;
+  border: 1px solid var(--pf-line);
+  color: var(--pf-ink);
+  text-decoration: none;
+  font-size: .875rem;
+  font-weight: 550;
+}
+.pf-nav-link:hover { border-color: var(--pf-accent); }
+.pf-nav-link[aria-current="true"] {
+  border-color: var(--pf-accent);
+  background: var(--pf-surface-2);
+  font-weight: 650;
+}
+.pf-nav-index {
+  color: var(--pf-muted);
+  font-variant-numeric: tabular-nums;
+  margin-right: var(--pf-space-2);
+}
+
+/* ---------- lesson head ---------- */
+
+.pf-lead {
+  margin: 0 0 var(--pf-space-7);
+  padding-bottom: var(--pf-space-6);
+  border-bottom: 1px solid var(--pf-line);
+}
+.pf-lead h1 { font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.5rem); }
+.pf-lead-sub {
+  margin-top: var(--pf-space-3);
+  font-size: 1.0625rem;
+  color: var(--pf-muted);
+  max-width: var(--pf-measure);
+}
+.pf-lead-summary { margin-top: var(--pf-space-4); }
+
+.pf-objectives {
+  margin: var(--pf-space-5) 0 0;
+  padding: var(--pf-space-4) var(--pf-space-5);
+  background: var(--pf-surface-2);
+  border-radius: var(--pf-radius);
+  border: 1px solid var(--pf-line);
+  max-width: var(--pf-measure);
+}
+.pf-objectives ul { margin: var(--pf-space-2) 0 0; padding-left: 1.25rem; }
+.pf-objectives li { margin-bottom: var(--pf-space-2); }
+.pf-objectives li:last-child { margin-bottom: 0; }
+
+/* ---------- modules and sections ---------- */
+
+.pf-module { margin-bottom: var(--pf-space-8); scroll-margin-top: 128px; }
+.pf-module-head { margin-bottom: var(--pf-space-5); }
+/* --pf-link, not --pf-accent. This is 11px text, so WCAG 2.1 AA wants 4.5:1
+   and the accent gives 3.47:1 on the light page — it clears the 3:1 non-text
+   bar the mark and the focus ring rely on, and fails as soon as it becomes
+   words. --pf-link is the accent darkened for exactly this: 5.25:1 light,
+   9.51:1 dark. Any future accent-coloured *text* takes this token. */
+.pf-module-index {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-link);
+}
+.pf-module-title { font-size: 1.5rem; margin-top: var(--pf-space-2); }
+.pf-module-summary { margin-top: var(--pf-space-3); color: var(--pf-muted); }
+
+.pf-requires {
+  margin-top: var(--pf-space-3);
+  font-size: .8125rem;
+  color: var(--pf-muted);
+}
+.pf-requires a { color: var(--pf-link); }
+
+.pf-section { margin-bottom: var(--pf-space-6); scroll-margin-top: 128px; }
+.pf-section-title { font-size: 1.125rem; margin-bottom: var(--pf-space-3); }
+
+.pf-card {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  padding: var(--pf-space-5);
+  box-shadow: var(--pf-shadow);
+}
+.pf-card--concept { border-left: 3px solid var(--pf-accent); }
+
+.pf-kicker {
+  display: inline-block;
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+  margin-bottom: var(--pf-space-2);
+}
+
+/* ---------- evidence ---------- */
+
+.pf-evidence {
+  margin: var(--pf-space-5) 0 0;
+  padding-top: var(--pf-space-4);
+  border-top: 1px dashed var(--pf-line);
+}
+.pf-evidence-label {
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+.pf-evidence ul { list-style: none; margin: var(--pf-space-2) 0 0; padding: 0; }
+.pf-evidence li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pf-space-2);
+  padding: var(--pf-space-1) 0;
+  font-family: var(--pf-mono);
+  font-size: .8125rem;
+  overflow-wrap: anywhere;
+}
+.pf-cite-path { color: var(--pf-ink); }
+.pf-cite-lines, .pf-cite-commit {
+  padding: 0 var(--pf-space-2);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface-2);
+  color: var(--pf-muted);
+  font-size: .75rem;
+  white-space: nowrap;
+}
+
+/* ---------- code ---------- */
+
+.pf-code { margin: 0; }
+.pf-code figcaption {
+  color: var(--pf-muted);
+  font-size: .875rem;
+  margin-bottom: var(--pf-space-3);
+  max-width: var(--pf-measure);
+}
+.pf-code-frame {
+  background: var(--pf-surface-2);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  overflow: hidden;
+}
+.pf-code-lang {
+  display: block;
+  padding: var(--pf-space-2) var(--pf-space-4);
+  border-bottom: 1px solid var(--pf-line);
+  font-family: var(--pf-mono);
+  font-size: .6875rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+.pf-code pre {
+  margin: 0;
+  padding: var(--pf-space-4) 0;
+  overflow-x: auto;
+  line-height: 1.7;
+  tab-size: 2;
+}
+.pf-code-line { display: block; padding: 0 var(--pf-space-4); white-space: pre; }
+.pf-code-no {
+  display: inline-block;
+  width: 3ch;
+  margin-right: var(--pf-space-4);
+  text-align: right;
+  color: var(--pf-muted);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- flow ---------- */
+
+.pf-flow { list-style: none; margin: 0; padding: 0; counter-reset: pf-step; }
+.pf-flow > li {
+  position: relative;
+  counter-increment: pf-step;
+  padding: 0 0 var(--pf-space-5) var(--pf-space-7);
+}
+.pf-flow > li:last-child { padding-bottom: 0; }
+.pf-flow > li::before {
+  content: counter(pf-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--pf-accent);
+  color: var(--pf-accent-ink);
+  font-size: .8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pf-flow > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: calc(.875rem - 1px);
+  top: 2rem;
+  bottom: var(--pf-space-2);
+  width: 2px;
+  background: var(--pf-line);
+}
+.pf-step-title { font-weight: 650; }
+.pf-step-detail { margin-top: var(--pf-space-2); color: var(--pf-muted); }
+.pf-step-next {
+  margin-top: var(--pf-space-2);
+  font-size: .8125rem;
+  color: var(--pf-muted);
+}
+
+/* ---------- quiz ---------- */
+
+.pf-quiz { display: grid; gap: var(--pf-space-4); }
+.pf-question { border: 0; margin: 0; padding: 0; }
+.pf-question legend {
+  padding: 0;
+  font-weight: 650;
+  margin-bottom: var(--pf-space-3);
+  max-width: var(--pf-measure);
+}
+.pf-options { display: grid; gap: var(--pf-space-2); margin-bottom: var(--pf-space-3); }
+.pf-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pf-space-3);
+  padding: var(--pf-space-3) var(--pf-space-4);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface);
+  cursor: pointer;
+}
+.pf-option:hover { border-color: var(--pf-accent); }
+.pf-option input { margin: .35rem 0 0; accent-color: var(--pf-accent); flex: none; }
+.pf-option[data-pf-verdict="correct"] {
+  border-color: var(--pf-ok);
+  box-shadow: inset 0 0 0 1px var(--pf-ok);
+}
+.pf-option[data-pf-verdict="incorrect"] {
+  border-color: var(--pf-no);
+  box-shadow: inset 0 0 0 1px var(--pf-no);
+}
+.pf-verdict { font-weight: 650; font-size: .8125rem; margin-left: auto; }
+.pf-option[data-pf-verdict="correct"] .pf-verdict { color: var(--pf-ok); }
+.pf-option[data-pf-verdict="incorrect"] .pf-verdict { color: var(--pf-no); }
+
+/* ---------- disclosure ---------- */
+
+.pf-reveal {
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface-2);
+  padding: var(--pf-space-2) var(--pf-space-4);
+}
+.pf-reveal > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: .875rem;
+  padding: var(--pf-space-1) 0;
+}
+.pf-reveal[open] > summary { margin-bottom: var(--pf-space-3); }
+.pf-reveal ol { margin: 0; padding-left: 1.25rem; }
+.pf-reveal li { margin-bottom: var(--pf-space-2); }
+.pf-reveal li:last-child { margin-bottom: 0; }
+
+/* ---------- provenance ---------- */
+
+.pf-provenance {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--pf-space-6) var(--pf-space-5) var(--pf-space-8);
+  border-top: 1px solid var(--pf-line);
+  color: var(--pf-muted);
+  font-size: .8125rem;
+}
+.pf-provenance dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--pf-space-2) var(--pf-space-4);
+  margin: 0 0 var(--pf-space-5);
+}
+.pf-provenance dt { font-weight: 650; color: var(--pf-ink); }
+.pf-provenance dd { margin: 0; font-family: var(--pf-mono); overflow-wrap: anywhere; }
+.pf-caveat { max-width: var(--pf-measure); }
+
+/* ---------- wide ---------- */
+
+@media (min-width: 900px) {
+  .pf-layout {
+    grid-template-columns: 248px minmax(0, 1fr);
+    gap: var(--pf-space-6);
+    padding: 0 var(--pf-space-5);
+  }
+  .pf-nav {
+    top: 76px;
+    align-self: start;
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--pf-space-6) 0 var(--pf-space-6);
+    border-bottom: 0;
+    background: transparent;
+  }
+  .pf-nav-label { display: block; }
+  .pf-nav-list { display: block; }
+  .pf-nav-list li { margin-bottom: var(--pf-space-1); }
+  .pf-nav-link {
+    white-space: normal;
+    border: 0;
+    border-left: 2px solid var(--pf-line);
+    border-radius: 0;
+    padding: var(--pf-space-2) var(--pf-space-3);
+  }
+  .pf-nav-link[aria-current="true"] {
+    border-left-color: var(--pf-accent);
+    background: var(--pf-surface-2);
+  }
+  .pf-main { padding: var(--pf-space-7) 0 var(--pf-space-8); }
+  .pf-provenance { padding-left: calc(248px + var(--pf-space-6) + var(--pf-space-5)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
+
+@media print {
+  .pf-header, .pf-nav, .pf-skip, .pf-theme-toggle { display: none; }
+  .pf-card { box-shadow: none; break-inside: avoid; }
+  .pf-reveal[open] > summary { list-style: none; }
+}</style>
+</head>
+<body>
+<a class="pf-skip" href="#pf-content">Skip to content</a>
+<header class="pf-header">
+<svg class="pf-mark" width="26" height="26" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><g fill="currentColor"><rect x="4" y="23" width="24" height="6.4" rx="3.2" transform="rotate(-3 16 26.2)"/><rect x="7" y="14.6" width="18" height="6" rx="3" transform="rotate(4 16 17.6)"/><rect x="9.6" y="7" width="12.8" height="5.4" rx="2.7" transform="rotate(-6 16 9.7)"/><rect x="12.4" y="1" width="7.2" height="4.4" rx="2.2" transform="rotate(5 16 3.2)"/></g></svg>
+<div class="pf-identity">
+<div class="pf-eyebrow">Pathfinder lesson</div>
+<div class="pf-title">What the Pathfinder kit hands over</div>
+</div>
+<button type="button" class="pf-theme-toggle" id="pf-theme-toggle" hidden>Theme: auto</button>
+</header>
+<div class="pf-layout">
+<nav class="pf-nav" aria-label="Modules">
+<div class="pf-nav-label">Modules</div>
+<ul class="pf-nav-list">
+<li><a class="pf-nav-link" href="#m--what-ships" data-pf-nav="m--what-ships"><span class="pf-nav-index">1</span>What ships</a></li>
+<li><a class="pf-nav-link" href="#m--keeping-it-honest" data-pf-nav="m--keeping-it-honest"><span class="pf-nav-index">2</span>Keeping it honest</a></li>
+</ul>
+</nav>
+<main class="pf-main" id="pf-content">
+<div class="pf-lead">
+<h1>What the Pathfinder kit hands over</h1>
+<p class="pf-lead-sub">The copy list, the files that are tracked but never shipped, and the checks that keep both honest.</p>
+<div class="pf-lead-summary"><p>Pathfinder is copied into a project rather than depended on, so the exact set of files that crosses that boundary is the product. This lesson follows that set from the list that declares it to the checks that stop it drifting.</p></div>
+<div class="pf-objectives">
+<div class="pf-kicker">What you should be able to do</div>
+<ul>
+<li>Name the single file that decides what an installed project receives.</li>
+<li>Explain why a file can be tracked in Git and still never ship.</li>
+<li>Point at the check that would fail if a manifest appeared at the repository root.</li>
+</ul>
+</div>
+</div>
+<section class="pf-module" id="m--what-ships" aria-labelledby="m--what-ships--h">
+<div class="pf-module-head">
+<div class="pf-module-index">Module 1</div>
+<h2 class="pf-module-title" id="m--what-ships--h">What ships</h2>
+<p class="pf-module-summary">One list decides it, and every other statement of the list is checked against that one.</p>
+</div>
+<section class="pf-section" id="s--why-a-list">
+<h3 class="pf-section-title" id="s--why-a-list--h">Why a list at all</h3>
+<div class="pf-card">
+<p>Pathfinder installs by copying. There is no package to depend on at runtime, no import to resolve, and nothing that reaches back to this repository after the copy. The destination project ends up holding files, and the question of which files is the whole contract.</p>
+<p>A contract spread across an installer, a staging script, a README and a validator is four contracts. So there is one file, and everything else is checked against it.</p>
+</div>
+</section>
+<section class="pf-section" id="s--copy-list-is-canonical">
+<h3 class="pf-section-title" id="s--copy-list-is-canonical--h">The copy list is the single source of truth</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>copy-list.json names the top-level entries a destination project receives. The installer reads it at runtime, the structural validator checks every other statement of the list against it, and npm publishes it inside the package so the installer stays self-contained.</p>
+<p>Note that `context` is a directory entry. Anything placed beneath it ships by default, which is what makes the exclusions in the next section necessary rather than tidy.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 1–11</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--copy-list-entries">
+<h3 class="pf-section-title">The entries themselves</h3>
+<figure class="pf-code">
+<figcaption>Six entries. A destination project receives these and nothing else.</figcaption>
+<div class="pf-code-frame"><span class="pf-code-lang">json</span>
+<pre><code>
+<span class="pf-code-line"><span class="pf-code-no">3</span>  &quot;entries&quot;: [</span>
+<span class="pf-code-line"><span class="pf-code-no">4</span>    &quot;AGENTS.md&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">5</span>    &quot;CLAUDE.md&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">6</span>    &quot;context&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">7</span>    &quot;roles&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">8</span>    &quot;skills&quot;,</span>
+<span class="pf-code-line"><span class="pf-code-no">9</span>    &quot;templates&quot;</span>
+<span class="pf-code-line"><span class="pf-code-no">10</span>  ]</span>
+<span class="pf-code-line"><span class="pf-code-no">11</span>}</span>
+</code></pre></div>
+<div class="pf-card"><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 3–11</span></li>
+</ul>
+</div></div>
+</figure>
+</section>
+<section class="pf-section" id="s--never-ships">
+<h3 class="pf-section-title" id="s--never-ships--h">Tracked, and never shipped</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>Five paths under context/ are excluded from the copy even though the directory ships. Four of them are transient session state — one maintainer&#39;s in-flight work, meaningless in another checkout.</p>
+<p>The fifth, context/history.md, is the interesting one. It is durable project truth, tracked in version control exactly as a project should track it. It is simply another project&#39;s truth, so the promise made about it is the publication half only: never shipped, emphatically tracked.</p>
+<p>An ignore rule could not carry this. .gitignore is advisory, a single `git add -f` defeats it, and the staging script copies from the working tree without consulting it at all.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 97–105</span></li>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 80–96</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--install-flow">
+<h3 class="pf-section-title" id="s--install-flow--h">What an install actually does</h3>
+<div class="pf-card">
+<span class="pf-kicker">Walkthrough</span>
+<ol class="pf-flow">
+<li>
+<div class="pf-step-title">Read the copy list</div>
+<p class="pf-step-detail">The installer reads copy-list.json from inside its own package, so the list it obeys travelled with it.</p>
+</li>
+<li>
+<div class="pf-step-title">Copy each entry</div>
+<p class="pf-step-detail">Files are copied verbatim. Directory entries are copied recursively, which is why skills/ arrives whole.</p>
+</li>
+<li>
+<div class="pf-step-title">Drop the never-ships paths</div>
+<p class="pf-step-detail">A filter matched on the kit-relative path — never the basename — removes the five excluded files as the copy walks.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 106–130</span></li>
+</ul>
+</div>
+</li>
+<li>
+<div class="pf-step-title">Generate harness adapters, if asked</div>
+<p class="pf-step-detail">Adapters are rendered from skill frontmatter. They carry a pointer to the canonical skill and no behaviour of their own.</p>
+</li>
+</ol>
+</div>
+</section>
+<section class="pf-section" id="s--what-ships-quiz">
+<h3 class="pf-section-title" id="s--what-ships-quiz--h">Check your understanding</h3>
+<div class="pf-card">
+<span class="pf-kicker">Check your understanding</span>
+<div class="pf-quiz">
+<fieldset class="pf-question" data-pf-question="q--what-ships-quiz--which-file">
+<legend>A contributor wants to add a new top-level directory to what installed projects receive. Which file do they change?</legend>
+<div class="pf-options"><label class="pf-option" for="q--what-ships-quiz--which-file--0"><input type="radio" id="q--what-ships-quiz--which-file--0" name="q--what-ships-quiz--which-file" value="0" data-pf-answer="correct"><span>packages/create-pathfinder/copy-list.json</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--what-ships-quiz--which-file--1"><input type="radio" id="q--what-ships-quiz--which-file--1" name="q--what-ships-quiz--which-file" value="1" data-pf-answer="other"><span>The installer&#39;s src/kit.mjs</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--what-ships-quiz--which-file--2"><input type="radio" id="q--what-ships-quiz--which-file--2" name="q--what-ships-quiz--which-file" value="2" data-pf-answer="other"><span>.gitignore</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--what-ships-quiz--which-file--3"><input type="radio" id="q--what-ships-quiz--which-file--3" name="q--what-ships-quiz--which-file" value="3" data-pf-answer="other"><span>Both the installer and the README, together</span><span class="pf-verdict" aria-live="polite"></span></label></div>
+<details class="pf-reveal">
+<summary>Show the answer</summary>
+<p><strong>Correct:</strong> packages/create-pathfinder/copy-list.json</p>
+<p>The list is declared once. The installer reads it, and validation checks every other statement of the list against it, so changing it anywhere else is what the checks exist to catch.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 2–2</span></li>
+</ul>
+</div>
+</details>
+</fieldset>
+<fieldset class="pf-question" data-pf-question="q--what-ships-quiz--history-md">
+<legend>Why is context/history.md excluded from the copy but still tracked in Git?</legend>
+<div class="pf-options"><label class="pf-option" for="q--what-ships-quiz--history-md--0"><input type="radio" id="q--what-ships-quiz--history-md--0" name="q--what-ships-quiz--history-md" value="0" data-pf-answer="other"><span>It is generated, so tracking it would create merge conflicts</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--what-ships-quiz--history-md--1"><input type="radio" id="q--what-ships-quiz--history-md--1" name="q--what-ships-quiz--history-md" value="1" data-pf-answer="correct"><span>It is this repository&#39;s own completed-work record — durable truth, but somebody else&#39;s project should write its own</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--what-ships-quiz--history-md--2"><input type="radio" id="q--what-ships-quiz--history-md--2" name="q--what-ships-quiz--history-md" value="2" data-pf-answer="other"><span>It is too large to ship inside an npm package</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--what-ships-quiz--history-md--3"><input type="radio" id="q--what-ships-quiz--history-md--3" name="q--what-ships-quiz--history-md" value="3" data-pf-answer="other"><span>It is transient session state, like the handoff file</span><span class="pf-verdict" aria-live="polite"></span></label></div>
+<details class="pf-reveal">
+<summary>Show the answer</summary>
+<p><strong>Correct:</strong> It is this repository&#39;s own completed-work record — durable truth, but somebody else&#39;s project should write its own</p>
+<p>The other four excluded paths are transient and are ignored by Git as well. This one is durable and tracked; only publication is withheld.</p>
+</details>
+</fieldset>
+</div>
+</div>
+</section>
+</section>
+<section class="pf-module" id="m--keeping-it-honest" aria-labelledby="m--keeping-it-honest--h">
+<div class="pf-module-head">
+<div class="pf-module-index">Module 2</div>
+<h2 class="pf-module-title" id="m--keeping-it-honest--h">Keeping it honest</h2>
+<p class="pf-module-summary">The promises above are only worth what enforces them.</p>
+<p class="pf-requires">Builds on: <a href="#m--what-ships">What ships</a></p>
+</div>
+<section class="pf-section" id="s--no-root-manifest">
+<h3 class="pf-section-title" id="s--no-root-manifest--h">No manifest at the repository root</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>The kit promises a destination project acquires no runtime and no package manager. A package.json at this repository&#39;s root would contradict that in the most visible place possible, so CI asserts its absence by name for eight different manifest files.</p>
+<p>Nested tooling may carry its own manifest — the installer under packages/ does. The rule is about the root, because the root is what a reader looks at to decide what kind of project this is.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">.github/workflows/validate.yml</span><span class="pf-cite-lines">lines 43–54</span></li>
+<li><span class="pf-cite-path">NOT_A_FRAMEWORK.md</span><span class="pf-cite-lines">lines 1–5</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--root-manifest-check">
+<h3 class="pf-section-title">The assertion itself</h3>
+<figure class="pf-code">
+<figcaption>Named manifests, checked one at a time, with the reason in the comment above them.</figcaption>
+<div class="pf-code-frame"><span class="pf-code-lang">yaml</span>
+<pre><code>
+<span class="pf-code-line"><span class="pf-code-no">43</span>      - name: Assert no root manifest</span>
+<span class="pf-code-line"><span class="pf-code-no">44</span>        # NOT_A_FRAMEWORK.md promises the kit has no runtime and no package</span>
+<span class="pf-code-line"><span class="pf-code-no">45</span>        # manager. Nested tooling may carry its own manifest; the root may not.</span>
+<span class="pf-code-line"><span class="pf-code-no">46</span>        run: |</span>
+<span class="pf-code-line"><span class="pf-code-no">47</span>          for f in package.json package-lock.json pnpm-lock.yaml yarn.lock \</span>
+<span class="pf-code-line"><span class="pf-code-no">48</span>                   requirements.txt pyproject.toml Gemfile go.mod; do</span>
+<span class="pf-code-line"><span class="pf-code-no">49</span>            if [ -e &quot;$f&quot; ]; then</span>
+<span class="pf-code-line"><span class="pf-code-no">50</span>              echo &quot;::error file=$f::$f at the repository root contradicts NOT_A_FRAMEWORK.md&quot;</span>
+</code></pre></div>
+<div class="pf-card"><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">.github/workflows/validate.yml</span><span class="pf-cite-lines">lines 43–50</span></li>
+</ul>
+</div></div>
+</figure>
+</section>
+<section class="pf-section" id="s--one-store">
+<h3 class="pf-section-title" id="s--one-store--h">One artifact, never a mirror</h3>
+<div class="pf-card pf-card--concept">
+<span class="pf-kicker">Concept</span>
+<p>The same instinct governs tickets. A project&#39;s tickets live in exactly one store, and nothing publishes, projects, or synchronizes them, because there is never a second copy to reconcile.</p>
+<p>Local Markdown is a store in its own right rather than a fallback or a mirror of a real one. A project using GitHub Issues has nothing under context/tickets/, and a project using Markdown has its tickets there and nowhere else.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/ticket/store.md</span><span class="pf-cite-lines">lines 7–16</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--trace-a-file">
+<h3 class="pf-section-title" id="s--trace-a-file--h">Trace a file across the boundary</h3>
+<div class="pf-card">
+<span class="pf-kicker">Practice</span>
+<p>Pick any file in this repository and decide, without running the installer, whether an installed project receives it. Then check yourself against copy-list.json and the never-ships set.</p>
+<p>Try context/coding-standards.md, context/handoff.md, and CONTRIBUTING.md. One of the three is a different answer from what the directory it sits in would suggest.</p>
+<details class="pf-reveal">
+<summary>Hints</summary>
+<ol>
+<li>Start from the top-level entry. If the file&#39;s first path segment is not in the copy list, nothing below it ships.</li>
+<li>If the first segment is `context`, check the never-ships set before answering — the directory entry ships its contents by default.</li>
+<li>CONTRIBUTING.md is not a top-level entry in the list at all.</li>
+</ol>
+</details>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 3–10</span></li>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 97–105</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--honesty-quiz">
+<div class="pf-card">
+<span class="pf-kicker">Check your understanding</span>
+<div class="pf-quiz">
+<fieldset class="pf-question" data-pf-question="q--honesty-quiz--root-manifest-why">
+<legend>Why does CI name eight specific manifest files rather than checking for any dependency file?</legend>
+<div class="pf-options"><label class="pf-option" for="q--honesty-quiz--root-manifest-why--0"><input type="radio" id="q--honesty-quiz--root-manifest-why--0" name="q--honesty-quiz--root-manifest-why" value="0" data-pf-answer="other"><span>Because a glob would be slower in CI</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--honesty-quiz--root-manifest-why--1"><input type="radio" id="q--honesty-quiz--root-manifest-why--1" name="q--honesty-quiz--root-manifest-why" value="1" data-pf-answer="correct"><span>Because the rule is about the root only, and naming the files makes what it forbids readable in the failure message</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--honesty-quiz--root-manifest-why--2"><input type="radio" id="q--honesty-quiz--root-manifest-why--2" name="q--honesty-quiz--root-manifest-why" value="2" data-pf-answer="other"><span>Because the repository might legitimately contain a package.json at the root</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--honesty-quiz--root-manifest-why--3"><input type="radio" id="q--honesty-quiz--root-manifest-why--3" name="q--honesty-quiz--root-manifest-why" value="3" data-pf-answer="other"><span>Because GitHub Actions cannot express a glob</span><span class="pf-verdict" aria-live="polite"></span></label></div>
+<details class="pf-reveal">
+<summary>Show the answer</summary>
+<p><strong>Correct:</strong> Because the rule is about the root only, and naming the files makes what it forbids readable in the failure message</p>
+<p>The check prints the offending filename and the promise it contradicts. A reader who trips it learns why, not just that.</p>
+</details>
+</fieldset>
+</div>
+</div>
+</section>
+</section>
+</main>
+</div>
+<footer class="pf-provenance">
+<dl>
+<dt>Repository</dt>
+<dd>rikilamadrid/pathfinder</dd>
+<dt>Commit</dt>
+<dd>78fbc34</dd>
+<dt>Specification generated</dt>
+<dd>2026-09-10</dd>
+<dt>Renderer</dt>
+<dd>Pathfinder render-artifact 0.1.0</dd>
+</dl>
+<p class="pf-caveat">This artifact was checked deterministically: its specification satisfied the schema, its references and graphs resolved, and every citation above was verified against the commit named here. That is what was checked. It is not a judgement that the page reads well or looks right — a person has to open it to know that.</p>
+</footer>
+<script>(function () {
+  "use strict";
+
+  var root = document.documentElement;
+  var MODES = ["auto", "light", "dark"];
+  var LABELS = { auto: "Theme: auto", light: "Theme: light", dark: "Theme: dark" };
+  var KEY = "pathfinder.artifact.theme";
+
+  function stored() {
+    try {
+      var value = window.localStorage.getItem(KEY);
+      return MODES.indexOf(value) >= 0 ? value : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function remember(mode) {
+    try {
+      window.localStorage.setItem(KEY, mode);
+    } catch (error) {
+      /* A reader who cannot store a preference still gets to use it. */
+    }
+  }
+
+  function apply(mode, button) {
+    root.setAttribute("data-pf-theme", mode);
+    if (button) {
+      button.textContent = LABELS[mode];
+      button.setAttribute("aria-label", LABELS[mode] + ". Activate to change.");
+    }
+  }
+
+  var toggle = document.getElementById("pf-theme-toggle");
+  var initial = stored() || "auto";
+  apply(initial, toggle);
+
+  if (toggle) {
+    toggle.hidden = false;
+    toggle.addEventListener("click", function () {
+      var next = MODES[(MODES.indexOf(root.getAttribute("data-pf-theme")) + 1) % MODES.length];
+      apply(next, toggle);
+      remember(next);
+    });
+  }
+
+  /* Mark the module the reader is in. Falls back to doing nothing where
+     IntersectionObserver is unavailable; the nav still navigates. */
+  var links = Array.prototype.slice.call(document.querySelectorAll("[data-pf-nav]"));
+  if (links.length > 0 && "IntersectionObserver" in window) {
+    var byId = {};
+    links.forEach(function (link) { byId[link.getAttribute("data-pf-nav")] = link; });
+
+    var visible = {};
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        visible[entry.target.id] = entry.isIntersecting;
+      });
+      var current = null;
+      for (var i = 0; i < links.length; i += 1) {
+        var id = links[i].getAttribute("data-pf-nav");
+        if (visible[id]) { current = id; break; }
+      }
+      links.forEach(function (link) {
+        var isCurrent = link.getAttribute("data-pf-nav") === current;
+        if (isCurrent) {
+          link.setAttribute("aria-current", "true");
+        } else {
+          link.removeAttribute("aria-current");
+        }
+      });
+    }, { rootMargin: "-30% 0px -60% 0px" });
+
+    Object.keys(byId).forEach(function (id) {
+      var target = document.getElementById(id);
+      if (target) observer.observe(target);
+    });
+  }
+
+  /* Quiz feedback. The correct answer is in the document either way; choosing
+     an option just says so sooner, and opens the explanation that was always
+     one click away. */
+  document.addEventListener("change", function (event) {
+    var input = event.target;
+    if (!input || input.type !== "radio" || !input.hasAttribute("data-pf-answer")) return;
+
+    var question = input.closest("[data-pf-question]");
+    if (!question) return;
+
+    var chosenIsCorrect = input.getAttribute("data-pf-answer") === "correct";
+    Array.prototype.forEach.call(question.querySelectorAll(".pf-option"), function (option) {
+      var field = option.querySelector("input[type=radio]");
+      var verdict = option.querySelector(".pf-verdict");
+      var correct = field.getAttribute("data-pf-answer") === "correct";
+      if (field.checked && !correct) {
+        option.setAttribute("data-pf-verdict", "incorrect");
+        if (verdict) verdict.textContent = "Not this one";
+      } else if (correct && (field.checked || !chosenIsCorrect)) {
+        option.setAttribute("data-pf-verdict", "correct");
+        if (verdict) verdict.textContent = "Correct";
+      } else {
+        option.removeAttribute("data-pf-verdict");
+        if (verdict) verdict.textContent = "";
+      }
+    });
+
+    var reveal = question.querySelector(".pf-reveal");
+    if (reveal) reveal.open = true;
+  });
+})();</script>
+</body>
+</html>

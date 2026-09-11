@@ -1,0 +1,132 @@
+{
+  "schema_version": "1.0",
+  "kind": "lesson",
+  "artifact": {
+    "title": "A specification that cites nothing",
+    "subtitle": "Every section type the lesson kind has, and not one citation between them.",
+    "summary": "This fixture exists so the determinism tests measure the renderer and nothing else. It carries no evidence, so no commit is resolved, no blob is read, and no Git history has to exist for it to deliver — which means a digest that moves has exactly one place it can have come from.",
+    "locale": "en"
+  },
+  "source": {
+    "repo": "pathfinder/determinism-fixture",
+    "commit": "0000000",
+    "generated_at": "2026-01-01"
+  },
+  "lesson": {
+    "objectives": [
+      "Exercise every section type the lesson kind defines.",
+      "Deliver without resolving a single citation.",
+      "Give the golden digest one and only one input: the specification bytes and the renderer version."
+    ],
+    "modules": [
+      {
+        "id": "prose-and-code",
+        "title": "Prose and code",
+        "summary": "The two section types that carry text the renderer must escape rather than interpret.",
+        "sections": [
+          {
+            "type": "prose",
+            "id": "why-citation-free",
+            "title": "Why this fixture cites nothing",
+            "body": [
+              "The evidence layer resolves citations against a commit using local Git. That is the right behaviour for a real lesson and the wrong dependency for a determinism test: a digest that changed would leave two suspects, the renderer and the repository, and the test could not tell them apart.",
+              "So this specification carries no citations at all. The evidence layer still runs and still reports its claim; it simply has nothing to resolve."
+            ]
+          },
+          {
+            "type": "code",
+            "id": "escaping-probe",
+            "title": "Characters the renderer must escape",
+            "language": "html",
+            "caption": "Angle brackets, ampersands, quotes and a backslash, so an escaping regression moves the digest.",
+            "first_line": 1,
+            "lines": [
+              "<script>alert(\"not executed\")</script>",
+              "a & b < c > d \"quoted\" 'single' \\backslash",
+              "unicode: é 中文 🗺"
+            ]
+          },
+          {
+            "type": "exercise",
+            "id": "change-one-byte",
+            "title": "Change one byte",
+            "body": [
+              "Edit any character in this fixture and re-run the golden test. It fails, and the failure names the digest that moved.",
+              "That is the whole contract: same specification bytes and same renderer version, same artifact bytes."
+            ],
+            "hints": [
+              "The renderer version lives in `skills/render-artifact/engine/version.mjs`.",
+              "A deliberate output change is a version bump plus a regenerated golden, in one commit."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "flow-and-quiz",
+        "title": "Flow and quiz",
+        "summary": "The two section types whose ordering and identifiers the renderer derives rather than invents.",
+        "requires": ["prose-and-code"],
+        "sections": [
+          {
+            "type": "flow",
+            "id": "delivery-path",
+            "title": "What delivery does, in order",
+            "steps": [
+              {
+                "id": "parse",
+                "title": "Parse the frozen bytes",
+                "detail": "Delivery copies the specification bytes first and parses that copy, so the receipt cannot describe a specification that was never rendered."
+              },
+              {
+                "id": "validate",
+                "title": "Validate the parse",
+                "detail": "Structural, then composition and evidence together. A failure stops here and writes nothing."
+              },
+              {
+                "id": "render",
+                "title": "Render against an attestation",
+                "detail": "The attestation is minted from the validation just performed, which is the only route to a verification claim in the artifact."
+              },
+              {
+                "id": "commit",
+                "title": "Commit atomically",
+                "detail": "Write beside the destination, fsync, rename over it. A failure leaves the previous artifact untouched."
+              }
+            ]
+          },
+          {
+            "type": "quiz",
+            "id": "determinism-quiz",
+            "title": "Check yourself",
+            "questions": [
+              {
+                "id": "what-moves-output",
+                "prompt": "Rendering the same specification twice produces different HTML. What is the defect?",
+                "options": [
+                  "The specification is stale and should be regenerated.",
+                  "The renderer read something ambient — a clock, the environment, the locale, or the filesystem's ordering.",
+                  "The reader's browser is in a different theme.",
+                  "The artifact was not committed atomically."
+                ],
+                "answer": 1,
+                "explanation": "Rendering is a pure function of the specification and the renderer. If it is not, the renderer reached for something outside both."
+              },
+              {
+                "id": "version-bump",
+                "prompt": "A change to the renderer's CSS intentionally alters every artifact's bytes. What must the same commit do?",
+                "options": [
+                  "Nothing — determinism is about one machine, not one release.",
+                  "Delete the golden files, because they can no longer be trusted.",
+                  "Bump RENDERER_VERSION and regenerate the goldens.",
+                  "Add the CSS change to the specification schema."
+                ],
+                "answer": 2,
+                "explanation": "The renderer version is part of the deterministic input. An intentional output change is a version change; without the bump it is indistinguishable from a determinism failure."
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
