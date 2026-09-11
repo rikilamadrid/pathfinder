@@ -1,0 +1,358 @@
+{
+  "schema_version": "1.0",
+  "kind": "lesson",
+  "artifact": {
+    "title": "Pathfinder Session Orientation",
+    "subtitle": "A hook that runs only if you wire it up, reads nothing it cannot quote, and disappears when it breaks.",
+    "summary": "Feature 48 ships one SessionStart handler into Claude Code projects and then does nothing else. It writes no settings, so it is inert until a human activates it; it quotes the current ticket rather than parsing it; and it fails open and silent. Each of those is a decision with a reason, and the reasons are what this lesson is about.",
+    "locale": "en"
+  },
+  "source": {
+    "repo": "rikilamadrid/pathfinder",
+    "commit": "dc3f1e0",
+    "generated_at": "2026-09-11"
+  },
+  "lesson": {
+    "objectives": [
+      "Explain why the handler is generated but never activated, and what that buys.",
+      "Say why the current ticket is quoted verbatim instead of parsed.",
+      "Name the two things that keep the handler read-only, and the one Git flag that makes it true.",
+      "Describe what the handler does when something goes wrong, and why that is the right answer."
+    ],
+    "modules": [
+      {
+        "id": "session-orientation",
+        "title": "Session orientation",
+        "summary": "One inert, read-only, fail-silent handler — and the reasoning behind each of those three words.",
+        "sections": [
+          {
+            "type": "prose",
+            "id": "the-problem",
+            "title": "The problem it solves",
+            "body": [
+              "A session that starts cold rediscovers the same things every time: which ticket is loaded, what branch you are on, whether the project has a history file or a tracker. That is a handful of tool calls before any work begins, repeated at every start, resume, and clear.",
+              "Feature 48 puts that snapshot in front of the agent at startup. What makes it interesting is not the snapshot — it is how carefully the feature refuses to do anything more than that."
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "inert-by-default",
+            "title": "It is generated, not activated",
+            "body": [
+              "The installer writes the handler file and stops. It creates no settings file, merges nothing into an existing one, and reads none. Nothing runs the handler until a human adds native hook configuration pointing at it.",
+              "That is the whole safety model. A kit that wrote settings would be a kit that could change how your editor behaves as a side effect of an install, and no amount of care in the handler would make up for that. Deleting the file removes the feature; an unreferenced handler never runs, and a reference to a missing handler is a non-blocking no-op."
+            ],
+            "evidence": [
+              {
+                "path": "packages/create-pathfinder/src/hooks/session-orientation.mjs",
+                "lines": [
+                  4,
+                  12
+                ]
+              },
+              {
+                "path": "packages/create-pathfinder/scripts/check-hooks.mjs",
+                "lines": [
+                  17,
+                  24
+                ]
+              }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "quote-never-parse",
+            "title": "The ticket is quoted, never parsed",
+            "body": [
+              "The file context/current-ticket.md is written by /ticket load and has no schema. Nothing validates its shape, and nothing promises it will keep the shape it has today.",
+              "So the handler transports a bounded verbatim excerpt — first 40 lines, capped at 2000 characters — and interprets none of it. A parser here would need to know the file's structure, and would break the first time that structure changed. Quoting cannot break, because it makes no assumption to be wrong about.",
+              "The bound matters as much as the quoting: without it, one long ticket file becomes an unbounded prefix on every session."
+            ],
+            "evidence": [
+              {
+                "path": "packages/create-pathfinder/src/hooks/session-orientation.mjs",
+                "lines": [
+                  19,
+                  23
+                ]
+              },
+              {
+                "path": "packages/create-pathfinder/src/hooks/session-orientation.mjs",
+                "lines": [
+                  114,
+                  122
+                ]
+              }
+            ]
+          },
+          {
+            "type": "code",
+            "id": "the-bound",
+            "title": "The bound, in full",
+            "language": "javascript",
+            "caption": "Two limits, applied in order: lines first, then characters. Either one trips the truncated flag.",
+            "first_line": 115,
+            "lines": [
+              "  const lines = raw.split(\"\\n\");",
+              "  let truncated = lines.length > MAX_LINES;",
+              "  let text = lines.slice(0, MAX_LINES).join(\"\\n\");",
+              "  if (text.length > MAX_CHARS) {",
+              "    text = text.slice(0, MAX_CHARS);",
+              "    truncated = true;",
+              "  }",
+              "  return { present: true, text: text.trimEnd(), truncated };"
+            ],
+            "evidence": [
+              {
+                "path": "packages/create-pathfinder/src/hooks/session-orientation.mjs",
+                "lines": [
+                  115,
+                  122
+                ]
+              }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "read-only-by-construction",
+            "title": "Read-only, and one flag makes it true",
+            "body": [
+              "The handler opens files for reading and runs exactly one Git command. That command carries the --no-optional-locks flag, which stops Git from refreshing the index cache — so not even a cache write happens in your repository because a session started.",
+              "Without that flag the handler would still be read-only in intent and would still write inside .git in practice. The flag is the difference between a claim and a fact."
+            ],
+            "evidence": [
+              {
+                "path": "packages/create-pathfinder/src/hooks/session-orientation.mjs",
+                "lines": [
+                  64,
+                  70
+                ]
+              }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "availability-not-content",
+            "title": "Availability, never content",
+            "body": [
+              "For the context files, the handler reports only whether each one exists. It does not read project-overview.md, history.md, or tracker.md, and it reports a count for the directories rather than a listing.",
+              "A count does not imply a selection. Reporting which features exist would be the handler deciding which ones matter, and that decision belongs to the skill that is actually reasoning about the work."
+            ],
+            "evidence": [
+              {
+                "path": "packages/create-pathfinder/src/hooks/session-orientation.mjs",
+                "lines": [
+                  78,
+                  88
+                ]
+              }
+            ]
+          },
+          {
+            "type": "flow",
+            "id": "startup-path",
+            "title": "What happens when a session starts",
+            "steps": [
+              {
+                "id": "read-stdin",
+                "title": "Read the harness payload",
+                "detail": "The harness passes the session's working directory on stdin. Any failure reading it returns an empty string rather than throwing."
+              },
+              {
+                "id": "resolve-root",
+                "title": "Resolve the project root",
+                "detail": "Turn the payload into an absolute path."
+              },
+              {
+                "id": "is-pathfinder",
+                "title": "Is this a Pathfinder project?",
+                "detail": "If not, exit 0 with no output. A directory that never installed the kit must not be told anything about it."
+              },
+              {
+                "id": "collect",
+                "title": "Collect the snapshot",
+                "detail": "One Git call for branch and dirtiness; existence checks for the context files; a bounded excerpt of the current ticket."
+              },
+              {
+                "id": "disclaim",
+                "title": "Emit, ending with the disclaimer",
+                "detail": "The output closes by saying that nothing in it advances the workflow, assumes a role, or selects a next action — and points at /whereami for the interpreted reading."
+              }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "one-interpreter",
+            "title": "There is only one interpreter, and it is not this",
+            "body": [
+              "Role, Feature, ticket identity, and the next action are whereami's reading of the same file. The handler must not produce a second, divergent one.",
+              "This is the reason the handler ends by disclaiming itself. Two components that both interpret the same unstructured file will eventually disagree, and the session will believe whichever spoke first — which, for a SessionStart hook, is always this one."
+            ],
+            "evidence": [
+              {
+                "path": "packages/create-pathfinder/src/hooks/session-orientation.mjs",
+                "lines": [
+                  13,
+                  17
+                ]
+              },
+              {
+                "path": "packages/create-pathfinder/src/hooks/session-orientation.mjs",
+                "lines": [
+                  171,
+                  173
+                ]
+              }
+            ]
+          },
+          {
+            "type": "code",
+            "id": "fail-open",
+            "title": "How it fails",
+            "language": "javascript",
+            "caption": "Every path out of this file is exit 0. A broken convenience must not announce itself into every session.",
+            "first_line": 178,
+            "lines": [
+              "try {",
+              "  main();",
+              "} catch {",
+              "  // Fail open and silent.",
+              "}",
+              "process.exit(0);"
+            ],
+            "evidence": [
+              {
+                "path": "packages/create-pathfinder/src/hooks/session-orientation.mjs",
+                "lines": [
+                  178,
+                  183
+                ]
+              }
+            ]
+          },
+          {
+            "type": "concept",
+            "id": "byte-for-byte",
+            "title": "Why the handler is checked by comparison, not by re-rendering",
+            "body": [
+              "A skill adapter is rendered from its source, so freshness is checked by re-rendering and comparing. A hook handler is shipped verbatim, so there is nothing to re-render.",
+              "The equivalent check installs into a scratch directory and compares the file that lands there against the canonical source, byte for byte. That is worth automating because the failure it catches is silent: a handler whose marker was rewritten or whose encoding changed in transit still looks like a handler and still installs."
+            ],
+            "evidence": [
+              {
+                "path": "packages/create-pathfinder/scripts/check-hooks.mjs",
+                "lines": [
+                  3,
+                  15
+                ]
+              }
+            ]
+          },
+          {
+            "type": "quiz",
+            "id": "check-yourself",
+            "title": "Check yourself",
+            "questions": [
+              {
+                "id": "why-inert",
+                "prompt": "Installing Pathfinder writes the orientation handler but no settings file. What does that buy?",
+                "options": [
+                  "Faster installs, because settings files are expensive to merge.",
+                  "The handler cannot run until a human activates it, so installing the kit cannot change how the editor behaves.",
+                  "It lets several harnesses share one handler.",
+                  "It keeps the handler out of version control."
+                ],
+                "answer": 1,
+                "explanation": "Inertness is the safety model. A kit that wrote settings could change your editor's behavior as a side effect of an install, and no amount of care inside the handler would make up for that.",
+                "evidence": [
+                  {
+                    "path": "packages/create-pathfinder/src/hooks/session-orientation.mjs",
+                    "lines": [
+                      7,
+                      11
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "quote-vs-parse",
+                "prompt": "True or false: the handler parses context/current-ticket.md to extract the ticket key and next action.",
+                "options": [
+                  "True",
+                  "False"
+                ],
+                "answer": 1,
+                "explanation": "False. It quotes a bounded excerpt and interprets nothing. The file has no schema, so a parser would break the first time its shape changed — and interpreting it is whereami's job, not this handler's.",
+                "evidence": [
+                  {
+                    "path": "packages/create-pathfinder/src/hooks/session-orientation.mjs",
+                    "lines": [
+                      19,
+                      22
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "predict-non-pathfinder",
+                "prompt": "A session starts in a directory that never installed Pathfinder. What does the handler print?",
+                "options": [
+                  "A snapshot with every field marked unavailable.",
+                  "A one-line notice that Pathfinder is not installed.",
+                  "Nothing, and it exits 0.",
+                  "An error on stderr, and it exits 1."
+                ],
+                "answer": 2,
+                "explanation": "It exits 0 with no output. A directory that never installed the kit must not be told anything about it, and a non-zero exit would turn a convenience into a startup failure.",
+                "evidence": [
+                  {
+                    "path": "packages/create-pathfinder/src/hooks/session-orientation.mjs",
+                    "lines": [
+                      26,
+                      29
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "git-flag",
+                "prompt": "The handler runs one Git command. Which flag is what makes \"read-only\" true rather than merely intended?",
+                "options": [
+                  "--porcelain=v1, because porcelain output is stable",
+                  "--branch, because it limits what is returned",
+                  "--no-optional-locks, because it stops Git refreshing the index cache",
+                  "--quiet, because it suppresses writes to stdout"
+                ],
+                "answer": 2,
+                "explanation": "Without --no-optional-locks the handler would still write to .git as a side effect of asking a question. The other flags shape the output, not the writes.",
+                "evidence": [
+                  {
+                    "path": "packages/create-pathfinder/src/hooks/session-orientation.mjs",
+                    "lines": [
+                      66,
+                      68
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "type": "exercise",
+            "id": "extend-it",
+            "title": "Extend it without breaking it",
+            "body": [
+              "Suppose you want the snapshot to include the current ticket's key — just the NN.TT key — so the agent does not have to find it in the excerpt.",
+              "Write down what that would cost. Then decide whether to do it."
+            ],
+            "hints": [
+              "Extracting the key means knowing where the key lives, which is the parser this design refused.",
+              "Ask what happens when /ticket load changes the file's shape, and which component is now wrong.",
+              "Ask whether the session would then have two answers to \"which ticket is loaded\", and which one it would believe."
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
