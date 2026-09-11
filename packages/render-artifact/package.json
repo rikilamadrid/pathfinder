@@ -1,0 +1,15 @@
+{
+  "name": "@pathfinder/render-artifact-tests",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Repository-only tests for the render-artifact engine. Never installed into a project; never published.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test",
+    "goldens": "node scripts/regenerate-goldens.mjs"
+  }
+}

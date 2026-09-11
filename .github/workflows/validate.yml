@@ -36,8 +36,23 @@ jobs:
       - name: Test the installer
         # `node --test` is the standard library, so this adds no dependency and
         # needs no install step — the package has none. Scoped to the installer:
-        # the kit is markdown and is checked by validate-kit.py above.
+        # the kit's executable code is the render-artifact engine, and it is
+        # tested by the step below rather than here.
         working-directory: packages/create-pathfinder
+        run: npm test
+
+      - name: Test the render-artifact engine
+        # The engine ships under skills/; its tests live here so an installed
+        # project never receives them. This step is where the determinism
+        # invariant stops being a claim in a reference file — same
+        # specification bytes and same renderer version give byte-identical
+        # HTML — and becomes something a run either passes or does not.
+        #
+        # The suite varies the working directory, TZ, LANG/LC_ALL and the
+        # ambient environment itself, so it needs no configuration here to mean
+        # what it says. It does need Git history: the shipped example cites this
+        # repository at a fixed commit, which the fetch-depth: 0 above provides.
+        working-directory: packages/render-artifact
         run: npm test
 
       - name: Assert no root manifest
