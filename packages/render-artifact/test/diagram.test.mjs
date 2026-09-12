@@ -23,7 +23,10 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { layoutGraph } from "../../../skills/render-artifact/engine/render/graph/layout.mjs";
+import {
+  GEOMETRY, layoutGraph, wrapLabel,
+} from "../../../skills/render-artifact/engine/render/graph/layout.mjs";
+import { render } from "../../../skills/render-artifact/engine/render/index.mjs";
 import {
   REPO_ROOT, SPECS, cleanUpTemporaryDirectories, deliverInSubprocess, temporaryDirectory,
 } from "../lib/harness.mjs";
@@ -431,5 +434,92 @@ describe("diagram — the lesson kind is untouched by any of it", () => {
     const spec = JSON.parse(readFileSync(SPECS.example, "utf8"));
     delete spec.source;
     assert.ok(codes(deliverSpec(spec)).includes("missing_field"));
+  });
+});
+
+describe("diagram — the renderer never deletes a producer's words", () => {
+  /** Every character the producer wrote, still present once the lines are rejoined. */
+  const lossless = (label) =>
+    wrapLabel(label).join(" ").replace(/\s+/g, "") === label.replace(/\s+/g, "");
+
+  // The two that regressed: an over-long word used to consume every line the
+  // box had, and each word after it was dropped in silence. A label may spill
+  // past its border until the geometry contract is frozen. It may never arrive
+  // shorter than it was written.
+  const ADVERSARIAL = [
+    "Checkout API",
+    "order-events",
+    `${"x".repeat(23)} ab`,
+    `${"x".repeat(23)} hello`,
+    "supercalifragilistic ab",
+    "a b c d e f g h i j k l m n o p",
+    "x".repeat(32),
+    "Reserve inventory before charging",
+    "",
+    "   ",
+    "a".repeat(70),
+  ];
+
+  for (const label of ADVERSARIAL) {
+    it(`keeps every character of ${JSON.stringify(label)}`, () => {
+      assert.ok(lossless(label),
+        `wrapping lost text: ${JSON.stringify(label)} -> ${JSON.stringify(wrapLabel(label))}`);
+    });
+  }
+
+  it("keeps every character of every label the schema admits", () => {
+    // Swept rather than sampled: one long word at every length up to the cap,
+    // with a short word after it, which is the shape that broke.
+    const offenders = [];
+    for (let length = 1; length <= 32; length += 1) {
+      for (const tail of ["", " ab", " a b", " hello there"]) {
+        const label = "w".repeat(length) + tail;
+        if (!lossless(label)) offenders.push(label);
+      }
+    }
+    assert.deepEqual(offenders, []);
+  });
+
+  it("never returns more lines than the box has", () => {
+    for (const label of ADVERSARIAL) {
+      assert.ok(wrapLabel(label).length <= GEOMETRY.LABEL_MAX_LINES,
+        `${JSON.stringify(label)} wrapped to ${wrapLabel(label).length} lines`);
+    }
+  });
+
+  it("puts the whole label in the delivered artifact", () => {
+    const delivery = deliverInSubprocess({ spec: SPECS.diagram });
+    for (const node of EXAMPLE.diagram.nodes) {
+      const words = node.label.split(" ").filter(Boolean);
+      for (const word of words) {
+        assert.ok(delivery.html.includes(word),
+          `"${word}" of node label "${node.label}" is not in the artifact`);
+      }
+    }
+  });
+});
+
+describe("diagram — the shell tolerates a specification with no source", () => {
+  // Unreachable through validation today, because both kinds require `source`.
+  // It is covered anyway: the branch exists so that a later kind describing a
+  // system with no repository can say so, and an uncovered branch rots before
+  // the ticket that needs it arrives.
+  const html = render(JSON.parse(JSON.stringify(
+    { ...EXAMPLE, source: undefined })));
+
+  it("renders rather than throwing", () => {
+    assert.match(html, /<svg class="pf-graph"/);
+  });
+
+  it("omits the rows it has no facts for, and keeps the one it has", () => {
+    const footer = html.slice(html.indexOf("pf-provenance"), html.indexOf("</footer>"));
+    assert.ok(!footer.includes("<dt>Repository</dt>"));
+    assert.ok(!footer.includes("<dt>Commit</dt>"));
+    assert.match(footer, /<dt>Renderer<\/dt>/);
+  });
+
+  it("claims nothing about evidence it never had", () => {
+    assert.ok(!html.includes("checked deterministically"),
+      "an artifact with no source cannot say its evidence was checked");
   });
 });

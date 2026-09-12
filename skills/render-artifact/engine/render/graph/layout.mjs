@@ -594,36 +594,55 @@ function loopPoints(box, vertical) {
 }
 
 /**
- * Break a label into at most `LABEL_MAX_LINES` lines, on spaces where there
- * are any and on character boundaries where there are none.
+ * Break a label into lines, losing nothing.
  *
- * Provisional, and knowingly so: a character is not a width, which is exactly
- * the problem the typography ticket exists to solve. What is already true, and
- * stays true whichever way that decision goes, is that nothing here shortens a
- * producer's text — an over-long label is refused by the schema long before it
- * reaches this function.
+ * The line budget is provisional — a character is not a width, which is the
+ * problem the typography ticket exists to solve — and how wide a label may be
+ * is that ticket's to settle. What is not provisional, and is settled here, is
+ * that the renderer never deletes a producer's words. Text that will not fit
+ * the line budget is carried onto the last line rather than dropped, so the
+ * label may overflow its box until the geometry contract is frozen, and it is
+ * never quietly shortened.
+ *
+ * That is the right way round. A label that spills past its border is visibly
+ * wrong and someone fixes it; a label missing its last word looks correct and
+ * lies. The renderer owns presentation, and owns none of the content.
  */
 export function wrapLabel(text) {
   const budget = GEOMETRY.LABEL_CHARS_PER_LINE;
+  const source = String(text);
+
+  // Greedy wrap on spaces, hard-breaking any single word longer than the
+  // budget. Nothing is discarded at this stage; the result is the label.
   const lines = [];
   let current = "";
+  const flush = () => { if (current !== "") { lines.push(current); current = ""; } };
 
-  for (const word of String(text).split(" ")) {
+  for (const word of source.split(" ")) {
+    if (word.length > budget) {
+      flush();
+      let rest = word;
+      while (rest.length > budget) {
+        lines.push(rest.slice(0, budget));
+        rest = rest.slice(budget);
+      }
+      current = rest;
+      continue;
+    }
     if (current === "") { current = word; continue; }
     if (current.length + 1 + word.length <= budget) { current = `${current} ${word}`; continue; }
-    lines.push(current);
+    flush();
     current = word;
   }
-  if (current !== "") lines.push(current);
+  flush();
 
-  const out = [];
-  for (const line of lines) {
-    let rest = line;
-    while (rest.length > budget && out.length < GEOMETRY.LABEL_MAX_LINES) {
-      out.push(rest.slice(0, budget));
-      rest = rest.slice(budget);
-    }
-    if (rest !== "" && out.length < GEOMETRY.LABEL_MAX_LINES) out.push(rest);
-  }
-  return out.length === 0 ? [String(text)] : out.slice(0, GEOMETRY.LABEL_MAX_LINES);
+  if (lines.length === 0) return [source];
+  if (lines.length <= GEOMETRY.LABEL_MAX_LINES) return lines;
+
+  // More lines than the box has room for. The overflow joins the last line
+  // instead of disappearing: every character the producer wrote is still in
+  // the document, and the box is the thing that has to give.
+  const kept = lines.slice(0, GEOMETRY.LABEL_MAX_LINES - 1);
+  kept.push(lines.slice(GEOMETRY.LABEL_MAX_LINES - 1).join(" "));
+  return kept;
 }
