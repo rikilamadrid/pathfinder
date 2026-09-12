@@ -67,6 +67,12 @@ There is no required:
 
 See [`NOT_A_FRAMEWORK.md`](NOT_A_FRAMEWORK.md).
 
+One narrow exception, and it is opt-in: generating a Pathfinder visual artifact
+runs `render-artifact`, which needs Node. Nothing else does. The ordinary
+workflow — discovery, specs, tickets, delivery, review, debugging, reflection —
+stays runtime and package-manager agnostic, and Node is never added to your
+application or its dependencies.
+
 ## Quick start
 
 Create or enter a Git repository:
@@ -561,6 +567,7 @@ at `skills/`.
 │   ├── prototype/
 │   ├── quiz-me/
 │   ├── reflect/
+│   ├── render-artifact/
 │   ├── reverse-engineer/
 │   ├── role/
 │   ├── setup-tracker/
