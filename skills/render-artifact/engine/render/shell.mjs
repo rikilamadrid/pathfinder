@@ -53,6 +53,9 @@ const FAVICON = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%
  * @param {string} parts.title       artifact title
  * @param {string} parts.eyebrow     what kind of artifact this is
  * @param {string} [parts.description] meta description
+ * @param {string} [parts.style]     a kind's own stylesheet, appended to the
+ *        shared theme inside the one `<style>` element. Absent for a kind that
+ *        needs none, and then not one byte of the document changes.
  * @param {string} parts.nav         rendered navigation HTML
  * @param {string} parts.body        rendered lead and content HTML
  * @param {object} parts.source      the specification's source identity
@@ -73,7 +76,7 @@ export function renderShell(parts) {
       : null,
     `<meta name="generator" content="Pathfinder render-artifact ${esc(RENDERER_VERSION)}">`,
     `<link rel="icon" href="${FAVICON}">`,
-    `<style>${THEME_CSS}</style>`,
+    `<style>${THEME_CSS}${parts.style ? `\n${parts.style}\n` : ""}</style>`,
     "</head>",
     "<body>",
     '<a class="pf-skip" href="#pf-content">Skip to content</a>',
@@ -130,11 +133,15 @@ const CHECKED =
   "to open it to know that.";
 
 function renderProvenance(source, verification) {
-  const rows = [
-    ["Repository", source.repo],
-    ["Commit", source.commit],
-  ];
-  if (source.generated_at) rows.push(["Specification generated", source.generated_at]);
+  // Built from what is present rather than from a fixed shape. Every kind that
+  // exists today declares a source, so this emits exactly the rows it always
+  // did; the tolerance is here because a kind that describes a system with no
+  // repository behind it must be able to say so rather than crash, and that
+  // possibility should not arrive at the same time as the code for it.
+  const rows = [];
+  if (source?.repo) rows.push(["Repository", source.repo]);
+  if (source?.commit) rows.push(["Commit", source.commit]);
+  if (source?.generated_at) rows.push(["Specification generated", source.generated_at]);
   rows.push(["Renderer", `Pathfinder render-artifact ${RENDERER_VERSION}`]);
 
   return [

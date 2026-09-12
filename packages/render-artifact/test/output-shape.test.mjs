@@ -64,7 +64,7 @@ for (const name of Object.keys(SPECS)) {
       }
     });
 
-    it("emits modules in specification order", () => {
+    it("emits modules in specification order", { skip: spec.kind !== "lesson" }, () => {
       const declared = spec.lesson.modules.map((module) => module.id);
 
       // Two orderings, both derived from the same list: the navigation and the
@@ -77,7 +77,7 @@ for (const name of Object.keys(SPECS)) {
         "module sections");
     });
 
-    it("emits quiz questions in specification order", () => {
+    it("emits quiz questions in specification order", { skip: spec.kind !== "lesson" }, () => {
       const declared = spec.lesson.modules
         .flatMap((module) => module.sections)
         .filter((section) => section.type === "quiz")
@@ -88,11 +88,29 @@ for (const name of Object.keys(SPECS)) {
       assertAppearInOrder(delivery.html, declared.map((id) => `--${id}--0"`), "quiz questions");
     });
 
-    it("emits objectives in specification order", () => {
+    it("emits objectives in specification order", { skip: spec.kind !== "lesson" }, () => {
       const declared = spec.lesson.objectives ?? [];
       if (declared.length === 0) return;
 
       assertAppearInOrder(delivery.html, declared.map(esc), "objectives");
+    });
+
+    it("emits nodes and edges in specification order", { skip: spec.kind !== "diagram" }, () => {
+      // The same claim the lesson tests make, asked of the other kind: the
+      // renderer chose no ordering of its own. Located by the ids it derives
+      // from the producer's own identifiers, so a renderer numbering things
+      // from a counter would not be found here at all.
+      assertAppearInOrder(delivery.html,
+        spec.diagram.nodes.map((node) => `id="n--${node.id}"`), "nodes");
+      assertAppearInOrder(delivery.html,
+        spec.diagram.edges.map((edge) => `id="e--${edge.id}"`), "edges");
+      // The written description of each node is grouped under its boundary,
+      // which is the renderer's structure rather than the producer's order. What
+      // must hold there is that every node has one.
+      for (const node of spec.diagram.nodes) {
+        assert.ok(delivery.html.includes(`id="s--n--${node.id}"`),
+          `node ${node.id} has no written description`);
+      }
     });
 
     it("opens from the filesystem with nothing fetched", () => {

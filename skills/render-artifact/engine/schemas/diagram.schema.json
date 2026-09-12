@@ -1,0 +1,165 @@
+{
+  "$id": "diagram.schema.json",
+  "title": "Pathfinder artifact specification — diagram",
+  "description": "One diagram artifact. The producer describes the system: what exists, what each thing is, what relates to what, which things belong together, and which ordered walks matter. It describes no part of the canvas. Geometry, ranking, axis, size, spacing, routing, label placement, typography, shape, colour and emphasis are the renderer's, and the schema rejects an attempt at any of them rather than ignoring it.",
+  "type": "object",
+  "required": ["schema_version", "kind", "artifact", "source", "diagram"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/$defs/schema_version" },
+    "kind": { "const": "diagram" },
+    "artifact": { "$ref": "common.schema.json#/$defs/artifact" },
+    "source": { "$ref": "common.schema.json#/$defs/source" },
+    "diagram": {
+      "type": "object",
+      "required": ["topology", "nodes", "edges"],
+      "additionalProperties": false,
+      "properties": {
+        "topology": {
+          "description": "The structure of the graph, and the only discriminator. It selects the layout the renderer uses. `graph` — a directed graph with semantic roles, optional grouping and authored paths — is the only supported value; anything else is refused rather than approximated.",
+          "enum": ["graph"]
+        },
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": { "$ref": "diagram.schema.json#/$defs/node" }
+        },
+        "groups": {
+          "description": "Boundaries. Which nodes belong together is meaning; whether a boundary is drawn as a box, a band or a tint is not.",
+          "type": "array",
+          "maxItems": 8,
+          "items": { "$ref": "diagram.schema.json#/$defs/group" }
+        },
+        "edges": {
+          "description": "Relationships. An empty list is legal: a diagram of things that do not yet relate is a diagram.",
+          "type": "array",
+          "maxItems": 80,
+          "items": { "$ref": "diagram.schema.json#/$defs/edge" }
+        },
+        "paths": {
+          "description": "Ordered walks that matter — a request flow, a clean run. A path names the edges it consists of, never the nodes, because two edges may join the same pair and a node sequence could not say which claim the path was making. Emphasis is derived from these: the producer says why something matters, and the renderer decides how much ink it gets.",
+          "type": "array",
+          "maxItems": 6,
+          "items": { "$ref": "diagram.schema.json#/$defs/path" }
+        },
+        "views": {
+          "description": "Authored focus sets — an argument about what matters together.",
+          "type": "array",
+          "maxItems": 6,
+          "items": { "$ref": "diagram.schema.json#/$defs/view" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "label": {
+      "description": "A short label the renderer places. Capped so the renderer never has to truncate, ellipsise or reword producer text: over-cap text is refused instead. The cap is counted in characters here and becomes a width-aware cell count once the geometry contract is frozen.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32
+    },
+    "edge_label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 24
+    },
+    "role": {
+      "description": "What a node is, semantically. A closed vocabulary, because the renderer maps role to shape and colour and must never improvise a presentation for a value it does not know. Architecture roles and process roles share one vocabulary on purpose: a codebase map uses `service` and `store`, a migration map uses `step` and `decision`, and nothing in the renderer branches on which.",
+      "enum": [
+        "actor", "interface", "service", "store", "queue",
+        "job", "external", "step", "decision", "terminal"
+      ]
+    },
+    "relation": {
+      "description": "What one node does to another. Closed for the same reason as `role`.",
+      "enum": [
+        "calls", "reads", "writes", "publishes",
+        "consumes", "depends_on", "transitions_to", "triggers"
+      ]
+    },
+    "node": {
+      "type": "object",
+      "required": ["id", "label", "role"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "label": { "$ref": "diagram.schema.json#/$defs/label" },
+        "role": { "$ref": "diagram.schema.json#/$defs/role" },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "detail": { "$ref": "common.schema.json#/$defs/prose" },
+        "group": {
+          "description": "The group this node belongs to, or nothing. A node belongs to at most one group: multiple membership is not a rule to detect later, it is a state this field cannot represent.",
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "evidence": { "$ref": "common.schema.json#/$defs/evidence" }
+      }
+    },
+    "group": {
+      "type": "object",
+      "required": ["id", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "label": { "$ref": "diagram.schema.json#/$defs/label" },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "parent": {
+          "description": "The group containing this one, or nothing. Nesting is one level: a parent must itself be a root.",
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "evidence": { "$ref": "common.schema.json#/$defs/evidence" }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["id", "from", "to", "relation"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "description": "Required, because paths address edges by it and a highlight has to be exact.",
+          "$ref": "common.schema.json#/$defs/identifier"
+        },
+        "from": { "$ref": "common.schema.json#/$defs/identifier" },
+        "to": { "$ref": "common.schema.json#/$defs/identifier" },
+        "relation": { "$ref": "diagram.schema.json#/$defs/relation" },
+        "label": { "$ref": "diagram.schema.json#/$defs/edge_label" },
+        "evidence": { "$ref": "common.schema.json#/$defs/evidence" }
+      }
+    },
+    "path": {
+      "type": "object",
+      "required": ["id", "label", "edges"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "label": { "$ref": "diagram.schema.json#/$defs/label" },
+        "note": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "edges": {
+          "description": "Ordered edge ids. Each edge's target is the next edge's source, which is what makes the walk a walk.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 80,
+          "items": { "$ref": "common.schema.json#/$defs/identifier" }
+        },
+        "evidence": { "$ref": "common.schema.json#/$defs/evidence" }
+      }
+    },
+    "view": {
+      "type": "object",
+      "required": ["id", "label", "focus"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "common.schema.json#/$defs/identifier" },
+        "label": { "$ref": "diagram.schema.json#/$defs/label" },
+        "note": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "focus": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 40,
+          "items": { "$ref": "common.schema.json#/$defs/identifier" }
+        },
+        "evidence": { "$ref": "common.schema.json#/$defs/evidence" }
+      }
+    }
+  }
+}

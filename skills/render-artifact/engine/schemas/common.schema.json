@@ -8,8 +8,8 @@
       "const": "1.0"
     },
     "kind": {
-      "description": "The artifact kind. Selects the kind schema and the renderer. `lesson` is the only supported kind; anything else is refused rather than improvised.",
-      "enum": ["lesson"]
+      "description": "The artifact kind. Selects the kind schema and the renderer. `lesson` and `diagram` are the supported kinds; anything else is refused rather than improvised.",
+      "enum": ["lesson", "diagram"]
     },
     "artifact": {
       "description": "Metadata about the artifact itself. Carries no presentation control: theme, colour, and layout belong to the renderer.",
