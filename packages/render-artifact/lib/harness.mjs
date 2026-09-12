@@ -38,6 +38,11 @@ export const ENGINE_BIN = join(ENGINE_ROOT, "bin", "render.mjs");
  * it is the specimen that proves evidence resolution and the provenance block
  * on a real lesson.
  *
+ * `diagram` is the engine's shipped diagram example: a second artifact kind
+ * through the same pipeline, which is the thing that makes this a shared
+ * renderer rather than a lesson renderer with ambitions. It cites this
+ * repository, so it also proves the one citation shape carries across kinds.
+ *
  * `learn-feature` and `learn-codebase` are the producers' own output, frozen.
  * Each is a real lesson its skill produced — one for a completed feature, one
  * for this repository at a milestone — copied here unchanged, not a fixture
@@ -48,6 +53,7 @@ export const ENGINE_BIN = join(ENGINE_ROOT, "bin", "render.mjs");
 export const SPECS = Object.freeze({
   fixture: join(PACKAGE_ROOT, "fixtures", "deterministic-lesson.json"),
   example: join(ENGINE_ROOT, "examples", "lesson.json"),
+  diagram: join(ENGINE_ROOT, "examples", "diagram.json"),
   "learn-feature": join(PACKAGE_ROOT, "fixtures", "learn-feature.json"),
   "learn-codebase": join(PACKAGE_ROOT, "fixtures", "learn-codebase.json"),
 });

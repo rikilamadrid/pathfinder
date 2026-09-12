@@ -19,13 +19,24 @@ const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "schemas"
 /**
  * The kind registry: the discriminator's only meaning.
  *
- * `lesson` is the only entry, and there is deliberately no placeholder for any
- * future kind. A placeholder entry is a promise the renderer cannot keep, and
- * the first thing it would do is turn a clean refusal into a half-render.
+ * Two entries, and there is deliberately no placeholder for any future kind. A
+ * placeholder entry is a promise the renderer cannot keep, and the first thing
+ * it would do is turn a clean refusal into a half-render.
  */
 export const KINDS = Object.freeze({
   lesson: { schema: "lesson.schema.json" },
+  diagram: { schema: "diagram.schema.json" },
 });
+
+/**
+ * The topologies the `diagram` kind supports, and the layout each selects.
+ *
+ * `graph` is the only one. A second topology is a second layout engine, not a
+ * value in a list, so an unsupported topology is refused here for the same
+ * reason an unsupported kind is: there is no generic layout to fall back on
+ * and no "draw it as best you can" path out.
+ */
+export const TOPOLOGIES = Object.freeze(["graph"]);
 
 let registry = null;
 
@@ -33,7 +44,8 @@ let registry = null;
 export function schemaRegistry() {
   if (registry) return registry;
   const next = new SchemaRegistry();
-  for (const file of ["common.schema.json", "lesson.schema.json"]) {
+  for (const file of ["common.schema.json", "lesson.schema.json",
+    "diagram.schema.json"]) {
     next.add(JSON.parse(readFileSync(join(SCHEMA_DIR, file), "utf8")));
   }
   registry = next;
@@ -63,6 +75,22 @@ export function validateStructure(spec) {
       `${JSON.stringify(kind ?? null)} is not an artifact kind this renderer ` +
       `supports. Supported: ${supported}. A missing kind is a refusal, not a ` +
       `reason to hand-author HTML.`)];
+  }
+
+  // The topology refusal comes before the schema for the same reason the kind
+  // refusal does: `enum` would reject it too, but "must be one of \"graph\"" is
+  // a sentence about a list, and the thing that went wrong was asking for a
+  // layout this renderer does not have.
+  if (kind === "diagram") {
+    const topology = spec.diagram?.topology;
+    if (topology !== undefined && !TOPOLOGIES.includes(topology)) {
+      const supported = TOPOLOGIES.map((t) => `\`${t}\``).join(", ");
+      return [diagnostic("structural", "topology_unsupported", "diagram.topology",
+        `${JSON.stringify(topology)} is not a topology this renderer supports. ` +
+        `Supported: ${supported}. A topology is a layout, not a label, so a ` +
+        `missing one is a refusal rather than a reason to approximate it.`,
+        "topology")];
+    }
   }
 
   return validateAgainstSchema(spec, KINDS[kind].schema, schemaRegistry())

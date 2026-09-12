@@ -1,0 +1,216 @@
+{
+  "schema_version": "1.0",
+  "kind": "diagram",
+  "artifact": {
+    "title": "The Pathfinder ticket lifecycle",
+    "subtitle": "The states a ticket occupies, who moves it, and where the status lives",
+    "summary": "Four states and two exits. Every transition below is performed by one of the four ticket actions, and none of them is performed by the agent deciding its own work is done."
+  },
+  "source": {
+    "repo": "pathfinder",
+    "commit": "7e437f6"
+  },
+  "diagram": {
+    "topology": "graph",
+    "groups": [
+      {
+        "id": "delivery",
+        "label": "The delivery loop",
+        "summary": "One ticket at a time. A session that finishes a ticket stops there."
+      },
+      {
+        "id": "lifecycle",
+        "label": "Working states",
+        "parent": "delivery",
+        "evidence": [{ "path": "skills/ticket/SKILL.md", "lines": [41, 49] }]
+      },
+      {
+        "id": "outcomes",
+        "label": "Terminal states",
+        "parent": "delivery",
+        "summary": "Reopening terminal work is the human's decision, never an action's.",
+        "evidence": [{ "path": "skills/ticket/actions/load.md", "lines": [33, 36] }]
+      }
+    ],
+    "nodes": [
+      {
+        "id": "human",
+        "label": "The human",
+        "role": "actor",
+        "summary": "Approval, acceptance, merge and release are the human's, whichever action is running.",
+        "evidence": [{ "path": "skills/ticket/SKILL.md", "lines": [59, 64] }]
+      },
+      {
+        "id": "proposed",
+        "label": "Proposed",
+        "role": "step",
+        "group": "lifecycle",
+        "summary": "Written by to-tickets and nothing else. Not yet approved for execution.",
+        "evidence": [{ "path": "skills/ticket/SKILL.md", "lines": [43, 43] }]
+      },
+      {
+        "id": "ready",
+        "label": "Ready",
+        "role": "step",
+        "group": "lifecycle",
+        "summary": "Every blocker is Complete and the human has approved execution.",
+        "detail": [
+          "Readiness is not an ordering. File order, ticket number, and the order the tickets were written are not dependencies; only a blocker that is Complete makes a ticket ready."
+        ],
+        "evidence": [{ "path": "skills/ticket/actions/load.md", "lines": [52, 58] }]
+      },
+      {
+        "id": "in-progress",
+        "label": "In Progress",
+        "role": "step",
+        "group": "lifecycle",
+        "summary": "A session holds it. Recorded before the first file edit, never after.",
+        "evidence": [{ "path": "skills/ticket/actions/start.md", "lines": [18, 26] }]
+      },
+      {
+        "id": "review",
+        "label": "Review",
+        "role": "decision",
+        "group": "lifecycle",
+        "summary": "Verification against the ticket and its parent Feature. Review writes no status and accepts nothing.",
+        "evidence": [{ "path": "skills/ticket/actions/review.md", "lines": [40, 44] }]
+      },
+      {
+        "id": "complete",
+        "label": "Complete",
+        "role": "terminal",
+        "group": "outcomes",
+        "summary": "Work the human has accepted, delivered through the project's workflow.",
+        "evidence": [{ "path": "skills/ticket/actions/complete.md", "lines": [17, 25] }]
+      },
+      {
+        "id": "cancelled",
+        "label": "Cancelled",
+        "role": "terminal",
+        "group": "outcomes",
+        "summary": "A terminal alternative, alongside Superseded. Neither is a failure state."
+      },
+      {
+        "id": "store",
+        "label": "Ticket store",
+        "role": "store",
+        "summary": "One place, configured per project. There is never a second copy to reconcile.",
+        "evidence": [{ "path": "skills/ticket/store.md", "lines": [7, 17] }]
+      },
+      {
+        "id": "feature",
+        "label": "Parent Feature",
+        "role": "external",
+        "summary": "Its status is derived from its tickets and never maintained by hand.",
+        "evidence": [{ "path": "skills/ticket/SKILL.md", "lines": [52, 57] }]
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-approve",
+        "from": "human",
+        "to": "ready",
+        "relation": "triggers",
+        "label": "approves execution",
+        "evidence": [{ "path": "skills/ticket/actions/load.md", "lines": [29, 31] }]
+      },
+      {
+        "id": "e-load",
+        "from": "proposed",
+        "to": "ready",
+        "relation": "transitions_to",
+        "label": "ticket load",
+        "evidence": [{ "path": "skills/ticket/SKILL.md", "lines": [47, 47] }]
+      },
+      {
+        "id": "e-start",
+        "from": "ready",
+        "to": "in-progress",
+        "relation": "transitions_to",
+        "label": "ticket start",
+        "evidence": [{ "path": "skills/ticket/SKILL.md", "lines": [48, 48] }]
+      },
+      {
+        "id": "e-resume",
+        "from": "in-progress",
+        "to": "in-progress",
+        "relation": "transitions_to",
+        "label": "resumed",
+        "evidence": [{ "path": "skills/ticket/actions/start.md", "lines": [22, 23] }]
+      },
+      {
+        "id": "e-submit",
+        "from": "in-progress",
+        "to": "review",
+        "relation": "transitions_to",
+        "label": "ticket review"
+      },
+      {
+        "id": "e-rework",
+        "from": "review",
+        "to": "in-progress",
+        "relation": "transitions_to",
+        "label": "changes requested"
+      },
+      {
+        "id": "e-accept",
+        "from": "review",
+        "to": "complete",
+        "relation": "transitions_to",
+        "label": "human accepts",
+        "evidence": [{ "path": "skills/ticket/actions/complete.md", "lines": [19, 20] }]
+      },
+      {
+        "id": "e-cancel",
+        "from": "ready",
+        "to": "cancelled",
+        "relation": "transitions_to",
+        "label": "human cancels"
+      },
+      {
+        "id": "e-record",
+        "from": "in-progress",
+        "to": "store",
+        "relation": "writes",
+        "label": "status",
+        "evidence": [{ "path": "skills/ticket/store.md", "lines": [46, 52] }]
+      },
+      {
+        "id": "e-derive",
+        "from": "complete",
+        "to": "feature",
+        "relation": "triggers",
+        "label": "derives status",
+        "evidence": [{ "path": "skills/ticket/actions/complete.md", "lines": [21, 25] }]
+      }
+    ],
+    "paths": [
+      {
+        "id": "clean",
+        "label": "A clean run",
+        "note": "Four transitions, each performed by a different action, and the last one only after a human has accepted the work.",
+        "edges": ["e-load", "e-start", "e-submit", "e-accept"],
+        "evidence": [{ "path": "skills/ticket/SKILL.md", "lines": [43, 49] }]
+      },
+      {
+        "id": "rework",
+        "label": "Review sends it back",
+        "note": "Review reports findings and changes no implementation, so the ticket returns to the session that holds it rather than to a new one.",
+        "edges": ["e-submit", "e-rework"]
+      }
+    ],
+    "views": [
+      {
+        "id": "human-authority",
+        "label": "Where the human decides",
+        "note": "Two gates, and neither is an agent's to pass on its own.",
+        "focus": ["human", "ready", "complete"]
+      },
+      {
+        "id": "exits",
+        "label": "How a ticket ends",
+        "focus": ["review", "complete", "cancelled"]
+      }
+    ]
+  }
+}

@@ -1,17 +1,23 @@
 /**
  * The renderer registry: `kind` in, HTML out.
  *
- * One entry, `lesson`, and no placeholder for anything else. A registry with a
- * stub in it invites a caller to render a kind that does not exist yet, and the
- * result would be an artifact carrying the Pathfinder identity around content
- * nothing checked. An unsupported kind is refused in the structural layer,
- * before anything reaches here.
+ * Two entries and no placeholder for anything else. A registry with a stub in
+ * it invites a caller to render a kind that does not exist yet, and the result
+ * would be an artifact carrying the Pathfinder identity around content nothing
+ * checked. An unsupported kind is refused in the structural layer, before
+ * anything reaches here.
+ *
+ * Both entries render into the same shell and inherit the same identity. That
+ * is the whole claim of a shared renderer, and it is checkable: nothing below
+ * this line knows which kind it is looking at.
  */
 
 import { renderLesson } from "./lesson.mjs";
+import { renderDiagram } from "./diagram.mjs";
 
 export const RENDERERS = Object.freeze({
   lesson: renderLesson,
+  diagram: renderDiagram,
 });
 
 /**

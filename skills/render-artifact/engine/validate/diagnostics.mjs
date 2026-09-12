@@ -51,6 +51,17 @@ export const PRESENTATION_CONTROLS = Object.freeze(new Set([
   "gap", "grid", "height", "html", "icon", "layout", "margin", "padding",
   "position", "preset", "size", "spacing", "style", "styles", "template",
   "theme", "theme_default", "variant", "width", "x", "y", "z_index", "zIndex",
+
+  // The drawing controls. A producer describing a diagram reaches for these
+  // first, and every one of them is the renderer deciding where something goes
+  // rather than the producer saying what it is. `emphasis` belongs here for a
+  // subtler reason than the rest: it is not a coordinate, but it is the
+  // producer setting how much ink a thing gets. Emphasis is derived from
+  // authored paths — say why it matters, and the renderer decides how loud.
+  "anchor", "animation", "col", "cols", "dot", "edge_style", "emphasis",
+  "importance", "lane", "lanes", "offset", "orientation", "pos", "rank",
+  "route", "routing", "rx", "ry", "shape", "side", "stage", "stroke", "svg",
+  "viewbox", "viewBox", "weight", "x1", "x2", "y1", "y2", "zoom",
 ]));
 
 /** Is this property name one a producer must never control? */

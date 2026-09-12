@@ -18,6 +18,16 @@ import { diagnostic } from "./diagnostics.mjs";
  * @returns {import("./diagnostics.mjs").Diagnostic[]}
  */
 export function validateComposition(spec) {
+  return spec.kind === "diagram"
+    ? validateDiagramComposition(spec)
+    : validateLessonComposition(spec);
+}
+
+/**
+ * @param {object} spec a `lesson` specification that passed the structural layer
+ * @returns {import("./diagnostics.mjs").Diagnostic[]}
+ */
+function validateLessonComposition(spec) {
   const out = [];
   const modules = spec.lesson.modules;
 
@@ -44,6 +54,159 @@ export function validateComposition(spec) {
   });
 
   checkModuleGraph(modules, out);
+  return out;
+}
+
+/**
+ * The `graph` topology's coherence rules.
+ *
+ * Everything here is a rule the schema cannot express, and nothing here is a
+ * rule the schema already made unrepresentable. A node belongs to at most one
+ * group because `group` is a single identifier, so there is no
+ * multiple-membership check below: preventing the state beats detecting it.
+ *
+ * Deliberately legal, and each for a reason about real systems:
+ *
+ *   self-edges      a service calling itself, a state retrying itself
+ *   cycles          retry loops, bidirectional calls
+ *   isolated nodes  something real that is not wired up yet
+ *
+ * Group nesting is the one invalid state a flat array can still represent, and
+ * a single rule covers all three of its shapes: depth greater than one, a
+ * two-group cycle, and a group parented to itself. Each of them is a group
+ * whose parent is not a root.
+ */
+function validateDiagramComposition(spec) {
+  const out = [];
+  const { nodes, edges } = spec.diagram;
+  const groups = spec.diagram.groups ?? [];
+  const paths = spec.diagram.paths ?? [];
+  const views = spec.diagram.views ?? [];
+
+  /** Every identifier the renderer turns into a DOM id, across the artifact. */
+  const anchors = new Map();
+  const nodeIds = new Map();
+  const groupIds = new Map();
+  const edgeIds = new Map();
+
+  groups.forEach((group, g) => {
+    claimAnchor(anchors, out, group.id, `diagram.groups[${g}].id`,
+      `group "${group.label}"`);
+    groupIds.set(group.id, g);
+  });
+
+  nodes.forEach((node, n) => {
+    claimAnchor(anchors, out, node.id, `diagram.nodes[${n}].id`, `node "${node.label}"`);
+    nodeIds.set(node.id, n);
+  });
+
+  edges.forEach((edge, e) => {
+    claimAnchor(anchors, out, edge.id, `diagram.edges[${e}].id`, `edge \`${edge.id}\``);
+    edgeIds.set(edge.id, e);
+  });
+
+  paths.forEach((path, p) => {
+    claimAnchor(anchors, out, path.id, `diagram.paths[${p}].id`, `path "${path.label}"`);
+  });
+
+  views.forEach((view, v) => {
+    claimAnchor(anchors, out, view.id, `diagram.views[${v}].id`, `view "${view.label}"`);
+  });
+
+  // Group membership and nesting.
+  nodes.forEach((node, n) => {
+    if (node.group !== undefined && !groupIds.has(node.group)) {
+      out.push(diagnostic("composition", "unresolved_reference",
+        `diagram.nodes[${n}].group`,
+        `node "${node.label}" belongs to \`${node.group}\`, which is not a group ` +
+        `of this diagram`, node.label));
+    }
+  });
+
+  groups.forEach((group, g) => {
+    if (group.parent === undefined) return;
+    if (!groupIds.has(group.parent)) {
+      out.push(diagnostic("composition", "unresolved_reference",
+        `diagram.groups[${g}].parent`,
+        `group "${group.label}" is inside \`${group.parent}\`, which is not a ` +
+        `group of this diagram`, group.label));
+      return;
+    }
+    const parent = groups[groupIds.get(group.parent)];
+    if (parent.parent !== undefined) {
+      out.push(diagnostic("composition", "group_parent_not_root",
+        `diagram.groups[${g}].parent`,
+        `group "${group.label}" is inside "${parent.label}", which is itself ` +
+        `inside \`${parent.parent}\`. Nesting is one level: a parent must be a ` +
+        `root. This is also what a group cycle and a self-parented group look ` +
+        `like from here.`, group.label));
+    }
+  });
+
+  // Edges.
+  const seenRelations = new Map();
+  edges.forEach((edge, e) => {
+    for (const [end, id] of [["from", edge.from], ["to", edge.to]]) {
+      if (!nodeIds.has(id)) {
+        out.push(diagnostic("composition", "unresolved_reference",
+          `diagram.edges[${e}].${end}`,
+          `edge \`${edge.id}\` runs ${end} \`${id}\`, which is not a node of this ` +
+          `diagram`, edge.id));
+      }
+    }
+
+    // The same relationship asserted twice is a modelling slip, not a second
+    // fact. Two *different* relations between one pair stay legal: an API that
+    // both calls and publishes to a thing is two claims.
+    const key = `${edge.from}\u0000${edge.to}\u0000${edge.relation}`;
+    const previous = seenRelations.get(key);
+    if (previous !== undefined) {
+      out.push(diagnostic("composition", "duplicate_edge", `diagram.edges[${e}]`,
+        `\`${edge.relation}\` from \`${edge.from}\` to \`${edge.to}\` is already ` +
+        `asserted by edge \`${previous}\`; the same relationship twice is one ` +
+        `fact written twice`, edge.id));
+    } else {
+      seenRelations.set(key, edge.id);
+    }
+  });
+
+  // Paths address edges, so the walk is checkable rather than inferred.
+  paths.forEach((path, p) => {
+    let previous = null;
+    path.edges.forEach((id, i) => {
+      if (!edgeIds.has(id)) {
+        out.push(diagnostic("composition", "unresolved_reference",
+          `diagram.paths[${p}].edges[${i}]`,
+          `path "${path.label}" walks \`${id}\`, which is not an edge of this ` +
+          `diagram`, path.label));
+        previous = null;
+        return;
+      }
+      const edge = edges[edgeIds.get(id)];
+      if (previous !== null && previous.to !== edge.from) {
+        out.push(diagnostic("composition", "path_discontinuous",
+          `diagram.paths[${p}].edges[${i}]`,
+          `path "${path.label}" goes \`${previous.id}\`, which ends at ` +
+          `\`${previous.to}\`, then \`${edge.id}\`, which starts at \`${edge.from}\`. ` +
+          `A path is a walk: each edge begins where the last one ended.`,
+          path.label));
+      }
+      previous = edge;
+    });
+  });
+
+  // Views.
+  views.forEach((view, v) => {
+    view.focus.forEach((id, i) => {
+      if (!nodeIds.has(id)) {
+        out.push(diagnostic("composition", "unresolved_reference",
+          `diagram.views[${v}].focus[${i}]`,
+          `view "${view.label}" focuses \`${id}\`, which is not a node of this ` +
+          `diagram`, view.label));
+      }
+    });
+  });
+
   return out;
 }
 

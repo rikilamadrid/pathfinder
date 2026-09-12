@@ -119,6 +119,11 @@ function collectCitations(spec, out) {
     }
   };
 
+  if (spec.kind === "diagram") {
+    collectDiagramCitations(spec, take);
+    return citations;
+  }
+
   spec.lesson.modules.forEach((module, m) => {
     module.sections.forEach((section, s) => {
       const at = `lesson.modules[${m}].sections[${s}]`;
@@ -149,6 +154,36 @@ function collectCitations(spec, out) {
   });
 
   return citations;
+}
+
+/**
+ * A diagram's citations, in document order.
+ *
+ * Every place evidence may appear is walked, and nothing here requires it. The
+ * rules about *which* facts must be cited belong to the provenance contract,
+ * which distinguishes a diagram derived from a repository from one describing
+ * a system that does not exist yet. Until that distinction exists, this layer
+ * makes the one claim it can stand behind: every citation that is present
+ * resolves at the declared commit.
+ */
+function collectDiagramCitations(spec, take) {
+  const { nodes, edges } = spec.diagram;
+
+  (spec.diagram.groups ?? []).forEach((group, g) => {
+    take(group.evidence, `group "${group.label}"`, `diagram.groups[${g}].evidence`);
+  });
+  nodes.forEach((node, n) => {
+    take(node.evidence, `node "${node.label}"`, `diagram.nodes[${n}].evidence`);
+  });
+  edges.forEach((edge, e) => {
+    take(edge.evidence, `edge \`${edge.id}\``, `diagram.edges[${e}].evidence`);
+  });
+  (spec.diagram.paths ?? []).forEach((path, p) => {
+    take(path.evidence, `path "${path.label}"`, `diagram.paths[${p}].evidence`);
+  });
+  (spec.diagram.views ?? []).forEach((view, v) => {
+    take(view.evidence, `view "${view.label}"`, `diagram.views[${v}].evidence`);
+  });
 }
 
 /** Is there a Git we can ask, and is `repoDir` inside a repository? */
