@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Pathfinder ticket lifecycle</title>
 <meta name="description" content="The states a ticket occupies, who moves it, and where the status lives">
-<meta name="generator" content="Pathfinder render-artifact 0.4.0">
+<meta name="generator" content="Pathfinder render-artifact 0.5.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
 <style>:root {
   color-scheme: light;
@@ -639,6 +639,84 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 }
 .pf-edge-on-path .pf-edge-label { fill: var(--pf-link); }
 
+/* ---- the reading controls, and what a selection looks like ----
+
+   Three states, and the distinction is deliberate. "on" is what the reader
+   asked about. "near" is what it touches — still readable, because a component
+   whose neighbours have been greyed out tells you less than one whose
+   neighbours are merely quieter. "off" is the rest of the graph, dimmed rather
+   than removed: the document keeps every fact whatever is selected, and a
+   reader who dislikes the dimming can turn scripting off and read all of it.
+
+   No colour is defined here either. Selection reads through the accent that
+   already carries emphasis, and through opacity, so it works in both themes
+   without a second palette. Opacity alone would be a colour-only signal, so
+   the focused node also thickens its stroke. */
+.pf-graph-tools { margin: var(--pf-space-5) 0 calc(var(--pf-space-3) * -1); }
+.pf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pf-space-2);
+}
+.pf-tool {
+  padding: 4px 10px;
+  background: var(--pf-surface);
+  color: var(--pf-ink);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: var(--pf-radius-sm);
+  font-family: var(--pf-mono);
+  font-size: .78rem;
+  cursor: pointer;
+}
+.pf-tool:hover:not(:disabled) { border-color: var(--pf-accent); color: var(--pf-link); }
+.pf-tool:disabled { opacity: .45; cursor: default; }
+.pf-tool-sep {
+  width: 1px;
+  height: 1.2em;
+  background: var(--pf-line);
+}
+.pf-graph-status {
+  margin: var(--pf-space-2) 0 0;
+  color: var(--pf-muted);
+  font-family: var(--pf-mono);
+  font-size: .78rem;
+}
+.pf-pick { margin-left: var(--pf-space-2); }
+.pf-section-title .pf-pick { float: right; }
+
+.pf-canvas:focus-visible { outline: 3px solid var(--pf-accent); outline-offset: 2px; }
+.pf-canvas[data-pf-zoom="in"] .pf-graph { cursor: grab; }
+.pf-canvas[data-pf-dragging] .pf-graph { cursor: grabbing; }
+
+/* Selection. Keyed off attributes the script sets and nothing else, so the
+   delivered document is identical whether or not a browser ever runs it. */
+.pf-node[data-pf-state="off"],
+.pf-edge[data-pf-state="off"] { opacity: .22; }
+.pf-node[data-pf-state="near"],
+.pf-edge[data-pf-state="near"] { opacity: .75; }
+.pf-node[data-pf-state="on"] .pf-node-box {
+  stroke: var(--pf-accent);
+  stroke-width: 4;
+}
+.pf-edge[data-pf-state="on"] .pf-edge-line {
+  stroke: var(--pf-accent);
+  stroke-width: 3;
+}
+.pf-edge[data-pf-state="on"] .pf-edge-label { fill: var(--pf-link); }
+
+/* The written entry the selection points at. A left rule rather than a fill:
+   the card already has a surface, and stacking another on it would flatten
+   the hierarchy the evidence block sits in. */
+[data-pf-entry][aria-current] {
+  border-left: 3px solid var(--pf-accent);
+  padding-left: var(--pf-space-3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pf-node, .pf-edge { transition: opacity 120ms linear; }
+}
+
 /* The reading list below the canvas: the same facts, as text, for a reader who
    is not looking at a picture. */
 .pf-legend { display: grid; gap: var(--pf-space-4); }
@@ -690,112 +768,138 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <h1>The Pathfinder ticket lifecycle</h1>
 <p class="pf-lead-sub">The states a ticket occupies, who moves it, and where the status lives</p>
 </div>
-<div class="pf-canvas"><svg class="pf-graph" viewBox="0 0 912 1112" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
+<div class="pf-graph-tools" data-pf-controls hidden>
+<div class="pf-toolbar" role="toolbar" aria-label="Diagram controls">
+<button type="button" class="pf-tool" data-pf-act="zoom-out">Zoom out</button>
+<button type="button" class="pf-tool" data-pf-act="zoom-in">Zoom in</button>
+<button type="button" class="pf-tool" data-pf-act="fit">Fit</button>
+<button type="button" class="pf-tool" data-pf-act="reset">Reset</button>
+<span class="pf-tool-sep" aria-hidden="true"></span>
+<button type="button" class="pf-tool" data-pf-act="upstream" disabled>Upstream</button>
+<button type="button" class="pf-tool" data-pf-act="downstream" disabled>Downstream</button>
+<button type="button" class="pf-tool" data-pf-act="details" disabled>Go to details</button>
+<button type="button" class="pf-tool" data-pf-act="clear" disabled>Clear</button>
+</div>
+<p class="pf-graph-status" data-pf-status aria-live="polite">Nothing selected. Choose a component to focus it.</p>
+</div>
+<div class="pf-canvas" data-pf-canvas tabindex="0" role="group" aria-label="Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits."><svg class="pf-graph" viewBox="0 0 912 1112" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
 <title id="pf--diagram--title">Diagram</title>
 <defs>
 <marker id="pf-arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" markerUnits="userSpaceOnUse" orient="auto">
 <path d="M 0 0 L 9 4 L 0 8 z" fill="context-stroke"/>
 </marker>
 </defs>
-<g class="pf-group" data-pf-depth="0">
+<g class="pf-group" data-pf-group="delivery" data-pf-depth="0">
 <rect class="pf-group-box" id="g--delivery" x="280" y="56" width="576" height="884" rx="14"/>
 <text class="pf-group-label" x="304" y="76">The delivery loop</text>
 </g>
-<g class="pf-group" data-pf-depth="1">
+<g class="pf-group" data-pf-group="lifecycle" data-pf-depth="1">
 <rect class="pf-group-box" id="g--lifecycle" x="304" y="108" width="256" height="644" rx="14"/>
 <text class="pf-group-label" x="328" y="128">Working states</text>
 </g>
-<g class="pf-group" data-pf-depth="1">
+<g class="pf-group" data-pf-group="outcomes" data-pf-depth="1">
 <rect class="pf-group-box" id="g--outcomes" x="576" y="436" width="256" height="480" rx="14"/>
 <text class="pf-group-label" x="600" y="456">Terminal states</text>
 </g>
-<g class="pf-edge" data-pf-relation="triggers" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-approve" data-pf-relation="triggers" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-approve" points="160,236 160,280 432,280 432,324" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="296" y="274">approves execution</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="transitions_to" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-load" data-pf-relation="transitions_to" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-load" points="432,236 432,324" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="432" y="274">ticket load</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="transitions_to" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-start" data-pf-relation="transitions_to" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-start" points="432,400 432,488" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="432" y="438">ticket start</text>
 </g>
-<g class="pf-edge" data-pf-relation="transitions_to" data-pf-shape="loop">
+<g class="pf-edge" data-pf-edge="e-resume" data-pf-relation="transitions_to" data-pf-shape="loop">
 <polyline class="pf-edge-line" id="e--e-resume" points="536,513 580,513 580,538 536,538" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="558" y="507">resumed</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="transitions_to" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-submit" data-pf-relation="transitions_to" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-submit" points="432,564 432,652" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="432" y="602">ticket review</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="transitions_to" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-rework" data-pf-relation="transitions_to" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-rework" points="432,652 432,564" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="432" y="602">changes requested</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="transitions_to" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-accept" data-pf-relation="transitions_to" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-accept" points="432,728 432,772 704,772 704,816" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="568" y="766">human accepts</text>
 </g>
-<g class="pf-edge" data-pf-relation="transitions_to" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-cancel" data-pf-relation="transitions_to" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-cancel" points="432,400 432,444 704,444 704,488" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="568" y="438">human cancels</text>
 </g>
-<g class="pf-edge" data-pf-relation="writes" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-record" data-pf-relation="writes" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-record" points="432,564 432,608 160,608 160,652" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="296" y="602">status</text>
 </g>
-<g class="pf-edge" data-pf-relation="triggers" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-derive" data-pf-relation="triggers" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-derive" points="704,892 704,936 160,936 160,980" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="432" y="930">derives status</text>
 </g>
-<g class="pf-node" data-pf-role="actor">
+<g class="pf-node" data-pf-node="human" data-pf-role="actor">
 <rect class="pf-node-box" id="n--human" x="56" y="160" width="208" height="76" rx="38"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="160" y="191">The human</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="160" y="224">actor</text>
 </g>
-<g class="pf-node" data-pf-role="step">
+<g class="pf-node" data-pf-node="proposed" data-pf-role="step">
 <rect class="pf-node-box" id="n--proposed" x="328" y="160" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="432" y="191">Proposed</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="432" y="224">step</text>
 </g>
-<g class="pf-node" data-pf-role="step">
+<g class="pf-node" data-pf-node="ready" data-pf-role="step">
 <rect class="pf-node-box" id="n--ready" x="328" y="324" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="432" y="355">Ready</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="432" y="388">step</text>
 </g>
-<g class="pf-node" data-pf-role="step">
+<g class="pf-node" data-pf-node="in-progress" data-pf-role="step">
 <rect class="pf-node-box" id="n--in-progress" x="328" y="488" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="432" y="519">In Progress</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="432" y="552">step</text>
 </g>
-<g class="pf-node" data-pf-role="decision">
+<g class="pf-node" data-pf-node="review" data-pf-role="decision">
 <rect class="pf-node-box" id="n--review" x="328" y="652" width="208" height="76" rx="20"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="432" y="683">Review</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="432" y="716">decision</text>
 </g>
-<g class="pf-node" data-pf-role="terminal">
+<g class="pf-node" data-pf-node="complete" data-pf-role="terminal">
 <rect class="pf-node-box" id="n--complete" x="600" y="816" width="208" height="76" rx="38"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="704" y="847">Complete</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="704" y="880">terminal</text>
 </g>
-<g class="pf-node" data-pf-role="terminal">
+<g class="pf-node" data-pf-node="cancelled" data-pf-role="terminal">
 <rect class="pf-node-box" id="n--cancelled" x="600" y="488" width="208" height="76" rx="38"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="704" y="519">Cancelled</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="704" y="552">terminal</text>
 </g>
-<g class="pf-node" data-pf-role="store">
+<g class="pf-node" data-pf-node="store" data-pf-role="store">
 <rect class="pf-node-box" id="n--store" x="56" y="652" width="208" height="76" rx="6"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="160" y="683">Ticket store</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="160" y="716">store</text>
 </g>
-<g class="pf-node" data-pf-role="external">
+<g class="pf-node" data-pf-node="feature" data-pf-role="external">
 <rect class="pf-node-box" id="n--feature" x="56" y="980" width="208" height="76" rx="38"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="160" y="1011">Parent Feature</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="160" y="1044">external</text>
 </g>
 </svg></div>
-<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--lifecycle">
+<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--delivery" data-pf-entry="group" data-pf-for="delivery">
+<h3 class="pf-section-title">The delivery loop</h3>
+<div class="pf-card">
+<p class="pf-module-summary">One ticket at a time. A session that finishes a ticket stops there.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/ticket/SKILL.md</span><span class="pf-cite-lines">lines 62–62</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--g--lifecycle" data-pf-entry="group" data-pf-for="lifecycle">
 <h3 class="pf-section-title">Working states</h3>
 <div class="pf-card">
 <div class="pf-evidence">
@@ -804,8 +908,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li><span class="pf-cite-path">skills/ticket/SKILL.md</span><span class="pf-cite-lines">lines 41–49</span></li>
 </ul>
 </div>
-<div class="pf-card" id="s--n--proposed">
-<h4 class="pf-section-title">Proposed<span class="pf-legend-role">step</span></h4>
+<div class="pf-card" id="s--n--proposed" data-pf-entry="node" data-pf-for="proposed">
+<h4 class="pf-section-title">Proposed<span class="pf-legend-role">step</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="proposed" aria-label="Focus Proposed">Focus</button></span></h4>
 <p>Written by to-tickets and nothing else. Not yet approved for execution.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -814,8 +918,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--ready">
-<h4 class="pf-section-title">Ready<span class="pf-legend-role">step</span></h4>
+<div class="pf-card" id="s--n--ready" data-pf-entry="node" data-pf-for="ready">
+<h4 class="pf-section-title">Ready<span class="pf-legend-role">step</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="ready" aria-label="Focus Ready">Focus</button></span></h4>
 <p>Every blocker is Complete and the human has approved execution.</p>
 <p>Readiness is not an ordering. File order, ticket number, and the order the tickets were written are not dependencies; only a blocker that is Complete makes a ticket ready.</p>
 <div class="pf-evidence">
@@ -825,8 +929,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--in-progress">
-<h4 class="pf-section-title">In Progress<span class="pf-legend-role">step</span></h4>
+<div class="pf-card" id="s--n--in-progress" data-pf-entry="node" data-pf-for="in-progress">
+<h4 class="pf-section-title">In Progress<span class="pf-legend-role">step</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="in-progress" aria-label="Focus In Progress">Focus</button></span></h4>
 <p>A session holds it. Recorded before the first file edit, never after.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -835,8 +939,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--review">
-<h4 class="pf-section-title">Review<span class="pf-legend-role">decision</span></h4>
+<div class="pf-card" id="s--n--review" data-pf-entry="node" data-pf-for="review">
+<h4 class="pf-section-title">Review<span class="pf-legend-role">decision</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="review" aria-label="Focus Review">Focus</button></span></h4>
 <p>Verification against the ticket and its parent Feature. Review writes no status and accepts nothing.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -847,7 +951,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div>
 </div>
 </section>
-<section class="pf-section" id="s--g--outcomes">
+<section class="pf-section" id="s--g--outcomes" data-pf-entry="group" data-pf-for="outcomes">
 <h3 class="pf-section-title">Terminal states</h3>
 <div class="pf-card">
 <p class="pf-module-summary">Reopening terminal work is the human&#39;s decision, never an action&#39;s.</p>
@@ -857,8 +961,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li><span class="pf-cite-path">skills/ticket/actions/load.md</span><span class="pf-cite-lines">lines 33–36</span></li>
 </ul>
 </div>
-<div class="pf-card" id="s--n--complete">
-<h4 class="pf-section-title">Complete<span class="pf-legend-role">terminal</span></h4>
+<div class="pf-card" id="s--n--complete" data-pf-entry="node" data-pf-for="complete">
+<h4 class="pf-section-title">Complete<span class="pf-legend-role">terminal</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="complete" aria-label="Focus Complete">Focus</button></span></h4>
 <p>Work the human has accepted, delivered through the project&#39;s workflow.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -867,8 +971,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--cancelled">
-<h4 class="pf-section-title">Cancelled<span class="pf-legend-role">terminal</span></h4>
+<div class="pf-card" id="s--n--cancelled" data-pf-entry="node" data-pf-for="cancelled">
+<h4 class="pf-section-title">Cancelled<span class="pf-legend-role">terminal</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="cancelled" aria-label="Focus Cancelled">Focus</button></span></h4>
 <p>A terminal alternative, alongside Superseded. Neither is a failure state.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -882,8 +986,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <section class="pf-section" id="s--ungrouped">
 <h3 class="pf-section-title">Not in a boundary</h3>
 <div class="pf-card">
-<div class="pf-card" id="s--n--human">
-<h4 class="pf-section-title">The human<span class="pf-legend-role">actor</span></h4>
+<div class="pf-card" id="s--n--human" data-pf-entry="node" data-pf-for="human">
+<h4 class="pf-section-title">The human<span class="pf-legend-role">actor</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="human" aria-label="Focus The human">Focus</button></span></h4>
 <p>Approval, acceptance, merge and release are the human&#39;s, whichever action is running.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -892,8 +996,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--store">
-<h4 class="pf-section-title">Ticket store<span class="pf-legend-role">store</span></h4>
+<div class="pf-card" id="s--n--store" data-pf-entry="node" data-pf-for="store">
+<h4 class="pf-section-title">Ticket store<span class="pf-legend-role">store</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="store" aria-label="Focus Ticket store">Focus</button></span></h4>
 <p>One place, configured per project. There is never a second copy to reconcile.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -902,8 +1006,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--feature">
-<h4 class="pf-section-title">Parent Feature<span class="pf-legend-role">external</span></h4>
+<div class="pf-card" id="s--n--feature" data-pf-entry="node" data-pf-for="feature">
+<h4 class="pf-section-title">Parent Feature<span class="pf-legend-role">external</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="feature" aria-label="Focus Parent Feature">Focus</button></span></h4>
 <p>Its status is derived from its tickets and never maintained by hand.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -916,61 +1020,61 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </section>
 <h2 class="pf-module-title">Relationships</h2><section class="pf-section" id="s--relationships">
 <div class="pf-card">
-<ul class="pf-legend"><li id="s--e--e-approve"><span class="pf-step-title">The human</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Ready</span><p class="pf-step-detail">approves execution</p><div class="pf-evidence">
+<ul class="pf-legend"><li id="s--e--e-approve" data-pf-entry="edge" data-pf-for="e-approve"><span class="pf-step-title">The human</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Ready</span><p class="pf-step-detail">approves execution</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">skills/ticket/actions/load.md</span><span class="pf-cite-lines">lines 29–31</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-load"><span class="pf-step-title">Proposed</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Ready</span><p class="pf-step-detail">ticket load</p><div class="pf-evidence">
+<li id="s--e--e-load" data-pf-entry="edge" data-pf-for="e-load"><span class="pf-step-title">Proposed</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Ready</span><p class="pf-step-detail">ticket load</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">skills/ticket/SKILL.md</span><span class="pf-cite-lines">lines 47–47</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-start"><span class="pf-step-title">Ready</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">In Progress</span><p class="pf-step-detail">ticket start</p><div class="pf-evidence">
+<li id="s--e--e-start" data-pf-entry="edge" data-pf-for="e-start"><span class="pf-step-title">Ready</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">In Progress</span><p class="pf-step-detail">ticket start</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">skills/ticket/SKILL.md</span><span class="pf-cite-lines">lines 48–48</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-resume"><span class="pf-step-title">In Progress</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">In Progress</span><p class="pf-step-detail">resumed</p><div class="pf-evidence">
+<li id="s--e--e-resume" data-pf-entry="edge" data-pf-for="e-resume"><span class="pf-step-title">In Progress</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">In Progress</span><p class="pf-step-detail">resumed</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">skills/ticket/actions/start.md</span><span class="pf-cite-lines">lines 22–23</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-submit"><span class="pf-step-title">In Progress</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Review</span><p class="pf-step-detail">ticket review</p><div class="pf-evidence">
+<li id="s--e--e-submit" data-pf-entry="edge" data-pf-for="e-submit"><span class="pf-step-title">In Progress</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Review</span><p class="pf-step-detail">ticket review</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">skills/ticket/SKILL.md</span><span class="pf-cite-lines">lines 30–31</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-rework"><span class="pf-step-title">Review</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">In Progress</span><p class="pf-step-detail">changes requested</p><div class="pf-evidence">
+<li id="s--e--e-rework" data-pf-entry="edge" data-pf-for="e-rework"><span class="pf-step-title">Review</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">In Progress</span><p class="pf-step-detail">changes requested</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">skills/ticket/actions/review.md</span><span class="pf-cite-lines">lines 42–44</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-accept"><span class="pf-step-title">Review</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Complete</span><p class="pf-step-detail">human accepts</p><div class="pf-evidence">
+<li id="s--e--e-accept" data-pf-entry="edge" data-pf-for="e-accept"><span class="pf-step-title">Review</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Complete</span><p class="pf-step-detail">human accepts</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">skills/ticket/actions/complete.md</span><span class="pf-cite-lines">lines 19–20</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-cancel"><span class="pf-step-title">Ready</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Cancelled</span><p class="pf-step-detail">human cancels</p><div class="pf-evidence">
+<li id="s--e--e-cancel" data-pf-entry="edge" data-pf-for="e-cancel"><span class="pf-step-title">Ready</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Cancelled</span><p class="pf-step-detail">human cancels</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">context/ai-interaction.md</span><span class="pf-cite-lines">lines 67–67</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-record"><span class="pf-step-title">In Progress</span> <span class="pf-relation">writes</span> <span class="pf-step-title">Ticket store</span><p class="pf-step-detail">status</p><div class="pf-evidence">
+<li id="s--e--e-record" data-pf-entry="edge" data-pf-for="e-record"><span class="pf-step-title">In Progress</span> <span class="pf-relation">writes</span> <span class="pf-step-title">Ticket store</span><p class="pf-step-detail">status</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">skills/ticket/store.md</span><span class="pf-cite-lines">lines 46–52</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-derive"><span class="pf-step-title">Complete</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Parent Feature</span><p class="pf-step-detail">derives status</p><div class="pf-evidence">
+<li id="s--e--e-derive" data-pf-entry="edge" data-pf-for="e-derive"><span class="pf-step-title">Complete</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Parent Feature</span><p class="pf-step-detail">derives status</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">skills/ticket/actions/complete.md</span><span class="pf-cite-lines">lines 21–25</span></li>
@@ -978,7 +1082,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div></li></ul>
 </div>
 </section>
-<h2 class="pf-module-title">Paths</h2><section class="pf-section" id="s--p--clean">
+<h2 class="pf-module-title">Paths</h2><section class="pf-section" id="s--p--clean" data-pf-entry="path" data-pf-for="clean">
 <h3 class="pf-section-title">A clean run</h3>
 <div class="pf-card">
 <p class="pf-module-summary">Four transitions, each performed by a different action, and the last one only after a human has accepted the work.</p>
@@ -993,9 +1097,10 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li><span class="pf-cite-path">skills/ticket/SKILL.md</span><span class="pf-cite-lines">lines 43–49</span></li>
 </ul>
 </div>
+<div class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-act="path" data-pf-path="clean" aria-label="Highlight A clean run">Highlight</button></div>
 </div>
 </section>
-<section class="pf-section" id="s--p--rework">
+<section class="pf-section" id="s--p--rework" data-pf-entry="path" data-pf-for="rework">
 <h3 class="pf-section-title">Review sends it back</h3>
 <div class="pf-card">
 <p class="pf-module-summary">Review reports findings and changes no implementation, so the ticket returns to the session that holds it rather than to a new one.</p>
@@ -1008,6 +1113,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li><span class="pf-cite-path">skills/ticket/actions/review.md</span><span class="pf-cite-lines">lines 38–44</span></li>
 </ul>
 </div>
+<div class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-act="path" data-pf-path="rework" aria-label="Highlight Review sends it back">Highlight</button></div>
 </div>
 </section>
 <h2 class="pf-module-title">Views</h2><section class="pf-section" id="s--v--human-authority">
@@ -1040,7 +1146,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <dt>Commit</dt>
 <dd>7e437f6</dd>
 <dt>Renderer</dt>
-<dd>Pathfinder render-artifact 0.4.0</dd>
+<dd>Pathfinder render-artifact 0.5.0</dd>
 </dl>
 <p class="pf-caveat">This diagram was checked deterministically against the commit named here: its specification satisfied the schema, its identifiers, references and graphs resolved, and every component, relationship and claim in it carried a citation that was verified at that commit. What that establishes is that the cited material is there to be read. It is not a finding that the architecture drawn here is correct, complete, or the best reading of that material, and it is not a judgement that the page reads well — a person has to open it to know either.</p>
 </footer>
@@ -1153,6 +1259,364 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
     var reveal = question.querySelector(".pf-reveal");
     if (reveal) reveal.open = true;
   });
+})();
+(function () {
+  "use strict";
+
+  var model = {"nodes":["human","proposed","ready","in-progress","review","complete","cancelled","store","feature"],"labels":{"human":"The human","proposed":"Proposed","ready":"Ready","in-progress":"In Progress","review":"Review","complete":"Complete","cancelled":"Cancelled","store":"Ticket store","feature":"Parent Feature"},"out":{"human":[["e-approve","ready"]],"proposed":[["e-load","ready"]],"ready":[["e-start","in-progress"],["e-cancel","cancelled"]],"in-progress":[["e-resume","in-progress"],["e-submit","review"],["e-record","store"]],"review":[["e-rework","in-progress"],["e-accept","complete"]],"complete":[["e-derive","feature"]],"cancelled":[],"store":[],"feature":[]},"in":{"human":[],"proposed":[],"ready":[["e-approve","human"],["e-load","proposed"]],"in-progress":[["e-start","ready"],["e-resume","in-progress"],["e-rework","review"]],"review":[["e-submit","in-progress"]],"complete":[["e-accept","review"]],"cancelled":[["e-cancel","ready"]],"store":[["e-record","in-progress"]],"feature":[["e-derive","complete"]]},"edges":{"e-approve":["human","ready"],"e-load":["proposed","ready"],"e-start":["ready","in-progress"],"e-resume":["in-progress","in-progress"],"e-submit":["in-progress","review"],"e-rework":["review","in-progress"],"e-accept":["review","complete"],"e-cancel":["ready","cancelled"],"e-record":["in-progress","store"],"e-derive":["complete","feature"]},"paths":{"clean":["e-load","e-start","e-submit","e-accept"],"rework":["e-submit","e-rework"]}};
+
+  function pfTraverse(model, start, direction) {
+  var adjacency = direction === "in" ? model["in"] : model.out;
+  if (!adjacency || !adjacency[start]) return { nodes: [start], edges: [] };
+
+  var seenNodes = Object.create(null);
+  var seenEdges = Object.create(null);
+  var nodes = [];
+  var edges = [];
+  var queue = [start];
+
+  seenNodes[start] = true;
+  nodes.push(start);
+
+  while (queue.length > 0) {
+    var current = queue.shift();
+    var next = adjacency[current] || [];
+
+    for (var i = 0; i < next.length; i += 1) {
+      var edgeId = next[i][0];
+      var neighbour = next[i][1];
+
+      /* Every edge crossed is recorded, including one that leads somewhere
+         already reached. Two edges joining one pair are two claims, and a
+         traversal that kept only the first would highlight the wrong one. */
+      if (!seenEdges[edgeId]) {
+        seenEdges[edgeId] = true;
+        edges.push(edgeId);
+      }
+
+      /* A node already reached is never queued again. This single guard is
+         what terminates a cycle and what stops a self-edge looping. */
+      if (!seenNodes[neighbour]) {
+        seenNodes[neighbour] = true;
+        nodes.push(neighbour);
+        queue.push(neighbour);
+      }
+    }
+  }
+
+  return { nodes: nodes, edges: edges };
+}
+
+  var canvas = document.querySelector("[data-pf-canvas]");
+  var svg = canvas ? canvas.querySelector("[data-pf-graph]") : null;
+  if (!canvas || !svg) return;
+
+  var status = document.querySelector("[data-pf-status]");
+
+  function all(selector) {
+    return Array.prototype.slice.call(document.querySelectorAll(selector));
+  }
+
+  /* The canvas is a picture to assistive technology, so the interactive
+     surface is the toolbar and the written reading below it — real buttons,
+     in document order, carrying the stylesheet's existing focus ring. Every
+     one of them is revealed here rather than shipped visible, because a
+     control that cannot work should not be offered: with scripting off a
+     reader meets no dead buttons and loses nothing they could have read. */
+  all("[data-pf-controls]").forEach(function (group) { group.hidden = false; });
+
+  var viewBox = svg.getAttribute("viewBox").split(" ");
+  var BASE = { w: Number(viewBox[2]), h: Number(viewBox[3]) };
+  var MAX_ZOOM = 6;
+
+  var view = { zoom: 1, x: 0, y: 0 };
+  var state = { focus: null, trace: null, path: null };
+
+  var nodeGroups = all("[data-pf-node]");
+  var edgeGroups = all("[data-pf-edge]");
+  var entries = all("[data-pf-entry]");
+
+  /* ---- the view: zoom and pan, clamped to the graph's own bounds ---- */
+
+  function paint() {
+    var w = Math.max(1, Math.floor(BASE.w / view.zoom));
+    var h = Math.max(1, Math.floor(BASE.h / view.zoom));
+
+    /* Clamped to the content, so panning can never wander off into empty
+       space and "fit" is always the way back. */
+    view.x = Math.min(Math.max(view.x, 0), Math.max(0, BASE.w - w));
+    view.y = Math.min(Math.max(view.y, 0), Math.max(0, BASE.h - h));
+
+    svg.setAttribute("viewBox", view.x + " " + view.y + " " + w + " " + h);
+    canvas.setAttribute("data-pf-zoom", view.zoom === 1 ? "fit" : "in");
+  }
+
+  function zoomBy(factor) {
+    var before = { w: BASE.w / view.zoom, h: BASE.h / view.zoom };
+    var next = Math.min(Math.max(view.zoom * factor, 1), MAX_ZOOM);
+    if (next === view.zoom) return;
+
+    var after = { w: BASE.w / next, h: BASE.h / next };
+    /* Keep whatever is in the middle of the view in the middle of it. */
+    view.x = view.x + Math.floor((before.w - after.w) / 2);
+    view.y = view.y + Math.floor((before.h - after.h) / 2);
+    view.zoom = next;
+    paint();
+  }
+
+  function fit() {
+    view.zoom = 1;
+    view.x = 0;
+    view.y = 0;
+    paint();
+  }
+
+  function panBy(dx, dy) {
+    view.x = view.x + dx;
+    view.y = view.y + dy;
+    paint();
+  }
+
+  /* ---- the selection: focus, traversal, path ---- */
+
+  function endpointsOf(edgeId) {
+    return model.edges[edgeId] || null;
+  }
+
+  function selection() {
+    var nodes = Object.create(null);
+    var near = Object.create(null);
+    var edges = Object.create(null);
+    var mode = "";
+
+    if (state.path && model.paths[state.path]) {
+      /* Exactly the edges the producer authored, addressed by id. Two edges
+         joining one pair are two different claims, and only the one named by
+         the path is lit. */
+      mode = "path";
+      var walked = model.paths[state.path];
+      for (var i = 0; i < walked.length; i += 1) {
+        edges[walked[i]] = true;
+        var ends = endpointsOf(walked[i]);
+        if (ends) { near[ends[0]] = true; near[ends[1]] = true; }
+      }
+    } else if (state.focus && state.trace) {
+      mode = "trace";
+      var reached = pfTraverse(model, state.focus, state.trace);
+      for (var n = 0; n < reached.nodes.length; n += 1) nodes[reached.nodes[n]] = true;
+      for (var e = 0; e < reached.edges.length; e += 1) edges[reached.edges[e]] = true;
+    } else if (state.focus) {
+      mode = "focus";
+      nodes[state.focus] = true;
+      var sides = [model.out[state.focus] || [], model["in"][state.focus] || []];
+      for (var s = 0; s < sides.length; s += 1) {
+        for (var k = 0; k < sides[s].length; k += 1) {
+          edges[sides[s][k][0]] = true;
+          near[sides[s][k][1]] = true;
+        }
+      }
+    }
+
+    return { mode: mode, nodes: nodes, near: near, edges: edges };
+  }
+
+  function describe(picked) {
+    if (picked.mode === "path") {
+      return "Path: " + count(model.paths[state.path].length, "relationship") + ", exactly as authored.";
+    }
+    if (picked.mode === "trace") {
+      var word = state.trace === "in" ? "Upstream of " : "Downstream of ";
+      return word + label(state.focus) + ": " +
+        count(countOf(picked.nodes) - 1, "component") + " reached, " +
+        count(countOf(picked.edges), "relationship") + " crossed.";
+    }
+    if (picked.mode === "focus") {
+      return "Focused: " + label(state.focus) + ". " +
+        count(countOf(picked.edges), "direct relationship") + ".";
+    }
+    return "Nothing selected. Choose a component to focus it.";
+  }
+
+  function label(id) {
+    return model.labels[id] || id;
+  }
+
+  function count(n, noun) {
+    return n + " " + noun + (n === 1 ? "" : "s");
+  }
+
+  function countOf(set) {
+    return Object.keys(set).length;
+  }
+
+  function mark(elements, attribute, picked) {
+    for (var i = 0; i < elements.length; i += 1) {
+      var element = elements[i];
+      var id = element.getAttribute(attribute);
+      if (picked.mode === "") {
+        element.removeAttribute("data-pf-state");
+        continue;
+      }
+      var value = picked.nodes[id] ? "on"
+        : picked.edges[id] ? "on"
+        : picked.near[id] ? "near"
+        : "off";
+      element.setAttribute("data-pf-state", value);
+    }
+  }
+
+  function apply() {
+    var picked = selection();
+
+    canvas.setAttribute("data-pf-mode", picked.mode);
+    mark(nodeGroups, "data-pf-node", picked);
+    mark(edgeGroups, "data-pf-edge", picked);
+
+    /* The written reading is where the details and the evidence live. Marking
+       the selected entry current is the whole of the details interaction: the
+       reader is sent to the evidence already in the document rather than
+       shown a second copy of it. */
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i];
+      var kind = entry.getAttribute("data-pf-entry");
+      var forId = entry.getAttribute("data-pf-for");
+      var isCurrent = (kind === "node" && forId === state.focus)
+        || (kind === "path" && forId === state.path);
+      if (isCurrent) {
+        entry.setAttribute("aria-current", "true");
+      } else {
+        entry.removeAttribute("aria-current");
+      }
+    }
+
+    if (status) status.textContent = describe(picked);
+
+    act("upstream", !state.focus);
+    act("downstream", !state.focus);
+    act("details", !state.focus);
+    act("clear", picked.mode === "");
+  }
+
+  function act(name, isDisabled) {
+    var button = document.querySelector('[data-pf-act="' + name + '"]');
+    if (button) button.disabled = Boolean(isDisabled);
+  }
+
+  function focusNode(id, options) {
+    if (!model.labels[id]) return;
+    state.focus = id;
+    state.trace = null;
+    state.path = null;
+    apply();
+    if (options && options.reveal) reveal(id);
+  }
+
+  function reveal(id) {
+    var entry = document.querySelector('[data-pf-entry="node"][data-pf-for="' + id + '"]');
+    if (!entry) return;
+    var open = entry.closest ? entry.closest("details") : null;
+    if (open) open.open = true;
+    if (entry.scrollIntoView) entry.scrollIntoView({ block: "nearest" });
+  }
+
+  function clear() {
+    state.focus = null;
+    state.trace = null;
+    state.path = null;
+    apply();
+    if (status) status.textContent = "Selection cleared.";
+  }
+
+  /* ---- wiring ---- */
+
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    if (!target || !target.closest) return;
+
+    var control = target.closest("[data-pf-act]");
+    if (control && !control.disabled) {
+      var action = control.getAttribute("data-pf-act");
+      if (action === "zoom-in") zoomBy(1.5);
+      else if (action === "zoom-out") zoomBy(1 / 1.5);
+      else if (action === "fit") fit();
+      else if (action === "reset") { fit(); clear(); }
+      else if (action === "upstream") { state.trace = "in"; state.path = null; apply(); }
+      else if (action === "downstream") { state.trace = "out"; state.path = null; apply(); }
+      else if (action === "details") reveal(state.focus);
+      else if (action === "clear") clear();
+      else if (action === "path") {
+        state.path = control.getAttribute("data-pf-path");
+        state.focus = null;
+        state.trace = null;
+        apply();
+      }
+      return;
+    }
+
+    /* A written entry's own button: the keyboard route into focus. */
+    var pick = target.closest("[data-pf-pick]");
+    if (pick) {
+      focusNode(pick.getAttribute("data-pf-pick"), { reveal: false });
+      return;
+    }
+
+    /* A node in the picture: the pointer route. Keyboard readers reach the
+       same state through the entry buttons above, which is why nothing in
+       the canvas is a tab stop. */
+    var drawn = target.closest("[data-pf-node]");
+    if (drawn) focusNode(drawn.getAttribute("data-pf-node"), { reveal: true });
+  });
+
+  /* Drag to pan. Pixels become user units through the element's rendered
+     width, which is a reading of the reader's window and not of anything
+     that decided the artifact's bytes. */
+  var dragging = null;
+  svg.addEventListener("pointerdown", function (event) {
+    if (view.zoom === 1) return;
+    dragging = { x: event.clientX, y: event.clientY };
+    canvas.setAttribute("data-pf-dragging", "true");
+    if (svg.setPointerCapture) svg.setPointerCapture(event.pointerId);
+  });
+  svg.addEventListener("pointermove", function (event) {
+    if (!dragging) return;
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var scaleX = (BASE.w / view.zoom) / rect.width;
+    var scaleY = (BASE.h / view.zoom) / rect.height;
+    panBy(
+      Math.floor((dragging.x - event.clientX) * scaleX),
+      Math.floor((dragging.y - event.clientY) * scaleY));
+    dragging = { x: event.clientX, y: event.clientY };
+  });
+  function endDrag() {
+    dragging = null;
+    canvas.removeAttribute("data-pf-dragging");
+  }
+  svg.addEventListener("pointerup", endDrag);
+  svg.addEventListener("pointercancel", endDrag);
+
+  /* Keyboard panning, on the canvas itself, which is a tab stop for exactly
+     this reason. Escape clears from anywhere. */
+  canvas.addEventListener("keydown", function (event) {
+    var step = Math.max(16, Math.floor(BASE.w / view.zoom / 8));
+    var moved = true;
+    if (event.key === "ArrowLeft") panBy(-step, 0);
+    else if (event.key === "ArrowRight") panBy(step, 0);
+    else if (event.key === "ArrowUp") panBy(0, -step);
+    else if (event.key === "ArrowDown") panBy(0, step);
+    else if (event.key === "+" || event.key === "=") zoomBy(1.5);
+    else if (event.key === "-") zoomBy(1 / 1.5);
+    else if (event.key === "0") fit();
+    else moved = false;
+    if (moved) event.preventDefault();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") clear();
+  });
+
+  paint();
+  apply();
 })();</script>
 </body>
 </html>

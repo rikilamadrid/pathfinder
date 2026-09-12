@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How create-pathfinder installs the kit</title>
 <meta name="description" content="One npx invocation, from the registry to a destination project&#39;s working tree">
-<meta name="generator" content="Pathfinder render-artifact 0.4.0">
+<meta name="generator" content="Pathfinder render-artifact 0.5.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
 <style>:root {
   color-scheme: light;
@@ -639,6 +639,84 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 }
 .pf-edge-on-path .pf-edge-label { fill: var(--pf-link); }
 
+/* ---- the reading controls, and what a selection looks like ----
+
+   Three states, and the distinction is deliberate. "on" is what the reader
+   asked about. "near" is what it touches — still readable, because a component
+   whose neighbours have been greyed out tells you less than one whose
+   neighbours are merely quieter. "off" is the rest of the graph, dimmed rather
+   than removed: the document keeps every fact whatever is selected, and a
+   reader who dislikes the dimming can turn scripting off and read all of it.
+
+   No colour is defined here either. Selection reads through the accent that
+   already carries emphasis, and through opacity, so it works in both themes
+   without a second palette. Opacity alone would be a colour-only signal, so
+   the focused node also thickens its stroke. */
+.pf-graph-tools { margin: var(--pf-space-5) 0 calc(var(--pf-space-3) * -1); }
+.pf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pf-space-2);
+}
+.pf-tool {
+  padding: 4px 10px;
+  background: var(--pf-surface);
+  color: var(--pf-ink);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: var(--pf-radius-sm);
+  font-family: var(--pf-mono);
+  font-size: .78rem;
+  cursor: pointer;
+}
+.pf-tool:hover:not(:disabled) { border-color: var(--pf-accent); color: var(--pf-link); }
+.pf-tool:disabled { opacity: .45; cursor: default; }
+.pf-tool-sep {
+  width: 1px;
+  height: 1.2em;
+  background: var(--pf-line);
+}
+.pf-graph-status {
+  margin: var(--pf-space-2) 0 0;
+  color: var(--pf-muted);
+  font-family: var(--pf-mono);
+  font-size: .78rem;
+}
+.pf-pick { margin-left: var(--pf-space-2); }
+.pf-section-title .pf-pick { float: right; }
+
+.pf-canvas:focus-visible { outline: 3px solid var(--pf-accent); outline-offset: 2px; }
+.pf-canvas[data-pf-zoom="in"] .pf-graph { cursor: grab; }
+.pf-canvas[data-pf-dragging] .pf-graph { cursor: grabbing; }
+
+/* Selection. Keyed off attributes the script sets and nothing else, so the
+   delivered document is identical whether or not a browser ever runs it. */
+.pf-node[data-pf-state="off"],
+.pf-edge[data-pf-state="off"] { opacity: .22; }
+.pf-node[data-pf-state="near"],
+.pf-edge[data-pf-state="near"] { opacity: .75; }
+.pf-node[data-pf-state="on"] .pf-node-box {
+  stroke: var(--pf-accent);
+  stroke-width: 4;
+}
+.pf-edge[data-pf-state="on"] .pf-edge-line {
+  stroke: var(--pf-accent);
+  stroke-width: 3;
+}
+.pf-edge[data-pf-state="on"] .pf-edge-label { fill: var(--pf-link); }
+
+/* The written entry the selection points at. A left rule rather than a fill:
+   the card already has a surface, and stacking another on it would flatten
+   the hierarchy the evidence block sits in. */
+[data-pf-entry][aria-current] {
+  border-left: 3px solid var(--pf-accent);
+  padding-left: var(--pf-space-3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pf-node, .pf-edge { transition: opacity 120ms linear; }
+}
+
 /* The reading list below the canvas: the same facts, as text, for a reader who
    is not looking at a picture. */
 .pf-legend { display: grid; gap: var(--pf-space-4); }
@@ -691,251 +769,265 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <h1>How create-pathfinder installs the kit</h1>
 <p class="pf-lead-sub">One npx invocation, from the registry to a destination project&#39;s working tree</p>
 </div>
-<div class="pf-canvas"><svg class="pf-graph" viewBox="0 0 2148 1612" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
+<div class="pf-graph-tools" data-pf-controls hidden>
+<div class="pf-toolbar" role="toolbar" aria-label="Diagram controls">
+<button type="button" class="pf-tool" data-pf-act="zoom-out">Zoom out</button>
+<button type="button" class="pf-tool" data-pf-act="zoom-in">Zoom in</button>
+<button type="button" class="pf-tool" data-pf-act="fit">Fit</button>
+<button type="button" class="pf-tool" data-pf-act="reset">Reset</button>
+<span class="pf-tool-sep" aria-hidden="true"></span>
+<button type="button" class="pf-tool" data-pf-act="upstream" disabled>Upstream</button>
+<button type="button" class="pf-tool" data-pf-act="downstream" disabled>Downstream</button>
+<button type="button" class="pf-tool" data-pf-act="details" disabled>Go to details</button>
+<button type="button" class="pf-tool" data-pf-act="clear" disabled>Clear</button>
+</div>
+<p class="pf-graph-status" data-pf-status aria-live="polite">Nothing selected. Choose a component to focus it.</p>
+</div>
+<div class="pf-canvas" data-pf-canvas tabindex="0" role="group" aria-label="Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits."><svg class="pf-graph" viewBox="0 0 2148 1612" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
 <title id="pf--diagram--title">Diagram</title>
 <defs>
 <marker id="pf-arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" markerUnits="userSpaceOnUse" orient="auto">
 <path d="M 0 0 L 9 4 L 0 8 z" fill="context-stroke"/>
 </marker>
 </defs>
-<g class="pf-group" data-pf-depth="0">
+<g class="pf-group" data-pf-group="entry" data-pf-depth="0">
 <rect class="pf-group-box" id="g--entry" x="648" y="452" width="580" height="124" rx="14"/>
 <text class="pf-group-label" x="672" y="472">Entry</text>
 </g>
-<g class="pf-group" data-pf-depth="0">
+<g class="pf-group" data-pf-group="conversation" data-pf-depth="0">
 <rect class="pf-group-box" id="g--conversation" x="944" y="592" width="876" height="264" rx="14"/>
 <text class="pf-group-label" x="968" y="612">What it asks the human</text>
 </g>
-<g class="pf-group" data-pf-depth="0">
+<g class="pf-group" data-pf-group="planning" data-pf-depth="0">
 <rect class="pf-group-box" id="g--planning" x="1240" y="872" width="580" height="404" rx="14"/>
 <text class="pf-group-label" x="1264" y="892">Plan, then apply</text>
 </g>
-<g class="pf-group" data-pf-depth="0">
+<g class="pf-group" data-pf-group="publishing" data-pf-depth="0">
 <rect class="pf-group-box" id="g--publishing" x="56" y="1292" width="284" height="264" rx="14"/>
 <text class="pf-group-label" x="80" y="1312">Getting the kit into the package</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="triggers" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-invoke" data-pf-relation="triggers" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-invoke" points="316,234 404,234" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="360" y="228">npx</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="triggers" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-serve" data-pf-relation="triggers" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-serve" points="612,234 656,234 656,514 700,514" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="656" y="368">runs the bin</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-handoff" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-handoff" points="908,514 996,514" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="952" y="508">run(argv)</text>
 </g>
-<g class="pf-edge" data-pf-relation="depends_on" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-prompter" data-pf-relation="depends_on" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-prompter" points="908,514 1100,514 1100,794 1292,794" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1100" y="648">builds</text>
 </g>
-<g class="pf-edge" data-pf-relation="depends_on" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-theme" data-pf-relation="depends_on" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-theme" points="908,514 952,514 952,724 996,724" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="952" y="613">builds</text>
 </g>
-<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-ask" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-ask" points="1204,514 1248,514 1248,794 1292,794" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1248" y="648">asks</text>
 </g>
-<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-answer" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-answer" points="1292,794 804,794 804,234 316,234" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="804" y="508">questions</text>
 </g>
-<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-detect" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-detect" points="1204,514 1248,514 1248,654 1292,654" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1248" y="578">finds tools</text>
 </g>
-<g class="pf-edge" data-pf-relation="reads" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-harnesses" data-pf-relation="reads" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-harnesses" points="1500,654 1544,654 1544,724 1588,724" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1544" y="683">known harnesses</text>
 </g>
-<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-kit" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-kit" points="1204,514 1396,514 1396,234 1588,234" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1396" y="368">locates the kit</text>
 </g>
-<g class="pf-edge" data-pf-relation="reads" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-copylist" data-pf-relation="reads" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-copylist" points="1796,234 1840,234 1840,94 1884,94" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1840" y="158">at runtime</text>
 </g>
-<g class="pf-edge" data-pf-relation="depends_on" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-guarded" data-pf-relation="depends_on" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-guarded" points="1796,234 1884,234" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1840" y="228">exclusion</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-plan" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-plan" points="1204,514 1248,514 1248,934 1292,934" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1248" y="718">plans the copy</text>
 </g>
-<g class="pf-edge" data-pf-relation="reads" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-planreads" data-pf-relation="reads" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-planreads" points="1500,934 1544,934 1544,234 1588,234" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1544" y="578">copy list</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-planfilters" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-planfilters" points="1500,934 1692,934 1692,234 1884,234" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1692" y="578">excludes</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="transitions_to" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-apply" data-pf-relation="transitions_to" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-apply" points="1500,934 1544,934 1544,1074 1588,1074" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1544" y="998">once accepted</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="writes" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-write" data-pf-relation="writes" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-write" points="1796,1074 1840,1074 1840,374 1884,374" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1840" y="718">the kit</text>
 </g>
-<g class="pf-edge" data-pf-relation="triggers" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-adapters" data-pf-relation="triggers" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-adapters" points="1204,514 1248,514 1248,1074 1292,1074" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1248" y="788">if opted in</text>
 </g>
-<g class="pf-edge" data-pf-relation="writes" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-adapterswrite" data-pf-relation="writes" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-adapterswrite" points="1500,1074 1692,1074 1692,374 1884,374" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1692" y="718">adapters</text>
 </g>
-<g class="pf-edge" data-pf-relation="reads" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-adapterharness" data-pf-relation="reads" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-adapterharness" points="1500,1074 1544,1074 1544,724 1588,724" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1544" y="893">skills dir</text>
 </g>
-<g class="pf-edge" data-pf-relation="triggers" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-hooks" data-pf-relation="triggers" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-hooks" points="1204,514 1248,514 1248,1214 1292,1214" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1248" y="858">if opted in</text>
 </g>
-<g class="pf-edge" data-pf-relation="writes" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-hookswrite" data-pf-relation="writes" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-hookswrite" points="1500,1214 1692,1214 1692,374 1884,374" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1692" y="788">hook config</text>
 </g>
-<g class="pf-edge" data-pf-relation="triggers" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-gitinit" data-pf-relation="triggers" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-gitinit" points="1204,514 1248,514 1248,304 1292,304" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1248" y="403">if offered</text>
 </g>
-<g class="pf-edge" data-pf-relation="writes" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-gitwrite" data-pf-relation="writes" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-gitwrite" points="1500,304 1692,304 1692,374 1884,374" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1596" y="298">git init</text>
 </g>
-<g class="pf-edge" data-pf-relation="transitions_to" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-report" data-pf-relation="transitions_to" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-report" points="1204,514 1248,514 1248,164 1292,164" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1248" y="333">summarises</text>
 </g>
-<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-told" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-told" points="1292,164 804,164 804,234 316,234" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1048" y="158">what happened</text>
 </g>
-<g class="pf-edge" data-pf-relation="reads" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-stage" data-pf-relation="reads" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-stage" points="316,1494 1100,1494 1100,94 1884,94" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1100" y="788">what to stage</text>
 </g>
-<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-stagenevership" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-stagenevership" points="316,1494 1100,1494 1100,234 1884,234" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="1100" y="858">excludes</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="publishes" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-prepack" data-pf-relation="publishes" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-prepack" points="316,1494 360,1494 360,234 404,234" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="360" y="858">package contents</text>
 </g>
-<g class="pf-edge" data-pf-relation="triggers" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-guard" data-pf-relation="triggers" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-guard" points="316,1354 360,1354 360,234 404,234" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="360" y="788">prepublishOnly</text>
 </g>
-<g class="pf-node" data-pf-role="actor">
+<g class="pf-node" data-pf-node="developer" data-pf-role="actor">
 <rect class="pf-node-box" id="n--developer" x="108" y="196" width="208" height="76" rx="38"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="212" y="227">The developer</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="212" y="260">actor</text>
 </g>
-<g class="pf-node" data-pf-role="external">
+<g class="pf-node" data-pf-node="registry" data-pf-role="external">
 <rect class="pf-node-box" id="n--registry" x="404" y="196" width="208" height="76" rx="38"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="508" y="227">The npm registry</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="508" y="260">external</text>
 </g>
-<g class="pf-node" data-pf-role="interface">
+<g class="pf-node" data-pf-node="bin" data-pf-role="interface">
 <rect class="pf-node-box" id="n--bin" x="700" y="476" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="804" y="498">create-pathfinde</tspan><tspan x="804" y="516">r</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="804" y="540">interface</text>
 </g>
-<g class="pf-node" data-pf-role="service">
+<g class="pf-node" data-pf-node="cli" data-pf-role="service">
 <rect class="pf-node-box" id="n--cli" x="996" y="476" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1100" y="507">run()</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1100" y="540">service</text>
 </g>
-<g class="pf-node" data-pf-role="interface">
+<g class="pf-node" data-pf-node="prompter" data-pf-role="interface">
 <rect class="pf-node-box" id="n--prompter" x="1292" y="756" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="787">Prompter</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1396" y="820">interface</text>
 </g>
-<g class="pf-node" data-pf-role="service">
+<g class="pf-node" data-pf-node="theme" data-pf-role="service">
 <rect class="pf-node-box" id="n--theme" x="996" y="686" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1100" y="717">Theme</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1100" y="750">service</text>
 </g>
-<g class="pf-node" data-pf-role="service">
+<g class="pf-node" data-pf-node="detect" data-pf-role="service">
 <rect class="pf-node-box" id="n--detect" x="1292" y="616" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="647">Tool detection</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1396" y="680">service</text>
 </g>
-<g class="pf-node" data-pf-role="store">
+<g class="pf-node" data-pf-node="harnesses" data-pf-role="store">
 <rect class="pf-node-box" id="n--harnesses" x="1588" y="686" width="208" height="76" rx="6"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1692" y="717">Harness registry</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1692" y="750">store</text>
 </g>
-<g class="pf-node" data-pf-role="store">
+<g class="pf-node" data-pf-node="copylist" data-pf-role="store">
 <rect class="pf-node-box" id="n--copylist" x="1884" y="56" width="208" height="76" rx="6"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1988" y="87">copy-list.json</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1988" y="120">store</text>
 </g>
-<g class="pf-node" data-pf-role="service">
+<g class="pf-node" data-pf-node="kit" data-pf-role="service">
 <rect class="pf-node-box" id="n--kit" x="1588" y="196" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1692" y="227">kit.mjs</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1692" y="260">service</text>
 </g>
-<g class="pf-node" data-pf-role="decision">
+<g class="pf-node" data-pf-node="nevership" data-pf-role="decision">
 <rect class="pf-node-box" id="n--nevership" x="1884" y="196" width="208" height="76" rx="20"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1988" y="227">neverShips()</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1988" y="260">decision</text>
 </g>
-<g class="pf-node" data-pf-role="step">
+<g class="pf-node" data-pf-node="plan" data-pf-role="step">
 <rect class="pf-node-box" id="n--plan" x="1292" y="896" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="927">planInstall()</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1396" y="960">step</text>
 </g>
-<g class="pf-node" data-pf-role="step">
+<g class="pf-node" data-pf-node="apply" data-pf-role="step">
 <rect class="pf-node-box" id="n--apply" x="1588" y="1036" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1692" y="1067">applyPlan()</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1692" y="1100">step</text>
 </g>
-<g class="pf-node" data-pf-role="job">
+<g class="pf-node" data-pf-node="adapters" data-pf-role="job">
 <rect class="pf-node-box" id="n--adapters" x="1292" y="1036" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="1058">Adapter</tspan><tspan x="1396" y="1076">generation</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1396" y="1100">job</text>
 </g>
-<g class="pf-node" data-pf-role="job">
+<g class="pf-node" data-pf-node="hooks" data-pf-role="job">
 <rect class="pf-node-box" id="n--hooks" x="1292" y="1176" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="1198">Hook</tspan><tspan x="1396" y="1216">installation</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1396" y="1240">job</text>
 </g>
-<g class="pf-node" data-pf-role="job">
+<g class="pf-node" data-pf-node="gitinit" data-pf-role="job">
 <rect class="pf-node-box" id="n--gitinit" x="1292" y="266" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="297">Repository init</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1396" y="330">job</text>
 </g>
-<g class="pf-node" data-pf-role="store">
+<g class="pf-node" data-pf-node="target" data-pf-role="store">
 <rect class="pf-node-box" id="n--target" x="1884" y="336" width="208" height="76" rx="6"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1988" y="367">The project</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1988" y="400">store</text>
 </g>
-<g class="pf-node" data-pf-role="terminal">
+<g class="pf-node" data-pf-node="outcome" data-pf-role="terminal">
 <rect class="pf-node-box" id="n--outcome" x="1292" y="126" width="208" height="76" rx="38"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="157">The report</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1396" y="190">terminal</text>
 </g>
-<g class="pf-node" data-pf-role="job">
+<g class="pf-node" data-pf-node="stage" data-pf-role="job">
 <rect class="pf-node-box" id="n--stage" x="108" y="1456" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="212" y="1487">stage-kit.mjs</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="212" y="1520">job</text>
 </g>
-<g class="pf-node" data-pf-role="decision">
+<g class="pf-node" data-pf-node="guard" data-pf-role="decision">
 <rect class="pf-node-box" id="n--guard" x="108" y="1316" width="208" height="76" rx="20"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="212" y="1338">publish-guard.mj</tspan><tspan x="212" y="1356">s</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="212" y="1380">decision</text>
 </g>
 </svg></div>
-<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--entry">
+<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--entry" data-pf-entry="group" data-pf-for="entry">
 <h3 class="pf-section-title">Entry</h3>
 <div class="pf-card">
 <p class="pf-module-summary">The executable npm exposes, and the one function it hands control to.</p>
@@ -945,8 +1037,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li><span class="pf-cite-path">packages/create-pathfinder/package.json</span><span class="pf-cite-lines">lines 27–29</span></li>
 </ul>
 </div>
-<div class="pf-card" id="s--n--bin">
-<h4 class="pf-section-title">create-pathfinder<span class="pf-legend-role">interface</span></h4>
+<div class="pf-card" id="s--n--bin" data-pf-entry="node" data-pf-for="bin">
+<h4 class="pf-section-title">create-pathfinder<span class="pf-legend-role">interface</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="bin" aria-label="Focus create-pathfinder">Focus</button></span></h4>
 <p>The declared bin. It builds a prompter and a theme and does nothing else itself.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -955,8 +1047,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--cli">
-<h4 class="pf-section-title">run()<span class="pf-legend-role">service</span></h4>
+<div class="pf-card" id="s--n--cli" data-pf-entry="node" data-pf-for="cli">
+<h4 class="pf-section-title">run()<span class="pf-legend-role">service</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="cli" aria-label="Focus run()">Focus</button></span></h4>
 <p>The whole install, in one async function: locate the kit, ask, plan, apply, report.</p>
 <p>It is also by far the largest module in the package, which is a fact about this codebase rather than a recommendation from it.</p>
 <div class="pf-evidence">
@@ -968,7 +1060,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div>
 </div>
 </section>
-<section class="pf-section" id="s--g--conversation">
+<section class="pf-section" id="s--g--conversation" data-pf-entry="group" data-pf-for="conversation">
 <h3 class="pf-section-title">What it asks the human</h3>
 <div class="pf-card">
 <p class="pf-module-summary">Nothing is installed without being offered first; a non-interactive run answers for itself.</p>
@@ -978,8 +1070,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li><span class="pf-cite-path">packages/create-pathfinder/src/prompt.mjs</span><span class="pf-cite-lines">lines 74–80</span></li>
 </ul>
 </div>
-<div class="pf-card" id="s--n--prompter">
-<h4 class="pf-section-title">Prompter<span class="pf-legend-role">interface</span></h4>
+<div class="pf-card" id="s--n--prompter" data-pf-entry="node" data-pf-for="prompter">
+<h4 class="pf-section-title">Prompter<span class="pf-legend-role">interface</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="prompter" aria-label="Focus Prompter">Focus</button></span></h4>
 <p>Asks the questions. A non-interactive run swaps in one that answers without a terminal.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -988,8 +1080,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--theme">
-<h4 class="pf-section-title">Theme<span class="pf-legend-role">service</span></h4>
+<div class="pf-card" id="s--n--theme" data-pf-entry="node" data-pf-for="theme">
+<h4 class="pf-section-title">Theme<span class="pf-legend-role">service</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="theme" aria-label="Focus Theme">Focus</button></span></h4>
 <p>Colour and symbols for the terminal, degraded deliberately when the terminal cannot take them.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -998,8 +1090,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--detect">
-<h4 class="pf-section-title">Tool detection<span class="pf-legend-role">service</span></h4>
+<div class="pf-card" id="s--n--detect" data-pf-entry="node" data-pf-for="detect">
+<h4 class="pf-section-title">Tool detection<span class="pf-legend-role">service</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="detect" aria-label="Focus Tool detection">Focus</button></span></h4>
 <p>Looks for the AI tools already present, so the offer matches the machine.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1008,8 +1100,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--harnesses">
-<h4 class="pf-section-title">Harness registry<span class="pf-legend-role">store</span></h4>
+<div class="pf-card" id="s--n--harnesses" data-pf-entry="node" data-pf-for="harnesses">
+<h4 class="pf-section-title">Harness registry<span class="pf-legend-role">store</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="harnesses" aria-label="Focus Harness registry">Focus</button></span></h4>
 <p>The harnesses an adapter can be generated for, and where each one keeps its skills.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1020,7 +1112,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div>
 </div>
 </section>
-<section class="pf-section" id="s--g--planning">
+<section class="pf-section" id="s--g--planning" data-pf-entry="group" data-pf-for="planning">
 <h3 class="pf-section-title">Plan, then apply</h3>
 <div class="pf-card">
 <p class="pf-module-summary">Every write is planned as a whole before any of it happens, so a refusal costs nothing.</p>
@@ -1030,8 +1122,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 57–62</span></li>
 </ul>
 </div>
-<div class="pf-card" id="s--n--plan">
-<h4 class="pf-section-title">planInstall()<span class="pf-legend-role">step</span></h4>
+<div class="pf-card" id="s--n--plan" data-pf-entry="node" data-pf-for="plan">
+<h4 class="pf-section-title">planInstall()<span class="pf-legend-role">step</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="plan" aria-label="Focus planInstall()">Focus</button></span></h4>
 <p>Decides every file to write and every collision to report, writing none of them.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1040,8 +1132,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--apply">
-<h4 class="pf-section-title">applyPlan()<span class="pf-legend-role">step</span></h4>
+<div class="pf-card" id="s--n--apply" data-pf-entry="node" data-pf-for="apply">
+<h4 class="pf-section-title">applyPlan()<span class="pf-legend-role">step</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="apply" aria-label="Focus applyPlan()">Focus</button></span></h4>
 <p>Performs a plan, or reports what it would perform when asked for a dry run.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1050,8 +1142,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--adapters">
-<h4 class="pf-section-title">Adapter generation<span class="pf-legend-role">job</span></h4>
+<div class="pf-card" id="s--n--adapters" data-pf-entry="node" data-pf-for="adapters">
+<h4 class="pf-section-title">Adapter generation<span class="pf-legend-role">job</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="adapters" aria-label="Focus Adapter generation">Focus</button></span></h4>
 <p>Derives each harness&#39;s skill files from canonical frontmatter. Opt-in, never assumed.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1060,8 +1152,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--hooks">
-<h4 class="pf-section-title">Hook installation<span class="pf-legend-role">job</span></h4>
+<div class="pf-card" id="s--n--hooks" data-pf-entry="node" data-pf-for="hooks">
+<h4 class="pf-section-title">Hook installation<span class="pf-legend-role">job</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="hooks" aria-label="Focus Hook installation">Focus</button></span></h4>
 <p>Installs the session-orientation hook for a harness that has one.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1072,7 +1164,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div>
 </div>
 </section>
-<section class="pf-section" id="s--g--publishing">
+<section class="pf-section" id="s--g--publishing" data-pf-entry="group" data-pf-for="publishing">
 <h3 class="pf-section-title">Getting the kit into the package</h3>
 <div class="pf-card">
 <p class="pf-module-summary">The kit lives at the repository root, and npm cannot reach outside the package directory.</p>
@@ -1082,8 +1174,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li><span class="pf-cite-path">packages/create-pathfinder/package.json</span><span class="pf-cite-lines">lines 41–48</span></li>
 </ul>
 </div>
-<div class="pf-card" id="s--n--stage">
-<h4 class="pf-section-title">stage-kit.mjs<span class="pf-legend-role">job</span></h4>
+<div class="pf-card" id="s--n--stage" data-pf-entry="node" data-pf-for="stage">
+<h4 class="pf-section-title">stage-kit.mjs<span class="pf-legend-role">job</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="stage" aria-label="Focus stage-kit.mjs">Focus</button></span></h4>
 <p>Copies the kit into the package before pack and removes it again afterwards.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1092,8 +1184,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--guard">
-<h4 class="pf-section-title">publish-guard.mjs<span class="pf-legend-role">decision</span></h4>
+<div class="pf-card" id="s--n--guard" data-pf-entry="node" data-pf-for="guard">
+<h4 class="pf-section-title">publish-guard.mjs<span class="pf-legend-role">decision</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="guard" aria-label="Focus publish-guard.mjs">Focus</button></span></h4>
 <p>The last check before a publish, run by npm rather than by a person remembering to.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1107,8 +1199,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <section class="pf-section" id="s--ungrouped">
 <h3 class="pf-section-title">Not in a boundary</h3>
 <div class="pf-card">
-<div class="pf-card" id="s--n--developer">
-<h4 class="pf-section-title">The developer<span class="pf-legend-role">actor</span></h4>
+<div class="pf-card" id="s--n--developer" data-pf-entry="node" data-pf-for="developer">
+<h4 class="pf-section-title">The developer<span class="pf-legend-role">actor</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="developer" aria-label="Focus The developer">Focus</button></span></h4>
 <p>Runs one command in the repository they want the kit in, and answers what it asks.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1117,8 +1209,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--registry">
-<h4 class="pf-section-title">The npm registry<span class="pf-legend-role">external</span></h4>
+<div class="pf-card" id="s--n--registry" data-pf-entry="node" data-pf-for="registry">
+<h4 class="pf-section-title">The npm registry<span class="pf-legend-role">external</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="registry" aria-label="Focus The npm registry">Focus</button></span></h4>
 <p>Serves the published package. What it contains is decided by the `files` field, not by the repository&#39;s shape.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1127,8 +1219,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--copylist">
-<h4 class="pf-section-title">copy-list.json<span class="pf-legend-role">store</span></h4>
+<div class="pf-card" id="s--n--copylist" data-pf-entry="node" data-pf-for="copylist">
+<h4 class="pf-section-title">copy-list.json<span class="pf-legend-role">store</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="copylist" aria-label="Focus copy-list.json">Focus</button></span></h4>
 <p>The canonical list of what a destination project receives. Changed here and nowhere else.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1137,8 +1229,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--kit">
-<h4 class="pf-section-title">kit.mjs<span class="pf-legend-role">service</span></h4>
+<div class="pf-card" id="s--n--kit" data-pf-entry="node" data-pf-for="kit">
+<h4 class="pf-section-title">kit.mjs<span class="pf-legend-role">service</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="kit" aria-label="Focus kit.mjs">Focus</button></span></h4>
 <p>Reads the copy list, finds the kit root, and decides what must never ship.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1147,8 +1239,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--nevership">
-<h4 class="pf-section-title">neverShips()<span class="pf-legend-role">decision</span></h4>
+<div class="pf-card" id="s--n--nevership" data-pf-entry="node" data-pf-for="nevership">
+<h4 class="pf-section-title">neverShips()<span class="pf-legend-role">decision</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="nevership" aria-label="Focus neverShips()">Focus</button></span></h4>
 <p>The off switch. A path this refuses is kept out of the package and out of every install.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1157,8 +1249,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--gitinit">
-<h4 class="pf-section-title">Repository init<span class="pf-legend-role">job</span></h4>
+<div class="pf-card" id="s--n--gitinit" data-pf-entry="node" data-pf-for="gitinit">
+<h4 class="pf-section-title">Repository init<span class="pf-legend-role">job</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="gitinit" aria-label="Focus Repository init">Focus</button></span></h4>
 <p>Offered when the target is not a repository yet, because the kit assumes version control.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1167,8 +1259,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--target">
-<h4 class="pf-section-title">The project<span class="pf-legend-role">store</span></h4>
+<div class="pf-card" id="s--n--target" data-pf-entry="node" data-pf-for="target">
+<h4 class="pf-section-title">The project<span class="pf-legend-role">store</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="target" aria-label="Focus The project">Focus</button></span></h4>
 <p>The destination working tree. The only thing the run exists to change.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1177,8 +1269,8 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </ul>
 </div>
 </div>
-<div class="pf-card" id="s--n--outcome">
-<h4 class="pf-section-title">The report<span class="pf-legend-role">terminal</span></h4>
+<div class="pf-card" id="s--n--outcome" data-pf-entry="node" data-pf-for="outcome">
+<h4 class="pf-section-title">The report<span class="pf-legend-role">terminal</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="outcome" aria-label="Focus The report">Focus</button></span></h4>
 <p>What was written, what was skipped, and what the human should do next.</p>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1191,181 +1283,181 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </section>
 <h2 class="pf-module-title">Relationships</h2><section class="pf-section" id="s--relationships">
 <div class="pf-card">
-<ul class="pf-legend"><li id="s--e--e-invoke"><span class="pf-step-title">The developer</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">The npm registry</span><p class="pf-step-detail">npx</p><div class="pf-evidence">
+<ul class="pf-legend"><li id="s--e--e-invoke" data-pf-entry="edge" data-pf-for="e-invoke"><span class="pf-step-title">The developer</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">The npm registry</span><p class="pf-step-detail">npx</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/package.json</span><span class="pf-cite-lines">lines 27–29</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-serve"><span class="pf-step-title">The npm registry</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">create-pathfinder</span><p class="pf-step-detail">runs the bin</p><div class="pf-evidence">
+<li id="s--e--e-serve" data-pf-entry="edge" data-pf-for="e-serve"><span class="pf-step-title">The npm registry</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">create-pathfinder</span><p class="pf-step-detail">runs the bin</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/package.json</span><span class="pf-cite-lines">lines 27–29</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-handoff"><span class="pf-step-title">create-pathfinder</span> <span class="pf-relation">calls</span> <span class="pf-step-title">run()</span><p class="pf-step-detail">run(argv)</p><div class="pf-evidence">
+<li id="s--e--e-handoff" data-pf-entry="edge" data-pf-for="e-handoff"><span class="pf-step-title">create-pathfinder</span> <span class="pf-relation">calls</span> <span class="pf-step-title">run()</span><p class="pf-step-detail">run(argv)</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/bin/create-pathfinder.mjs</span><span class="pf-cite-lines">lines 44–48</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-prompter"><span class="pf-step-title">create-pathfinder</span> <span class="pf-relation">depends on</span> <span class="pf-step-title">Prompter</span><p class="pf-step-detail">builds</p><div class="pf-evidence">
+<li id="s--e--e-prompter" data-pf-entry="edge" data-pf-for="e-prompter"><span class="pf-step-title">create-pathfinder</span> <span class="pf-relation">depends on</span> <span class="pf-step-title">Prompter</span><p class="pf-step-detail">builds</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/bin/create-pathfinder.mjs</span><span class="pf-cite-lines">lines 1–10</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-theme"><span class="pf-step-title">create-pathfinder</span> <span class="pf-relation">depends on</span> <span class="pf-step-title">Theme</span><p class="pf-step-detail">builds</p><div class="pf-evidence">
+<li id="s--e--e-theme" data-pf-entry="edge" data-pf-for="e-theme"><span class="pf-step-title">create-pathfinder</span> <span class="pf-relation">depends on</span> <span class="pf-step-title">Theme</span><p class="pf-step-detail">builds</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/bin/create-pathfinder.mjs</span><span class="pf-cite-lines">lines 1–10</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-ask"><span class="pf-step-title">run()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Prompter</span><p class="pf-step-detail">asks</p><div class="pf-evidence">
+<li id="s--e--e-ask" data-pf-entry="edge" data-pf-for="e-ask"><span class="pf-step-title">run()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Prompter</span><p class="pf-step-detail">asks</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/cli.mjs</span><span class="pf-cite-lines">lines 20–21</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-answer"><span class="pf-step-title">Prompter</span> <span class="pf-relation">calls</span> <span class="pf-step-title">The developer</span><p class="pf-step-detail">questions</p><div class="pf-evidence">
+<li id="s--e--e-answer" data-pf-entry="edge" data-pf-for="e-answer"><span class="pf-step-title">Prompter</span> <span class="pf-relation">calls</span> <span class="pf-step-title">The developer</span><p class="pf-step-detail">questions</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/prompt.mjs</span><span class="pf-cite-lines">lines 74–80</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-detect"><span class="pf-step-title">run()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Tool detection</span><p class="pf-step-detail">finds tools</p><div class="pf-evidence">
+<li id="s--e--e-detect" data-pf-entry="edge" data-pf-for="e-detect"><span class="pf-step-title">run()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Tool detection</span><p class="pf-step-detail">finds tools</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/cli.mjs</span><span class="pf-cite-lines">lines 18–18</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-harnesses"><span class="pf-step-title">Tool detection</span> <span class="pf-relation">reads</span> <span class="pf-step-title">Harness registry</span><p class="pf-step-detail">known harnesses</p><div class="pf-evidence">
+<li id="s--e--e-harnesses" data-pf-entry="edge" data-pf-for="e-harnesses"><span class="pf-step-title">Tool detection</span> <span class="pf-relation">reads</span> <span class="pf-step-title">Harness registry</span><p class="pf-step-detail">known harnesses</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/harnesses/index.mjs</span><span class="pf-cite-lines">lines 127–135</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-kit"><span class="pf-step-title">run()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">kit.mjs</span><p class="pf-step-detail">locates the kit</p><div class="pf-evidence">
+<li id="s--e--e-kit" data-pf-entry="edge" data-pf-for="e-kit"><span class="pf-step-title">run()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">kit.mjs</span><p class="pf-step-detail">locates the kit</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/cli.mjs</span><span class="pf-cite-lines">lines 9–9</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-copylist"><span class="pf-step-title">kit.mjs</span> <span class="pf-relation">reads</span> <span class="pf-step-title">copy-list.json</span><p class="pf-step-detail">at runtime</p><div class="pf-evidence">
+<li id="s--e--e-copylist" data-pf-entry="edge" data-pf-for="e-copylist"><span class="pf-step-title">kit.mjs</span> <span class="pf-relation">reads</span> <span class="pf-step-title">copy-list.json</span><p class="pf-step-detail">at runtime</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 32–40</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-guarded"><span class="pf-step-title">kit.mjs</span> <span class="pf-relation">depends on</span> <span class="pf-step-title">neverShips()</span><p class="pf-step-detail">exclusion</p><div class="pf-evidence">
+<li id="s--e--e-guarded" data-pf-entry="edge" data-pf-for="e-guarded"><span class="pf-step-title">kit.mjs</span> <span class="pf-relation">depends on</span> <span class="pf-step-title">neverShips()</span><p class="pf-step-detail">exclusion</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 114–130</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-plan"><span class="pf-step-title">run()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">planInstall()</span><p class="pf-step-detail">plans the copy</p><div class="pf-evidence">
+<li id="s--e--e-plan" data-pf-entry="edge" data-pf-for="e-plan"><span class="pf-step-title">run()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">planInstall()</span><p class="pf-step-detail">plans the copy</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 57–62</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-planreads"><span class="pf-step-title">planInstall()</span> <span class="pf-relation">reads</span> <span class="pf-step-title">kit.mjs</span><p class="pf-step-detail">copy list</p><div class="pf-evidence">
+<li id="s--e--e-planreads" data-pf-entry="edge" data-pf-for="e-planreads"><span class="pf-step-title">planInstall()</span> <span class="pf-relation">reads</span> <span class="pf-step-title">kit.mjs</span><p class="pf-step-detail">copy list</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 28–28</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-planfilters"><span class="pf-step-title">planInstall()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">neverShips()</span><p class="pf-step-detail">excludes</p><div class="pf-evidence">
+<li id="s--e--e-planfilters" data-pf-entry="edge" data-pf-for="e-planfilters"><span class="pf-step-title">planInstall()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">neverShips()</span><p class="pf-step-detail">excludes</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 28–28</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-apply"><span class="pf-step-title">planInstall()</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">applyPlan()</span><p class="pf-step-detail">once accepted</p><div class="pf-evidence">
+<li id="s--e--e-apply" data-pf-entry="edge" data-pf-for="e-apply"><span class="pf-step-title">planInstall()</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">applyPlan()</span><p class="pf-step-detail">once accepted</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 104–110</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-write"><span class="pf-step-title">applyPlan()</span> <span class="pf-relation">writes</span> <span class="pf-step-title">The project</span><p class="pf-step-detail">the kit</p><div class="pf-evidence">
+<li id="s--e--e-write" data-pf-entry="edge" data-pf-for="e-write"><span class="pf-step-title">applyPlan()</span> <span class="pf-relation">writes</span> <span class="pf-step-title">The project</span><p class="pf-step-detail">the kit</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 104–110</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-adapters"><span class="pf-step-title">run()</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Adapter generation</span><p class="pf-step-detail">if opted in</p><div class="pf-evidence">
+<li id="s--e--e-adapters" data-pf-entry="edge" data-pf-for="e-adapters"><span class="pf-step-title">run()</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Adapter generation</span><p class="pf-step-detail">if opted in</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 153–160</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-adapterswrite"><span class="pf-step-title">Adapter generation</span> <span class="pf-relation">writes</span> <span class="pf-step-title">The project</span><p class="pf-step-detail">adapters</p><div class="pf-evidence">
+<li id="s--e--e-adapterswrite" data-pf-entry="edge" data-pf-for="e-adapterswrite"><span class="pf-step-title">Adapter generation</span> <span class="pf-relation">writes</span> <span class="pf-step-title">The project</span><p class="pf-step-detail">adapters</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 255–262</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-adapterharness"><span class="pf-step-title">Adapter generation</span> <span class="pf-relation">reads</span> <span class="pf-step-title">Harness registry</span><p class="pf-step-detail">skills dir</p><div class="pf-evidence">
+<li id="s--e--e-adapterharness" data-pf-entry="edge" data-pf-for="e-adapterharness"><span class="pf-step-title">Adapter generation</span> <span class="pf-relation">reads</span> <span class="pf-step-title">Harness registry</span><p class="pf-step-detail">skills dir</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/harnesses/adapter.mjs</span><span class="pf-cite-lines">lines 94–100</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-hooks"><span class="pf-step-title">run()</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Hook installation</span><p class="pf-step-detail">if opted in</p><div class="pf-evidence">
+<li id="s--e--e-hooks" data-pf-entry="edge" data-pf-for="e-hooks"><span class="pf-step-title">run()</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Hook installation</span><p class="pf-step-detail">if opted in</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 321–328</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-hookswrite"><span class="pf-step-title">Hook installation</span> <span class="pf-relation">writes</span> <span class="pf-step-title">The project</span><p class="pf-step-detail">hook config</p><div class="pf-evidence">
+<li id="s--e--e-hookswrite" data-pf-entry="edge" data-pf-for="e-hookswrite"><span class="pf-step-title">Hook installation</span> <span class="pf-relation">writes</span> <span class="pf-step-title">The project</span><p class="pf-step-detail">hook config</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/harnesses/hook.mjs</span><span class="pf-cite-lines">lines 57–64</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-gitinit"><span class="pf-step-title">run()</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Repository init</span><p class="pf-step-detail">if offered</p><div class="pf-evidence">
+<li id="s--e--e-gitinit" data-pf-entry="edge" data-pf-for="e-gitinit"><span class="pf-step-title">run()</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Repository init</span><p class="pf-step-detail">if offered</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/cli.mjs</span><span class="pf-cite-lines">lines 19–19</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-gitwrite"><span class="pf-step-title">Repository init</span> <span class="pf-relation">writes</span> <span class="pf-step-title">The project</span><p class="pf-step-detail">git init</p><div class="pf-evidence">
+<li id="s--e--e-gitwrite" data-pf-entry="edge" data-pf-for="e-gitwrite"><span class="pf-step-title">Repository init</span> <span class="pf-relation">writes</span> <span class="pf-step-title">The project</span><p class="pf-step-detail">git init</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/git.mjs</span><span class="pf-cite-lines">lines 34–40</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-report"><span class="pf-step-title">run()</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">The report</span><p class="pf-step-detail">summarises</p><div class="pf-evidence">
+<li id="s--e--e-report" data-pf-entry="edge" data-pf-for="e-report"><span class="pf-step-title">run()</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">The report</span><p class="pf-step-detail">summarises</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/cli.mjs</span><span class="pf-cite-lines">lines 26–26</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-told"><span class="pf-step-title">The report</span> <span class="pf-relation">calls</span> <span class="pf-step-title">The developer</span><p class="pf-step-detail">what happened</p><div class="pf-evidence">
+<li id="s--e--e-told" data-pf-entry="edge" data-pf-for="e-told"><span class="pf-step-title">The report</span> <span class="pf-relation">calls</span> <span class="pf-step-title">The developer</span><p class="pf-step-detail">what happened</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/outcome.mjs</span><span class="pf-cite-lines">lines 49–56</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-stage"><span class="pf-step-title">stage-kit.mjs</span> <span class="pf-relation">reads</span> <span class="pf-step-title">copy-list.json</span><p class="pf-step-detail">what to stage</p><div class="pf-evidence">
+<li id="s--e--e-stage" data-pf-entry="edge" data-pf-for="e-stage"><span class="pf-step-title">stage-kit.mjs</span> <span class="pf-relation">reads</span> <span class="pf-step-title">copy-list.json</span><p class="pf-step-detail">what to stage</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/scripts/stage-kit.mjs</span><span class="pf-cite-lines">lines 25–32</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-stagenevership"><span class="pf-step-title">stage-kit.mjs</span> <span class="pf-relation">calls</span> <span class="pf-step-title">neverShips()</span><p class="pf-step-detail">excludes</p><div class="pf-evidence">
+<li id="s--e--e-stagenevership" data-pf-entry="edge" data-pf-for="e-stagenevership"><span class="pf-step-title">stage-kit.mjs</span> <span class="pf-relation">calls</span> <span class="pf-step-title">neverShips()</span><p class="pf-step-detail">excludes</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 114–130</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-prepack"><span class="pf-step-title">stage-kit.mjs</span> <span class="pf-relation">publishes to</span> <span class="pf-step-title">The npm registry</span><p class="pf-step-detail">package contents</p><div class="pf-evidence">
+<li id="s--e--e-prepack" data-pf-entry="edge" data-pf-for="e-prepack"><span class="pf-step-title">stage-kit.mjs</span> <span class="pf-relation">publishes to</span> <span class="pf-step-title">The npm registry</span><p class="pf-step-detail">package contents</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/package.json</span><span class="pf-cite-lines">lines 41–48</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-guard"><span class="pf-step-title">publish-guard.mjs</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">The npm registry</span><p class="pf-step-detail">prepublishOnly</p><div class="pf-evidence">
+<li id="s--e--e-guard" data-pf-entry="edge" data-pf-for="e-guard"><span class="pf-step-title">publish-guard.mjs</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">The npm registry</span><p class="pf-step-detail">prepublishOnly</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">packages/create-pathfinder/package.json</span><span class="pf-cite-lines">lines 47–47</span></li>
@@ -1373,7 +1465,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div></li></ul>
 </div>
 </section>
-<h2 class="pf-module-title">Paths</h2><section class="pf-section" id="s--p--install">
+<h2 class="pf-module-title">Paths</h2><section class="pf-section" id="s--p--install" data-pf-entry="path" data-pf-for="install">
 <h3 class="pf-section-title">A first install</h3>
 <div class="pf-card">
 <p class="pf-module-summary">Six steps from one typed command to a changed working tree, and the human is asked before any of it is written.</p>
@@ -1390,9 +1482,10 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li><span class="pf-cite-path">packages/create-pathfinder/src/cli.mjs</span><span class="pf-cite-lines">lines 81–90</span></li>
 </ul>
 </div>
+<div class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-act="path" data-pf-path="install" aria-label="Highlight A first install">Highlight</button></div>
 </div>
 </section>
-<section class="pf-section" id="s--p--offswitch">
+<section class="pf-section" id="s--p--offswitch" data-pf-entry="path" data-pf-for="offswitch">
 <h3 class="pf-section-title">The off switch</h3>
 <div class="pf-card">
 <p class="pf-module-summary">Two callers ask the same question — the installer at install time and the staging script at pack time — which is why a file kept out of one is kept out of both.</p>
@@ -1405,15 +1498,17 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 114–130</span></li>
 </ul>
 </div>
+<div class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-act="path" data-pf-path="offswitch" aria-label="Highlight The off switch">Highlight</button></div>
 </div>
 </section>
-<section class="pf-section" id="s--p--publish">
+<section class="pf-section" id="s--p--publish" data-pf-entry="path" data-pf-for="publish">
 <h3 class="pf-section-title">Packed, then run</h3>
 <div class="pf-card">
 <div class="pf-kicker">Walks</div>
 <ol class="pf-walk"><li>stage-kit.mjs <span class="pf-relation">publishes to</span> The npm registry — package contents</li>
 <li>The npm registry <span class="pf-relation">triggers</span> create-pathfinder — runs the bin</li>
 <li>create-pathfinder <span class="pf-relation">calls</span> run() — run(argv)</li></ol>
+<div class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-act="path" data-pf-path="publish" aria-label="Highlight Packed, then run">Highlight</button></div>
 </div>
 </section>
 <h2 class="pf-module-title">Views</h2><section class="pf-section" id="s--v--writes">
@@ -1446,7 +1541,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <dt>Commit</dt>
 <dd>3d083a9</dd>
 <dt>Renderer</dt>
-<dd>Pathfinder render-artifact 0.4.0</dd>
+<dd>Pathfinder render-artifact 0.5.0</dd>
 </dl>
 <p class="pf-caveat">This diagram was checked deterministically against the commit named here: its specification satisfied the schema, its identifiers, references and graphs resolved, and every component, relationship and claim in it carried a citation that was verified at that commit. What that establishes is that the cited material is there to be read. It is not a finding that the architecture drawn here is correct, complete, or the best reading of that material, and it is not a judgement that the page reads well — a person has to open it to know either.</p>
 </footer>
@@ -1559,6 +1654,364 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
     var reveal = question.querySelector(".pf-reveal");
     if (reveal) reveal.open = true;
   });
+})();
+(function () {
+  "use strict";
+
+  var model = {"nodes":["developer","registry","bin","cli","prompter","theme","detect","harnesses","copylist","kit","nevership","plan","apply","adapters","hooks","gitinit","target","outcome","stage","guard"],"labels":{"developer":"The developer","registry":"The npm registry","bin":"create-pathfinder","cli":"run()","prompter":"Prompter","theme":"Theme","detect":"Tool detection","harnesses":"Harness registry","copylist":"copy-list.json","kit":"kit.mjs","nevership":"neverShips()","plan":"planInstall()","apply":"applyPlan()","adapters":"Adapter generation","hooks":"Hook installation","gitinit":"Repository init","target":"The project","outcome":"The report","stage":"stage-kit.mjs","guard":"publish-guard.mjs"},"out":{"developer":[["e-invoke","registry"]],"registry":[["e-serve","bin"]],"bin":[["e-handoff","cli"],["e-prompter","prompter"],["e-theme","theme"]],"cli":[["e-ask","prompter"],["e-detect","detect"],["e-kit","kit"],["e-plan","plan"],["e-adapters","adapters"],["e-hooks","hooks"],["e-gitinit","gitinit"],["e-report","outcome"]],"prompter":[["e-answer","developer"]],"theme":[],"detect":[["e-harnesses","harnesses"]],"harnesses":[],"copylist":[],"kit":[["e-copylist","copylist"],["e-guarded","nevership"]],"nevership":[],"plan":[["e-planreads","kit"],["e-planfilters","nevership"],["e-apply","apply"]],"apply":[["e-write","target"]],"adapters":[["e-adapterswrite","target"],["e-adapterharness","harnesses"]],"hooks":[["e-hookswrite","target"]],"gitinit":[["e-gitwrite","target"]],"target":[],"outcome":[["e-told","developer"]],"stage":[["e-stage","copylist"],["e-stagenevership","nevership"],["e-prepack","registry"]],"guard":[["e-guard","registry"]]},"in":{"developer":[["e-answer","prompter"],["e-told","outcome"]],"registry":[["e-invoke","developer"],["e-prepack","stage"],["e-guard","guard"]],"bin":[["e-serve","registry"]],"cli":[["e-handoff","bin"]],"prompter":[["e-prompter","bin"],["e-ask","cli"]],"theme":[["e-theme","bin"]],"detect":[["e-detect","cli"]],"harnesses":[["e-harnesses","detect"],["e-adapterharness","adapters"]],"copylist":[["e-copylist","kit"],["e-stage","stage"]],"kit":[["e-kit","cli"],["e-planreads","plan"]],"nevership":[["e-guarded","kit"],["e-planfilters","plan"],["e-stagenevership","stage"]],"plan":[["e-plan","cli"]],"apply":[["e-apply","plan"]],"adapters":[["e-adapters","cli"]],"hooks":[["e-hooks","cli"]],"gitinit":[["e-gitinit","cli"]],"target":[["e-write","apply"],["e-adapterswrite","adapters"],["e-hookswrite","hooks"],["e-gitwrite","gitinit"]],"outcome":[["e-report","cli"]],"stage":[],"guard":[]},"edges":{"e-invoke":["developer","registry"],"e-serve":["registry","bin"],"e-handoff":["bin","cli"],"e-prompter":["bin","prompter"],"e-theme":["bin","theme"],"e-ask":["cli","prompter"],"e-answer":["prompter","developer"],"e-detect":["cli","detect"],"e-harnesses":["detect","harnesses"],"e-kit":["cli","kit"],"e-copylist":["kit","copylist"],"e-guarded":["kit","nevership"],"e-plan":["cli","plan"],"e-planreads":["plan","kit"],"e-planfilters":["plan","nevership"],"e-apply":["plan","apply"],"e-write":["apply","target"],"e-adapters":["cli","adapters"],"e-adapterswrite":["adapters","target"],"e-adapterharness":["adapters","harnesses"],"e-hooks":["cli","hooks"],"e-hookswrite":["hooks","target"],"e-gitinit":["cli","gitinit"],"e-gitwrite":["gitinit","target"],"e-report":["cli","outcome"],"e-told":["outcome","developer"],"e-stage":["stage","copylist"],"e-stagenevership":["stage","nevership"],"e-prepack":["stage","registry"],"e-guard":["guard","registry"]},"paths":{"install":["e-invoke","e-serve","e-handoff","e-plan","e-apply","e-write"],"offswitch":["e-plan","e-planfilters"],"publish":["e-prepack","e-serve","e-handoff"]}};
+
+  function pfTraverse(model, start, direction) {
+  var adjacency = direction === "in" ? model["in"] : model.out;
+  if (!adjacency || !adjacency[start]) return { nodes: [start], edges: [] };
+
+  var seenNodes = Object.create(null);
+  var seenEdges = Object.create(null);
+  var nodes = [];
+  var edges = [];
+  var queue = [start];
+
+  seenNodes[start] = true;
+  nodes.push(start);
+
+  while (queue.length > 0) {
+    var current = queue.shift();
+    var next = adjacency[current] || [];
+
+    for (var i = 0; i < next.length; i += 1) {
+      var edgeId = next[i][0];
+      var neighbour = next[i][1];
+
+      /* Every edge crossed is recorded, including one that leads somewhere
+         already reached. Two edges joining one pair are two claims, and a
+         traversal that kept only the first would highlight the wrong one. */
+      if (!seenEdges[edgeId]) {
+        seenEdges[edgeId] = true;
+        edges.push(edgeId);
+      }
+
+      /* A node already reached is never queued again. This single guard is
+         what terminates a cycle and what stops a self-edge looping. */
+      if (!seenNodes[neighbour]) {
+        seenNodes[neighbour] = true;
+        nodes.push(neighbour);
+        queue.push(neighbour);
+      }
+    }
+  }
+
+  return { nodes: nodes, edges: edges };
+}
+
+  var canvas = document.querySelector("[data-pf-canvas]");
+  var svg = canvas ? canvas.querySelector("[data-pf-graph]") : null;
+  if (!canvas || !svg) return;
+
+  var status = document.querySelector("[data-pf-status]");
+
+  function all(selector) {
+    return Array.prototype.slice.call(document.querySelectorAll(selector));
+  }
+
+  /* The canvas is a picture to assistive technology, so the interactive
+     surface is the toolbar and the written reading below it — real buttons,
+     in document order, carrying the stylesheet's existing focus ring. Every
+     one of them is revealed here rather than shipped visible, because a
+     control that cannot work should not be offered: with scripting off a
+     reader meets no dead buttons and loses nothing they could have read. */
+  all("[data-pf-controls]").forEach(function (group) { group.hidden = false; });
+
+  var viewBox = svg.getAttribute("viewBox").split(" ");
+  var BASE = { w: Number(viewBox[2]), h: Number(viewBox[3]) };
+  var MAX_ZOOM = 6;
+
+  var view = { zoom: 1, x: 0, y: 0 };
+  var state = { focus: null, trace: null, path: null };
+
+  var nodeGroups = all("[data-pf-node]");
+  var edgeGroups = all("[data-pf-edge]");
+  var entries = all("[data-pf-entry]");
+
+  /* ---- the view: zoom and pan, clamped to the graph's own bounds ---- */
+
+  function paint() {
+    var w = Math.max(1, Math.floor(BASE.w / view.zoom));
+    var h = Math.max(1, Math.floor(BASE.h / view.zoom));
+
+    /* Clamped to the content, so panning can never wander off into empty
+       space and "fit" is always the way back. */
+    view.x = Math.min(Math.max(view.x, 0), Math.max(0, BASE.w - w));
+    view.y = Math.min(Math.max(view.y, 0), Math.max(0, BASE.h - h));
+
+    svg.setAttribute("viewBox", view.x + " " + view.y + " " + w + " " + h);
+    canvas.setAttribute("data-pf-zoom", view.zoom === 1 ? "fit" : "in");
+  }
+
+  function zoomBy(factor) {
+    var before = { w: BASE.w / view.zoom, h: BASE.h / view.zoom };
+    var next = Math.min(Math.max(view.zoom * factor, 1), MAX_ZOOM);
+    if (next === view.zoom) return;
+
+    var after = { w: BASE.w / next, h: BASE.h / next };
+    /* Keep whatever is in the middle of the view in the middle of it. */
+    view.x = view.x + Math.floor((before.w - after.w) / 2);
+    view.y = view.y + Math.floor((before.h - after.h) / 2);
+    view.zoom = next;
+    paint();
+  }
+
+  function fit() {
+    view.zoom = 1;
+    view.x = 0;
+    view.y = 0;
+    paint();
+  }
+
+  function panBy(dx, dy) {
+    view.x = view.x + dx;
+    view.y = view.y + dy;
+    paint();
+  }
+
+  /* ---- the selection: focus, traversal, path ---- */
+
+  function endpointsOf(edgeId) {
+    return model.edges[edgeId] || null;
+  }
+
+  function selection() {
+    var nodes = Object.create(null);
+    var near = Object.create(null);
+    var edges = Object.create(null);
+    var mode = "";
+
+    if (state.path && model.paths[state.path]) {
+      /* Exactly the edges the producer authored, addressed by id. Two edges
+         joining one pair are two different claims, and only the one named by
+         the path is lit. */
+      mode = "path";
+      var walked = model.paths[state.path];
+      for (var i = 0; i < walked.length; i += 1) {
+        edges[walked[i]] = true;
+        var ends = endpointsOf(walked[i]);
+        if (ends) { near[ends[0]] = true; near[ends[1]] = true; }
+      }
+    } else if (state.focus && state.trace) {
+      mode = "trace";
+      var reached = pfTraverse(model, state.focus, state.trace);
+      for (var n = 0; n < reached.nodes.length; n += 1) nodes[reached.nodes[n]] = true;
+      for (var e = 0; e < reached.edges.length; e += 1) edges[reached.edges[e]] = true;
+    } else if (state.focus) {
+      mode = "focus";
+      nodes[state.focus] = true;
+      var sides = [model.out[state.focus] || [], model["in"][state.focus] || []];
+      for (var s = 0; s < sides.length; s += 1) {
+        for (var k = 0; k < sides[s].length; k += 1) {
+          edges[sides[s][k][0]] = true;
+          near[sides[s][k][1]] = true;
+        }
+      }
+    }
+
+    return { mode: mode, nodes: nodes, near: near, edges: edges };
+  }
+
+  function describe(picked) {
+    if (picked.mode === "path") {
+      return "Path: " + count(model.paths[state.path].length, "relationship") + ", exactly as authored.";
+    }
+    if (picked.mode === "trace") {
+      var word = state.trace === "in" ? "Upstream of " : "Downstream of ";
+      return word + label(state.focus) + ": " +
+        count(countOf(picked.nodes) - 1, "component") + " reached, " +
+        count(countOf(picked.edges), "relationship") + " crossed.";
+    }
+    if (picked.mode === "focus") {
+      return "Focused: " + label(state.focus) + ". " +
+        count(countOf(picked.edges), "direct relationship") + ".";
+    }
+    return "Nothing selected. Choose a component to focus it.";
+  }
+
+  function label(id) {
+    return model.labels[id] || id;
+  }
+
+  function count(n, noun) {
+    return n + " " + noun + (n === 1 ? "" : "s");
+  }
+
+  function countOf(set) {
+    return Object.keys(set).length;
+  }
+
+  function mark(elements, attribute, picked) {
+    for (var i = 0; i < elements.length; i += 1) {
+      var element = elements[i];
+      var id = element.getAttribute(attribute);
+      if (picked.mode === "") {
+        element.removeAttribute("data-pf-state");
+        continue;
+      }
+      var value = picked.nodes[id] ? "on"
+        : picked.edges[id] ? "on"
+        : picked.near[id] ? "near"
+        : "off";
+      element.setAttribute("data-pf-state", value);
+    }
+  }
+
+  function apply() {
+    var picked = selection();
+
+    canvas.setAttribute("data-pf-mode", picked.mode);
+    mark(nodeGroups, "data-pf-node", picked);
+    mark(edgeGroups, "data-pf-edge", picked);
+
+    /* The written reading is where the details and the evidence live. Marking
+       the selected entry current is the whole of the details interaction: the
+       reader is sent to the evidence already in the document rather than
+       shown a second copy of it. */
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i];
+      var kind = entry.getAttribute("data-pf-entry");
+      var forId = entry.getAttribute("data-pf-for");
+      var isCurrent = (kind === "node" && forId === state.focus)
+        || (kind === "path" && forId === state.path);
+      if (isCurrent) {
+        entry.setAttribute("aria-current", "true");
+      } else {
+        entry.removeAttribute("aria-current");
+      }
+    }
+
+    if (status) status.textContent = describe(picked);
+
+    act("upstream", !state.focus);
+    act("downstream", !state.focus);
+    act("details", !state.focus);
+    act("clear", picked.mode === "");
+  }
+
+  function act(name, isDisabled) {
+    var button = document.querySelector('[data-pf-act="' + name + '"]');
+    if (button) button.disabled = Boolean(isDisabled);
+  }
+
+  function focusNode(id, options) {
+    if (!model.labels[id]) return;
+    state.focus = id;
+    state.trace = null;
+    state.path = null;
+    apply();
+    if (options && options.reveal) reveal(id);
+  }
+
+  function reveal(id) {
+    var entry = document.querySelector('[data-pf-entry="node"][data-pf-for="' + id + '"]');
+    if (!entry) return;
+    var open = entry.closest ? entry.closest("details") : null;
+    if (open) open.open = true;
+    if (entry.scrollIntoView) entry.scrollIntoView({ block: "nearest" });
+  }
+
+  function clear() {
+    state.focus = null;
+    state.trace = null;
+    state.path = null;
+    apply();
+    if (status) status.textContent = "Selection cleared.";
+  }
+
+  /* ---- wiring ---- */
+
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    if (!target || !target.closest) return;
+
+    var control = target.closest("[data-pf-act]");
+    if (control && !control.disabled) {
+      var action = control.getAttribute("data-pf-act");
+      if (action === "zoom-in") zoomBy(1.5);
+      else if (action === "zoom-out") zoomBy(1 / 1.5);
+      else if (action === "fit") fit();
+      else if (action === "reset") { fit(); clear(); }
+      else if (action === "upstream") { state.trace = "in"; state.path = null; apply(); }
+      else if (action === "downstream") { state.trace = "out"; state.path = null; apply(); }
+      else if (action === "details") reveal(state.focus);
+      else if (action === "clear") clear();
+      else if (action === "path") {
+        state.path = control.getAttribute("data-pf-path");
+        state.focus = null;
+        state.trace = null;
+        apply();
+      }
+      return;
+    }
+
+    /* A written entry's own button: the keyboard route into focus. */
+    var pick = target.closest("[data-pf-pick]");
+    if (pick) {
+      focusNode(pick.getAttribute("data-pf-pick"), { reveal: false });
+      return;
+    }
+
+    /* A node in the picture: the pointer route. Keyboard readers reach the
+       same state through the entry buttons above, which is why nothing in
+       the canvas is a tab stop. */
+    var drawn = target.closest("[data-pf-node]");
+    if (drawn) focusNode(drawn.getAttribute("data-pf-node"), { reveal: true });
+  });
+
+  /* Drag to pan. Pixels become user units through the element's rendered
+     width, which is a reading of the reader's window and not of anything
+     that decided the artifact's bytes. */
+  var dragging = null;
+  svg.addEventListener("pointerdown", function (event) {
+    if (view.zoom === 1) return;
+    dragging = { x: event.clientX, y: event.clientY };
+    canvas.setAttribute("data-pf-dragging", "true");
+    if (svg.setPointerCapture) svg.setPointerCapture(event.pointerId);
+  });
+  svg.addEventListener("pointermove", function (event) {
+    if (!dragging) return;
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var scaleX = (BASE.w / view.zoom) / rect.width;
+    var scaleY = (BASE.h / view.zoom) / rect.height;
+    panBy(
+      Math.floor((dragging.x - event.clientX) * scaleX),
+      Math.floor((dragging.y - event.clientY) * scaleY));
+    dragging = { x: event.clientX, y: event.clientY };
+  });
+  function endDrag() {
+    dragging = null;
+    canvas.removeAttribute("data-pf-dragging");
+  }
+  svg.addEventListener("pointerup", endDrag);
+  svg.addEventListener("pointercancel", endDrag);
+
+  /* Keyboard panning, on the canvas itself, which is a tab stop for exactly
+     this reason. Escape clears from anywhere. */
+  canvas.addEventListener("keydown", function (event) {
+    var step = Math.max(16, Math.floor(BASE.w / view.zoom / 8));
+    var moved = true;
+    if (event.key === "ArrowLeft") panBy(-step, 0);
+    else if (event.key === "ArrowRight") panBy(step, 0);
+    else if (event.key === "ArrowUp") panBy(0, -step);
+    else if (event.key === "ArrowDown") panBy(0, step);
+    else if (event.key === "+" || event.key === "=") zoomBy(1.5);
+    else if (event.key === "-") zoomBy(1 / 1.5);
+    else if (event.key === "0") fit();
+    else moved = false;
+    if (moved) event.preventDefault();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") clear();
+  });
+
+  paint();
+  apply();
 })();</script>
 </body>
 </html>

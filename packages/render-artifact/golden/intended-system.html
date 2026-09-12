@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>An intended order pipeline</title>
 <meta name="description" content="There is no code for any of this and no repository to point at, so this specification declares no source and carries no citation. That is a legal and complete artifact: the diagram describes something intended rather than something that runs, and the engine reports its evidence layer as not run rather than as passed.">
-<meta name="generator" content="Pathfinder render-artifact 0.4.0">
+<meta name="generator" content="Pathfinder render-artifact 0.5.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
 <style>:root {
   color-scheme: light;
@@ -639,6 +639,84 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 }
 .pf-edge-on-path .pf-edge-label { fill: var(--pf-link); }
 
+/* ---- the reading controls, and what a selection looks like ----
+
+   Three states, and the distinction is deliberate. "on" is what the reader
+   asked about. "near" is what it touches — still readable, because a component
+   whose neighbours have been greyed out tells you less than one whose
+   neighbours are merely quieter. "off" is the rest of the graph, dimmed rather
+   than removed: the document keeps every fact whatever is selected, and a
+   reader who dislikes the dimming can turn scripting off and read all of it.
+
+   No colour is defined here either. Selection reads through the accent that
+   already carries emphasis, and through opacity, so it works in both themes
+   without a second palette. Opacity alone would be a colour-only signal, so
+   the focused node also thickens its stroke. */
+.pf-graph-tools { margin: var(--pf-space-5) 0 calc(var(--pf-space-3) * -1); }
+.pf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pf-space-2);
+}
+.pf-tool {
+  padding: 4px 10px;
+  background: var(--pf-surface);
+  color: var(--pf-ink);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: var(--pf-radius-sm);
+  font-family: var(--pf-mono);
+  font-size: .78rem;
+  cursor: pointer;
+}
+.pf-tool:hover:not(:disabled) { border-color: var(--pf-accent); color: var(--pf-link); }
+.pf-tool:disabled { opacity: .45; cursor: default; }
+.pf-tool-sep {
+  width: 1px;
+  height: 1.2em;
+  background: var(--pf-line);
+}
+.pf-graph-status {
+  margin: var(--pf-space-2) 0 0;
+  color: var(--pf-muted);
+  font-family: var(--pf-mono);
+  font-size: .78rem;
+}
+.pf-pick { margin-left: var(--pf-space-2); }
+.pf-section-title .pf-pick { float: right; }
+
+.pf-canvas:focus-visible { outline: 3px solid var(--pf-accent); outline-offset: 2px; }
+.pf-canvas[data-pf-zoom="in"] .pf-graph { cursor: grab; }
+.pf-canvas[data-pf-dragging] .pf-graph { cursor: grabbing; }
+
+/* Selection. Keyed off attributes the script sets and nothing else, so the
+   delivered document is identical whether or not a browser ever runs it. */
+.pf-node[data-pf-state="off"],
+.pf-edge[data-pf-state="off"] { opacity: .22; }
+.pf-node[data-pf-state="near"],
+.pf-edge[data-pf-state="near"] { opacity: .75; }
+.pf-node[data-pf-state="on"] .pf-node-box {
+  stroke: var(--pf-accent);
+  stroke-width: 4;
+}
+.pf-edge[data-pf-state="on"] .pf-edge-line {
+  stroke: var(--pf-accent);
+  stroke-width: 3;
+}
+.pf-edge[data-pf-state="on"] .pf-edge-label { fill: var(--pf-link); }
+
+/* The written entry the selection points at. A left rule rather than a fill:
+   the card already has a surface, and stacking another on it would flatten
+   the hierarchy the evidence block sits in. */
+[data-pf-entry][aria-current] {
+  border-left: 3px solid var(--pf-accent);
+  padding-left: var(--pf-space-3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pf-node, .pf-edge { transition: opacity 120ms linear; }
+}
+
 /* The reading list below the canvas: the same facts, as text, for a reader who
    is not looking at a picture. */
 .pf-legend { display: grid; gap: var(--pf-space-4); }
@@ -689,125 +767,139 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <p class="pf-lead-sub">A design with no repository behind it</p>
 <div class="pf-lead-summary"><p>There is no code for any of this and no repository to point at, so this specification declares no source and carries no citation. That is a legal and complete artifact: the diagram describes something intended rather than something that runs, and the engine reports its evidence layer as not run rather than as passed.</p></div>
 </div>
-<div class="pf-canvas"><svg class="pf-graph" viewBox="0 0 1160 896" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
+<div class="pf-graph-tools" data-pf-controls hidden>
+<div class="pf-toolbar" role="toolbar" aria-label="Diagram controls">
+<button type="button" class="pf-tool" data-pf-act="zoom-out">Zoom out</button>
+<button type="button" class="pf-tool" data-pf-act="zoom-in">Zoom in</button>
+<button type="button" class="pf-tool" data-pf-act="fit">Fit</button>
+<button type="button" class="pf-tool" data-pf-act="reset">Reset</button>
+<span class="pf-tool-sep" aria-hidden="true"></span>
+<button type="button" class="pf-tool" data-pf-act="upstream" disabled>Upstream</button>
+<button type="button" class="pf-tool" data-pf-act="downstream" disabled>Downstream</button>
+<button type="button" class="pf-tool" data-pf-act="details" disabled>Go to details</button>
+<button type="button" class="pf-tool" data-pf-act="clear" disabled>Clear</button>
+</div>
+<p class="pf-graph-status" data-pf-status aria-live="polite">Nothing selected. Choose a component to focus it.</p>
+</div>
+<div class="pf-canvas" data-pf-canvas tabindex="0" role="group" aria-label="Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits."><svg class="pf-graph" viewBox="0 0 1160 896" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
 <title id="pf--diagram--title">Diagram</title>
 <defs>
 <marker id="pf-arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" markerUnits="userSpaceOnUse" orient="auto">
 <path d="M 0 0 L 9 4 L 0 8 z" fill="context-stroke"/>
 </marker>
 </defs>
-<g class="pf-group" data-pf-depth="0">
+<g class="pf-group" data-pf-group="edge" data-pf-depth="0">
 <rect class="pf-group-box" id="g--edge" x="304" y="56" width="256" height="316" rx="14"/>
 <text class="pf-group-label" x="328" y="76">At the edge</text>
 </g>
-<g class="pf-group" data-pf-depth="0">
+<g class="pf-group" data-pf-group="core" data-pf-depth="0">
 <rect class="pf-group-box" id="g--core" x="576" y="384" width="528" height="316" rx="14"/>
 <text class="pf-group-label" x="600" y="404">Order handling</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="i-place" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--i-place" points="432,184 432,272" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="432" y="222">places an order</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="i-submit" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--i-submit" points="432,348 432,392 840,392 840,436" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="636" y="386">submits</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="writes" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="i-write" data-pf-relation="writes" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--i-write" points="840,512 840,556 704,556 704,600" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="772" y="550">order state</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="i-charge" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--i-charge" points="840,512 840,556 160,556 160,600" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="500" y="550">charge</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="triggers" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="i-decide" data-pf-relation="triggers" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--i-decide" points="160,676 160,764" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="160" y="714">on failure</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="i-again" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--i-again" points="160,764 160,676" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="160" y="714">retries once</text>
 </g>
-<g class="pf-edge" data-pf-relation="publishes" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="i-publish" data-pf-relation="publishes" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--i-publish" points="840,512 840,556 976,556 976,600" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="908" y="550">order placed</text>
 </g>
-<g class="pf-edge" data-pf-relation="consumes" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="i-consume" data-pf-relation="consumes" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--i-consume" points="160,184 160,392 976,392 976,600" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="568" y="386">order placed</text>
 </g>
-<g class="pf-edge" data-pf-relation="reads" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="i-read" data-pf-relation="reads" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--i-read" points="160,184 160,392 704,392 704,600" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="432" y="386">what to ship</text>
 </g>
-<g class="pf-node" data-pf-role="actor">
+<g class="pf-node" data-pf-node="customer" data-pf-role="actor">
 <rect class="pf-node-box" id="n--customer" x="328" y="108" width="208" height="76" rx="38"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="432" y="139">Customer</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="432" y="172">actor</text>
 </g>
-<g class="pf-node" data-pf-role="interface">
+<g class="pf-node" data-pf-node="storefront" data-pf-role="interface">
 <rect class="pf-node-box" id="n--storefront" x="328" y="272" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="432" y="303">Storefront</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="432" y="336">interface</text>
 </g>
-<g class="pf-node" data-pf-role="service">
+<g class="pf-node" data-pf-node="orders" data-pf-role="service">
 <rect class="pf-node-box" id="n--orders" x="736" y="436" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="840" y="467">Order service</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="840" y="500">service</text>
 </g>
-<g class="pf-node" data-pf-role="store">
+<g class="pf-node" data-pf-node="ledger" data-pf-role="store">
 <rect class="pf-node-box" id="n--ledger" x="600" y="600" width="208" height="76" rx="6"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="704" y="631">Order ledger</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="704" y="664">store</text>
 </g>
-<g class="pf-node" data-pf-role="queue">
+<g class="pf-node" data-pf-node="events" data-pf-role="queue">
 <rect class="pf-node-box" id="n--events" x="872" y="600" width="208" height="76" rx="6"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="976" y="631">order-events</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="976" y="664">queue</text>
 </g>
-<g class="pf-node" data-pf-role="external">
+<g class="pf-node" data-pf-node="payments" data-pf-role="external">
 <rect class="pf-node-box" id="n--payments" x="56" y="600" width="208" height="76" rx="38"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="160" y="631">Payments</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="160" y="664">external</text>
 </g>
-<g class="pf-node" data-pf-role="job">
+<g class="pf-node" data-pf-node="fulfilment" data-pf-role="job">
 <rect class="pf-node-box" id="n--fulfilment" x="56" y="108" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="160" y="139">Fulfilment</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="160" y="172">job</text>
 </g>
-<g class="pf-node" data-pf-role="decision">
+<g class="pf-node" data-pf-node="retry" data-pf-role="decision">
 <rect class="pf-node-box" id="n--retry" x="56" y="764" width="208" height="76" rx="20"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="160" y="795">Retry</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="160" y="828">decision</text>
 </g>
 </svg></div>
-<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--edge">
+<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--edge" data-pf-entry="group" data-pf-for="edge">
 <h3 class="pf-section-title">At the edge</h3>
 <div class="pf-card">
 <p class="pf-module-summary">What a customer would touch. Intended, not built.</p>
-<div class="pf-card" id="s--n--customer">
-<h4 class="pf-section-title">Customer<span class="pf-legend-role">actor</span></h4>
+<div class="pf-card" id="s--n--customer" data-pf-entry="node" data-pf-for="customer">
+<h4 class="pf-section-title">Customer<span class="pf-legend-role">actor</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="customer" aria-label="Focus Customer">Focus</button></span></h4>
 <p>Places an order and expects one confirmation, not three.</p>
 </div>
-<div class="pf-card" id="s--n--storefront">
-<h4 class="pf-section-title">Storefront<span class="pf-legend-role">interface</span></h4>
+<div class="pf-card" id="s--n--storefront" data-pf-entry="node" data-pf-for="storefront">
+<h4 class="pf-section-title">Storefront<span class="pf-legend-role">interface</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="storefront" aria-label="Focus Storefront">Focus</button></span></h4>
 <p>Would accept the order and hand it on without holding it.</p>
 </div>
 </div>
 </section>
-<section class="pf-section" id="s--g--core">
+<section class="pf-section" id="s--g--core" data-pf-entry="group" data-pf-for="core">
 <h3 class="pf-section-title">Order handling</h3>
 <div class="pf-card">
-<div class="pf-card" id="s--n--orders">
-<h4 class="pf-section-title">Order service<span class="pf-legend-role">service</span></h4>
+<div class="pf-card" id="s--n--orders" data-pf-entry="node" data-pf-for="orders">
+<h4 class="pf-section-title">Order service<span class="pf-legend-role">service</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="orders" aria-label="Focus Order service">Focus</button></span></h4>
 <p>Would own the order&#39;s lifecycle and nothing else.</p>
 </div>
-<div class="pf-card" id="s--n--ledger">
-<h4 class="pf-section-title">Order ledger<span class="pf-legend-role">store</span></h4>
+<div class="pf-card" id="s--n--ledger" data-pf-entry="node" data-pf-for="ledger">
+<h4 class="pf-section-title">Order ledger<span class="pf-legend-role">store</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="ledger" aria-label="Focus Order ledger">Focus</button></span></h4>
 <p>Would be the only writer of order state.</p>
 </div>
-<div class="pf-card" id="s--n--events">
-<h4 class="pf-section-title">order-events<span class="pf-legend-role">queue</span></h4>
+<div class="pf-card" id="s--n--events" data-pf-entry="node" data-pf-for="events">
+<h4 class="pf-section-title">order-events<span class="pf-legend-role">queue</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="events" aria-label="Focus order-events">Focus</button></span></h4>
 <p>Would carry what happened, never what should happen next.</p>
 </div>
 </div>
@@ -815,34 +907,34 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <section class="pf-section" id="s--ungrouped">
 <h3 class="pf-section-title">Not in a boundary</h3>
 <div class="pf-card">
-<div class="pf-card" id="s--n--payments">
-<h4 class="pf-section-title">Payments<span class="pf-legend-role">external</span></h4>
+<div class="pf-card" id="s--n--payments" data-pf-entry="node" data-pf-for="payments">
+<h4 class="pf-section-title">Payments<span class="pf-legend-role">external</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="payments" aria-label="Focus Payments">Focus</button></span></h4>
 <p>A third party. Would be called once, idempotently.</p>
 </div>
-<div class="pf-card" id="s--n--fulfilment">
-<h4 class="pf-section-title">Fulfilment<span class="pf-legend-role">job</span></h4>
+<div class="pf-card" id="s--n--fulfilment" data-pf-entry="node" data-pf-for="fulfilment">
+<h4 class="pf-section-title">Fulfilment<span class="pf-legend-role">job</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="fulfilment" aria-label="Focus Fulfilment">Focus</button></span></h4>
 <p>Would consume events rather than being called.</p>
 </div>
-<div class="pf-card" id="s--n--retry">
-<h4 class="pf-section-title">Retry<span class="pf-legend-role">decision</span></h4>
+<div class="pf-card" id="s--n--retry" data-pf-entry="node" data-pf-for="retry">
+<h4 class="pf-section-title">Retry<span class="pf-legend-role">decision</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="retry" aria-label="Focus Retry">Focus</button></span></h4>
 <p>Would decide whether a failed charge is worth another attempt.</p>
 </div>
 </div>
 </section>
 <h2 class="pf-module-title">Relationships</h2><section class="pf-section" id="s--relationships">
 <div class="pf-card">
-<ul class="pf-legend"><li id="s--e--i-place"><span class="pf-step-title">Customer</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Storefront</span><p class="pf-step-detail">places an order</p></li>
-<li id="s--e--i-submit"><span class="pf-step-title">Storefront</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Order service</span><p class="pf-step-detail">submits</p></li>
-<li id="s--e--i-write"><span class="pf-step-title">Order service</span> <span class="pf-relation">writes</span> <span class="pf-step-title">Order ledger</span><p class="pf-step-detail">order state</p></li>
-<li id="s--e--i-charge"><span class="pf-step-title">Order service</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Payments</span><p class="pf-step-detail">charge</p></li>
-<li id="s--e--i-decide"><span class="pf-step-title">Payments</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Retry</span><p class="pf-step-detail">on failure</p></li>
-<li id="s--e--i-again"><span class="pf-step-title">Retry</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Payments</span><p class="pf-step-detail">retries once</p></li>
-<li id="s--e--i-publish"><span class="pf-step-title">Order service</span> <span class="pf-relation">publishes to</span> <span class="pf-step-title">order-events</span><p class="pf-step-detail">order placed</p></li>
-<li id="s--e--i-consume"><span class="pf-step-title">Fulfilment</span> <span class="pf-relation">consumes from</span> <span class="pf-step-title">order-events</span><p class="pf-step-detail">order placed</p></li>
-<li id="s--e--i-read"><span class="pf-step-title">Fulfilment</span> <span class="pf-relation">reads</span> <span class="pf-step-title">Order ledger</span><p class="pf-step-detail">what to ship</p></li></ul>
+<ul class="pf-legend"><li id="s--e--i-place" data-pf-entry="edge" data-pf-for="i-place"><span class="pf-step-title">Customer</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Storefront</span><p class="pf-step-detail">places an order</p></li>
+<li id="s--e--i-submit" data-pf-entry="edge" data-pf-for="i-submit"><span class="pf-step-title">Storefront</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Order service</span><p class="pf-step-detail">submits</p></li>
+<li id="s--e--i-write" data-pf-entry="edge" data-pf-for="i-write"><span class="pf-step-title">Order service</span> <span class="pf-relation">writes</span> <span class="pf-step-title">Order ledger</span><p class="pf-step-detail">order state</p></li>
+<li id="s--e--i-charge" data-pf-entry="edge" data-pf-for="i-charge"><span class="pf-step-title">Order service</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Payments</span><p class="pf-step-detail">charge</p></li>
+<li id="s--e--i-decide" data-pf-entry="edge" data-pf-for="i-decide"><span class="pf-step-title">Payments</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Retry</span><p class="pf-step-detail">on failure</p></li>
+<li id="s--e--i-again" data-pf-entry="edge" data-pf-for="i-again"><span class="pf-step-title">Retry</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Payments</span><p class="pf-step-detail">retries once</p></li>
+<li id="s--e--i-publish" data-pf-entry="edge" data-pf-for="i-publish"><span class="pf-step-title">Order service</span> <span class="pf-relation">publishes to</span> <span class="pf-step-title">order-events</span><p class="pf-step-detail">order placed</p></li>
+<li id="s--e--i-consume" data-pf-entry="edge" data-pf-for="i-consume"><span class="pf-step-title">Fulfilment</span> <span class="pf-relation">consumes from</span> <span class="pf-step-title">order-events</span><p class="pf-step-detail">order placed</p></li>
+<li id="s--e--i-read" data-pf-entry="edge" data-pf-for="i-read"><span class="pf-step-title">Fulfilment</span> <span class="pf-relation">reads</span> <span class="pf-step-title">Order ledger</span><p class="pf-step-detail">what to ship</p></li></ul>
 </div>
 </section>
-<h2 class="pf-module-title">Paths</h2><section class="pf-section" id="s--p--happy">
+<h2 class="pf-module-title">Paths</h2><section class="pf-section" id="s--p--happy" data-pf-entry="path" data-pf-for="happy">
 <h3 class="pf-section-title">The intended happy path</h3>
 <div class="pf-card">
 <p class="pf-module-summary">Three steps, and the order is durable in the ledger before anybody is charged.</p>
@@ -850,9 +942,10 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <ol class="pf-walk"><li>Customer <span class="pf-relation">calls</span> Storefront — places an order</li>
 <li>Storefront <span class="pf-relation">calls</span> Order service — submits</li>
 <li>Order service <span class="pf-relation">writes</span> Order ledger — order state</li></ol>
+<div class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-act="path" data-pf-path="happy" aria-label="Highlight The intended happy path">Highlight</button></div>
 </div>
 </section>
-<section class="pf-section" id="s--p--charge">
+<section class="pf-section" id="s--p--charge" data-pf-entry="path" data-pf-for="charge">
 <h3 class="pf-section-title">Charging, and failing</h3>
 <div class="pf-card">
 <p class="pf-module-summary">The walk returns to the payment provider it just left, which is a cycle and a fact about retries rather than a modelling slip.</p>
@@ -860,6 +953,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <ol class="pf-walk"><li>Order service <span class="pf-relation">calls</span> Payments — charge</li>
 <li>Payments <span class="pf-relation">triggers</span> Retry — on failure</li>
 <li>Retry <span class="pf-relation">calls</span> Payments — retries once</li></ol>
+<div class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-act="path" data-pf-path="charge" aria-label="Highlight Charging, and failing">Highlight</button></div>
 </div>
 </section>
 <h2 class="pf-module-title">Views</h2><section class="pf-section" id="s--v--async">
@@ -875,7 +969,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <footer class="pf-provenance">
 <dl>
 <dt>Renderer</dt>
-<dd>Pathfinder render-artifact 0.4.0</dd>
+<dd>Pathfinder render-artifact 0.5.0</dd>
 </dl>
 <p class="pf-caveat">This diagram describes an intended system. It names no repository and no commit, so it carries no citations and none were checked — there is nothing here that was verified against a source. It is a proposal, and it makes no claim about what currently exists.</p>
 </footer>
@@ -988,6 +1082,364 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
     var reveal = question.querySelector(".pf-reveal");
     if (reveal) reveal.open = true;
   });
+})();
+(function () {
+  "use strict";
+
+  var model = {"nodes":["customer","storefront","orders","ledger","events","payments","fulfilment","retry"],"labels":{"customer":"Customer","storefront":"Storefront","orders":"Order service","ledger":"Order ledger","events":"order-events","payments":"Payments","fulfilment":"Fulfilment","retry":"Retry"},"out":{"customer":[["i-place","storefront"]],"storefront":[["i-submit","orders"]],"orders":[["i-write","ledger"],["i-charge","payments"],["i-publish","events"]],"ledger":[],"events":[],"payments":[["i-decide","retry"]],"fulfilment":[["i-consume","events"],["i-read","ledger"]],"retry":[["i-again","payments"]]},"in":{"customer":[],"storefront":[["i-place","customer"]],"orders":[["i-submit","storefront"]],"ledger":[["i-write","orders"],["i-read","fulfilment"]],"events":[["i-publish","orders"],["i-consume","fulfilment"]],"payments":[["i-charge","orders"],["i-again","retry"]],"fulfilment":[],"retry":[["i-decide","payments"]]},"edges":{"i-place":["customer","storefront"],"i-submit":["storefront","orders"],"i-write":["orders","ledger"],"i-charge":["orders","payments"],"i-decide":["payments","retry"],"i-again":["retry","payments"],"i-publish":["orders","events"],"i-consume":["fulfilment","events"],"i-read":["fulfilment","ledger"]},"paths":{"happy":["i-place","i-submit","i-write"],"charge":["i-charge","i-decide","i-again"]}};
+
+  function pfTraverse(model, start, direction) {
+  var adjacency = direction === "in" ? model["in"] : model.out;
+  if (!adjacency || !adjacency[start]) return { nodes: [start], edges: [] };
+
+  var seenNodes = Object.create(null);
+  var seenEdges = Object.create(null);
+  var nodes = [];
+  var edges = [];
+  var queue = [start];
+
+  seenNodes[start] = true;
+  nodes.push(start);
+
+  while (queue.length > 0) {
+    var current = queue.shift();
+    var next = adjacency[current] || [];
+
+    for (var i = 0; i < next.length; i += 1) {
+      var edgeId = next[i][0];
+      var neighbour = next[i][1];
+
+      /* Every edge crossed is recorded, including one that leads somewhere
+         already reached. Two edges joining one pair are two claims, and a
+         traversal that kept only the first would highlight the wrong one. */
+      if (!seenEdges[edgeId]) {
+        seenEdges[edgeId] = true;
+        edges.push(edgeId);
+      }
+
+      /* A node already reached is never queued again. This single guard is
+         what terminates a cycle and what stops a self-edge looping. */
+      if (!seenNodes[neighbour]) {
+        seenNodes[neighbour] = true;
+        nodes.push(neighbour);
+        queue.push(neighbour);
+      }
+    }
+  }
+
+  return { nodes: nodes, edges: edges };
+}
+
+  var canvas = document.querySelector("[data-pf-canvas]");
+  var svg = canvas ? canvas.querySelector("[data-pf-graph]") : null;
+  if (!canvas || !svg) return;
+
+  var status = document.querySelector("[data-pf-status]");
+
+  function all(selector) {
+    return Array.prototype.slice.call(document.querySelectorAll(selector));
+  }
+
+  /* The canvas is a picture to assistive technology, so the interactive
+     surface is the toolbar and the written reading below it — real buttons,
+     in document order, carrying the stylesheet's existing focus ring. Every
+     one of them is revealed here rather than shipped visible, because a
+     control that cannot work should not be offered: with scripting off a
+     reader meets no dead buttons and loses nothing they could have read. */
+  all("[data-pf-controls]").forEach(function (group) { group.hidden = false; });
+
+  var viewBox = svg.getAttribute("viewBox").split(" ");
+  var BASE = { w: Number(viewBox[2]), h: Number(viewBox[3]) };
+  var MAX_ZOOM = 6;
+
+  var view = { zoom: 1, x: 0, y: 0 };
+  var state = { focus: null, trace: null, path: null };
+
+  var nodeGroups = all("[data-pf-node]");
+  var edgeGroups = all("[data-pf-edge]");
+  var entries = all("[data-pf-entry]");
+
+  /* ---- the view: zoom and pan, clamped to the graph's own bounds ---- */
+
+  function paint() {
+    var w = Math.max(1, Math.floor(BASE.w / view.zoom));
+    var h = Math.max(1, Math.floor(BASE.h / view.zoom));
+
+    /* Clamped to the content, so panning can never wander off into empty
+       space and "fit" is always the way back. */
+    view.x = Math.min(Math.max(view.x, 0), Math.max(0, BASE.w - w));
+    view.y = Math.min(Math.max(view.y, 0), Math.max(0, BASE.h - h));
+
+    svg.setAttribute("viewBox", view.x + " " + view.y + " " + w + " " + h);
+    canvas.setAttribute("data-pf-zoom", view.zoom === 1 ? "fit" : "in");
+  }
+
+  function zoomBy(factor) {
+    var before = { w: BASE.w / view.zoom, h: BASE.h / view.zoom };
+    var next = Math.min(Math.max(view.zoom * factor, 1), MAX_ZOOM);
+    if (next === view.zoom) return;
+
+    var after = { w: BASE.w / next, h: BASE.h / next };
+    /* Keep whatever is in the middle of the view in the middle of it. */
+    view.x = view.x + Math.floor((before.w - after.w) / 2);
+    view.y = view.y + Math.floor((before.h - after.h) / 2);
+    view.zoom = next;
+    paint();
+  }
+
+  function fit() {
+    view.zoom = 1;
+    view.x = 0;
+    view.y = 0;
+    paint();
+  }
+
+  function panBy(dx, dy) {
+    view.x = view.x + dx;
+    view.y = view.y + dy;
+    paint();
+  }
+
+  /* ---- the selection: focus, traversal, path ---- */
+
+  function endpointsOf(edgeId) {
+    return model.edges[edgeId] || null;
+  }
+
+  function selection() {
+    var nodes = Object.create(null);
+    var near = Object.create(null);
+    var edges = Object.create(null);
+    var mode = "";
+
+    if (state.path && model.paths[state.path]) {
+      /* Exactly the edges the producer authored, addressed by id. Two edges
+         joining one pair are two different claims, and only the one named by
+         the path is lit. */
+      mode = "path";
+      var walked = model.paths[state.path];
+      for (var i = 0; i < walked.length; i += 1) {
+        edges[walked[i]] = true;
+        var ends = endpointsOf(walked[i]);
+        if (ends) { near[ends[0]] = true; near[ends[1]] = true; }
+      }
+    } else if (state.focus && state.trace) {
+      mode = "trace";
+      var reached = pfTraverse(model, state.focus, state.trace);
+      for (var n = 0; n < reached.nodes.length; n += 1) nodes[reached.nodes[n]] = true;
+      for (var e = 0; e < reached.edges.length; e += 1) edges[reached.edges[e]] = true;
+    } else if (state.focus) {
+      mode = "focus";
+      nodes[state.focus] = true;
+      var sides = [model.out[state.focus] || [], model["in"][state.focus] || []];
+      for (var s = 0; s < sides.length; s += 1) {
+        for (var k = 0; k < sides[s].length; k += 1) {
+          edges[sides[s][k][0]] = true;
+          near[sides[s][k][1]] = true;
+        }
+      }
+    }
+
+    return { mode: mode, nodes: nodes, near: near, edges: edges };
+  }
+
+  function describe(picked) {
+    if (picked.mode === "path") {
+      return "Path: " + count(model.paths[state.path].length, "relationship") + ", exactly as authored.";
+    }
+    if (picked.mode === "trace") {
+      var word = state.trace === "in" ? "Upstream of " : "Downstream of ";
+      return word + label(state.focus) + ": " +
+        count(countOf(picked.nodes) - 1, "component") + " reached, " +
+        count(countOf(picked.edges), "relationship") + " crossed.";
+    }
+    if (picked.mode === "focus") {
+      return "Focused: " + label(state.focus) + ". " +
+        count(countOf(picked.edges), "direct relationship") + ".";
+    }
+    return "Nothing selected. Choose a component to focus it.";
+  }
+
+  function label(id) {
+    return model.labels[id] || id;
+  }
+
+  function count(n, noun) {
+    return n + " " + noun + (n === 1 ? "" : "s");
+  }
+
+  function countOf(set) {
+    return Object.keys(set).length;
+  }
+
+  function mark(elements, attribute, picked) {
+    for (var i = 0; i < elements.length; i += 1) {
+      var element = elements[i];
+      var id = element.getAttribute(attribute);
+      if (picked.mode === "") {
+        element.removeAttribute("data-pf-state");
+        continue;
+      }
+      var value = picked.nodes[id] ? "on"
+        : picked.edges[id] ? "on"
+        : picked.near[id] ? "near"
+        : "off";
+      element.setAttribute("data-pf-state", value);
+    }
+  }
+
+  function apply() {
+    var picked = selection();
+
+    canvas.setAttribute("data-pf-mode", picked.mode);
+    mark(nodeGroups, "data-pf-node", picked);
+    mark(edgeGroups, "data-pf-edge", picked);
+
+    /* The written reading is where the details and the evidence live. Marking
+       the selected entry current is the whole of the details interaction: the
+       reader is sent to the evidence already in the document rather than
+       shown a second copy of it. */
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i];
+      var kind = entry.getAttribute("data-pf-entry");
+      var forId = entry.getAttribute("data-pf-for");
+      var isCurrent = (kind === "node" && forId === state.focus)
+        || (kind === "path" && forId === state.path);
+      if (isCurrent) {
+        entry.setAttribute("aria-current", "true");
+      } else {
+        entry.removeAttribute("aria-current");
+      }
+    }
+
+    if (status) status.textContent = describe(picked);
+
+    act("upstream", !state.focus);
+    act("downstream", !state.focus);
+    act("details", !state.focus);
+    act("clear", picked.mode === "");
+  }
+
+  function act(name, isDisabled) {
+    var button = document.querySelector('[data-pf-act="' + name + '"]');
+    if (button) button.disabled = Boolean(isDisabled);
+  }
+
+  function focusNode(id, options) {
+    if (!model.labels[id]) return;
+    state.focus = id;
+    state.trace = null;
+    state.path = null;
+    apply();
+    if (options && options.reveal) reveal(id);
+  }
+
+  function reveal(id) {
+    var entry = document.querySelector('[data-pf-entry="node"][data-pf-for="' + id + '"]');
+    if (!entry) return;
+    var open = entry.closest ? entry.closest("details") : null;
+    if (open) open.open = true;
+    if (entry.scrollIntoView) entry.scrollIntoView({ block: "nearest" });
+  }
+
+  function clear() {
+    state.focus = null;
+    state.trace = null;
+    state.path = null;
+    apply();
+    if (status) status.textContent = "Selection cleared.";
+  }
+
+  /* ---- wiring ---- */
+
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    if (!target || !target.closest) return;
+
+    var control = target.closest("[data-pf-act]");
+    if (control && !control.disabled) {
+      var action = control.getAttribute("data-pf-act");
+      if (action === "zoom-in") zoomBy(1.5);
+      else if (action === "zoom-out") zoomBy(1 / 1.5);
+      else if (action === "fit") fit();
+      else if (action === "reset") { fit(); clear(); }
+      else if (action === "upstream") { state.trace = "in"; state.path = null; apply(); }
+      else if (action === "downstream") { state.trace = "out"; state.path = null; apply(); }
+      else if (action === "details") reveal(state.focus);
+      else if (action === "clear") clear();
+      else if (action === "path") {
+        state.path = control.getAttribute("data-pf-path");
+        state.focus = null;
+        state.trace = null;
+        apply();
+      }
+      return;
+    }
+
+    /* A written entry's own button: the keyboard route into focus. */
+    var pick = target.closest("[data-pf-pick]");
+    if (pick) {
+      focusNode(pick.getAttribute("data-pf-pick"), { reveal: false });
+      return;
+    }
+
+    /* A node in the picture: the pointer route. Keyboard readers reach the
+       same state through the entry buttons above, which is why nothing in
+       the canvas is a tab stop. */
+    var drawn = target.closest("[data-pf-node]");
+    if (drawn) focusNode(drawn.getAttribute("data-pf-node"), { reveal: true });
+  });
+
+  /* Drag to pan. Pixels become user units through the element's rendered
+     width, which is a reading of the reader's window and not of anything
+     that decided the artifact's bytes. */
+  var dragging = null;
+  svg.addEventListener("pointerdown", function (event) {
+    if (view.zoom === 1) return;
+    dragging = { x: event.clientX, y: event.clientY };
+    canvas.setAttribute("data-pf-dragging", "true");
+    if (svg.setPointerCapture) svg.setPointerCapture(event.pointerId);
+  });
+  svg.addEventListener("pointermove", function (event) {
+    if (!dragging) return;
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var scaleX = (BASE.w / view.zoom) / rect.width;
+    var scaleY = (BASE.h / view.zoom) / rect.height;
+    panBy(
+      Math.floor((dragging.x - event.clientX) * scaleX),
+      Math.floor((dragging.y - event.clientY) * scaleY));
+    dragging = { x: event.clientX, y: event.clientY };
+  });
+  function endDrag() {
+    dragging = null;
+    canvas.removeAttribute("data-pf-dragging");
+  }
+  svg.addEventListener("pointerup", endDrag);
+  svg.addEventListener("pointercancel", endDrag);
+
+  /* Keyboard panning, on the canvas itself, which is a tab stop for exactly
+     this reason. Escape clears from anywhere. */
+  canvas.addEventListener("keydown", function (event) {
+    var step = Math.max(16, Math.floor(BASE.w / view.zoom / 8));
+    var moved = true;
+    if (event.key === "ArrowLeft") panBy(-step, 0);
+    else if (event.key === "ArrowRight") panBy(step, 0);
+    else if (event.key === "ArrowUp") panBy(0, -step);
+    else if (event.key === "ArrowDown") panBy(0, step);
+    else if (event.key === "+" || event.key === "=") zoomBy(1.5);
+    else if (event.key === "-") zoomBy(1 / 1.5);
+    else if (event.key === "0") fit();
+    else moved = false;
+    if (moved) event.preventDefault();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") clear();
+  });
+
+  paint();
+  apply();
 })();</script>
 </body>
 </html>

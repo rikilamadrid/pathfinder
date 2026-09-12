@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Typography probe — every script the cap admits</title>
 <meta name="description" content="A fixture, not an example. Each label is chosen to sit at or near the 32-column cap so the probe exercises the boundary rather than the comfortable middle.">
-<meta name="generator" content="Pathfinder render-artifact 0.4.0">
+<meta name="generator" content="Pathfinder render-artifact 0.5.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
 <style>:root {
   color-scheme: light;
@@ -639,6 +639,84 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 }
 .pf-edge-on-path .pf-edge-label { fill: var(--pf-link); }
 
+/* ---- the reading controls, and what a selection looks like ----
+
+   Three states, and the distinction is deliberate. "on" is what the reader
+   asked about. "near" is what it touches — still readable, because a component
+   whose neighbours have been greyed out tells you less than one whose
+   neighbours are merely quieter. "off" is the rest of the graph, dimmed rather
+   than removed: the document keeps every fact whatever is selected, and a
+   reader who dislikes the dimming can turn scripting off and read all of it.
+
+   No colour is defined here either. Selection reads through the accent that
+   already carries emphasis, and through opacity, so it works in both themes
+   without a second palette. Opacity alone would be a colour-only signal, so
+   the focused node also thickens its stroke. */
+.pf-graph-tools { margin: var(--pf-space-5) 0 calc(var(--pf-space-3) * -1); }
+.pf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pf-space-2);
+}
+.pf-tool {
+  padding: 4px 10px;
+  background: var(--pf-surface);
+  color: var(--pf-ink);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: var(--pf-radius-sm);
+  font-family: var(--pf-mono);
+  font-size: .78rem;
+  cursor: pointer;
+}
+.pf-tool:hover:not(:disabled) { border-color: var(--pf-accent); color: var(--pf-link); }
+.pf-tool:disabled { opacity: .45; cursor: default; }
+.pf-tool-sep {
+  width: 1px;
+  height: 1.2em;
+  background: var(--pf-line);
+}
+.pf-graph-status {
+  margin: var(--pf-space-2) 0 0;
+  color: var(--pf-muted);
+  font-family: var(--pf-mono);
+  font-size: .78rem;
+}
+.pf-pick { margin-left: var(--pf-space-2); }
+.pf-section-title .pf-pick { float: right; }
+
+.pf-canvas:focus-visible { outline: 3px solid var(--pf-accent); outline-offset: 2px; }
+.pf-canvas[data-pf-zoom="in"] .pf-graph { cursor: grab; }
+.pf-canvas[data-pf-dragging] .pf-graph { cursor: grabbing; }
+
+/* Selection. Keyed off attributes the script sets and nothing else, so the
+   delivered document is identical whether or not a browser ever runs it. */
+.pf-node[data-pf-state="off"],
+.pf-edge[data-pf-state="off"] { opacity: .22; }
+.pf-node[data-pf-state="near"],
+.pf-edge[data-pf-state="near"] { opacity: .75; }
+.pf-node[data-pf-state="on"] .pf-node-box {
+  stroke: var(--pf-accent);
+  stroke-width: 4;
+}
+.pf-edge[data-pf-state="on"] .pf-edge-line {
+  stroke: var(--pf-accent);
+  stroke-width: 3;
+}
+.pf-edge[data-pf-state="on"] .pf-edge-label { fill: var(--pf-link); }
+
+/* The written entry the selection points at. A left rule rather than a fill:
+   the card already has a surface, and stacking another on it would flatten
+   the hierarchy the evidence block sits in. */
+[data-pf-entry][aria-current] {
+  border-left: 3px solid var(--pf-accent);
+  padding-left: var(--pf-space-3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pf-node, .pf-edge { transition: opacity 120ms linear; }
+}
+
 /* The reading list below the canvas: the same facts, as text, for a reader who
    is not looking at a picture. */
 .pf-legend { display: grid; gap: var(--pf-space-4); }
@@ -689,151 +767,165 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <p class="pf-lead-sub">Latin, CJK, Arabic, Devanagari and emoji, at and around the column cap</p>
 <div class="pf-lead-summary"><p>A fixture, not an example. Each label is chosen to sit at or near the 32-column cap so the probe exercises the boundary rather than the comfortable middle.</p></div>
 </div>
-<div class="pf-canvas"><svg class="pf-graph" viewBox="0 0 888 1880" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
+<div class="pf-graph-tools" data-pf-controls hidden>
+<div class="pf-toolbar" role="toolbar" aria-label="Diagram controls">
+<button type="button" class="pf-tool" data-pf-act="zoom-out">Zoom out</button>
+<button type="button" class="pf-tool" data-pf-act="zoom-in">Zoom in</button>
+<button type="button" class="pf-tool" data-pf-act="fit">Fit</button>
+<button type="button" class="pf-tool" data-pf-act="reset">Reset</button>
+<span class="pf-tool-sep" aria-hidden="true"></span>
+<button type="button" class="pf-tool" data-pf-act="upstream" disabled>Upstream</button>
+<button type="button" class="pf-tool" data-pf-act="downstream" disabled>Downstream</button>
+<button type="button" class="pf-tool" data-pf-act="details" disabled>Go to details</button>
+<button type="button" class="pf-tool" data-pf-act="clear" disabled>Clear</button>
+</div>
+<p class="pf-graph-status" data-pf-status aria-live="polite">Nothing selected. Choose a component to focus it.</p>
+</div>
+<div class="pf-canvas" data-pf-canvas tabindex="0" role="group" aria-label="Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits."><svg class="pf-graph" viewBox="0 0 888 1880" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
 <title id="pf--diagram--title">Diagram</title>
 <defs>
 <marker id="pf-arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" markerUnits="userSpaceOnUse" orient="auto">
 <path d="M 0 0 L 9 4 L 0 8 z" fill="context-stroke"/>
 </marker>
 </defs>
-<g class="pf-group" data-pf-depth="0">
+<g class="pf-group" data-pf-group="scripts" data-pf-depth="0">
 <rect class="pf-group-box" id="g--scripts" x="304" y="56" width="256" height="808" rx="14"/>
 <text class="pf-group-label" x="328" y="76">Scripts</text>
 </g>
-<g class="pf-group" data-pf-depth="0">
+<g class="pf-group" data-pf-group="boundary" data-pf-depth="0">
 <rect class="pf-group-box" id="g--boundary" x="576" y="876" width="256" height="316" rx="14"/>
 <text class="pf-group-label" x="600" y="896">الحدود</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-latin" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-latin" points="432,184 432,272" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="432" y="222">short edge label</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="writes" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-cap" data-pf-relation="writes" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-cap" points="432,348 432,436" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="432" y="386">twenty four columns ex</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="reads" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-cjk" data-pf-relation="reads" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-cjk" points="432,512 432,600" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="432" y="550">读取数据库连接</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="publishes" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-cjk2" data-pf-relation="publishes" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-cjk2" points="432,676 432,764" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="432" y="714">キューに送信</text>
 </g>
-<g class="pf-edge pf-edge-on-path" data-pf-relation="triggers" data-pf-shape="forward">
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-ar" data-pf-relation="triggers" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-ar" points="432,840 432,884 704,884 704,928" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="568" y="878">يستدعي الخدمة</text>
 </g>
-<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-dev" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-dev" points="704,1004 704,1092" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="704" y="1042">सेवा कॉल</text>
 </g>
-<g class="pf-edge" data-pf-relation="consumes" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-emoji" data-pf-relation="consumes" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-emoji" points="704,1168 704,1212 160,1212 160,1256" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="432" y="1206">📥📤</text>
 </g>
-<g class="pf-edge" data-pf-relation="triggers" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-zwj" data-pf-relation="triggers" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-zwj" points="160,1332 160,1420" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="160" y="1370">👩‍👧</text>
 </g>
-<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-mixed" data-pf-relation="calls" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-mixed" points="160,1496 160,1584" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="160" y="1534">calls</text>
 </g>
-<g class="pf-edge" data-pf-relation="transitions_to" data-pf-shape="forward">
+<g class="pf-edge" data-pf-edge="e-dec" data-pf-relation="transitions_to" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-dec" points="160,1660 160,1748" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="160" y="1698">café</text>
 </g>
-<g class="pf-node" data-pf-role="service">
+<g class="pf-node" data-pf-node="latin-short" data-pf-role="service">
 <rect class="pf-node-box" id="n--latin-short" x="328" y="108" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="432" y="139">Checkout API</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="432" y="172">service</text>
 </g>
-<g class="pf-node" data-pf-role="service">
+<g class="pf-node" data-pf-node="latin-cap" data-pf-role="service">
 <rect class="pf-node-box" id="n--latin-cap" x="328" y="272" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="432" y="294">Reserve inventor</tspan><tspan x="432" y="312">y then charge</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="432" y="336">service</text>
 </g>
-<g class="pf-node" data-pf-role="store">
+<g class="pf-node" data-pf-node="latin-exact" data-pf-role="store">
 <rect class="pf-node-box" id="n--latin-exact" x="328" y="436" width="208" height="76" rx="6"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="432" y="458">xxxxxxxxxxxxxxxx</tspan><tspan x="432" y="476">xxxxxxxxxxxxxxxx</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="432" y="500">store</text>
 </g>
-<g class="pf-node" data-pf-role="store">
+<g class="pf-node" data-pf-node="cjk" data-pf-role="store">
 <rect class="pf-node-box" id="n--cjk" x="328" y="600" width="208" height="76" rx="6"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="432" y="622">数据库服务器集群</tspan><tspan x="432" y="640">主节点</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="432" y="664">store</text>
 </g>
-<g class="pf-node" data-pf-role="queue">
+<g class="pf-node" data-pf-node="cjk-cap" data-pf-role="queue">
 <rect class="pf-node-box" id="n--cjk-cap" x="328" y="764" width="208" height="76" rx="6"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="432" y="786">記録保存処理キュ</tspan><tspan x="432" y="804">ー監視器設定値変</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="432" y="828">queue</text>
 </g>
-<g class="pf-node" data-pf-role="interface">
+<g class="pf-node" data-pf-node="arabic" data-pf-role="interface">
 <rect class="pf-node-box" id="n--arabic" x="600" y="928" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="704" y="950">بوابة الدفع</tspan><tspan x="704" y="968">الآمن</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="704" y="992">interface</text>
 </g>
-<g class="pf-node" data-pf-role="job">
+<g class="pf-node" data-pf-node="devanagari" data-pf-role="job">
 <rect class="pf-node-box" id="n--devanagari" x="600" y="1092" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="704" y="1123">नमस्ते सेवा नोड</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="704" y="1156">job</text>
 </g>
-<g class="pf-node" data-pf-role="external">
+<g class="pf-node" data-pf-node="emoji" data-pf-role="external">
 <rect class="pf-node-box" id="n--emoji" x="56" y="1256" width="208" height="76" rx="38"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="160" y="1287">🚀🔐📦🗄📊🔔🚀🔐</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="160" y="1320">external</text>
 </g>
-<g class="pf-node" data-pf-role="actor">
+<g class="pf-node" data-pf-node="zwj" data-pf-role="actor">
 <rect class="pf-node-box" id="n--zwj" x="56" y="1420" width="208" height="76" rx="38"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="160" y="1451">👩‍👩‍👧 team</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="160" y="1484">actor</text>
 </g>
-<g class="pf-node" data-pf-role="decision">
+<g class="pf-node" data-pf-node="mixed" data-pf-role="decision">
 <rect class="pf-node-box" id="n--mixed" x="56" y="1584" width="208" height="76" rx="20"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="160" y="1615">API 网关 🔐</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="160" y="1648">decision</text>
 </g>
-<g class="pf-node" data-pf-role="step">
+<g class="pf-node" data-pf-node="decomposed" data-pf-role="step">
 <rect class="pf-node-box" id="n--decomposed" x="56" y="1748" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="160" y="1770">café service</tspan><tspan x="160" y="1788">node</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="160" y="1812">step</text>
 </g>
 </svg></div>
-<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--scripts">
+<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--scripts" data-pf-entry="group" data-pf-for="scripts">
 <h3 class="pf-section-title">Scripts</h3>
 <div class="pf-card">
-<div class="pf-card" id="s--n--latin-short">
-<h4 class="pf-section-title">Checkout API<span class="pf-legend-role">service</span></h4>
+<div class="pf-card" id="s--n--latin-short" data-pf-entry="node" data-pf-for="latin-short">
+<h4 class="pf-section-title">Checkout API<span class="pf-legend-role">service</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="latin-short" aria-label="Focus Checkout API">Focus</button></span></h4>
 <p>Short Latin, well inside the cap.</p>
 </div>
-<div class="pf-card" id="s--n--latin-cap">
-<h4 class="pf-section-title">Reserve inventory then charge<span class="pf-legend-role">service</span></h4>
+<div class="pf-card" id="s--n--latin-cap" data-pf-entry="node" data-pf-for="latin-cap">
+<h4 class="pf-section-title">Reserve inventory then charge<span class="pf-legend-role">service</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="latin-cap" aria-label="Focus Reserve inventory then charge">Focus</button></span></h4>
 <p>Latin at 29 columns, wrapping to two lines.</p>
 </div>
-<div class="pf-card" id="s--n--latin-exact">
-<h4 class="pf-section-title">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx<span class="pf-legend-role">store</span></h4>
+<div class="pf-card" id="s--n--latin-exact" data-pf-entry="node" data-pf-for="latin-exact">
+<h4 class="pf-section-title">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx<span class="pf-legend-role">store</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="latin-exact" aria-label="Focus xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx">Focus</button></span></h4>
 <p>Exactly 32 columns with no space to break at, so it wraps on column boundaries.</p>
 </div>
-<div class="pf-card" id="s--n--cjk">
-<h4 class="pf-section-title">数据库服务器集群主节点<span class="pf-legend-role">store</span></h4>
+<div class="pf-card" id="s--n--cjk" data-pf-entry="node" data-pf-for="cjk">
+<h4 class="pf-section-title">数据库服务器集群主节点<span class="pf-legend-role">store</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="cjk" aria-label="Focus 数据库服务器集群主节点">Focus</button></span></h4>
 <p>Chinese: eleven characters, twenty-two columns.</p>
 </div>
-<div class="pf-card" id="s--n--cjk-cap">
-<h4 class="pf-section-title">記録保存処理キュー監視器設定値変<span class="pf-legend-role">queue</span></h4>
+<div class="pf-card" id="s--n--cjk-cap" data-pf-entry="node" data-pf-for="cjk-cap">
+<h4 class="pf-section-title">記録保存処理キュー監視器設定値変<span class="pf-legend-role">queue</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="cjk-cap" aria-label="Focus 記録保存処理キュー監視器設定値変">Focus</button></span></h4>
 <p>Japanese at exactly sixteen characters, which is exactly the thirty-two column cap.</p>
 </div>
 </div>
 </section>
-<section class="pf-section" id="s--g--boundary">
+<section class="pf-section" id="s--g--boundary" data-pf-entry="group" data-pf-for="boundary">
 <h3 class="pf-section-title">الحدود</h3>
 <div class="pf-card">
-<div class="pf-card" id="s--n--arabic">
-<h4 class="pf-section-title">بوابة الدفع الآمن<span class="pf-legend-role">interface</span></h4>
+<div class="pf-card" id="s--n--arabic" data-pf-entry="node" data-pf-for="arabic">
+<h4 class="pf-section-title">بوابة الدفع الآمن<span class="pf-legend-role">interface</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="arabic" aria-label="Focus بوابة الدفع الآمن">Focus</button></span></h4>
 <p>Arabic, right-to-left, authored as written. The canvas is not mirrored; that is out of scope.</p>
 </div>
-<div class="pf-card" id="s--n--devanagari">
-<h4 class="pf-section-title">नमस्ते सेवा नोड<span class="pf-legend-role">job</span></h4>
+<div class="pf-card" id="s--n--devanagari" data-pf-entry="node" data-pf-for="devanagari">
+<h4 class="pf-section-title">नमस्ते सेवा नोड<span class="pf-legend-role">job</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="devanagari" aria-label="Focus नमस्ते सेवा नोड">Focus</button></span></h4>
 <p>Devanagari with combining marks, which occupy no column of their own.</p>
 </div>
 </div>
@@ -841,39 +933,39 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <section class="pf-section" id="s--ungrouped">
 <h3 class="pf-section-title">Not in a boundary</h3>
 <div class="pf-card">
-<div class="pf-card" id="s--n--emoji">
-<h4 class="pf-section-title">🚀🔐📦🗄📊🔔🚀🔐<span class="pf-legend-role">external</span></h4>
+<div class="pf-card" id="s--n--emoji" data-pf-entry="node" data-pf-for="emoji">
+<h4 class="pf-section-title">🚀🔐📦🗄📊🔔🚀🔐<span class="pf-legend-role">external</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="emoji" aria-label="Focus 🚀🔐📦🗄📊🔔🚀🔐">Focus</button></span></h4>
 <p>Eight default-presentation emoji, two columns each.</p>
 </div>
-<div class="pf-card" id="s--n--zwj">
-<h4 class="pf-section-title">👩‍👩‍👧 team<span class="pf-legend-role">actor</span></h4>
+<div class="pf-card" id="s--n--zwj" data-pf-entry="node" data-pf-for="zwj">
+<h4 class="pf-section-title">👩‍👩‍👧 team<span class="pf-legend-role">actor</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="zwj" aria-label="Focus 👩‍👩‍👧 team">Focus</button></span></h4>
 <p>A ZWJ sequence: five code points rendering as one glyph. The model measures its parts, which over-reserves rather than under-reserving.</p>
 </div>
-<div class="pf-card" id="s--n--mixed">
-<h4 class="pf-section-title">API 网关 🔐<span class="pf-legend-role">decision</span></h4>
+<div class="pf-card" id="s--n--mixed" data-pf-entry="node" data-pf-for="mixed">
+<h4 class="pf-section-title">API 网关 🔐<span class="pf-legend-role">decision</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="mixed" aria-label="Focus API 网关 🔐">Focus</button></span></h4>
 <p>Latin, Chinese and emoji in one label.</p>
 </div>
-<div class="pf-card" id="s--n--decomposed">
-<h4 class="pf-section-title">café service node<span class="pf-legend-role">step</span></h4>
+<div class="pf-card" id="s--n--decomposed" data-pf-entry="node" data-pf-for="decomposed">
+<h4 class="pf-section-title">café service node<span class="pf-legend-role">step</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="decomposed" aria-label="Focus café service node">Focus</button></span></h4>
 <p>Decomposed: e followed by a combining acute. Measures the same as the precomposed form, with no normalization.</p>
 </div>
 </div>
 </section>
 <h2 class="pf-module-title">Relationships</h2><section class="pf-section" id="s--relationships">
 <div class="pf-card">
-<ul class="pf-legend"><li id="s--e--e-latin"><span class="pf-step-title">Checkout API</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Reserve inventory then charge</span><p class="pf-step-detail">short edge label</p></li>
-<li id="s--e--e-cap"><span class="pf-step-title">Reserve inventory then charge</span> <span class="pf-relation">writes</span> <span class="pf-step-title">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</span><p class="pf-step-detail">twenty four columns ex</p></li>
-<li id="s--e--e-cjk"><span class="pf-step-title">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</span> <span class="pf-relation">reads</span> <span class="pf-step-title">数据库服务器集群主节点</span><p class="pf-step-detail">读取数据库连接</p></li>
-<li id="s--e--e-cjk2"><span class="pf-step-title">数据库服务器集群主节点</span> <span class="pf-relation">publishes to</span> <span class="pf-step-title">記録保存処理キュー監視器設定値変</span><p class="pf-step-detail">キューに送信</p></li>
-<li id="s--e--e-ar"><span class="pf-step-title">記録保存処理キュー監視器設定値変</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">بوابة الدفع الآمن</span><p class="pf-step-detail">يستدعي الخدمة</p></li>
-<li id="s--e--e-dev"><span class="pf-step-title">بوابة الدفع الآمن</span> <span class="pf-relation">calls</span> <span class="pf-step-title">नमस्ते सेवा नोड</span><p class="pf-step-detail">सेवा कॉल</p></li>
-<li id="s--e--e-emoji"><span class="pf-step-title">नमस्ते सेवा नोड</span> <span class="pf-relation">consumes from</span> <span class="pf-step-title">🚀🔐📦🗄📊🔔🚀🔐</span><p class="pf-step-detail">📥📤</p></li>
-<li id="s--e--e-zwj"><span class="pf-step-title">🚀🔐📦🗄📊🔔🚀🔐</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">👩‍👩‍👧 team</span><p class="pf-step-detail">👩‍👧</p></li>
-<li id="s--e--e-mixed"><span class="pf-step-title">👩‍👩‍👧 team</span> <span class="pf-relation">calls</span> <span class="pf-step-title">API 网关 🔐</span></li>
-<li id="s--e--e-dec"><span class="pf-step-title">API 网关 🔐</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">café service node</span><p class="pf-step-detail">café</p></li></ul>
+<ul class="pf-legend"><li id="s--e--e-latin" data-pf-entry="edge" data-pf-for="e-latin"><span class="pf-step-title">Checkout API</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Reserve inventory then charge</span><p class="pf-step-detail">short edge label</p></li>
+<li id="s--e--e-cap" data-pf-entry="edge" data-pf-for="e-cap"><span class="pf-step-title">Reserve inventory then charge</span> <span class="pf-relation">writes</span> <span class="pf-step-title">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</span><p class="pf-step-detail">twenty four columns ex</p></li>
+<li id="s--e--e-cjk" data-pf-entry="edge" data-pf-for="e-cjk"><span class="pf-step-title">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</span> <span class="pf-relation">reads</span> <span class="pf-step-title">数据库服务器集群主节点</span><p class="pf-step-detail">读取数据库连接</p></li>
+<li id="s--e--e-cjk2" data-pf-entry="edge" data-pf-for="e-cjk2"><span class="pf-step-title">数据库服务器集群主节点</span> <span class="pf-relation">publishes to</span> <span class="pf-step-title">記録保存処理キュー監視器設定値変</span><p class="pf-step-detail">キューに送信</p></li>
+<li id="s--e--e-ar" data-pf-entry="edge" data-pf-for="e-ar"><span class="pf-step-title">記録保存処理キュー監視器設定値変</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">بوابة الدفع الآمن</span><p class="pf-step-detail">يستدعي الخدمة</p></li>
+<li id="s--e--e-dev" data-pf-entry="edge" data-pf-for="e-dev"><span class="pf-step-title">بوابة الدفع الآمن</span> <span class="pf-relation">calls</span> <span class="pf-step-title">नमस्ते सेवा नोड</span><p class="pf-step-detail">सेवा कॉल</p></li>
+<li id="s--e--e-emoji" data-pf-entry="edge" data-pf-for="e-emoji"><span class="pf-step-title">नमस्ते सेवा नोड</span> <span class="pf-relation">consumes from</span> <span class="pf-step-title">🚀🔐📦🗄📊🔔🚀🔐</span><p class="pf-step-detail">📥📤</p></li>
+<li id="s--e--e-zwj" data-pf-entry="edge" data-pf-for="e-zwj"><span class="pf-step-title">🚀🔐📦🗄📊🔔🚀🔐</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">👩‍👩‍👧 team</span><p class="pf-step-detail">👩‍👧</p></li>
+<li id="s--e--e-mixed" data-pf-entry="edge" data-pf-for="e-mixed"><span class="pf-step-title">👩‍👩‍👧 team</span> <span class="pf-relation">calls</span> <span class="pf-step-title">API 网关 🔐</span></li>
+<li id="s--e--e-dec" data-pf-entry="edge" data-pf-for="e-dec"><span class="pf-step-title">API 网关 🔐</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">café service node</span><p class="pf-step-detail">café</p></li></ul>
 </div>
 </section>
-<h2 class="pf-module-title">Paths</h2><section class="pf-section" id="s--p--sweep">
+<h2 class="pf-module-title">Paths</h2><section class="pf-section" id="s--p--sweep" data-pf-entry="path" data-pf-for="sweep">
 <h3 class="pf-section-title">المسار الرئيسي</h3>
 <div class="pf-card">
 <p class="pf-module-summary">A path whose own label is right-to-left.</p>
@@ -883,6 +975,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx <span class="pf-relation">reads</span> 数据库服务器集群主节点 — 读取数据库连接</li>
 <li>数据库服务器集群主节点 <span class="pf-relation">publishes to</span> 記録保存処理キュー監視器設定値変 — キューに送信</li>
 <li>記録保存処理キュー監視器設定値変 <span class="pf-relation">triggers</span> بوابة الدفع الآمن — يستدعي الخدمة</li></ol>
+<div class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-act="path" data-pf-path="sweep" aria-label="Highlight المسار الرئيسي">Highlight</button></div>
 </div>
 </section>
 <h2 class="pf-module-title">Views</h2><section class="pf-section" id="s--v--wide">
@@ -901,7 +994,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <dt>Commit</dt>
 <dd>1faaf37</dd>
 <dt>Renderer</dt>
-<dd>Pathfinder render-artifact 0.4.0</dd>
+<dd>Pathfinder render-artifact 0.5.0</dd>
 </dl>
 </footer>
 <script>(function () {
@@ -1013,6 +1106,364 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
     var reveal = question.querySelector(".pf-reveal");
     if (reveal) reveal.open = true;
   });
+})();
+(function () {
+  "use strict";
+
+  var model = {"nodes":["latin-short","latin-cap","latin-exact","cjk","cjk-cap","arabic","devanagari","emoji","zwj","mixed","decomposed"],"labels":{"latin-short":"Checkout API","latin-cap":"Reserve inventory then charge","latin-exact":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx","cjk":"数据库服务器集群主节点","cjk-cap":"記録保存処理キュー監視器設定値変","arabic":"بوابة الدفع الآمن","devanagari":"नमस्ते सेवा नोड","emoji":"🚀🔐📦🗄📊🔔🚀🔐","zwj":"👩‍👩‍👧 team","mixed":"API 网关 🔐","decomposed":"café service node"},"out":{"latin-short":[["e-latin","latin-cap"]],"latin-cap":[["e-cap","latin-exact"]],"latin-exact":[["e-cjk","cjk"]],"cjk":[["e-cjk2","cjk-cap"]],"cjk-cap":[["e-ar","arabic"]],"arabic":[["e-dev","devanagari"]],"devanagari":[["e-emoji","emoji"]],"emoji":[["e-zwj","zwj"]],"zwj":[["e-mixed","mixed"]],"mixed":[["e-dec","decomposed"]],"decomposed":[]},"in":{"latin-short":[],"latin-cap":[["e-latin","latin-short"]],"latin-exact":[["e-cap","latin-cap"]],"cjk":[["e-cjk","latin-exact"]],"cjk-cap":[["e-cjk2","cjk"]],"arabic":[["e-ar","cjk-cap"]],"devanagari":[["e-dev","arabic"]],"emoji":[["e-emoji","devanagari"]],"zwj":[["e-zwj","emoji"]],"mixed":[["e-mixed","zwj"]],"decomposed":[["e-dec","mixed"]]},"edges":{"e-latin":["latin-short","latin-cap"],"e-cap":["latin-cap","latin-exact"],"e-cjk":["latin-exact","cjk"],"e-cjk2":["cjk","cjk-cap"],"e-ar":["cjk-cap","arabic"],"e-dev":["arabic","devanagari"],"e-emoji":["devanagari","emoji"],"e-zwj":["emoji","zwj"],"e-mixed":["zwj","mixed"],"e-dec":["mixed","decomposed"]},"paths":{"sweep":["e-latin","e-cap","e-cjk","e-cjk2","e-ar"]}};
+
+  function pfTraverse(model, start, direction) {
+  var adjacency = direction === "in" ? model["in"] : model.out;
+  if (!adjacency || !adjacency[start]) return { nodes: [start], edges: [] };
+
+  var seenNodes = Object.create(null);
+  var seenEdges = Object.create(null);
+  var nodes = [];
+  var edges = [];
+  var queue = [start];
+
+  seenNodes[start] = true;
+  nodes.push(start);
+
+  while (queue.length > 0) {
+    var current = queue.shift();
+    var next = adjacency[current] || [];
+
+    for (var i = 0; i < next.length; i += 1) {
+      var edgeId = next[i][0];
+      var neighbour = next[i][1];
+
+      /* Every edge crossed is recorded, including one that leads somewhere
+         already reached. Two edges joining one pair are two claims, and a
+         traversal that kept only the first would highlight the wrong one. */
+      if (!seenEdges[edgeId]) {
+        seenEdges[edgeId] = true;
+        edges.push(edgeId);
+      }
+
+      /* A node already reached is never queued again. This single guard is
+         what terminates a cycle and what stops a self-edge looping. */
+      if (!seenNodes[neighbour]) {
+        seenNodes[neighbour] = true;
+        nodes.push(neighbour);
+        queue.push(neighbour);
+      }
+    }
+  }
+
+  return { nodes: nodes, edges: edges };
+}
+
+  var canvas = document.querySelector("[data-pf-canvas]");
+  var svg = canvas ? canvas.querySelector("[data-pf-graph]") : null;
+  if (!canvas || !svg) return;
+
+  var status = document.querySelector("[data-pf-status]");
+
+  function all(selector) {
+    return Array.prototype.slice.call(document.querySelectorAll(selector));
+  }
+
+  /* The canvas is a picture to assistive technology, so the interactive
+     surface is the toolbar and the written reading below it — real buttons,
+     in document order, carrying the stylesheet's existing focus ring. Every
+     one of them is revealed here rather than shipped visible, because a
+     control that cannot work should not be offered: with scripting off a
+     reader meets no dead buttons and loses nothing they could have read. */
+  all("[data-pf-controls]").forEach(function (group) { group.hidden = false; });
+
+  var viewBox = svg.getAttribute("viewBox").split(" ");
+  var BASE = { w: Number(viewBox[2]), h: Number(viewBox[3]) };
+  var MAX_ZOOM = 6;
+
+  var view = { zoom: 1, x: 0, y: 0 };
+  var state = { focus: null, trace: null, path: null };
+
+  var nodeGroups = all("[data-pf-node]");
+  var edgeGroups = all("[data-pf-edge]");
+  var entries = all("[data-pf-entry]");
+
+  /* ---- the view: zoom and pan, clamped to the graph's own bounds ---- */
+
+  function paint() {
+    var w = Math.max(1, Math.floor(BASE.w / view.zoom));
+    var h = Math.max(1, Math.floor(BASE.h / view.zoom));
+
+    /* Clamped to the content, so panning can never wander off into empty
+       space and "fit" is always the way back. */
+    view.x = Math.min(Math.max(view.x, 0), Math.max(0, BASE.w - w));
+    view.y = Math.min(Math.max(view.y, 0), Math.max(0, BASE.h - h));
+
+    svg.setAttribute("viewBox", view.x + " " + view.y + " " + w + " " + h);
+    canvas.setAttribute("data-pf-zoom", view.zoom === 1 ? "fit" : "in");
+  }
+
+  function zoomBy(factor) {
+    var before = { w: BASE.w / view.zoom, h: BASE.h / view.zoom };
+    var next = Math.min(Math.max(view.zoom * factor, 1), MAX_ZOOM);
+    if (next === view.zoom) return;
+
+    var after = { w: BASE.w / next, h: BASE.h / next };
+    /* Keep whatever is in the middle of the view in the middle of it. */
+    view.x = view.x + Math.floor((before.w - after.w) / 2);
+    view.y = view.y + Math.floor((before.h - after.h) / 2);
+    view.zoom = next;
+    paint();
+  }
+
+  function fit() {
+    view.zoom = 1;
+    view.x = 0;
+    view.y = 0;
+    paint();
+  }
+
+  function panBy(dx, dy) {
+    view.x = view.x + dx;
+    view.y = view.y + dy;
+    paint();
+  }
+
+  /* ---- the selection: focus, traversal, path ---- */
+
+  function endpointsOf(edgeId) {
+    return model.edges[edgeId] || null;
+  }
+
+  function selection() {
+    var nodes = Object.create(null);
+    var near = Object.create(null);
+    var edges = Object.create(null);
+    var mode = "";
+
+    if (state.path && model.paths[state.path]) {
+      /* Exactly the edges the producer authored, addressed by id. Two edges
+         joining one pair are two different claims, and only the one named by
+         the path is lit. */
+      mode = "path";
+      var walked = model.paths[state.path];
+      for (var i = 0; i < walked.length; i += 1) {
+        edges[walked[i]] = true;
+        var ends = endpointsOf(walked[i]);
+        if (ends) { near[ends[0]] = true; near[ends[1]] = true; }
+      }
+    } else if (state.focus && state.trace) {
+      mode = "trace";
+      var reached = pfTraverse(model, state.focus, state.trace);
+      for (var n = 0; n < reached.nodes.length; n += 1) nodes[reached.nodes[n]] = true;
+      for (var e = 0; e < reached.edges.length; e += 1) edges[reached.edges[e]] = true;
+    } else if (state.focus) {
+      mode = "focus";
+      nodes[state.focus] = true;
+      var sides = [model.out[state.focus] || [], model["in"][state.focus] || []];
+      for (var s = 0; s < sides.length; s += 1) {
+        for (var k = 0; k < sides[s].length; k += 1) {
+          edges[sides[s][k][0]] = true;
+          near[sides[s][k][1]] = true;
+        }
+      }
+    }
+
+    return { mode: mode, nodes: nodes, near: near, edges: edges };
+  }
+
+  function describe(picked) {
+    if (picked.mode === "path") {
+      return "Path: " + count(model.paths[state.path].length, "relationship") + ", exactly as authored.";
+    }
+    if (picked.mode === "trace") {
+      var word = state.trace === "in" ? "Upstream of " : "Downstream of ";
+      return word + label(state.focus) + ": " +
+        count(countOf(picked.nodes) - 1, "component") + " reached, " +
+        count(countOf(picked.edges), "relationship") + " crossed.";
+    }
+    if (picked.mode === "focus") {
+      return "Focused: " + label(state.focus) + ". " +
+        count(countOf(picked.edges), "direct relationship") + ".";
+    }
+    return "Nothing selected. Choose a component to focus it.";
+  }
+
+  function label(id) {
+    return model.labels[id] || id;
+  }
+
+  function count(n, noun) {
+    return n + " " + noun + (n === 1 ? "" : "s");
+  }
+
+  function countOf(set) {
+    return Object.keys(set).length;
+  }
+
+  function mark(elements, attribute, picked) {
+    for (var i = 0; i < elements.length; i += 1) {
+      var element = elements[i];
+      var id = element.getAttribute(attribute);
+      if (picked.mode === "") {
+        element.removeAttribute("data-pf-state");
+        continue;
+      }
+      var value = picked.nodes[id] ? "on"
+        : picked.edges[id] ? "on"
+        : picked.near[id] ? "near"
+        : "off";
+      element.setAttribute("data-pf-state", value);
+    }
+  }
+
+  function apply() {
+    var picked = selection();
+
+    canvas.setAttribute("data-pf-mode", picked.mode);
+    mark(nodeGroups, "data-pf-node", picked);
+    mark(edgeGroups, "data-pf-edge", picked);
+
+    /* The written reading is where the details and the evidence live. Marking
+       the selected entry current is the whole of the details interaction: the
+       reader is sent to the evidence already in the document rather than
+       shown a second copy of it. */
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i];
+      var kind = entry.getAttribute("data-pf-entry");
+      var forId = entry.getAttribute("data-pf-for");
+      var isCurrent = (kind === "node" && forId === state.focus)
+        || (kind === "path" && forId === state.path);
+      if (isCurrent) {
+        entry.setAttribute("aria-current", "true");
+      } else {
+        entry.removeAttribute("aria-current");
+      }
+    }
+
+    if (status) status.textContent = describe(picked);
+
+    act("upstream", !state.focus);
+    act("downstream", !state.focus);
+    act("details", !state.focus);
+    act("clear", picked.mode === "");
+  }
+
+  function act(name, isDisabled) {
+    var button = document.querySelector('[data-pf-act="' + name + '"]');
+    if (button) button.disabled = Boolean(isDisabled);
+  }
+
+  function focusNode(id, options) {
+    if (!model.labels[id]) return;
+    state.focus = id;
+    state.trace = null;
+    state.path = null;
+    apply();
+    if (options && options.reveal) reveal(id);
+  }
+
+  function reveal(id) {
+    var entry = document.querySelector('[data-pf-entry="node"][data-pf-for="' + id + '"]');
+    if (!entry) return;
+    var open = entry.closest ? entry.closest("details") : null;
+    if (open) open.open = true;
+    if (entry.scrollIntoView) entry.scrollIntoView({ block: "nearest" });
+  }
+
+  function clear() {
+    state.focus = null;
+    state.trace = null;
+    state.path = null;
+    apply();
+    if (status) status.textContent = "Selection cleared.";
+  }
+
+  /* ---- wiring ---- */
+
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    if (!target || !target.closest) return;
+
+    var control = target.closest("[data-pf-act]");
+    if (control && !control.disabled) {
+      var action = control.getAttribute("data-pf-act");
+      if (action === "zoom-in") zoomBy(1.5);
+      else if (action === "zoom-out") zoomBy(1 / 1.5);
+      else if (action === "fit") fit();
+      else if (action === "reset") { fit(); clear(); }
+      else if (action === "upstream") { state.trace = "in"; state.path = null; apply(); }
+      else if (action === "downstream") { state.trace = "out"; state.path = null; apply(); }
+      else if (action === "details") reveal(state.focus);
+      else if (action === "clear") clear();
+      else if (action === "path") {
+        state.path = control.getAttribute("data-pf-path");
+        state.focus = null;
+        state.trace = null;
+        apply();
+      }
+      return;
+    }
+
+    /* A written entry's own button: the keyboard route into focus. */
+    var pick = target.closest("[data-pf-pick]");
+    if (pick) {
+      focusNode(pick.getAttribute("data-pf-pick"), { reveal: false });
+      return;
+    }
+
+    /* A node in the picture: the pointer route. Keyboard readers reach the
+       same state through the entry buttons above, which is why nothing in
+       the canvas is a tab stop. */
+    var drawn = target.closest("[data-pf-node]");
+    if (drawn) focusNode(drawn.getAttribute("data-pf-node"), { reveal: true });
+  });
+
+  /* Drag to pan. Pixels become user units through the element's rendered
+     width, which is a reading of the reader's window and not of anything
+     that decided the artifact's bytes. */
+  var dragging = null;
+  svg.addEventListener("pointerdown", function (event) {
+    if (view.zoom === 1) return;
+    dragging = { x: event.clientX, y: event.clientY };
+    canvas.setAttribute("data-pf-dragging", "true");
+    if (svg.setPointerCapture) svg.setPointerCapture(event.pointerId);
+  });
+  svg.addEventListener("pointermove", function (event) {
+    if (!dragging) return;
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var scaleX = (BASE.w / view.zoom) / rect.width;
+    var scaleY = (BASE.h / view.zoom) / rect.height;
+    panBy(
+      Math.floor((dragging.x - event.clientX) * scaleX),
+      Math.floor((dragging.y - event.clientY) * scaleY));
+    dragging = { x: event.clientX, y: event.clientY };
+  });
+  function endDrag() {
+    dragging = null;
+    canvas.removeAttribute("data-pf-dragging");
+  }
+  svg.addEventListener("pointerup", endDrag);
+  svg.addEventListener("pointercancel", endDrag);
+
+  /* Keyboard panning, on the canvas itself, which is a tab stop for exactly
+     this reason. Escape clears from anywhere. */
+  canvas.addEventListener("keydown", function (event) {
+    var step = Math.max(16, Math.floor(BASE.w / view.zoom / 8));
+    var moved = true;
+    if (event.key === "ArrowLeft") panBy(-step, 0);
+    else if (event.key === "ArrowRight") panBy(step, 0);
+    else if (event.key === "ArrowUp") panBy(0, -step);
+    else if (event.key === "ArrowDown") panBy(0, step);
+    else if (event.key === "+" || event.key === "=") zoomBy(1.5);
+    else if (event.key === "-") zoomBy(1 / 1.5);
+    else if (event.key === "0") fit();
+    else moved = false;
+    if (moved) event.preventDefault();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") clear();
+  });
+
+  paint();
+  apply();
 })();</script>
 </body>
 </html>

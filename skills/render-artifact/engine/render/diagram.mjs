@@ -20,6 +20,8 @@ import { renderShell, renderNav } from "./shell.mjs";
 import { layoutGraph } from "./graph/layout.mjs";
 import { drawGraph } from "./graph/draw.mjs";
 import { GRAPH_CSS } from "./graph/style.mjs";
+import { graphBehavior } from "./graph/behavior.mjs";
+import { interactionModel, serializeModel } from "./graph/interaction.mjs";
 
 /** Renderer-owned interface language. The producer supplies none of this. */
 const UI = Object.freeze({
@@ -33,6 +35,19 @@ const UI = Object.freeze({
   evidence: "Evidence",
   walks: "Walks",
   focuses: "Focuses on",
+  canvasLabel: "Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits.",
+  toolbar: "Diagram controls",
+  nothing: "Nothing selected. Choose a component to focus it.",
+  zoomIn: "Zoom in",
+  zoomOut: "Zoom out",
+  fit: "Fit",
+  reset: "Reset",
+  upstream: "Upstream",
+  downstream: "Downstream",
+  details: "Go to details",
+  clear: "Clear",
+  focusOne: "Focus",
+  highlight: "Highlight",
   relations: {
     calls: "calls",
     reads: "reads",
@@ -63,7 +78,9 @@ export function renderDiagram(spec, verification) {
 
   const body = [
     renderLead(spec),
-    `<div class="pf-canvas">${drawGraph(diagram, layout)}</div>`,
+    renderTools(),
+    `<div class="pf-canvas" data-pf-canvas tabindex="0" role="group" ` +
+    `aria-label="${esc(UI.canvasLabel)}">${drawGraph(diagram, layout)}</div>`,
     renderComponents(diagram),
     renderRelationships(diagram),
     renderPaths(diagram),
@@ -84,8 +101,45 @@ export function renderDiagram(spec, verification) {
     // shell's wording; this renderer's only part in it is reporting what the
     // specification declared.
     provenance: spec.provenance,
+    // The reading interactions run on this index and on nothing else. It is
+    // derived from the specification, carries no summary, detail or citation,
+    // and is therefore incapable of being the only place a fact lives.
+    behavior: graphBehavior(serializeModel(interactionModel(diagram))),
     verification,
   });
+}
+
+/**
+ * The controls, and the line that says what is selected.
+ *
+ * `hidden` in the delivered document and revealed by the script, which is the
+ * same bargain the shell's theme toggle strikes: a control that cannot work is
+ * not offered. Without scripting a reader meets no dead buttons, and loses
+ * nothing they could have read — every fact these controls navigate to is
+ * already written out below the canvas.
+ */
+function renderTools() {
+  const button = (action, text, extra = "") =>
+    `<button type="button" class="pf-tool" data-pf-act="${esc(action)}"${extra}>` +
+    `${esc(text)}</button>`;
+
+  return [
+    '<div class="pf-graph-tools" data-pf-controls hidden>',
+    `<div class="pf-toolbar" role="toolbar" aria-label="${esc(UI.toolbar)}">`,
+    button("zoom-out", UI.zoomOut),
+    button("zoom-in", UI.zoomIn),
+    button("fit", UI.fit),
+    button("reset", UI.reset),
+    '<span class="pf-tool-sep" aria-hidden="true"></span>',
+    button("upstream", UI.upstream, " disabled"),
+    button("downstream", UI.downstream, " disabled"),
+    button("details", UI.details, " disabled"),
+    button("clear", UI.clear, " disabled"),
+    "</div>",
+    `<p class="pf-graph-status" data-pf-status aria-live="polite">` +
+    `${esc(UI.nothing)}</p>`,
+    "</div>",
+  ].join("\n");
 }
 
 function renderLead(spec) {
@@ -114,12 +168,23 @@ function renderComponents(diagram) {
 
   for (const group of groups) {
     const members = diagram.nodes.filter((node) => node.group === group.id);
-    if (members.length === 0) continue;
+
+    // A group with no members of its own is still written out when it has
+    // something to say. A parent group holds other groups rather than nodes,
+    // so skipping it for having no members dropped its summary and — worse —
+    // its citations: the evidence layer requires a claim-bearing group to cite
+    // its claim, and the reader was then never shown either. A label-only
+    // group with no members has nothing to write and is represented by its
+    // boundary on the canvas.
+    const hasSomethingToSay = group.summary !== undefined
+      || (group.evidence ?? []).length > 0;
+    if (members.length === 0 && !hasSomethingToSay) continue;
+
     blocks.push(section(domId("s", "g", group.id), group.label, [
       group.summary ? `<p class="pf-module-summary">${esc(group.summary)}</p>` : "",
       renderEvidence(group.evidence),
       members.map(renderNode).join("\n"),
-    ].filter(Boolean).join("\n")));
+    ].filter(Boolean).join("\n"), `data-pf-entry="group" data-pf-for="${esc(group.id)}"`));
   }
 
   const loose = diagram.nodes.filter((node) =>
@@ -134,9 +199,16 @@ function renderComponents(diagram) {
 
 function renderNode(node) {
   const out = [
-    `<div class="pf-card" id="${esc(domId("s", "n", node.id))}">`,
+    `<div class="pf-card" id="${esc(domId("s", "n", node.id))}" ` +
+    `data-pf-entry="node" data-pf-for="${esc(node.id)}">`,
     `<h4 class="pf-section-title">${esc(node.label)}` +
-    `<span class="pf-legend-role">${esc(node.role)}</span></h4>`,
+    `<span class="pf-legend-role">${esc(node.role)}</span>` +
+    // Named for the component rather than "Focus" twenty times over: a
+    // reader listing the page's buttons has to be able to tell them apart.
+    `<span class="pf-pick" data-pf-controls hidden>` +
+    `<button type="button" class="pf-tool" data-pf-pick="${esc(node.id)}" ` +
+    `aria-label="${esc(`${UI.focusOne} ${node.label}`)}">${esc(UI.focusOne)}` +
+    `</button></span></h4>`,
   ];
   if (node.summary) out.push(`<p>${esc(node.summary)}</p>`);
   for (const paragraph of node.detail ?? []) out.push(`<p>${esc(paragraph)}</p>`);
@@ -152,7 +224,8 @@ function renderRelationships(diagram) {
 
   const rows = diagram.edges.map((edge) => {
     const out = [
-      `<li id="${esc(domId("s", "e", edge.id))}">`,
+      `<li id="${esc(domId("s", "e", edge.id))}" data-pf-entry="edge" ` +
+      `data-pf-for="${esc(edge.id)}">`,
       `<span class="pf-step-title">${esc(labelOf.get(edge.from) ?? edge.from)}</span> `,
       `<span class="pf-relation">${esc(UI.relations[edge.relation])}</span> `,
       `<span class="pf-step-title">${esc(labelOf.get(edge.to) ?? edge.to)}</span>`,
@@ -198,7 +271,12 @@ function renderPaths(diagram) {
       `<div class="pf-kicker">${esc(UI.walks)}</div>`,
       `<ol class="pf-walk">${steps.join("\n")}</ol>`,
       renderEvidence(path.evidence),
-    ].filter(Boolean).join("\n"));
+      `<div class="pf-pick" data-pf-controls hidden>` +
+      `<button type="button" class="pf-tool" data-pf-act="path" ` +
+      `data-pf-path="${esc(path.id)}" ` +
+      `aria-label="${esc(`${UI.highlight} ${path.label}`)}">` +
+      `${esc(UI.highlight)}</button></div>`,
+    ].filter(Boolean).join("\n"), `data-pf-entry="path" data-pf-for="${esc(path.id)}"`);
   });
 
   return heading(UI.paths) + blocks.join("\n");
@@ -224,8 +302,11 @@ function heading(text) {
   return `<h2 class="pf-module-title">${esc(text)}</h2>`;
 }
 
-function section(id, title, inner) {
-  const out = [`<section class="pf-section" id="${esc(id)}">`];
+function section(id, title, inner, attributes = "") {
+  const out = [
+    `<section class="pf-section" id="${esc(id)}"` +
+    `${attributes ? ` ${attributes}` : ""}>`,
+  ];
   if (title) out.push(`<h3 class="pf-section-title">${esc(title)}</h3>`);
   out.push('<div class="pf-card">', inner, "</div>", "</section>");
   return out.join("\n");

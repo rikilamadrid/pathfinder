@@ -8,6 +8,12 @@
  * a screen reader hears — are the renderer's, defined here, the same way the
  * shell owns the chrome around a lesson.
  *
+ * Each drawn thing carries the identifier it was authored under —
+ * `data-pf-node`, `data-pf-edge`, `data-pf-group`. That is the only handle the
+ * reading interactions use. They never ask the picture what is next to what:
+ * geometry is an output of the graph, so inferring meaning back out of it would
+ * make "downstream" depend on where the layout happened to put things.
+ *
  * Role decides shape and stroke, and never colour alone: a diagram whose
  * meaning is carried by hue is a diagram half its readers cannot use. Each node
  * carries its role as a word, so the distinction survives greyscale, a
@@ -116,7 +122,8 @@ function drawGroup(group, placed) {
   const { box } = placed;
   const id = domId("g", group.id);
   return [
-    `<g class="pf-group" data-pf-depth="${placed.depth}">`,
+    `<g class="pf-group" data-pf-group="${esc(group.id)}" ` +
+    `data-pf-depth="${placed.depth}">`,
     `<rect class="pf-group-box" id="${esc(id)}" x="${box.x}" y="${box.y}" ` +
     `width="${box.w}" height="${box.h}" rx="14"/>`,
     `<text class="pf-group-label" x="${box.x + GEOMETRY.GROUP_PAD}" ` +
@@ -138,7 +145,8 @@ function drawNode(node, placed) {
     `<tspan x="${centreX}" y="${blockTop + i * lineHeight}">${esc(line)}</tspan>`);
 
   return [
-    `<g class="pf-node" data-pf-role="${esc(node.role)}">`,
+    `<g class="pf-node" data-pf-node="${esc(node.id)}" ` +
+    `data-pf-role="${esc(node.role)}">`,
     `<rect class="pf-node-box" id="${esc(id)}" x="${box.x}" y="${box.y}" ` +
     `width="${box.w}" height="${box.h}" rx="${RADIUS[node.role]}"/>`,
     `<text class="pf-node-label" text-anchor="middle">${text.join("")}</text>`,
@@ -154,7 +162,8 @@ function drawEdge(edge, route, emphasised, boxOf) {
   const classes = emphasised ? "pf-edge pf-edge-on-path" : "pf-edge";
 
   const out = [
-    `<g class="${classes}" data-pf-relation="${esc(edge.relation)}" ` +
+    `<g class="${classes}" data-pf-edge="${esc(edge.id)}" ` +
+    `data-pf-relation="${esc(edge.relation)}" ` +
     `data-pf-shape="${esc(route.shape)}">`,
     `<polyline class="pf-edge-line" id="${esc(id)}" points="${points}" ` +
     `marker-end="url(#pf-arrow)"/>`,
