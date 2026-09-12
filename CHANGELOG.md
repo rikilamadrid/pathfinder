@@ -31,7 +31,7 @@ The heading of the most recent released section below is the single source of tr
 
 - **A shared visual artifact renderer.** Skills that deliver a visual artifact no longer hand-author a page. A producer skill writes a small typed specification describing what is true — modules, concepts, flows, exercises, questions, and the evidence behind each claim — and `render-artifact` compiles it into one self-contained HTML file that opens from the filesystem with no build step, no server, and no network. The producer owns content and domain semantics; the renderer owns presentation, navigation, theming, and every other piece of interface language.
 
-  `lesson` is the only artifact kind that exists. A request for a kind the renderer does not support is refused rather than improvised, and a missing kind is a conversation about whether it should exist — never permission to write the HTML by hand.
+  A request for an artifact kind the renderer does not support is refused rather than improvised, and a missing kind is a conversation about whether it should exist — never permission to write the HTML by hand.
 
   Evidence is part of the contract rather than a convention. Every claim about source cites a path, optionally a line range, and resolves against a commit the specification declares — not the working tree — so a later refactor cannot silently change what an artifact asserts. A concept with no evidence fails validation.
 
@@ -40,6 +40,16 @@ The heading of the most recent released section below is the single source of tr
   `learn-feature` and `learn-codebase` both produce their output this way, through the same contract and the same renderer, with no consumer-specific field, branch, or escape hatch: `learn-feature` supplies one module, `learn-codebase` supplies many. Neither skill authors HTML, CSS, presentation JavaScript, or MDX any more, and `learn-codebase` no longer builds a multi-file portal directory — how a lesson is split, linked, and navigated was always presentation.
 
   Generating an artifact needs Node. Nothing else in Pathfinder does, and the kit still installs no runtime into a destination project.
+
+- **Semantic diagram artifacts, and `map-system` to ask for one.** A second artifact kind, `diagram`, joins `lesson` in the same renderer. A producer describes what exists, what relates to what, which things belong together, and which ordered walks matter — and never places a box. Geometry, ranking, axis, sizes, spacing, edge routing, label placement, typography, shape, colour and emphasis are the renderer's. There is no coordinate, lane, rank, orientation, colour, icon, preset, emphasis or animation field in the specification, and validation rejects such a field rather than ignoring it.
+
+  `map-system` is the skill a human asks, in their own words: map this repository's architecture, visualize this checkout flow, map the ticket lifecycle. It is the only skill that writes a `diagram` specification, and the rendered artifact is its proposal — it does not ask anyone to approve a list of nodes and edges first. Twenty-fourth skill in the kit.
+
+  A diagram says where it came from, and the engine behaves differently for each answer. A `derived` diagram maps what the repository asserts about itself at a declared commit: every component and every relationship carries a citation, and every citation resolves at that commit. A `proposed` diagram describes an intended system; with no repository behind it at all, citations are refused rather than ignored, the evidence layer is reported as not run with its reason rather than as passed, and the artifact carries no verification sentence. The wording of each is the renderer's, and no field in any specification can select, soften, or request one it has not earned.
+
+  A reader can interrogate the result rather than only look at it: focus a component, walk upstream or downstream, highlight exactly the authored path, open the evidence behind a claim, pan, zoom, fit, reset, and do all of it from the keyboard. Traversal follows the relationships the producer wrote, never which boxes happen to sit nearby. With scripting disabled the artifact is still a complete, readable, navigable document, because every fact is in it before any script runs.
+
+  Determinism is unchanged and now covers layout: every emitted coordinate is an integer, ordering comes from the specification, crossing reduction runs a fixed number of passes rather than testing a tolerance, and no clock, randomness, transcendental math, locale, viewport or text measurement participates. `lesson` output, its schema, and `learn-codebase`'s behaviour are untouched — `learn-codebase` produces no diagram and references none.
 
 ## [4.2.0] - 2026-09-01
 

@@ -108,8 +108,9 @@ There is no diagram section, and this skill no longer promises navigable
 diagrams. Do not hand-author SVG, do not describe coordinates or layout, and do
 not reach for a drawing tool to fill the gap. A picture whose meaning is carried
 by a `flow` loses nothing that teaches; a picture this skill draws itself is
-presentation it does not own. Semantic diagram artifacts are planned separately
-and do not exist today.
+presentation it does not own. Semantic diagram artifacts do exist — `map-system`
+produces them, as a separate artifact of its own — and that is still not this
+skill's output: a lesson gains no diagram section and references no diagram.
 
 ## Evidence
 

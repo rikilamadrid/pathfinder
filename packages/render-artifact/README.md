@@ -30,21 +30,35 @@ published tarball agrees.
 | `golden` | The committed HTML and digest are what this renderer produces from these specifications. |
 | `output-shape` | UTF-8, no byte-order mark, LF only, self-contained, and every ordering taken from the specification. |
 | `trust` | A receipt describes the specification that was rendered; an artifact claims its evidence was checked only when this engine checked it. |
+| `provenance` | A reader can tell `derived`, `proposed` with a source, and `proposed` with none apart, and no producer field selects the wording. |
+| `diagram` | The `diagram` boundary holds: a producer cannot place, size, colour, route, rank or emphasise anything, and the attempt is refused rather than ignored. |
+| `geometry` | Renderer arithmetic — no overlapping boxes, edges terminating on node boundaries, nothing past the canvas, no label wider than its box. |
+| `interaction` | Traversal, path highlight and focus read the graph rather than the picture, and every fact is in the document before any script runs. |
+| `contrast` | The diagram's own surfaces clear WCAG 2.1 AA in both themes, measured rather than inherited on trust. |
+| `producer-contract` | Each producer skill still tells an agent to write a specification, keyed by contract rather than by kind. |
 | `placement` | The tests exercise the shipped engine and never reach an installed project. |
 
 Deterministic validation proves an artifact was checked. It does not prove the
 artifact looks right — a person has to open it for that, and that judgement is
 recorded separately.
 
-## The two specimens
+## The specimens
 
 `fixtures/deterministic-lesson.json` cites nothing. Delivering it resolves no
 commit and reads no blob, so a digest that moves has one suspect: the renderer.
 That is the specimen the determinism tests use.
 
-`skills/render-artifact/engine/examples/lesson.json` is the engine's shipped
-example and does cite this repository at a fixed commit, so it is the specimen
-that exercises evidence resolution and the provenance block on a real lesson.
+The engine's two shipped examples — `examples/lesson.json` and
+`examples/diagram.json` — do cite this repository at a fixed commit, so they are
+the specimens that exercise evidence resolution and the provenance block on real
+output of each kind.
+
+The rest of `fixtures/` is registered in `SPECS` in `lib/harness.mjs`, which is
+the one list the goldens and the cross-environment checks iterate. Adding a
+specimen is a line there and a pair of files under `golden/`; it is deliberately
+not a new suite. Four of them are a producer skill's real output and are listed
+again as `PRODUCER_SPECIMENS`, so a new producer lands with the same coverage as
+the existing ones rather than weaker coverage of its own.
 
 ## When a golden fails
 
