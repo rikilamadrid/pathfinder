@@ -1,0 +1,197 @@
+{
+  "schema_version": "1.0",
+  "kind": "diagram",
+  "artifact": {
+    "title": "Typography probe — every script the cap admits",
+    "subtitle": "Latin, CJK, Arabic, Devanagari and emoji, at and around the column cap",
+    "summary": "A fixture, not an example. Each label is chosen to sit at or near the 32-column cap so the probe exercises the boundary rather than the comfortable middle."
+  },
+  "source": {
+    "repo": "pathfinder",
+    "commit": "1faaf37"
+  },
+  "diagram": {
+    "topology": "graph",
+    "groups": [
+      {
+        "id": "scripts",
+        "label": "Scripts"
+      },
+      {
+        "id": "boundary",
+        "label": "الحدود"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "latin-short",
+        "label": "Checkout API",
+        "role": "service",
+        "group": "scripts",
+        "summary": "Short Latin, well inside the cap."
+      },
+      {
+        "id": "latin-cap",
+        "label": "Reserve inventory then charge",
+        "role": "service",
+        "group": "scripts",
+        "summary": "Latin at 29 columns, wrapping to two lines."
+      },
+      {
+        "id": "latin-exact",
+        "label": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "role": "store",
+        "group": "scripts",
+        "summary": "Exactly 32 columns with no space to break at, so it wraps on column boundaries."
+      },
+      {
+        "id": "cjk",
+        "label": "数据库服务器集群主节点",
+        "role": "store",
+        "group": "scripts",
+        "summary": "Chinese: eleven characters, twenty-two columns."
+      },
+      {
+        "id": "cjk-cap",
+        "label": "記録保存処理キュー監視器設定値変",
+        "role": "queue",
+        "group": "scripts",
+        "summary": "Japanese at exactly sixteen characters, which is exactly the thirty-two column cap."
+      },
+      {
+        "id": "arabic",
+        "label": "بوابة الدفع الآمن",
+        "role": "interface",
+        "group": "boundary",
+        "summary": "Arabic, right-to-left, authored as written. The canvas is not mirrored; that is out of scope."
+      },
+      {
+        "id": "devanagari",
+        "label": "नमस्ते सेवा नोड",
+        "role": "job",
+        "group": "boundary",
+        "summary": "Devanagari with combining marks, which occupy no column of their own."
+      },
+      {
+        "id": "emoji",
+        "label": "🚀🔐📦🗄📊🔔🚀🔐",
+        "role": "external",
+        "summary": "Eight default-presentation emoji, two columns each."
+      },
+      {
+        "id": "zwj",
+        "label": "👩‍👩‍👧 team",
+        "role": "actor",
+        "summary": "A ZWJ sequence: five code points rendering as one glyph. The model measures its parts, which over-reserves rather than under-reserving."
+      },
+      {
+        "id": "mixed",
+        "label": "API 网关 🔐",
+        "role": "decision",
+        "summary": "Latin, Chinese and emoji in one label."
+      },
+      {
+        "id": "decomposed",
+        "label": "café service node",
+        "role": "step",
+        "summary": "Decomposed: e followed by a combining acute. Measures the same as the precomposed form, with no normalization."
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-latin",
+        "from": "latin-short",
+        "to": "latin-cap",
+        "relation": "calls",
+        "label": "short edge label"
+      },
+      {
+        "id": "e-cap",
+        "from": "latin-cap",
+        "to": "latin-exact",
+        "relation": "writes",
+        "label": "twenty four columns ex"
+      },
+      {
+        "id": "e-cjk",
+        "from": "latin-exact",
+        "to": "cjk",
+        "relation": "reads",
+        "label": "读取数据库连接"
+      },
+      {
+        "id": "e-cjk2",
+        "from": "cjk",
+        "to": "cjk-cap",
+        "relation": "publishes",
+        "label": "キューに送信"
+      },
+      {
+        "id": "e-ar",
+        "from": "cjk-cap",
+        "to": "arabic",
+        "relation": "triggers",
+        "label": "يستدعي الخدمة"
+      },
+      {
+        "id": "e-dev",
+        "from": "arabic",
+        "to": "devanagari",
+        "relation": "calls",
+        "label": "सेवा कॉल"
+      },
+      {
+        "id": "e-emoji",
+        "from": "devanagari",
+        "to": "emoji",
+        "relation": "consumes",
+        "label": "📥📤"
+      },
+      {
+        "id": "e-zwj",
+        "from": "emoji",
+        "to": "zwj",
+        "relation": "triggers",
+        "label": "👩‍👧"
+      },
+      {
+        "id": "e-mixed",
+        "from": "zwj",
+        "to": "mixed",
+        "relation": "calls"
+      },
+      {
+        "id": "e-dec",
+        "from": "mixed",
+        "to": "decomposed",
+        "relation": "transitions_to",
+        "label": "café"
+      }
+    ],
+    "paths": [
+      {
+        "id": "sweep",
+        "label": "المسار الرئيسي",
+        "note": "A path whose own label is right-to-left.",
+        "edges": [
+          "e-latin",
+          "e-cap",
+          "e-cjk",
+          "e-cjk2",
+          "e-ar"
+        ]
+      }
+    ],
+    "views": [
+      {
+        "id": "wide",
+        "label": "幅広い文字",
+        "focus": [
+          "cjk",
+          "cjk-cap",
+          "emoji"
+        ]
+      }
+    ]
+  }
+}

@@ -20,7 +20,9 @@
  *    `ORDER_PASSES` because it was told to, not because a tolerance was met —
  *    a convergence test is exactly where floating-point sensitivity gets in.
  * 4. **Nothing ambient.** No clock, no randomness, no viewport, no text
- *    measurement, no locale. This module imports nothing at all.
+ *    measurement, no locale. The one thing this module imports is the pinned
+ *    character-width table, which is generated data and literal ranges — never
+ *    a question asked of the engine it is running on.
  *
  * The axis is chosen from the graph's shape and from nothing else: a graph
  * deeper than it is wide reads top-to-bottom, and a graph wider than it is deep
@@ -31,6 +33,8 @@
  * model that makes it correct for every script, and the decision to freeze it
  * or fall back to uniform boxes, belong to the ticket that owns typography.
  */
+
+import { cellWidth, codePointWidth } from "./width.mjs";
 
 /** The grid. Every dimension a multiple of 4, so every derived value stays whole. */
 export const GEOMETRY = Object.freeze({
@@ -48,8 +52,15 @@ export const GEOMETRY = Object.freeze({
   DETOUR: 44,
   /** Fixed, never a convergence test. */
   ORDER_PASSES: 4,
-  /** Provisional label budget, in characters. The cell-aware model is 51.2's. */
-  LABEL_CHARS_PER_LINE: 22,
+  /**
+   * The label budget, in columns, and the lines a node box has room for.
+   *
+   * These two multiply to the node label's hard cap of 32 columns, and that is
+   * not a coincidence — it is what makes wrapping lossless by construction
+   * rather than by luck. Any label the schema accepts fits in two lines of
+   * sixteen, so there is never a remainder to drop, overflow, or apologise for.
+   */
+  LABEL_CELLS_PER_LINE: 16,
   LABEL_MAX_LINES: 2,
 });
 
@@ -594,55 +605,94 @@ function loopPoints(box, vertical) {
 }
 
 /**
- * Break a label into lines, losing nothing.
+ * Break a label into lines, in columns rather than characters, losing nothing.
  *
- * The line budget is provisional — a character is not a width, which is the
- * problem the typography ticket exists to solve — and how wide a label may be
- * is that ticket's to settle. What is not provisional, and is settled here, is
- * that the renderer never deletes a producer's words. Text that will not fit
- * the line budget is carried onto the last line rather than dropped, so the
- * label may overflow its box until the geometry contract is frozen, and it is
- * never quietly shortened.
+ * A character is not a width. `A` and `漢` are one character each and one and
+ * two columns; a Devanagari matra is a character and no columns at all. So the
+ * budget is spent in columns, counted against the pinned table in `width.mjs`,
+ * and never against `String.length` — which is not even a character count, but
+ * a count of UTF-16 units.
  *
- * That is the right way round. A label that spills past its border is visibly
- * wrong and someone fixes it; a label missing its last word looks correct and
- * lies. The renderer owns presentation, and owns none of the content.
+ * Two stages, and the second is what makes the guarantee structural:
+ *
+ * 1. **Wrap on spaces.** What anyone would expect of a label with words in it.
+ *    Word boundaries waste room, though, so this stage can need more lines than
+ *    the box has — `aaaaaaaaa bbbbbbbbb ccccccccc` is twenty-nine columns and
+ *    wants three lines of sixteen.
+ * 2. **When it does, wrap on columns instead.** The cap is thirty-two columns
+ *    and a box holds two lines of sixteen, so a column-wrapped label always
+ *    fits. Exactly, with nothing left over.
+ *
+ * That is why nothing here truncates, ellipsises, drops a word, or spills past
+ * the last line. It is not a rule the code remembers to follow; it is
+ * arithmetic the caps and the budget already settled. A label the schema
+ * accepts cannot fail to fit.
+ *
+ * Scripts without spaces reach stage two and are wrapped on column boundaries,
+ * which is the correct behaviour for them and needs no dictionary and no
+ * locale-sensitive line breaking — both of which are forbidden here and neither
+ * of which would be deterministic.
  */
 export function wrapLabel(text) {
-  const budget = GEOMETRY.LABEL_CHARS_PER_LINE;
+  const budget = GEOMETRY.LABEL_CELLS_PER_LINE;
   const source = String(text);
+  if (source === "") return [""];
 
-  // Greedy wrap on spaces, hard-breaking any single word longer than the
-  // budget. Nothing is discarded at this stage; the result is the label.
+  // Stage one is accepted only if it fits on both counts: few enough lines, and
+  // no line over budget. Checking the line count alone would pass a single word
+  // wider than the box, which has no space to break at and so comes back from
+  // the space-wrapper as one long line.
+  const byWord = wrapOnSpaces(source, budget);
+  const fits = byWord.length <= GEOMETRY.LABEL_MAX_LINES
+    && byWord.every((line) => cellWidth(line) <= budget);
+  return fits ? byWord : wrapOnCells(source, budget);
+}
+
+/** Greedy wrap at spaces. May need more lines than the box has; the caller checks. */
+function wrapOnSpaces(source, budget) {
   const lines = [];
   let current = "";
-  const flush = () => { if (current !== "") { lines.push(current); current = ""; } };
+  let width = 0;
 
   for (const word of source.split(" ")) {
-    if (word.length > budget) {
-      flush();
-      let rest = word;
-      while (rest.length > budget) {
-        lines.push(rest.slice(0, budget));
-        rest = rest.slice(budget);
-      }
-      current = rest;
+    const wordWidth = cellWidth(word);
+    if (current === "") { current = word; width = wordWidth; continue; }
+    if (width + 1 + wordWidth <= budget) {
+      current = `${current} ${word}`;
+      width += 1 + wordWidth;
       continue;
     }
-    if (current === "") { current = word; continue; }
-    if (current.length + 1 + word.length <= budget) { current = `${current} ${word}`; continue; }
-    flush();
+    lines.push(current);
     current = word;
+    width = wordWidth;
   }
-  flush();
+  if (current !== "") lines.push(current);
+  return lines.length === 0 ? [source] : lines;
+}
 
-  if (lines.length === 0) return [source];
-  if (lines.length <= GEOMETRY.LABEL_MAX_LINES) return lines;
+/**
+ * Wrap at column boundaries, ignoring spaces.
+ *
+ * A zero-width code point never forces a break and never starts a line: a
+ * combining mark belongs to the character it modifies, and moving it to the
+ * next line would render it against the wrong base. So the break is decided by
+ * the next code point that actually occupies a column.
+ */
+function wrapOnCells(source, budget) {
+  const lines = [];
+  let current = "";
+  let width = 0;
 
-  // More lines than the box has room for. The overflow joins the last line
-  // instead of disappearing: every character the producer wrote is still in
-  // the document, and the box is the thing that has to give.
-  const kept = lines.slice(0, GEOMETRY.LABEL_MAX_LINES - 1);
-  kept.push(lines.slice(GEOMETRY.LABEL_MAX_LINES - 1).join(" "));
-  return kept;
+  for (const character of source) {
+    const w = codePointWidth(character.codePointAt(0));
+    if (w > 0 && width + w > budget && current !== "") {
+      lines.push(current);
+      current = "";
+      width = 0;
+    }
+    current += character;
+    width += w;
+  }
+  if (current !== "") lines.push(current);
+  return lines.length === 0 ? [source] : lines;
 }

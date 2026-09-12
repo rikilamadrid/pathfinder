@@ -24,6 +24,7 @@ import { hostname, userInfo, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { after, describe, it } from "node:test";
 
+import { forbiddenUses } from "../lib/forbidden.mjs";
 import {
   ENGINE_ROOT, REPO_ROOT, SPECS, cleanUpTemporaryDirectories, deliverInSubprocess,
 } from "../lib/harness.mjs";
@@ -287,4 +288,83 @@ describe("no ambient machine data in delivered HTML", () => {
       });
     });
   }
+});
+
+/**
+ * The import graph proves nothing ambient can be *reached*. This proves nothing
+ * ambient is *called* — a different claim, and the one that matters once the
+ * render path grew a layout engine.
+ *
+ * `Math.floor` is exact. `Math.sin` is not: ECMA-262 leaves the precision of
+ * the transcendental functions to the implementation, so two engines may
+ * legitimately disagree in the last bits and a layout built on one would not
+ * reproduce on the other. The same goes for a clock, for randomness, for a
+ * locale API, and for `normalize`, whose Unicode data moves with the engine.
+ * None of them is reachable through an import here, because none of them needs
+ * an import: they are all on the global object.
+ */
+describe("nothing ambient is called in the render path", () => {
+  const closure = importClosure(RENDER_ENTRY);
+  const relative = (file) => file.slice(ENGINE_ROOT.length + 1);
+
+  it("covers every module the render path reaches", () => {
+    // Guard the guard: a scan of a list that quietly stopped matching the real
+    // closure would pass forever. The set below is derived from the closure
+    // itself, so a module added tomorrow is scanned tomorrow.
+    assert.ok(closure.size >= DOCUMENTED_RENDER_PATH.length,
+      "the closure is smaller than the documented render path");
+    assert.ok([...closure.keys()].some((f) => relative(f) === "render/graph/layout.mjs"),
+      "the layout engine is not in the scanned closure");
+  });
+
+  it("calls no clock, randomness, locale API, normalization, or inexact Math", () => {
+    const offenders = [];
+    for (const [file, { source }] of closure) {
+      for (const use of forbiddenUses(source)) {
+        offenders.push(`${relative(file)}:${use.line} — \`${use.text}\` is ${use.reason}`);
+      }
+    }
+    assert.deepEqual(offenders, [],
+      "the render path reaches for something ambient. The invariant is that " +
+      "rendering is a pure function of the specification and this code.");
+  });
+
+  it("bites when a forbidden call is introduced into the layout path", () => {
+    // The assertion above is worth exactly as much as its ability to fail. The
+    // real layout source is mutated in memory — the file on disk is untouched —
+    // and the same scanner is asked again.
+    const layout = readFileSync(join(ENGINE_ROOT, "render", "graph", "layout.mjs"), "utf8");
+    assert.deepEqual(forbiddenUses(layout), [], "the unmodified layout path is clean");
+
+    const spoilt = layout.replace(
+      "export function layoutGraph(diagram) {",
+      "export function layoutGraph(diagram) {\n  const wobble = Math.sin(diagram.nodes.length);");
+    assert.notEqual(spoilt, layout, "the injection point moved; this test is no longer injecting");
+
+    const found = forbiddenUses(spoilt);
+    assert.ok(found.some((use) => use.text === "Math.sin"),
+      `injecting Math.sin was not detected; found ${JSON.stringify(found)}`);
+  });
+
+  it("is not fooled by prose, fixtures, or literal text", () => {
+    // Every one of these words appears in the render path already — in the
+    // comment that forbids it. A guard that fired on them would be turned off
+    // within a week.
+    const innocent = [
+      "// never call Math.sin, Math.random, Date.now, Intl or localeCompare here",
+      "/* normalize() and toLocaleString() are forbidden */",
+      'const note = "Math.random is forbidden";',
+      "const css = `body { font: 12px } /* Date */`;",
+      "const ok = Math.floor(a / 2) + Math.max(x, y) - Math.abs(z);",
+    ].join("\n");
+    assert.deepEqual(forbiddenUses(innocent), []);
+  });
+
+  it("reports a forbidden call inside a template expression", () => {
+    // Literal text inside a template is not code, but `${...}` is. A guard that
+    // blanked the whole template would have a hole exactly the shape of the
+    // shell's interpolations.
+    const hidden = "const html = `<p>${Date.now()}</p>`;";
+    assert.ok(forbiddenUses(hidden).some((use) => use.text === "Date"));
+  });
 });

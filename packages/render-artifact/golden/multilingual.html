@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>A specification that cites nothing</title>
-<meta name="description" content="This fixture exists so the determinism tests measure the renderer and nothing else. It carries no evidence, so no commit is resolved, no blob is read, and no Git history has to exist for it to deliver — which means a digest that moves has exactly one place it can have come from.">
+<title>Typography probe — every script the cap admits</title>
+<meta name="description" content="A fixture, not an example. Each label is chosen to sit at or near the 32-column cap so the probe exercises the boundary rather than the comfortable middle.">
 <meta name="generator" content="Pathfinder render-artifact 0.3.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
 <style>:root {
@@ -567,149 +567,339 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
   .pf-header, .pf-nav, .pf-skip, .pf-theme-toggle { display: none; }
   .pf-card { box-shadow: none; break-inside: avoid; }
   .pf-reveal[open] > summary { list-style: none; }
-}</style>
+}
+.pf-canvas {
+  margin: var(--pf-space-5) 0 var(--pf-space-7);
+  padding: var(--pf-space-4);
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  box-shadow: var(--pf-shadow);
+  overflow-x: auto;
+}
+.pf-graph {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--pf-mono);
+}
+
+.pf-group-box {
+  fill: var(--pf-surface-2);
+  stroke: var(--pf-line-strong);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.pf-group[data-pf-depth="1"] .pf-group-box { stroke-dasharray: 2 3; }
+.pf-group-label {
+  fill: var(--pf-muted);
+  font-size: 12px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.pf-node-box {
+  fill: var(--pf-surface);
+  stroke: var(--pf-line-strong);
+  stroke-width: 2;
+}
+.pf-node[data-pf-role="store"] .pf-node-box,
+.pf-node[data-pf-role="queue"] .pf-node-box { stroke-dasharray: 7 3; }
+.pf-node[data-pf-role="external"] .pf-node-box,
+.pf-node[data-pf-role="actor"] .pf-node-box { stroke: var(--pf-accent); }
+.pf-node[data-pf-role="terminal"] .pf-node-box { stroke: var(--pf-ok); }
+.pf-node[data-pf-role="decision"] .pf-node-box { stroke: var(--pf-accent); stroke-dasharray: 3 3; }
+
+.pf-node-label {
+  fill: var(--pf-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.pf-node-role {
+  fill: var(--pf-muted);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.pf-edge-line {
+  fill: none;
+  stroke: var(--pf-line-strong);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.pf-edge-on-path .pf-edge-line { stroke: var(--pf-accent); stroke-width: 3; }
+.pf-edge[data-pf-relation="depends_on"] .pf-edge-line { stroke-dasharray: 5 4; }
+.pf-edge[data-pf-relation="publishes"] .pf-edge-line,
+.pf-edge[data-pf-relation="consumes"] .pf-edge-line { stroke-dasharray: 2 4; }
+.pf-edge-label {
+  fill: var(--pf-muted);
+  font-size: 11px;
+}
+.pf-edge-on-path .pf-edge-label { fill: var(--pf-link); }
+
+/* The reading list below the canvas: the same facts, as text, for a reader who
+   is not looking at a picture. */
+.pf-legend { display: grid; gap: var(--pf-space-4); }
+.pf-legend-role {
+  display: inline-block;
+  margin-left: var(--pf-space-2);
+  padding: 1px 6px;
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  color: var(--pf-muted);
+  font-family: var(--pf-mono);
+  font-size: .72rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+.pf-relation {
+  font-family: var(--pf-mono);
+  font-size: .82rem;
+  color: var(--pf-muted);
+}
+.pf-walk { margin: 0; padding-left: var(--pf-space-5); }
+.pf-walk li { margin-bottom: var(--pf-space-1); }
+</style>
 </head>
 <body>
 <a class="pf-skip" href="#pf-content">Skip to content</a>
 <header class="pf-header">
 <svg class="pf-mark" width="26" height="26" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><g fill="currentColor"><rect x="4" y="23" width="24" height="6.4" rx="3.2" transform="rotate(-3 16 26.2)"/><rect x="7" y="14.6" width="18" height="6" rx="3" transform="rotate(4 16 17.6)"/><rect x="9.6" y="7" width="12.8" height="5.4" rx="2.7" transform="rotate(-6 16 9.7)"/><rect x="12.4" y="1" width="7.2" height="4.4" rx="2.2" transform="rotate(5 16 3.2)"/></g></svg>
 <div class="pf-identity">
-<div class="pf-eyebrow">Pathfinder lesson</div>
-<div class="pf-title">A specification that cites nothing</div>
+<div class="pf-eyebrow">Pathfinder diagram</div>
+<div class="pf-title">Typography probe — every script the cap admits</div>
 </div>
 <button type="button" class="pf-theme-toggle" id="pf-theme-toggle" hidden>Theme: auto</button>
 </header>
 <div class="pf-layout">
-<nav class="pf-nav" aria-label="Modules">
-<div class="pf-nav-label">Modules</div>
+<nav class="pf-nav" aria-label="In this diagram">
+<div class="pf-nav-label">In this diagram</div>
 <ul class="pf-nav-list">
-<li><a class="pf-nav-link" href="#m--prose-and-code" data-pf-nav="m--prose-and-code"><span class="pf-nav-index">1</span>Prose and code</a></li>
-<li><a class="pf-nav-link" href="#m--flow-and-quiz" data-pf-nav="m--flow-and-quiz"><span class="pf-nav-index">2</span>Flow and quiz</a></li>
+<li><a class="pf-nav-link" href="#s--g--scripts" data-pf-nav="s--g--scripts"><span class="pf-nav-index">1</span>Scripts</a></li>
+<li><a class="pf-nav-link" href="#s--g--boundary" data-pf-nav="s--g--boundary"><span class="pf-nav-index">2</span>الحدود</a></li>
+<li><a class="pf-nav-link" href="#s--v--wide" data-pf-nav="s--v--wide"><span class="pf-nav-index">3</span>幅広い文字</a></li>
 </ul>
 </nav>
 <main class="pf-main" id="pf-content">
 <div class="pf-lead">
-<h1>A specification that cites nothing</h1>
-<p class="pf-lead-sub">Every section type the lesson kind has, and not one citation between them.</p>
-<div class="pf-lead-summary"><p>This fixture exists so the determinism tests measure the renderer and nothing else. It carries no evidence, so no commit is resolved, no blob is read, and no Git history has to exist for it to deliver — which means a digest that moves has exactly one place it can have come from.</p></div>
-<div class="pf-objectives">
-<div class="pf-kicker">What you should be able to do</div>
-<ul>
-<li>Exercise every section type the lesson kind defines.</li>
-<li>Deliver without resolving a single citation.</li>
-<li>Give the golden digest one and only one input: the specification bytes and the renderer version.</li>
-</ul>
+<h1>Typography probe — every script the cap admits</h1>
+<p class="pf-lead-sub">Latin, CJK, Arabic, Devanagari and emoji, at and around the column cap</p>
+<div class="pf-lead-summary"><p>A fixture, not an example. Each label is chosen to sit at or near the 32-column cap so the probe exercises the boundary rather than the comfortable middle.</p></div>
 </div>
-</div>
-<section class="pf-module" id="m--prose-and-code" aria-labelledby="m--prose-and-code--h">
-<div class="pf-module-head">
-<div class="pf-module-index">Module 1</div>
-<h2 class="pf-module-title" id="m--prose-and-code--h">Prose and code</h2>
-<p class="pf-module-summary">The two section types that carry text the renderer must escape rather than interpret.</p>
-</div>
-<section class="pf-section" id="s--why-citation-free">
-<h3 class="pf-section-title" id="s--why-citation-free--h">Why this fixture cites nothing</h3>
+<div class="pf-canvas"><svg class="pf-graph" viewBox="0 0 888 1880" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
+<title id="pf--diagram--title">Diagram</title>
+<defs>
+<marker id="pf-arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" markerUnits="userSpaceOnUse" orient="auto">
+<path d="M 0 0 L 9 4 L 0 8 z" fill="context-stroke"/>
+</marker>
+</defs>
+<g class="pf-group" data-pf-depth="0">
+<rect class="pf-group-box" id="g--scripts" x="304" y="56" width="256" height="808" rx="14"/>
+<text class="pf-group-label" x="328" y="76">Scripts</text>
+</g>
+<g class="pf-group" data-pf-depth="0">
+<rect class="pf-group-box" id="g--boundary" x="576" y="876" width="256" height="316" rx="14"/>
+<text class="pf-group-label" x="600" y="896">الحدود</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-latin" points="432,184 432,272" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="432" y="222">short edge label</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="writes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-cap" points="432,348 432,436" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="432" y="386">twenty four columns ex</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="reads" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-cjk" points="432,512 432,600" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="432" y="550">读取数据库连接</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="publishes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-cjk2" points="432,676 432,764" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="432" y="714">キューに送信</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="triggers" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-ar" points="432,840 432,884 704,884 704,928" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="568" y="878">يستدعي الخدمة</text>
+</g>
+<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-dev" points="704,1004 704,1092" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="704" y="1042">सेवा कॉल</text>
+</g>
+<g class="pf-edge" data-pf-relation="consumes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-emoji" points="704,1168 704,1212 160,1212 160,1256" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="432" y="1206">📥📤</text>
+</g>
+<g class="pf-edge" data-pf-relation="triggers" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-zwj" points="160,1332 160,1420" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="160" y="1370">👩‍👧</text>
+</g>
+<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-mixed" points="160,1496 160,1584" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="160" y="1534">calls</text>
+</g>
+<g class="pf-edge" data-pf-relation="transitions_to" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-dec" points="160,1660 160,1748" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="160" y="1698">café</text>
+</g>
+<g class="pf-node" data-pf-role="service">
+<rect class="pf-node-box" id="n--latin-short" x="328" y="108" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="432" y="139">Checkout API</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="432" y="172">service</text>
+</g>
+<g class="pf-node" data-pf-role="service">
+<rect class="pf-node-box" id="n--latin-cap" x="328" y="272" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="432" y="294">Reserve inventor</tspan><tspan x="432" y="312">y then charge</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="432" y="336">service</text>
+</g>
+<g class="pf-node" data-pf-role="store">
+<rect class="pf-node-box" id="n--latin-exact" x="328" y="436" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="432" y="458">xxxxxxxxxxxxxxxx</tspan><tspan x="432" y="476">xxxxxxxxxxxxxxxx</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="432" y="500">store</text>
+</g>
+<g class="pf-node" data-pf-role="store">
+<rect class="pf-node-box" id="n--cjk" x="328" y="600" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="432" y="622">数据库服务器集群</tspan><tspan x="432" y="640">主节点</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="432" y="664">store</text>
+</g>
+<g class="pf-node" data-pf-role="queue">
+<rect class="pf-node-box" id="n--cjk-cap" x="328" y="764" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="432" y="786">記録保存処理キュ</tspan><tspan x="432" y="804">ー監視器設定値変</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="432" y="828">queue</text>
+</g>
+<g class="pf-node" data-pf-role="interface">
+<rect class="pf-node-box" id="n--arabic" x="600" y="928" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="704" y="950">بوابة الدفع</tspan><tspan x="704" y="968">الآمن</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="704" y="992">interface</text>
+</g>
+<g class="pf-node" data-pf-role="job">
+<rect class="pf-node-box" id="n--devanagari" x="600" y="1092" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="704" y="1123">नमस्ते सेवा नोड</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="704" y="1156">job</text>
+</g>
+<g class="pf-node" data-pf-role="external">
+<rect class="pf-node-box" id="n--emoji" x="56" y="1256" width="208" height="76" rx="38"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="160" y="1287">🚀🔐📦🗄📊🔔🚀🔐</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="160" y="1320">external</text>
+</g>
+<g class="pf-node" data-pf-role="actor">
+<rect class="pf-node-box" id="n--zwj" x="56" y="1420" width="208" height="76" rx="38"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="160" y="1451">👩‍👩‍👧 team</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="160" y="1484">actor</text>
+</g>
+<g class="pf-node" data-pf-role="decision">
+<rect class="pf-node-box" id="n--mixed" x="56" y="1584" width="208" height="76" rx="20"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="160" y="1615">API 网关 🔐</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="160" y="1648">decision</text>
+</g>
+<g class="pf-node" data-pf-role="step">
+<rect class="pf-node-box" id="n--decomposed" x="56" y="1748" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="160" y="1770">café service</tspan><tspan x="160" y="1788">node</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="160" y="1812">step</text>
+</g>
+</svg></div>
+<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--scripts">
+<h3 class="pf-section-title">Scripts</h3>
 <div class="pf-card">
-<p>The evidence layer resolves citations against a commit using local Git. That is the right behaviour for a real lesson and the wrong dependency for a determinism test: a digest that changed would leave two suspects, the renderer and the repository, and the test could not tell them apart.</p>
-<p>So this specification carries no citations at all. The evidence layer still runs and still reports its claim; it simply has nothing to resolve.</p>
+<div class="pf-card" id="s--n--latin-short">
+<h4 class="pf-section-title">Checkout API<span class="pf-legend-role">service</span></h4>
+<p>Short Latin, well inside the cap.</p>
+</div>
+<div class="pf-card" id="s--n--latin-cap">
+<h4 class="pf-section-title">Reserve inventory then charge<span class="pf-legend-role">service</span></h4>
+<p>Latin at 29 columns, wrapping to two lines.</p>
+</div>
+<div class="pf-card" id="s--n--latin-exact">
+<h4 class="pf-section-title">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx<span class="pf-legend-role">store</span></h4>
+<p>Exactly 32 columns with no space to break at, so it wraps on column boundaries.</p>
+</div>
+<div class="pf-card" id="s--n--cjk">
+<h4 class="pf-section-title">数据库服务器集群主节点<span class="pf-legend-role">store</span></h4>
+<p>Chinese: eleven characters, twenty-two columns.</p>
+</div>
+<div class="pf-card" id="s--n--cjk-cap">
+<h4 class="pf-section-title">記録保存処理キュー監視器設定値変<span class="pf-legend-role">queue</span></h4>
+<p>Japanese at exactly sixteen characters, which is exactly the thirty-two column cap.</p>
+</div>
 </div>
 </section>
-<section class="pf-section" id="s--escaping-probe">
-<h3 class="pf-section-title">Characters the renderer must escape</h3>
-<figure class="pf-code">
-<figcaption>Angle brackets, ampersands, quotes and a backslash, so an escaping regression moves the digest.</figcaption>
-<div class="pf-code-frame"><span class="pf-code-lang">html</span>
-<pre><code>
-<span class="pf-code-line"><span class="pf-code-no">1</span>&lt;script&gt;alert(&quot;not executed&quot;)&lt;/script&gt;</span>
-<span class="pf-code-line"><span class="pf-code-no">2</span>a &amp; b &lt; c &gt; d &quot;quoted&quot; &#39;single&#39; \backslash</span>
-<span class="pf-code-line"><span class="pf-code-no">3</span>unicode: é 中文 🗺</span>
-</code></pre></div>
-</figure>
-</section>
-<section class="pf-section" id="s--change-one-byte">
-<h3 class="pf-section-title" id="s--change-one-byte--h">Change one byte</h3>
+<section class="pf-section" id="s--g--boundary">
+<h3 class="pf-section-title">الحدود</h3>
 <div class="pf-card">
-<span class="pf-kicker">Practice</span>
-<p>Edit any character in this fixture and re-run the golden test. It fails, and the failure names the digest that moved.</p>
-<p>That is the whole contract: same specification bytes and same renderer version, same artifact bytes.</p>
-<details class="pf-reveal">
-<summary>Hints</summary>
-<ol>
-<li>The renderer version lives in `skills/render-artifact/engine/version.mjs`.</li>
-<li>A deliberate output change is a version bump plus a regenerated golden, in one commit.</li>
-</ol>
-</details>
+<div class="pf-card" id="s--n--arabic">
+<h4 class="pf-section-title">بوابة الدفع الآمن<span class="pf-legend-role">interface</span></h4>
+<p>Arabic, right-to-left, authored as written. The canvas is not mirrored; that is out of scope.</p>
+</div>
+<div class="pf-card" id="s--n--devanagari">
+<h4 class="pf-section-title">नमस्ते सेवा नोड<span class="pf-legend-role">job</span></h4>
+<p>Devanagari with combining marks, which occupy no column of their own.</p>
+</div>
 </div>
 </section>
-</section>
-<section class="pf-module" id="m--flow-and-quiz" aria-labelledby="m--flow-and-quiz--h">
-<div class="pf-module-head">
-<div class="pf-module-index">Module 2</div>
-<h2 class="pf-module-title" id="m--flow-and-quiz--h">Flow and quiz</h2>
-<p class="pf-module-summary">The two section types whose ordering and identifiers the renderer derives rather than invents.</p>
-<p class="pf-requires">Builds on: <a href="#m--prose-and-code">Prose and code</a></p>
-</div>
-<section class="pf-section" id="s--delivery-path">
-<h3 class="pf-section-title" id="s--delivery-path--h">What delivery does, in order</h3>
+<section class="pf-section" id="s--ungrouped">
+<h3 class="pf-section-title">Not in a boundary</h3>
 <div class="pf-card">
-<span class="pf-kicker">Walkthrough</span>
-<ol class="pf-flow">
-<li>
-<div class="pf-step-title">Parse the frozen bytes</div>
-<p class="pf-step-detail">Delivery copies the specification bytes first and parses that copy, so the receipt cannot describe a specification that was never rendered.</p>
-</li>
-<li>
-<div class="pf-step-title">Validate the parse</div>
-<p class="pf-step-detail">Structural, then composition and evidence together. A failure stops here and writes nothing.</p>
-</li>
-<li>
-<div class="pf-step-title">Render against an attestation</div>
-<p class="pf-step-detail">The attestation is minted from the validation just performed, which is the only route to a verification claim in the artifact.</p>
-</li>
-<li>
-<div class="pf-step-title">Commit atomically</div>
-<p class="pf-step-detail">Write beside the destination, fsync, rename over it. A failure leaves the previous artifact untouched.</p>
-</li>
-</ol>
+<div class="pf-card" id="s--n--emoji">
+<h4 class="pf-section-title">🚀🔐📦🗄📊🔔🚀🔐<span class="pf-legend-role">external</span></h4>
+<p>Eight default-presentation emoji, two columns each.</p>
+</div>
+<div class="pf-card" id="s--n--zwj">
+<h4 class="pf-section-title">👩‍👩‍👧 team<span class="pf-legend-role">actor</span></h4>
+<p>A ZWJ sequence: five code points rendering as one glyph. The model measures its parts, which over-reserves rather than under-reserving.</p>
+</div>
+<div class="pf-card" id="s--n--mixed">
+<h4 class="pf-section-title">API 网关 🔐<span class="pf-legend-role">decision</span></h4>
+<p>Latin, Chinese and emoji in one label.</p>
+</div>
+<div class="pf-card" id="s--n--decomposed">
+<h4 class="pf-section-title">café service node<span class="pf-legend-role">step</span></h4>
+<p>Decomposed: e followed by a combining acute. Measures the same as the precomposed form, with no normalization.</p>
+</div>
 </div>
 </section>
-<section class="pf-section" id="s--determinism-quiz">
-<h3 class="pf-section-title" id="s--determinism-quiz--h">Check yourself</h3>
+<h2 class="pf-module-title">Relationships</h2><section class="pf-section" id="s--relationships">
 <div class="pf-card">
-<span class="pf-kicker">Check your understanding</span>
-<div class="pf-quiz">
-<fieldset class="pf-question" data-pf-question="q--determinism-quiz--what-moves-output">
-<legend>Rendering the same specification twice produces different HTML. What is the defect?</legend>
-<div class="pf-options"><label class="pf-option" for="q--determinism-quiz--what-moves-output--0"><input type="radio" id="q--determinism-quiz--what-moves-output--0" name="q--determinism-quiz--what-moves-output" value="0" data-pf-answer="other"><span>The specification is stale and should be regenerated.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--determinism-quiz--what-moves-output--1"><input type="radio" id="q--determinism-quiz--what-moves-output--1" name="q--determinism-quiz--what-moves-output" value="1" data-pf-answer="correct"><span>The renderer read something ambient — a clock, the environment, the locale, or the filesystem&#39;s ordering.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--determinism-quiz--what-moves-output--2"><input type="radio" id="q--determinism-quiz--what-moves-output--2" name="q--determinism-quiz--what-moves-output" value="2" data-pf-answer="other"><span>The reader&#39;s browser is in a different theme.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--determinism-quiz--what-moves-output--3"><input type="radio" id="q--determinism-quiz--what-moves-output--3" name="q--determinism-quiz--what-moves-output" value="3" data-pf-answer="other"><span>The artifact was not committed atomically.</span><span class="pf-verdict" aria-live="polite"></span></label></div>
-<details class="pf-reveal">
-<summary>Show the answer</summary>
-<p><strong>Correct:</strong> The renderer read something ambient — a clock, the environment, the locale, or the filesystem&#39;s ordering.</p>
-<p>Rendering is a pure function of the specification and the renderer. If it is not, the renderer reached for something outside both.</p>
-</details>
-</fieldset>
-<fieldset class="pf-question" data-pf-question="q--determinism-quiz--version-bump">
-<legend>A change to the renderer&#39;s CSS intentionally alters every artifact&#39;s bytes. What must the same commit do?</legend>
-<div class="pf-options"><label class="pf-option" for="q--determinism-quiz--version-bump--0"><input type="radio" id="q--determinism-quiz--version-bump--0" name="q--determinism-quiz--version-bump" value="0" data-pf-answer="other"><span>Nothing — determinism is about one machine, not one release.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--determinism-quiz--version-bump--1"><input type="radio" id="q--determinism-quiz--version-bump--1" name="q--determinism-quiz--version-bump" value="1" data-pf-answer="other"><span>Delete the golden files, because they can no longer be trusted.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--determinism-quiz--version-bump--2"><input type="radio" id="q--determinism-quiz--version-bump--2" name="q--determinism-quiz--version-bump" value="2" data-pf-answer="correct"><span>Bump RENDERER_VERSION and regenerate the goldens.</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--determinism-quiz--version-bump--3"><input type="radio" id="q--determinism-quiz--version-bump--3" name="q--determinism-quiz--version-bump" value="3" data-pf-answer="other"><span>Add the CSS change to the specification schema.</span><span class="pf-verdict" aria-live="polite"></span></label></div>
-<details class="pf-reveal">
-<summary>Show the answer</summary>
-<p><strong>Correct:</strong> Bump RENDERER_VERSION and regenerate the goldens.</p>
-<p>The renderer version is part of the deterministic input. An intentional output change is a version change; without the bump it is indistinguishable from a determinism failure.</p>
-</details>
-</fieldset>
-</div>
+<ul class="pf-legend"><li id="s--e--e-latin"><span class="pf-step-title">Checkout API</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Reserve inventory then charge</span><p class="pf-step-detail">short edge label</p></li>
+<li id="s--e--e-cap"><span class="pf-step-title">Reserve inventory then charge</span> <span class="pf-relation">writes</span> <span class="pf-step-title">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</span><p class="pf-step-detail">twenty four columns ex</p></li>
+<li id="s--e--e-cjk"><span class="pf-step-title">xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</span> <span class="pf-relation">reads</span> <span class="pf-step-title">数据库服务器集群主节点</span><p class="pf-step-detail">读取数据库连接</p></li>
+<li id="s--e--e-cjk2"><span class="pf-step-title">数据库服务器集群主节点</span> <span class="pf-relation">publishes to</span> <span class="pf-step-title">記録保存処理キュー監視器設定値変</span><p class="pf-step-detail">キューに送信</p></li>
+<li id="s--e--e-ar"><span class="pf-step-title">記録保存処理キュー監視器設定値変</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">بوابة الدفع الآمن</span><p class="pf-step-detail">يستدعي الخدمة</p></li>
+<li id="s--e--e-dev"><span class="pf-step-title">بوابة الدفع الآمن</span> <span class="pf-relation">calls</span> <span class="pf-step-title">नमस्ते सेवा नोड</span><p class="pf-step-detail">सेवा कॉल</p></li>
+<li id="s--e--e-emoji"><span class="pf-step-title">नमस्ते सेवा नोड</span> <span class="pf-relation">consumes from</span> <span class="pf-step-title">🚀🔐📦🗄📊🔔🚀🔐</span><p class="pf-step-detail">📥📤</p></li>
+<li id="s--e--e-zwj"><span class="pf-step-title">🚀🔐📦🗄📊🔔🚀🔐</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">👩‍👩‍👧 team</span><p class="pf-step-detail">👩‍👧</p></li>
+<li id="s--e--e-mixed"><span class="pf-step-title">👩‍👩‍👧 team</span> <span class="pf-relation">calls</span> <span class="pf-step-title">API 网关 🔐</span></li>
+<li id="s--e--e-dec"><span class="pf-step-title">API 网关 🔐</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">café service node</span><p class="pf-step-detail">café</p></li></ul>
 </div>
 </section>
+<h2 class="pf-module-title">Paths</h2><section class="pf-section" id="s--p--sweep">
+<h3 class="pf-section-title">المسار الرئيسي</h3>
+<div class="pf-card">
+<p class="pf-module-summary">A path whose own label is right-to-left.</p>
+<div class="pf-kicker">Walks</div>
+<ol class="pf-walk"><li>Checkout API <span class="pf-relation">calls</span> Reserve inventory then charge — short edge label</li>
+<li>Reserve inventory then charge <span class="pf-relation">writes</span> xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx — twenty four columns ex</li>
+<li>xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx <span class="pf-relation">reads</span> 数据库服务器集群主节点 — 读取数据库连接</li>
+<li>数据库服务器集群主节点 <span class="pf-relation">publishes to</span> 記録保存処理キュー監視器設定値変 — キューに送信</li>
+<li>記録保存処理キュー監視器設定値変 <span class="pf-relation">triggers</span> بوابة الدفع الآمن — يستدعي الخدمة</li></ol>
+</div>
+</section>
+<h2 class="pf-module-title">Views</h2><section class="pf-section" id="s--v--wide">
+<h3 class="pf-section-title">幅広い文字</h3>
+<div class="pf-card">
+<div class="pf-kicker">Focuses on</div>
+<ul class="pf-legend"><li>数据库服务器集群主节点</li><li>記録保存処理キュー監視器設定値変</li><li>🚀🔐📦🗄📊🔔🚀🔐</li></ul>
+</div>
 </section>
 </main>
 </div>
 <footer class="pf-provenance">
 <dl>
 <dt>Repository</dt>
-<dd>pathfinder/determinism-fixture</dd>
+<dd>pathfinder</dd>
 <dt>Commit</dt>
-<dd>0000000</dd>
-<dt>Specification generated</dt>
-<dd>2026-01-01</dd>
+<dd>1faaf37</dd>
 <dt>Renderer</dt>
 <dd>Pathfinder render-artifact 0.3.0</dd>
 </dl>

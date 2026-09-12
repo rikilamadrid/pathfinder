@@ -26,7 +26,9 @@ import { after, describe, it } from "node:test";
 import {
   GEOMETRY, layoutGraph, wrapLabel,
 } from "../../../skills/render-artifact/engine/render/graph/layout.mjs";
+import { cellWidth } from "../../../skills/render-artifact/engine/render/graph/width.mjs";
 import { render } from "../../../skills/render-artifact/engine/render/index.mjs";
+import { RENDERER_VERSION } from "../../../skills/render-artifact/engine/version.mjs";
 import {
   REPO_ROOT, SPECS, cleanUpTemporaryDirectories, deliverInSubprocess, temporaryDirectory,
 } from "../lib/harness.mjs";
@@ -62,7 +64,12 @@ describe("diagram — the pipeline, end to end", () => {
   });
 
   it("reports the renderer version that supports two kinds", () => {
-    assert.equal(delivery.receipt.renderer_version, "0.2.0");
+    // Against the constant, not a literal. The claim is that the receipt names
+    // the engine that produced the artifact; pinning the number here would make
+    // every deliberate renderer release look like a broken test.
+    assert.equal(delivery.receipt.renderer_version, RENDERER_VERSION);
+    assert.match(delivery.html,
+      new RegExp(`Pathfinder render-artifact ${RENDERER_VERSION.replace(/\./g, "\\.")}`));
   });
 
   it("carries the shared shell, one stylesheet, and the Pathfinder identity", () => {
@@ -284,7 +291,31 @@ describe("diagram — refusals that are not improvisation", () => {
     const delivery = deliverSpec(spec);
 
     assert.equal(delivery.status, 1);
-    assert.ok(codes(delivery).includes("schema_maxLength"));
+    assert.ok(codes(delivery).includes("label_too_long"), codes(delivery).join(", "));
+  });
+
+  it("counts the label cap in columns, not characters", () => {
+    // Seventeen wide characters is thirty-four columns and is refused; sixteen
+    // is thirty-two and is accepted. A cap counted in characters would have let
+    // the first through and drawn a label half again as wide as its box.
+    const over = example();
+    over.diagram.nodes[0].label = "\u8a18".repeat(17);
+    const refused = deliverSpec(over);
+    assert.equal(refused.status, 1);
+    assert.ok(codes(refused).includes("label_too_long"));
+    assert.match(
+      refused.receipt.diagnostics.find((d) => d.code === "label_too_long").message,
+      /34 columns wide and the cap is 32/);
+
+    const atCap = example();
+    atCap.diagram.nodes[0].label = "\u8a18".repeat(16);
+    assert.equal(deliverSpec(atCap).status, 0, "a label exactly at the cap must be accepted");
+  });
+
+  it("refuses an over-wide edge label at its own, lower cap", () => {
+    const spec = example();
+    spec.diagram.edges[0].label = "x".repeat(25);
+    assert.ok(codes(deliverSpec(spec)).includes("label_too_long"));
   });
 
   it("refuses a diagram over the node cap", () => {
@@ -480,11 +511,24 @@ describe("diagram — the renderer never deletes a producer's words", () => {
     assert.deepEqual(offenders, []);
   });
 
-  it("never returns more lines than the box has", () => {
+  it("never returns more lines than the box has, for labels the schema admits", () => {
+    // The guarantee is scoped, and the scope is the whole point: two lines of
+    // the column budget is exactly the cap, so every label that can reach the
+    // renderer fits. A wider one cannot reach it — the structural layer refuses
+    // it first — and wrapping such a string stays lossless without pretending
+    // it would fit a box it will never be drawn in.
     for (const label of ADVERSARIAL) {
+      if (cellWidth(label) > 32) continue;
       assert.ok(wrapLabel(label).length <= GEOMETRY.LABEL_MAX_LINES,
-        `${JSON.stringify(label)} wrapped to ${wrapLabel(label).length} lines`);
+        `${JSON.stringify(label)} is ${cellWidth(label)} columns and wrapped to ` +
+        `${wrapLabel(label).length} lines`);
     }
+  });
+
+  it("stays lossless even for a label the schema would refuse", () => {
+    const huge = "a".repeat(70);
+    assert.ok(cellWidth(huge) > 32, "this label must be over the cap to be the case in point");
+    assert.equal(wrapLabel(huge).join(""), huge);
   });
 
   it("puts the whole label in the delivered artifact", () => {
