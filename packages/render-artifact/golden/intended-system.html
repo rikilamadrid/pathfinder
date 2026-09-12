@@ -682,8 +682,9 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
   font-family: var(--pf-mono);
   font-size: .78rem;
 }
-.pf-pick { margin-left: var(--pf-space-2); }
-.pf-section-title .pf-pick { float: right; }
+/* Inline and free to wrap. A float here escaped its heading at narrow widths,
+   which is exactly where this gets read. */
+.pf-pick { margin-left: var(--pf-space-2); white-space: nowrap; }
 
 .pf-canvas:focus-visible { outline: 3px solid var(--pf-accent); outline-offset: 2px; }
 .pf-canvas[data-pf-zoom="in"] .pf-graph { cursor: grab; }
@@ -873,7 +874,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <text class="pf-node-role" text-anchor="middle" x="160" y="828">decision</text>
 </g>
 </svg></div>
-<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--edge" data-pf-entry="group" data-pf-for="edge">
+<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--edge">
 <h3 class="pf-section-title">At the edge</h3>
 <div class="pf-card">
 <p class="pf-module-summary">What a customer would touch. Intended, not built.</p>
@@ -887,7 +888,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div>
 </div>
 </section>
-<section class="pf-section" id="s--g--core" data-pf-entry="group" data-pf-for="core">
+<section class="pf-section" id="s--g--core">
 <h3 class="pf-section-title">Order handling</h3>
 <div class="pf-card">
 <div class="pf-card" id="s--n--orders" data-pf-entry="node" data-pf-for="orders">
@@ -1172,6 +1173,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 
     svg.setAttribute("viewBox", view.x + " " + view.y + " " + w + " " + h);
     canvas.setAttribute("data-pf-zoom", view.zoom === 1 ? "fit" : "in");
+    limits();
   }
 
   function zoomBy(factor) {
@@ -1304,7 +1306,12 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
       var kind = entry.getAttribute("data-pf-entry");
       var forId = entry.getAttribute("data-pf-for");
       var isCurrent = (kind === "node" && forId === state.focus)
-        || (kind === "path" && forId === state.path);
+        || (kind === "path" && forId === state.path)
+        /* An edge row is current when the highlighted path walks it, which is
+           what makes "highlight this path" and "read its evidence" one act
+           rather than two. Keyed off the picked edge set, so it is exactly the
+           authored edges and never a similar-looking one. */
+        || (kind === "edge" && picked.mode === "path" && Boolean(picked.edges[forId]));
       if (isCurrent) {
         entry.setAttribute("aria-current", "true");
       } else {
@@ -1318,6 +1325,15 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
     act("downstream", !state.focus);
     act("details", !state.focus);
     act("clear", picked.mode === "");
+  }
+
+  /* A control at its limit is disabled rather than left to do nothing when
+     pressed. Fit is the floor deliberately: zooming out past the whole graph
+     would only add empty space, and "fit" is then always the way back. */
+  function limits() {
+    act("zoom-out", view.zoom <= 1);
+    act("zoom-in", view.zoom >= MAX_ZOOM);
+    act("fit", view.zoom === 1 && view.x === 0 && view.y === 0);
   }
 
   function act(name, isDisabled) {

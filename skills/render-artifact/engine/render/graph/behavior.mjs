@@ -106,6 +106,7 @@ export function graphBehavior(modelJson) {
 
     svg.setAttribute("viewBox", view.x + " " + view.y + " " + w + " " + h);
     canvas.setAttribute("data-pf-zoom", view.zoom === 1 ? "fit" : "in");
+    limits();
   }
 
   function zoomBy(factor) {
@@ -238,7 +239,12 @@ export function graphBehavior(modelJson) {
       var kind = entry.getAttribute("data-pf-entry");
       var forId = entry.getAttribute("data-pf-for");
       var isCurrent = (kind === "node" && forId === state.focus)
-        || (kind === "path" && forId === state.path);
+        || (kind === "path" && forId === state.path)
+        /* An edge row is current when the highlighted path walks it, which is
+           what makes "highlight this path" and "read its evidence" one act
+           rather than two. Keyed off the picked edge set, so it is exactly the
+           authored edges and never a similar-looking one. */
+        || (kind === "edge" && picked.mode === "path" && Boolean(picked.edges[forId]));
       if (isCurrent) {
         entry.setAttribute("aria-current", "true");
       } else {
@@ -252,6 +258,15 @@ export function graphBehavior(modelJson) {
     act("downstream", !state.focus);
     act("details", !state.focus);
     act("clear", picked.mode === "");
+  }
+
+  /* A control at its limit is disabled rather than left to do nothing when
+     pressed. Fit is the floor deliberately: zooming out past the whole graph
+     would only add empty space, and "fit" is then always the way back. */
+  function limits() {
+    act("zoom-out", view.zoom <= 1);
+    act("zoom-in", view.zoom >= MAX_ZOOM);
+    act("fit", view.zoom === 1 && view.x === 0 && view.y === 0);
   }
 
   function act(name, isDisabled) {

@@ -184,7 +184,7 @@ function renderComponents(diagram) {
       group.summary ? `<p class="pf-module-summary">${esc(group.summary)}</p>` : "",
       renderEvidence(group.evidence),
       members.map(renderNode).join("\n"),
-    ].filter(Boolean).join("\n"), `data-pf-entry="group" data-pf-for="${esc(group.id)}"`));
+    ].filter(Boolean).join("\n")));
   }
 
   const loose = diagram.nodes.filter((node) =>

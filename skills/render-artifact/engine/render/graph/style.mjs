@@ -138,8 +138,9 @@ export const GRAPH_CSS = `
   font-family: var(--pf-mono);
   font-size: .78rem;
 }
-.pf-pick { margin-left: var(--pf-space-2); }
-.pf-section-title .pf-pick { float: right; }
+/* Inline and free to wrap. A float here escaped its heading at narrow widths,
+   which is exactly where this gets read. */
+.pf-pick { margin-left: var(--pf-space-2); white-space: nowrap; }
 
 .pf-canvas:focus-visible { outline: 3px solid var(--pf-accent); outline-offset: 2px; }
 .pf-canvas[data-pf-zoom="in"] .pf-graph { cursor: grab; }

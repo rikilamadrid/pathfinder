@@ -682,8 +682,9 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
   font-family: var(--pf-mono);
   font-size: .78rem;
 }
-.pf-pick { margin-left: var(--pf-space-2); }
-.pf-section-title .pf-pick { float: right; }
+/* Inline and free to wrap. A float here escaped its heading at narrow widths,
+   which is exactly where this gets read. */
+.pf-pick { margin-left: var(--pf-space-2); white-space: nowrap; }
 
 .pf-canvas:focus-visible { outline: 3px solid var(--pf-accent); outline-offset: 2px; }
 .pf-canvas[data-pf-zoom="in"] .pf-graph { cursor: grab; }
@@ -1027,7 +1028,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <text class="pf-node-role" text-anchor="middle" x="212" y="1380">decision</text>
 </g>
 </svg></div>
-<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--entry" data-pf-entry="group" data-pf-for="entry">
+<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--entry">
 <h3 class="pf-section-title">Entry</h3>
 <div class="pf-card">
 <p class="pf-module-summary">The executable npm exposes, and the one function it hands control to.</p>
@@ -1060,7 +1061,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div>
 </div>
 </section>
-<section class="pf-section" id="s--g--conversation" data-pf-entry="group" data-pf-for="conversation">
+<section class="pf-section" id="s--g--conversation">
 <h3 class="pf-section-title">What it asks the human</h3>
 <div class="pf-card">
 <p class="pf-module-summary">Nothing is installed without being offered first; a non-interactive run answers for itself.</p>
@@ -1112,7 +1113,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div>
 </div>
 </section>
-<section class="pf-section" id="s--g--planning" data-pf-entry="group" data-pf-for="planning">
+<section class="pf-section" id="s--g--planning">
 <h3 class="pf-section-title">Plan, then apply</h3>
 <div class="pf-card">
 <p class="pf-module-summary">Every write is planned as a whole before any of it happens, so a refusal costs nothing.</p>
@@ -1164,7 +1165,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div>
 </div>
 </section>
-<section class="pf-section" id="s--g--publishing" data-pf-entry="group" data-pf-for="publishing">
+<section class="pf-section" id="s--g--publishing">
 <h3 class="pf-section-title">Getting the kit into the package</h3>
 <div class="pf-card">
 <p class="pf-module-summary">The kit lives at the repository root, and npm cannot reach outside the package directory.</p>
@@ -1744,6 +1745,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 
     svg.setAttribute("viewBox", view.x + " " + view.y + " " + w + " " + h);
     canvas.setAttribute("data-pf-zoom", view.zoom === 1 ? "fit" : "in");
+    limits();
   }
 
   function zoomBy(factor) {
@@ -1876,7 +1878,12 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
       var kind = entry.getAttribute("data-pf-entry");
       var forId = entry.getAttribute("data-pf-for");
       var isCurrent = (kind === "node" && forId === state.focus)
-        || (kind === "path" && forId === state.path);
+        || (kind === "path" && forId === state.path)
+        /* An edge row is current when the highlighted path walks it, which is
+           what makes "highlight this path" and "read its evidence" one act
+           rather than two. Keyed off the picked edge set, so it is exactly the
+           authored edges and never a similar-looking one. */
+        || (kind === "edge" && picked.mode === "path" && Boolean(picked.edges[forId]));
       if (isCurrent) {
         entry.setAttribute("aria-current", "true");
       } else {
@@ -1890,6 +1897,15 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
     act("downstream", !state.focus);
     act("details", !state.focus);
     act("clear", picked.mode === "");
+  }
+
+  /* A control at its limit is disabled rather than left to do nothing when
+     pressed. Fit is the floor deliberately: zooming out past the whole graph
+     would only add empty space, and "fit" is then always the way back. */
+  function limits() {
+    act("zoom-out", view.zoom <= 1);
+    act("zoom-in", view.zoom >= MAX_ZOOM);
+    act("fit", view.zoom === 1 && view.x === 0 && view.y === 0);
   }
 
   function act(name, isDisabled) {

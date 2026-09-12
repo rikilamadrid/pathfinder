@@ -26,6 +26,8 @@ import { after, describe, it } from "node:test";
 import {
   TRAVERSAL_JS, interactionModel, serializeModel,
 } from "../../../skills/render-artifact/engine/render/graph/interaction.mjs";
+import { graphBehavior }
+  from "../../../skills/render-artifact/engine/render/graph/behavior.mjs";
 import { BEHAVIOR_JS } from "../../../skills/render-artifact/engine/render/behavior.mjs";
 import {
   DIAGRAM_SPECIMENS, REPO_ROOT, SPECS, cleanUpTemporaryDirectories,
@@ -287,6 +289,271 @@ describe("path highlight selects the authored edges and no others", () => {
       }
     }
   });
+});
+
+/**
+ * The emitted script, compiled and run.
+ *
+ * Every other assertion in this file tests a function the engine exports. None
+ * of them would notice a syntax error in the script that actually ships, or a
+ * null dereference on load — the artifact would deliver, the goldens would
+ * faithfully record the broken bytes, and the whole suite would stay green
+ * while the delivered page did nothing at all.
+ *
+ * So the script is compiled here, and then run against a DOM small enough to
+ * be obviously honest: the elements the real artifact emits, the attributes the
+ * script is allowed to set, and nothing that pretends to lay anything out. What
+ * this proves is that the interactions compute the right state. Whether that
+ * state *looks* right is a person's judgement, recorded separately.
+ */
+describe("the script that ships runs, and computes the right state", () => {
+  const model = interactionModel(INSTALLER.diagram);
+  const script = graphBehavior(serializeModel(model));
+
+  it("compiles", () => {
+    // The cheapest guard in this file, and the one covering the largest
+    // failure: a broken script ships silently.
+    assert.doesNotThrow(() => new Function(script),
+      "the inline script does not parse, so the delivered artifact is inert");
+  });
+
+  it("initialises without touching anything it should not", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+
+    assert.ok(dom.controls.every((group) => group.hidden === false),
+      "the controls were never revealed, so nothing is operable");
+    assert.equal(dom.svg.getAttribute("viewBox"), "0 0 1000 800",
+      "the initial view is the whole graph");
+    assert.equal(dom.canvas.getAttribute("data-pf-zoom"), "fit");
+    assert.match(dom.status.textContent, /Nothing selected/);
+    assert.equal(dom.tool("upstream").disabled, true,
+      "traversal is offered before anything is selected");
+    assert.equal(dom.tool("zoom-out").disabled, true,
+      "zoom-out is offered at the fit floor, where it does nothing");
+  });
+
+  it("focuses a node, and dims what the node does not touch", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+    dom.clickPick("cli");
+
+    assert.deepEqual(dom.state("node", "on"), ["cli"]);
+    assert.equal(dom.canvas.getAttribute("data-pf-mode"), "focus");
+    assert.deepEqual(dom.current(), ["cli"],
+      "the written entry carrying the evidence is not marked current");
+
+    // Exactly the edges incident to the node, from the model's own adjacency.
+    const incident = new Set([
+      ...model.out.cli.map(([id]) => id), ...model.in.cli.map(([id]) => id),
+    ]);
+    assert.deepEqual(sorted(dom.state("edge", "on")), sorted([...incident]));
+    assert.ok(dom.state("node", "off").length > 0, "nothing was dimmed");
+    assert.equal(dom.tool("upstream").disabled, false);
+  });
+
+  it("traces downstream over the graph, terminating through the cycle", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+    dom.clickPick("cli");
+    dom.clickAct("downstream");
+
+    const expected = pfTraverse(model, "cli", "out");
+    assert.deepEqual(sorted(dom.state("node", "on")), sorted(expected.nodes));
+    assert.deepEqual(sorted(dom.state("edge", "on")), sorted(expected.edges));
+    assert.match(dom.status.textContent, /^Downstream of run\(\): \d+ components reached/);
+  });
+
+  it("traces upstream over the reverse edges", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+    dom.clickPick("cli");
+    dom.clickAct("upstream");
+
+    const expected = pfTraverse(model, "cli", "in");
+    assert.deepEqual(sorted(dom.state("node", "on")), sorted(expected.nodes));
+    assert.match(dom.status.textContent, /^Upstream of run\(\)/);
+  });
+
+  it("highlights exactly the edges an authored path names", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+    dom.clickPath("offswitch");
+
+    assert.deepEqual(sorted(dom.state("edge", "on")), sorted(model.paths.offswitch));
+    assert.equal(dom.canvas.getAttribute("data-pf-mode"), "path");
+
+    // Every other edge is dimmed, including ones between the same nodes.
+    const lit = new Set(model.paths.offswitch);
+    for (const id of Object.keys(model.edges)) {
+      if (lit.has(id)) continue;
+      assert.ok(!dom.state("edge", "on").includes(id),
+        `edge ${id} lit up and the path does not walk it`);
+    }
+  });
+
+  it("zooms, pans within the graph's bounds, and fits back", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+
+    dom.clickAct("zoom-in");
+    const zoomed = dom.svg.getAttribute("viewBox").split(" ").map(Number);
+    assert.ok(zoomed[2] < 1000 && zoomed[3] < 800, "zooming in did not narrow the view");
+    assert.equal(dom.tool("zoom-out").disabled, false);
+
+    dom.key("ArrowRight");
+    const panned = dom.svg.getAttribute("viewBox").split(" ").map(Number);
+    assert.ok(panned[0] > zoomed[0], "arrow-key panning did not move the view");
+    assert.ok(panned[0] + panned[2] <= 1000,
+      "panning left the graph's own bounds, so there is empty space on screen");
+
+    dom.clickAct("fit");
+    assert.equal(dom.svg.getAttribute("viewBox"), "0 0 1000 800");
+  });
+
+  it("clears on Escape, and reset clears with it", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+    dom.clickPick("cli");
+    dom.key("Escape", { onDocument: true });
+
+    assert.equal(dom.state("node", "on").length, 0);
+    assert.deepEqual(dom.current(), []);
+    assert.match(dom.status.textContent, /Selection cleared/);
+
+    dom.clickPick("cli");
+    dom.clickAct("zoom-in");
+    dom.clickAct("reset");
+    assert.equal(dom.svg.getAttribute("viewBox"), "0 0 1000 800");
+    assert.equal(dom.state("node", "on").length, 0);
+  });
+
+  it("ignores a node it does not have", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+    dom.clickPick("no-such-node");
+
+    assert.equal(dom.canvas.getAttribute("data-pf-mode"), "",
+      "the script invented a selection for an id the model does not carry");
+  });
+
+  /** Run the emitted script against a stub document. */
+  function run(source, dom) {
+    new Function("document", "window", source)(dom.document, { localStorage: null });
+  }
+
+  /**
+   * The smallest document the script can be judged against: the elements the
+   * renderer emits, and attribute bookkeeping. It lays nothing out and draws
+   * nothing, which is the point — the script is not allowed to depend on that.
+   */
+  function fakeDocument() {
+    const element = (attrs = {}) => ({
+      attrs: { ...attrs },
+      hidden: true,
+      disabled: false,
+      textContent: "",
+      getAttribute(name) {
+        return Object.prototype.hasOwnProperty.call(this.attrs, name)
+          ? this.attrs[name] : null;
+      },
+      setAttribute(name, value) { this.attrs[name] = String(value); },
+      removeAttribute(name) { delete this.attrs[name]; },
+      addEventListener() {},
+      closest() { return null; },
+      scrollIntoView() {},
+      getBoundingClientRect() { return { width: 800, height: 600 }; },
+    });
+
+    const svg = element({ viewBox: "0 0 1000 800" });
+    const canvas = element({ "data-pf-canvas": "" });
+    canvas.querySelector = () => svg;
+
+    const nodes = INSTALLER.diagram.nodes.map((node) =>
+      element({ "data-pf-node": node.id }));
+    const edges = INSTALLER.diagram.edges.map((edge) =>
+      element({ "data-pf-edge": edge.id }));
+    const entries = [
+      ...INSTALLER.diagram.nodes.map((node) =>
+        element({ "data-pf-entry": "node", "data-pf-for": node.id })),
+      ...INSTALLER.diagram.edges.map((edge) =>
+        element({ "data-pf-entry": "edge", "data-pf-for": edge.id })),
+      ...INSTALLER.diagram.paths.map((path) =>
+        element({ "data-pf-entry": "path", "data-pf-for": path.id })),
+    ];
+    const controls = [element(), element()];
+    const status = element();
+
+    const tools = {};
+    for (const name of [
+      "zoom-in", "zoom-out", "fit", "reset",
+      "upstream", "downstream", "details", "clear",
+    ]) tools[name] = element({ "data-pf-act": name });
+
+    const listeners = { document: [], canvas: [] };
+    canvas.addEventListener = (type, fn) => listeners.canvas.push([type, fn]);
+
+    const document = {
+      querySelector(selector) {
+        if (selector.includes("data-pf-canvas")) return canvas;
+        if (selector.includes("data-pf-status")) return status;
+        const act = selector.match(/data-pf-act="([a-z-]+)"/);
+        if (act) return tools[act[1]] ?? null;
+        const entry = selector.match(/data-pf-for="([^"]*)"/);
+        if (entry) {
+          return entries.find((candidate) =>
+            candidate.getAttribute("data-pf-for") === entry[1]) ?? null;
+        }
+        return null;
+      },
+      querySelectorAll(selector) {
+        if (selector.includes("data-pf-controls")) return controls;
+        if (selector.includes("data-pf-node")) return nodes;
+        if (selector.includes("data-pf-edge")) return edges;
+        if (selector.includes("data-pf-entry")) return entries;
+        return [];
+      },
+      addEventListener(type, fn) { listeners.document.push([type, fn]); },
+    };
+
+    const fire = (where, type, event) => {
+      for (const [kind, fn] of listeners[where]) if (kind === type) fn(event);
+    };
+
+    const clickTarget = (attribute, value) => {
+      const target = element({ [attribute]: value });
+      target.closest = (selector) =>
+        selector === `[${attribute}]` ? target : null;
+      fire("document", "click", { target });
+    };
+
+    return {
+      document, canvas, svg, status, controls,
+      tool: (name) => tools[name],
+      state: (kind, value) => (kind === "node" ? nodes : edges)
+        .filter((el) => el.getAttribute("data-pf-state") === value)
+        .map((el) => el.getAttribute(`data-pf-${kind}`)),
+      current: () => entries
+        .filter((el) => el.getAttribute("aria-current"))
+        .map((el) => el.getAttribute("data-pf-for")),
+      clickPick: (id) => clickTarget("data-pf-pick", id),
+      clickAct: (name) => {
+        const target = tools[name];
+        target.closest = (selector) =>
+          selector === "[data-pf-act]" ? target : null;
+        fire("document", "click", { target });
+      },
+      clickPath: (id) => {
+        const target = element({ "data-pf-act": "path", "data-pf-path": id });
+        target.closest = (selector) =>
+          selector === "[data-pf-act]" ? target : null;
+        fire("document", "click", { target });
+      },
+      key: (name, { onDocument = false } = {}) => fire(
+        onDocument ? "document" : "canvas", "keydown",
+        { key: name, preventDefault() {} }),
+    };
+  }
 });
 
 describe("the delivered artifact carries its content before any script runs", () => {
