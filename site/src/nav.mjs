@@ -99,10 +99,12 @@ export const WORKFLOW_LOOPS = [
     // renderer's architectural boundary, and a shared renderer serving two
     // independent producers is precisely what disproved it.
     //
-    // The group holds the one capability that ships. It is a truthful home for
-    // a future artifact kind without claiming any exists.
+    // `map-system` sits here rather than in a loop because a diagram answers a
+    // question about a system, which every loop can have and none owns. It is
+    // listed after the engine it calls, which is also the reading order: what an
+    // artifact is, then the one a human asks for by name.
     label: 'Artifacts',
-    skills: ['render-artifact'],
+    skills: ['render-artifact', 'map-system'],
   },
   {
     // Not a sixth loop. These are cross-cutting utilities and the README does
