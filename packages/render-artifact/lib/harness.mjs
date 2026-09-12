@@ -60,10 +60,11 @@ export const ENGINE_BIN = join(ENGINE_ROOT, "bin", "render.mjs");
  * `installer` is a diagram of a real repository, hand-authored before any
  * producer existed to generate one. Its topology was not chosen to suit the
  * layout — it is what `npx create-pathfinder` actually does, twenty nodes and
- * thirty edges of it, with a cycle, a node cited by four different callers and
- * two subsystems that only meet at a JSON file. That is the point: deterministic
- * layout either survives a graph nobody designed for it or it does not, and a
- * specimen shaped to flatter the renderer could not tell the difference.
+ * thirty edges of it, with a cycle back through the human, one node written to
+ * by four separate jobs, and two subsystems that meet nowhere but a JSON file.
+ * That is the point: deterministic layout either survives a graph nobody
+ * designed for it or it does not, and a specimen shaped to flatter the renderer
+ * could not tell the difference.
  *
  * `learn-feature` and `learn-codebase` are the producers' own output, frozen.
  * Each is a real lesson its skill produced — one for a completed feature, one

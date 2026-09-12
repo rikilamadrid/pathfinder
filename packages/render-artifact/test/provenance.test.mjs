@@ -278,16 +278,57 @@ describe("provenance — a source-less diagram invents nothing", () => {
   });
 
   it("says so in the report a human reads", () => {
-    const validation = spawnSync(process.execPath, [
-      join(REPO_ROOT, "skills", "render-artifact", "engine", "bin", "render.mjs"),
-      "validate", SPECS["intended-system"], "--repo", REPO_ROOT,
-    ], { encoding: "utf8" });
+    const { stdout } = validateCli();
 
-    assert.equal(validation.status, 0, validation.stderr);
-    assert.match(validation.stdout, /~ evidence: not run/);
-    assert.doesNotMatch(validation.stdout, /ok evidence/,
+    assert.match(stdout, /~ evidence: not run/);
+    assert.doesNotMatch(stdout, /ok evidence/,
       "the strongest word in the report appeared against the weakest claim in it");
   });
+
+  it("says so in the report a machine reads", () => {
+    // `--json` is how a producer skill consumes this engine, so the reason has
+    // to survive the trip. A caller seeing `ok: true` beside two layers, with
+    // nothing saying why the third is missing, would have to infer the
+    // difference between "everything passed" and "one layer did not apply" —
+    // and not inferring it is the whole point of reporting the layers apart.
+    const report = JSON.parse(validateCli("--json").stdout);
+
+    assert.equal(report.ok, true);
+    assert.deepEqual(report.ran, ["structural", "composition"]);
+    assert.deepEqual(report.not_run.map((entry) => entry.layer), ["evidence"]);
+    assert.match(report.not_run[0].reason, /declares no source/);
+    assert.equal(report.resolved_citations, 0);
+  });
+
+  it("reports a resolved-citation count a caller can act on", () => {
+    // The number the verification sentence is gated on. Exposed so a producer
+    // can tell "checked, and there was something to check" from "checked
+    // nothing", which is a distinction it would otherwise have to guess at.
+    const derivedReport = JSON.parse(
+      validateCli("--json", SPECS.diagram).stdout);
+    assert.ok(derivedReport.resolved_citations >= 1);
+    assert.deepEqual(derivedReport.not_run, []);
+
+    const vacuous = JSON.parse(validateCli("--json", SPECS.multilingual).stdout);
+    assert.equal(vacuous.ok, true);
+    assert.ok(vacuous.ran.includes("evidence"),
+      "the layer did run here; there was simply nothing in it to resolve");
+    assert.equal(vacuous.resolved_citations, 0);
+  });
+
+  /** The engine's own CLI, on the source-less specimen unless told otherwise. */
+  function validateCli(...args) {
+    const flags = args.filter((arg) => arg.startsWith("--"));
+    const spec = args.find((arg) => !arg.startsWith("--")) ?? SPECS["intended-system"];
+
+    const result = spawnSync(process.execPath, [
+      join(REPO_ROOT, "skills", "render-artifact", "engine", "bin", "render.mjs"),
+      "validate", spec, "--repo", REPO_ROOT, ...flags,
+    ], { encoding: "utf8" });
+
+    assert.equal(result.status, 0, result.stderr);
+    return result;
+  }
 });
 
 describe("provenance — refusals, each with its own diagnostic", () => {

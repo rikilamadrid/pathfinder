@@ -13,7 +13,13 @@
  *
  * Supported: $ref, $defs, type, const, enum, properties, required,
  * additionalProperties (false only), items, minItems, maxItems, uniqueItems,
- * minLength, maxLength, pattern, minimum, maximum, oneOf, if/then/else.
+ * minLength, maxLength, pattern, minimum, maximum, oneOf, if/then.
+ *
+ * Note what is absent: `else`. `if`/`then` are here because a schema uses them.
+ * `else` would be a keyword implemented on speculation, never executed and
+ * never tested, and the first schema to reach for it would be relying on a
+ * branch nobody had seen work. Adding it when a schema needs it is one small
+ * change; carrying it until then is a promise this file cannot evidence.
  */
 
 /** Keywords carrying documentation rather than constraint. */
@@ -23,7 +29,7 @@ const CONSTRAINTS = new Set([
   "$ref", "type", "const", "enum", "properties", "required",
   "additionalProperties", "items", "minItems", "maxItems", "uniqueItems",
   "minLength", "maxLength", "pattern", "minimum", "maximum", "oneOf",
-  "if", "then", "else",
+  "if", "then",
 ]);
 
 /**
@@ -168,7 +174,7 @@ function walk(value, schema, schemaId, path, errors, registry) {
 }
 
 /**
- * `if` / `then` / `else` — one rule whose applicability depends on the instance.
+ * `if` / `then` — one rule whose applicability depends on the instance.
  *
  * It exists for the diagram kind's provenance: a `derived` diagram must declare
  * a `source`, and a `proposed` one need not. That is a conditional requirement,
@@ -178,16 +184,17 @@ function walk(value, schema, schemaId, path, errors, registry) {
  *
  * The `if` branch is evaluated for its *outcome*, not its diagnostics: its
  * errors go to a throwaway array and are discarded, because "this instance is
- * not a derived diagram" is not a problem to report. Only the selected branch
- * contributes to `errors`, so a producer sees the rule that actually applied to
- * what they wrote and never the one that did not.
+ * not a derived diagram" is not a problem to report. Only `then` contributes to
+ * `errors`, so a producer sees the rule that actually applied to what they
+ * wrote and never the one that did not.
  */
 function walkConditional(value, schema, schemaId, path, errors, registry) {
   const probe = [];
   walk(value, schema.if, schemaId, path, probe, registry);
 
-  const branch = probe.length === 0 ? schema.then : schema.else;
-  if (branch !== undefined) walk(value, branch, schemaId, path, errors, registry);
+  if (probe.length === 0 && schema.then !== undefined) {
+    walk(value, schema.then, schemaId, path, errors, registry);
+  }
 }
 
 /**
