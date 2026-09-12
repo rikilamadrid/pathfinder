@@ -26,7 +26,7 @@ import { after, describe, it } from "node:test";
 
 import { RENDERER_VERSION } from "../../../skills/render-artifact/engine/version.mjs";
 import {
-  PRODUCER_SPECIMENS, SPECS, bareEnv, cleanUpTemporaryDirectories,
+  CROSS_ENVIRONMENT_SPECIMENS, SPECS, bareEnv, cleanUpTemporaryDirectories,
   deliverInSubprocess, describeEnvironment, goldenPaths, temporaryDirectory,
 } from "../lib/harness.mjs";
 
@@ -148,7 +148,7 @@ describe("determinism across environments", () => {
 // Every registered producer runs the identical assertions. Naming one producer
 // here would let the next one land with thinner coverage than the last, and
 // interchangeability from the renderer's side is the whole claim.
-for (const specimen of PRODUCER_SPECIMENS) {
+for (const specimen of CROSS_ENVIRONMENT_SPECIMENS) {
   describe(`determinism of the ${specimen} specimen`, () => {
     const EXPECTED_PRODUCER = readFileSync(goldenPaths(specimen).digest, "utf8").trim();
 

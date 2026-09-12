@@ -43,6 +43,11 @@ export const ENGINE_BIN = join(ENGINE_ROOT, "bin", "render.mjs");
  * renderer rather than a lesson renderer with ambitions. It cites this
  * repository, so it also proves the one citation shape carries across kinds.
  *
+ * `multilingual` is the typography probe's specimen: Latin, CJK, Arabic,
+ * Devanagari and emoji, each at or near the column cap. It is a fixture rather
+ * than a shipped example because it exists to stress the boundary, and it is
+ * the specification a human opens in three browser engines.
+ *
  * `learn-feature` and `learn-codebase` are the producers' own output, frozen.
  * Each is a real lesson its skill produced — one for a completed feature, one
  * for this repository at a milestone — copied here unchanged, not a fixture
@@ -54,6 +59,7 @@ export const SPECS = Object.freeze({
   fixture: join(PACKAGE_ROOT, "fixtures", "deterministic-lesson.json"),
   example: join(ENGINE_ROOT, "examples", "lesson.json"),
   diagram: join(ENGINE_ROOT, "examples", "diagram.json"),
+  multilingual: join(PACKAGE_ROOT, "fixtures", "multilingual-diagram.json"),
   "learn-feature": join(PACKAGE_ROOT, "fixtures", "learn-feature.json"),
   "learn-codebase": join(PACKAGE_ROOT, "fixtures", "learn-codebase.json"),
 });
@@ -69,6 +75,18 @@ export const SPECS = Object.freeze({
  * interchangeable from the renderer's side.
  */
 export const PRODUCER_SPECIMENS = Object.freeze(["learn-feature", "learn-codebase"]);
+
+/**
+ * The diagram specimens. Both carry geometry, which is the part of rendering
+ * most able to drift between machines, so both are swept across environments
+ * rather than only the lesson specimens that predate them.
+ */
+export const DIAGRAM_SPECIMENS = Object.freeze(["diagram", "multilingual"]);
+
+/** Everything the cross-environment sweep renders. */
+export const CROSS_ENVIRONMENT_SPECIMENS = Object.freeze([
+  ...PRODUCER_SPECIMENS, ...DIAGRAM_SPECIMENS,
+]);
 
 export const GOLDEN_DIR = join(PACKAGE_ROOT, "golden");
 

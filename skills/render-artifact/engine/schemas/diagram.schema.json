@@ -54,15 +54,16 @@
   },
   "$defs": {
     "label": {
-      "description": "A short label the renderer places. Capped so the renderer never has to truncate, ellipsise or reword producer text: over-cap text is refused instead. The cap is counted in characters here and becomes a width-aware cell count once the geometry contract is frozen.",
+      "description": "A short label the renderer places. The real cap is 32 columns and is enforced by the structural layer, because a column is not a character: `漢` is one character and two columns, and a combining mark is one character and none. `maxLength` here is only a sanity bound — a label may carry many more characters than columns once combining marks are counted, so it is set well above the column cap rather than duplicating it.",
       "type": "string",
       "minLength": 1,
-      "maxLength": 32
+      "maxLength": 400
     },
     "edge_label": {
+      "description": "Capped at 24 columns by the structural layer, on one line. `maxLength` is a sanity bound, as above.",
       "type": "string",
       "minLength": 1,
-      "maxLength": 24
+      "maxLength": 400
     },
     "role": {
       "description": "What a node is, semantically. A closed vocabulary, because the renderer maps role to shape and colour and must never improvise a presentation for a value it does not know. Architecture roles and process roles share one vocabulary on purpose: a codebase map uses `service` and `store`, a migration map uses `step` and `decision`, and nothing in the renderer branches on which.",

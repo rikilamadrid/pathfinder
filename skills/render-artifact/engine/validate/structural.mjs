@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 import { SCHEMA_VERSION } from "../version.mjs";
+import { cellWidth } from "../render/graph/width.mjs";
 import { SchemaRegistry, validateAgainstSchema } from "./jsonschema.mjs";
 import { diagnostic, isPresentationControl } from "./diagnostics.mjs";
 
@@ -93,8 +94,54 @@ export function validateStructure(spec) {
     }
   }
 
-  return validateAgainstSchema(spec, KINDS[kind].schema, schemaRegistry())
+  const errors = validateAgainstSchema(spec, KINDS[kind].schema, schemaRegistry())
     .map(toDiagnostic);
+  if (errors.length > 0) return errors;
+
+  // Label caps are counted in columns, which is why they are here rather than
+  // as a `maxLength`. A column is not a character: `漢` is one character and two
+  // columns, a Devanagari matra is one character and none, and `String.length`
+  // is not even a character count but a count of UTF-16 units. Capping on any
+  // of those would give a producer writing in one script a different allowance
+  // from a producer writing in another.
+  return kind === "diagram" ? labelWidthErrors(spec) : [];
+}
+
+/** The column cap for each place a label appears. */
+const LABEL_CELLS = Object.freeze({ node: 32, group: 32, path: 32, view: 32, edge: 24 });
+
+/**
+ * Refuse a label wider than its cap, naming the width in columns.
+ *
+ * Refused, never shortened. The renderer owns where a label goes and how it
+ * wraps; it owns none of the words, and a label that arrives too wide is a
+ * conversation with the producer rather than something to quietly trim.
+ */
+function labelWidthErrors(spec) {
+  const out = [];
+  const check = (label, cap, path, what) => {
+    if (label === undefined) return;
+    const width = cellWidth(label);
+    if (width <= cap) return;
+    out.push(diagnostic("structural", "label_too_long", path,
+      `${what} is ${width} columns wide and the cap is ${cap}. Columns, not ` +
+      `characters: a wide character counts two and a combining mark counts ` +
+      `none. Shorten the label — the renderer will not do it for you, because ` +
+      `the words are yours.`, label));
+  };
+
+  const { diagram } = spec;
+  diagram.nodes.forEach((node, i) =>
+    check(node.label, LABEL_CELLS.node, `diagram.nodes[${i}].label`, `node label "${node.label}"`));
+  (diagram.groups ?? []).forEach((group, i) =>
+    check(group.label, LABEL_CELLS.group, `diagram.groups[${i}].label`, `group label "${group.label}"`));
+  diagram.edges.forEach((edge, i) =>
+    check(edge.label, LABEL_CELLS.edge, `diagram.edges[${i}].label`, `edge label "${edge.label}"`));
+  (diagram.paths ?? []).forEach((path, i) =>
+    check(path.label, LABEL_CELLS.path, `diagram.paths[${i}].label`, `path label "${path.label}"`));
+  (diagram.views ?? []).forEach((view, i) =>
+    check(view.label, LABEL_CELLS.view, `diagram.views[${i}].label`, `view label "${view.label}"`));
+  return out;
 }
 
 /**
