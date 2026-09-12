@@ -93,6 +93,18 @@ export const WORKFLOW_LOOPS = [
     skills: ['setup-tracker'],
   },
   {
+    // Shared artifact infrastructure, and its own group on purpose. The first
+    // skills to render through it are learning skills, which makes filing it
+    // under Learning tempting and wrong: that would state learning is the
+    // renderer's architectural boundary, and a shared renderer serving two
+    // independent producers is precisely what disproved it.
+    //
+    // The group holds the one capability that ships. It is a truthful home for
+    // a future artifact kind without claiming any exists.
+    label: 'Artifacts',
+    skills: ['render-artifact'],
+  },
+  {
     // Not a sixth loop. These are cross-cutting utilities and the README does
     // not place them in one, so neither does this. Naming the group honestly
     // beats forcing them into a loop they do not belong to.

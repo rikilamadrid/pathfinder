@@ -27,6 +27,20 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Added
+
+- **A shared visual artifact renderer.** Skills that deliver a visual artifact no longer hand-author a page. A producer skill writes a small typed specification describing what is true — modules, concepts, flows, exercises, questions, and the evidence behind each claim — and `render-artifact` compiles it into one self-contained HTML file that opens from the filesystem with no build step, no server, and no network. The producer owns content and domain semantics; the renderer owns presentation, navigation, theming, and every other piece of interface language.
+
+  `lesson` is the only artifact kind that exists. A request for a kind the renderer does not support is refused rather than improvised, and a missing kind is a conversation about whether it should exist — never permission to write the HTML by hand.
+
+  Evidence is part of the contract rather than a convention. Every claim about source cites a path, optionally a line range, and resolves against a commit the specification declares — not the working tree — so a later refactor cannot silently change what an artifact asserts. A concept with no evidence fails validation.
+
+  Output is deterministic on a versioned contract: the same specification bytes and the same renderer version produce byte-identical HTML, across working directories, timezones, and locales. The renderer version is part of that input, so an intentional output change is a release rather than a determinism failure. Delivery returns a receipt naming the renderer version and the digests of both specification and artifact — and that receipt says only that the artifact was checked, never that it looks right. Perceptual review is a human's, reported separately.
+
+  `learn-feature` and `learn-codebase` both produce their output this way, through the same contract and the same renderer, with no consumer-specific field, branch, or escape hatch: `learn-feature` supplies one module, `learn-codebase` supplies many. Neither skill authors HTML, CSS, presentation JavaScript, or MDX any more, and `learn-codebase` no longer builds a multi-file portal directory — how a lesson is split, linked, and navigated was always presentation.
+
+  Generating an artifact needs Node. Nothing else in Pathfinder does, and the kit still installs no runtime into a destination project.
+
 ## [4.2.0] - 2026-09-01
 
 ### Added
