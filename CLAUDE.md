@@ -92,6 +92,7 @@ An adapter carries the canonical skill's frontmatter and a pointer to it, and no
 - `ticket` — run one action of the ticket delivery loop: `load`, `start`, `review`, `complete`
 - `debug-issue` — diagnose an observed failure to its root cause, apply the smallest justified fix, and verify it
 - `render-artifact` — compile a typed specification into a deterministic, self-contained visual artifact
+- `map-system` — turn a plain request about a system into a semantic diagram artifact
 - `learn-feature` — create an interactive lesson for a completed feature
 - `learn-codebase` — create a modular learning portal for the repository
 - `teach-feature` — teach the verified current feature from its spec, diff, tests, and implementation

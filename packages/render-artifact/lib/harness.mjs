@@ -66,6 +66,13 @@ export const ENGINE_BIN = join(ENGINE_ROOT, "bin", "render.mjs");
  * designed for it or it does not, and a specimen shaped to flatter the renderer
  * could not tell the difference.
  *
+ * `map-system-derived` and `map-system-proposed` are `map-system`'s own output,
+ * frozen on the same terms as the lesson specimens below: what the producer
+ * actually emitted, copied here unchanged. One is a derived map of this
+ * repository with every node and edge cited at a pinned commit; the other
+ * declares no source at all, which is the state a producer is most tempted to
+ * avoid by attaching a repository it does not really have.
+ *
  * `learn-feature` and `learn-codebase` are the producers' own output, frozen.
  * Each is a real lesson its skill produced — one for a completed feature, one
  * for this repository at a milestone — copied here unchanged, not a fixture
@@ -81,6 +88,8 @@ export const SPECS = Object.freeze({
   proposed: join(PACKAGE_ROOT, "fixtures", "proposed-diagram.json"),
   "intended-system": join(PACKAGE_ROOT, "fixtures", "intended-system-diagram.json"),
   installer: join(PACKAGE_ROOT, "fixtures", "installer-diagram.json"),
+  "map-system-derived": join(PACKAGE_ROOT, "fixtures", "map-system-derived.json"),
+  "map-system-proposed": join(PACKAGE_ROOT, "fixtures", "map-system-proposed.json"),
   "learn-feature": join(PACKAGE_ROOT, "fixtures", "learn-feature.json"),
   "learn-codebase": join(PACKAGE_ROOT, "fixtures", "learn-codebase.json"),
 });
@@ -95,7 +104,9 @@ export const SPECS = Object.freeze({
  * than the old ones, and the whole claim of Feature 50 is that the producers are
  * interchangeable from the renderer's side.
  */
-export const PRODUCER_SPECIMENS = Object.freeze(["learn-feature", "learn-codebase"]);
+export const PRODUCER_SPECIMENS = Object.freeze([
+  "learn-feature", "learn-codebase", "map-system-derived", "map-system-proposed",
+]);
 
 /**
  * The diagram specimens. Every one carries geometry, which is the part of
@@ -108,6 +119,7 @@ export const PRODUCER_SPECIMENS = Object.freeze(["learn-feature", "learn-codebas
  */
 export const DIAGRAM_SPECIMENS = Object.freeze([
   "diagram", "multilingual", "proposed", "intended-system", "installer",
+  "map-system-derived", "map-system-proposed",
 ]);
 
 /**
@@ -125,7 +137,7 @@ export const PROVENANCE_SPECIMENS = Object.freeze({
 
 /** Everything the cross-environment sweep renders. */
 export const CROSS_ENVIRONMENT_SPECIMENS = Object.freeze([
-  ...PRODUCER_SPECIMENS, ...DIAGRAM_SPECIMENS,
+  ...new Set([...PRODUCER_SPECIMENS, ...DIAGRAM_SPECIMENS]),
 ]);
 
 export const GOLDEN_DIR = join(PACKAGE_ROOT, "golden");

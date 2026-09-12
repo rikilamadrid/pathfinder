@@ -1,0 +1,333 @@
+{
+  "schema_version": "1.0",
+  "kind": "diagram",
+  "provenance": "derived",
+  "artifact": {
+    "title": "How a Pathfinder skill reaches an agent",
+    "subtitle": "One canonical file, three discovery surfaces, and what keeps them from disagreeing"
+  },
+  "source": {
+    "repo": "rikilamadrid/pathfinder",
+    "commit": "d5ee4c7"
+  },
+  "diagram": {
+    "topology": "graph",
+    "groups": [
+      {
+        "id": "authoring",
+        "label": "Where behaviour is written",
+        "summary": "One canonical file per skill. An adapter that disagreed with it would be a second behaviour contract, which is the thing this shape exists to prevent.",
+        "evidence": [{ "path": "CLAUDE.md", "lines": [78, 78] }]
+      },
+      {
+        "id": "generation",
+        "label": "Generation",
+        "summary": "Adapters are rendered from the canonical frontmatter, never hand-written.",
+        "evidence": [{ "path": "CLAUDE.md", "lines": [82, 82] }]
+      },
+      {
+        "id": "surfaces",
+        "label": "Discovery surfaces",
+        "summary": "Three places a harness looks. Two are generated; the plugin exposes the canonical tree itself and generates nothing.",
+        "evidence": [{ "path": "CLAUDE.md", "lines": [80, 80] }]
+      },
+      {
+        "id": "guards",
+        "label": "What catches drift",
+        "summary": "A skill that exists without its listing and its adapter fails validation rather than shipping half-registered.",
+        "evidence": [{ "path": ".github/scripts/validate-kit.py", "lines": [395, 404] }]
+      }
+    ],
+    "nodes": [
+      {
+        "id": "author",
+        "label": "A maintainer",
+        "role": "actor",
+        "group": "authoring",
+        "summary": "Edits the canonical file and regenerates the adapter. Never the other way round.",
+        "evidence": [{ "path": "CLAUDE.md", "lines": [78, 78] }]
+      },
+      {
+        "id": "canonical",
+        "label": "skills/NAME/SKILL.md",
+        "role": "store",
+        "group": "authoring",
+        "summary": "The tool-neutral behaviour contract. Where a discovery surface and this file disagree, this file is correct.",
+        "detail": [
+          "Everything under skills/ is in the installer's copy list, which is what makes a skill reach a destination project at all."
+        ],
+        "evidence": [{ "path": "CLAUDE.md", "lines": [78, 78] }]
+      },
+      {
+        "id": "claudemd",
+        "label": "CLAUDE.md skills list",
+        "role": "store",
+        "group": "authoring",
+        "summary": "The human-facing catalogue. Validation requires it to match the skills directory exactly, in both directions.",
+        "evidence": [{ "path": ".github/scripts/validate-kit.py", "lines": [209, 211] }]
+      },
+      {
+        "id": "generator",
+        "label": "generate-adapters.mjs",
+        "role": "job",
+        "group": "generation",
+        "summary": "The maintainer's entry point, and the same code CI asks whether the committed adapters are stale.",
+        "evidence": [{ "path": "packages/create-pathfinder/scripts/generate-adapters.mjs", "lines": [23, 30] }]
+      },
+      {
+        "id": "planner",
+        "label": "planAdapters()",
+        "role": "service",
+        "group": "generation",
+        "summary": "Decides every adapter to write, and for which harnesses, before writing any of them.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [153, 160] }]
+      },
+      {
+        "id": "renderer",
+        "label": "Adapter renderer",
+        "role": "service",
+        "group": "generation",
+        "summary": "Reads the canonical frontmatter and emits a pointer to it. It carries no behaviour of its own.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/harnesses/adapter.mjs", "lines": [94, 100] }]
+      },
+      {
+        "id": "registry",
+        "label": "Harness registry",
+        "role": "store",
+        "group": "generation",
+        "summary": "Which harness keeps its skills where, and how each one is invoked.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/harnesses/index.mjs", "lines": [52, 60] }]
+      },
+      {
+        "id": "claudeskills",
+        "label": ".claude/skills/",
+        "role": "interface",
+        "group": "surfaces",
+        "summary": "The Claude Code surface. Committed in this repository, and checked for freshness by CI.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/harnesses/index.mjs", "lines": [53, 58] }]
+      },
+      {
+        "id": "agentskills",
+        "label": ".agents/skills/",
+        "role": "interface",
+        "group": "surfaces",
+        "summary": "The Codex surface. Scanned from the working directory up to the repository root, so one directory at the root is found from anywhere inside the project.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/harnesses/index.mjs", "lines": [64, 77] }]
+      },
+      {
+        "id": "plugin",
+        "label": "The Claude Code plugin",
+        "role": "interface",
+        "group": "surfaces",
+        "summary": "A third surface, and the only one that generates nothing: it exposes the canonical tree, namespaced.",
+        "evidence": [{ "path": "CLAUDE.md", "lines": [80, 80] }]
+      },
+      {
+        "id": "installer",
+        "label": "npx create-pathfinder",
+        "role": "service",
+        "summary": "Copies the kit into a destination project. Adapters there are opt-in rather than assumed.",
+        "evidence": [{ "path": "packages/create-pathfinder/copy-list.json", "lines": [3, 10] }]
+      },
+      {
+        "id": "validator",
+        "label": "validate-kit.py",
+        "role": "decision",
+        "group": "guards",
+        "summary": "Asks the shipped generator whether the committed adapters are what it would write now, and refuses a listing that has drifted.",
+        "evidence": [{ "path": ".github/scripts/validate-kit.py", "lines": [395, 404] }]
+      },
+      {
+        "id": "ci",
+        "label": "The validate workflow",
+        "role": "job",
+        "group": "guards",
+        "summary": "Runs the validator on every pull request and every push to main.",
+        "evidence": [{ "path": ".github/workflows/validate.yml", "lines": [33, 34] }]
+      },
+      {
+        "id": "agent",
+        "label": "An AI harness",
+        "role": "external",
+        "summary": "Discovers skills by looking in the directory its own registry entry names, then reads the canonical file the adapter points at.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/harnesses/index.mjs", "lines": [52, 60] }]
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-edit",
+        "from": "author",
+        "to": "canonical",
+        "relation": "writes",
+        "label": "edits",
+        "evidence": [{ "path": "CLAUDE.md", "lines": [78, 78] }]
+      },
+      {
+        "id": "e-list",
+        "from": "author",
+        "to": "claudemd",
+        "relation": "writes",
+        "label": "lists the skill",
+        "evidence": [{ "path": ".github/scripts/validate-kit.py", "lines": [209, 211] }]
+      },
+      {
+        "id": "e-regenerate",
+        "from": "author",
+        "to": "generator",
+        "relation": "triggers",
+        "label": "regenerates",
+        "evidence": [{ "path": "packages/create-pathfinder/scripts/generate-adapters.mjs", "lines": [23, 30] }]
+      },
+      {
+        "id": "e-plan",
+        "from": "generator",
+        "to": "planner",
+        "relation": "calls",
+        "label": "plans adapters",
+        "evidence": [{ "path": "packages/create-pathfinder/scripts/generate-adapters.mjs", "lines": [96, 96] }]
+      },
+      {
+        "id": "e-registry",
+        "from": "planner",
+        "to": "registry",
+        "relation": "reads",
+        "label": "where and how",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [153, 160] }]
+      },
+      {
+        "id": "e-render",
+        "from": "planner",
+        "to": "renderer",
+        "relation": "calls",
+        "label": "renders each",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [29, 36] }]
+      },
+      {
+        "id": "e-frontmatter",
+        "from": "renderer",
+        "to": "canonical",
+        "relation": "reads",
+        "label": "frontmatter",
+        "evidence": [{ "path": "CLAUDE.md", "lines": [82, 82] }]
+      },
+      {
+        "id": "e-write-claude",
+        "from": "planner",
+        "to": "claudeskills",
+        "relation": "writes",
+        "label": "adapter",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [255, 256] }]
+      },
+      {
+        "id": "e-write-codex",
+        "from": "planner",
+        "to": "agentskills",
+        "relation": "writes",
+        "label": "adapter",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [255, 256] }]
+      },
+      {
+        "id": "e-points-at",
+        "from": "claudeskills",
+        "to": "canonical",
+        "relation": "depends_on",
+        "label": "points at",
+        "evidence": [{ "path": "CLAUDE.md", "lines": [82, 82] }]
+      },
+      {
+        "id": "e-exposes",
+        "from": "plugin",
+        "to": "canonical",
+        "relation": "reads",
+        "label": "the tree itself",
+        "evidence": [{ "path": "CLAUDE.md", "lines": [80, 80] }]
+      },
+      {
+        "id": "e-copies",
+        "from": "installer",
+        "to": "canonical",
+        "relation": "writes",
+        "label": "copies the kit",
+        "evidence": [{ "path": "packages/create-pathfinder/copy-list.json", "lines": [3, 10] }]
+      },
+      {
+        "id": "e-run",
+        "from": "ci",
+        "to": "validator",
+        "relation": "triggers",
+        "label": "every change",
+        "evidence": [{ "path": ".github/workflows/validate.yml", "lines": [33, 34] }]
+      },
+      {
+        "id": "e-freshness",
+        "from": "validator",
+        "to": "generator",
+        "relation": "calls",
+        "label": "is this stale?",
+        "evidence": [{ "path": ".github/scripts/validate-kit.py", "lines": [395, 404] }]
+      },
+      {
+        "id": "e-listing",
+        "from": "validator",
+        "to": "claudemd",
+        "relation": "reads",
+        "label": "must match",
+        "evidence": [{ "path": ".github/scripts/validate-kit.py", "lines": [209, 215] }]
+      },
+      {
+        "id": "e-find-claude",
+        "from": "agent",
+        "to": "claudeskills",
+        "relation": "reads",
+        "label": "discovers",
+        "evidence": [{ "path": "packages/create-pathfinder/src/harnesses/index.mjs", "lines": [53, 58] }]
+      },
+      {
+        "id": "e-find-codex",
+        "from": "agent",
+        "to": "agentskills",
+        "relation": "reads",
+        "label": "discovers",
+        "evidence": [{ "path": "packages/create-pathfinder/src/harnesses/index.mjs", "lines": [64, 77] }]
+      },
+      {
+        "id": "e-find-plugin",
+        "from": "agent",
+        "to": "plugin",
+        "relation": "reads",
+        "label": "namespaced",
+        "evidence": [{ "path": "CLAUDE.md", "lines": [80, 80] }]
+      }
+    ],
+    "paths": [
+      {
+        "id": "edit-to-discoverable",
+        "label": "From an edit to a surface",
+        "note": "Four steps, and the last one is the point: the generated adapter carries a pointer back to the canonical file rather than a copy of it.",
+        "edges": ["e-regenerate", "e-plan", "e-write-claude", "e-points-at"],
+        "evidence": [{ "path": "CLAUDE.md", "lines": [78, 82] }]
+      },
+      {
+        "id": "drift-caught",
+        "label": "How drift is caught",
+        "note": "CI asks the shipped generator whether the committed adapters are what it would write now, so a stale adapter fails a pull request rather than reaching a reader.",
+        "edges": ["e-run", "e-freshness"],
+        "evidence": [{ "path": ".github/scripts/validate-kit.py", "lines": [395, 404] }]
+      }
+    ],
+    "views": [
+      {
+        "id": "three-ways-in",
+        "label": "Three ways in, one contract",
+        "note": "Every surface resolves to the same canonical file, which is what stops a skill meaning two different things in two tools.",
+        "focus": ["claudeskills", "agentskills", "plugin", "canonical"],
+        "evidence": [{ "path": "CLAUDE.md", "lines": [78, 82] }]
+      },
+      {
+        "id": "generated",
+        "label": "Generated, not written",
+        "focus": ["generator", "planner", "renderer", "claudeskills", "agentskills"]
+      }
+    ]
+  }
+}
