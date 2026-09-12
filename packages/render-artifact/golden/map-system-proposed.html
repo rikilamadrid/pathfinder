@@ -1,0 +1,1578 @@
+<!doctype html>
+<html lang="en" data-pf-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A proposed read API</title>
+<meta name="description" content="There is no code for any of this and no repository to point at, so this specification declares no source and carries no citation. That is a complete and legal artifact: the diagram describes an intended system, and the engine reports its evidence layer as not run rather than as passed. Nothing here should be read as a claim about what currently runs.">
+<meta name="generator" content="Pathfinder render-artifact 0.5.0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
+<style>:root {
+  color-scheme: light;
+  --pf-page: #FDFCFB;
+  --pf-surface: #FFFFFF;
+  --pf-surface-2: #F5F2EF;
+  --pf-ink: #1B1815;
+  --pf-muted: #5C5550;
+  --pf-line: #E2DCD6;
+  --pf-line-strong: #8C837A;
+  --pf-accent: #E0611F;
+  --pf-accent-ink: #1B1815;
+  --pf-link: #B34A13;
+  --pf-ok: #1F6F43;
+  --pf-no: #A62B1E;
+  --pf-shadow: 0 1px 2px rgba(27, 24, 21, .06), 0 8px 24px rgba(27, 24, 21, .05);
+
+  --pf-space-1: .25rem;
+  --pf-space-2: .5rem;
+  --pf-space-3: .75rem;
+  --pf-space-4: 1rem;
+  --pf-space-5: 1.5rem;
+  --pf-space-6: 2rem;
+  --pf-space-7: 3rem;
+  --pf-space-8: 4rem;
+
+  --pf-radius: 10px;
+  --pf-radius-sm: 6px;
+  --pf-measure: 68ch;
+
+  --pf-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+             "Helvetica Neue", Arial, sans-serif;
+  --pf-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+             "Liberation Mono", monospace;
+}
+
+/* Light is the base, so a reader whose system states no preference gets a
+   readable page rather than whichever branch happened to be written first.
+   "auto" follows the system; "light" and "dark" are the reader overriding it,
+   and both win over the media query because they are on the element. */
+:root[data-pf-theme="dark"] {
+  color-scheme: dark;
+  --pf-page: #14120F;
+  --pf-surface: #1D1A16;
+  --pf-surface-2: #262218;
+  --pf-ink: #F2EEE9;
+  --pf-muted: #B0A79E;
+  --pf-line: #35302A;
+  --pf-line-strong: #7A7168;
+  --pf-accent: #E0611F;
+  --pf-accent-ink: #1B1815;
+  --pf-link: #F0A97E;
+  --pf-ok: #6FD39B;
+  --pf-no: #F09085;
+  --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-pf-theme="auto"] {
+    color-scheme: dark;
+    --pf-page: #14120F;
+    --pf-surface: #1D1A16;
+    --pf-surface-2: #262218;
+    --pf-ink: #F2EEE9;
+    --pf-muted: #B0A79E;
+    --pf-line: #35302A;
+    --pf-line-strong: #7A7168;
+    --pf-accent: #E0611F;
+    --pf-accent-ink: #1B1815;
+    --pf-link: #F0A97E;
+    --pf-ok: #6FD39B;
+    --pf-no: #F09085;
+    --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--pf-page);
+  color: var(--pf-ink);
+  font-family: var(--pf-sans);
+  font-size: 16px;
+  line-height: 1.65;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 {
+  line-height: 1.25;
+  letter-spacing: -.011em;
+  margin: 0;
+  font-weight: 650;
+}
+
+p { margin: 0 0 var(--pf-space-4); max-width: var(--pf-measure); }
+p:last-child { margin-bottom: 0; }
+
+a { color: var(--pf-link); text-underline-offset: .18em; }
+a:hover { text-decoration-thickness: 2px; }
+
+:focus-visible {
+  outline: 3px solid var(--pf-accent);
+  outline-offset: 2px;
+  border-radius: var(--pf-radius-sm);
+}
+
+code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
+
+/* ---------- skip link ---------- */
+
+.pf-skip {
+  position: absolute;
+  left: var(--pf-space-3);
+  top: var(--pf-space-3);
+  z-index: 40;
+  padding: var(--pf-space-2) var(--pf-space-4);
+  background: var(--pf-accent);
+  color: var(--pf-accent-ink);
+  border-radius: var(--pf-radius-sm);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+.pf-skip:focus { transform: translateY(0); }
+
+/* ---------- header ---------- */
+
+.pf-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--pf-space-4);
+  padding: var(--pf-space-4) var(--pf-space-5);
+  background: var(--pf-surface);
+  border-bottom: 1px solid var(--pf-line);
+}
+
+.pf-mark { flex: none; color: var(--pf-accent); display: block; }
+
+.pf-identity { min-width: 0; flex: 1 1 auto; }
+.pf-title {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-eyebrow {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+
+.pf-theme-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pf-space-2);
+  padding: var(--pf-space-2) var(--pf-space-3);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--pf-ink);
+  background: var(--pf-surface-2);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.pf-theme-toggle:hover { border-color: var(--pf-accent); }
+
+/* ---------- layout ---------- */
+
+.pf-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.pf-main {
+  min-width: 0;
+  padding: var(--pf-space-6) var(--pf-space-5) var(--pf-space-8);
+}
+
+/* ---------- navigation ---------- */
+
+.pf-nav {
+  position: sticky;
+  top: 64px;
+  z-index: 20;
+  background: var(--pf-page);
+  border-bottom: 1px solid var(--pf-line);
+  padding: var(--pf-space-3) var(--pf-space-5);
+  overflow-x: auto;
+}
+
+.pf-nav-label {
+  display: none;
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+  margin-bottom: var(--pf-space-3);
+}
+
+.pf-nav-list {
+  display: flex;
+  gap: var(--pf-space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pf-nav-link {
+  display: block;
+  white-space: nowrap;
+  padding: var(--pf-space-2) var(--pf-space-3);
+  border-radius: 999px;
+  border: 1px solid var(--pf-line);
+  color: var(--pf-ink);
+  text-decoration: none;
+  font-size: .875rem;
+  font-weight: 550;
+}
+.pf-nav-link:hover { border-color: var(--pf-accent); }
+.pf-nav-link[aria-current="true"] {
+  border-color: var(--pf-accent);
+  background: var(--pf-surface-2);
+  font-weight: 650;
+}
+.pf-nav-index {
+  color: var(--pf-muted);
+  font-variant-numeric: tabular-nums;
+  margin-right: var(--pf-space-2);
+}
+
+/* ---------- lesson head ---------- */
+
+.pf-lead {
+  margin: 0 0 var(--pf-space-7);
+  padding-bottom: var(--pf-space-6);
+  border-bottom: 1px solid var(--pf-line);
+}
+.pf-lead h1 { font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.5rem); }
+.pf-lead-sub {
+  margin-top: var(--pf-space-3);
+  font-size: 1.0625rem;
+  color: var(--pf-muted);
+  max-width: var(--pf-measure);
+}
+.pf-lead-summary { margin-top: var(--pf-space-4); }
+
+.pf-objectives {
+  margin: var(--pf-space-5) 0 0;
+  padding: var(--pf-space-4) var(--pf-space-5);
+  background: var(--pf-surface-2);
+  border-radius: var(--pf-radius);
+  border: 1px solid var(--pf-line);
+  max-width: var(--pf-measure);
+}
+.pf-objectives ul { margin: var(--pf-space-2) 0 0; padding-left: 1.25rem; }
+.pf-objectives li { margin-bottom: var(--pf-space-2); }
+.pf-objectives li:last-child { margin-bottom: 0; }
+
+/* ---------- modules and sections ---------- */
+
+.pf-module { margin-bottom: var(--pf-space-8); scroll-margin-top: 128px; }
+.pf-module-head { margin-bottom: var(--pf-space-5); }
+/* --pf-link, not --pf-accent. This is 11px text, so WCAG 2.1 AA wants 4.5:1
+   and the accent gives 3.47:1 on the light page — it clears the 3:1 non-text
+   bar the mark and the focus ring rely on, and fails as soon as it becomes
+   words. --pf-link is the accent darkened for exactly this: 5.25:1 light,
+   9.51:1 dark. Any future accent-coloured *text* takes this token. */
+.pf-module-index {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-link);
+}
+.pf-module-title { font-size: 1.5rem; margin-top: var(--pf-space-2); }
+.pf-module-summary { margin-top: var(--pf-space-3); color: var(--pf-muted); }
+
+.pf-requires {
+  margin-top: var(--pf-space-3);
+  font-size: .8125rem;
+  color: var(--pf-muted);
+}
+.pf-requires a { color: var(--pf-link); }
+
+.pf-section { margin-bottom: var(--pf-space-6); scroll-margin-top: 128px; }
+.pf-section-title { font-size: 1.125rem; margin-bottom: var(--pf-space-3); }
+
+.pf-card {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  padding: var(--pf-space-5);
+  box-shadow: var(--pf-shadow);
+}
+.pf-card--concept { border-left: 3px solid var(--pf-accent); }
+
+.pf-kicker {
+  display: inline-block;
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+  margin-bottom: var(--pf-space-2);
+}
+
+/* ---------- evidence ---------- */
+
+.pf-evidence {
+  margin: var(--pf-space-5) 0 0;
+  padding-top: var(--pf-space-4);
+  border-top: 1px dashed var(--pf-line);
+}
+.pf-evidence-label {
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+.pf-evidence ul { list-style: none; margin: var(--pf-space-2) 0 0; padding: 0; }
+.pf-evidence li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pf-space-2);
+  padding: var(--pf-space-1) 0;
+  font-family: var(--pf-mono);
+  font-size: .8125rem;
+  overflow-wrap: anywhere;
+}
+.pf-cite-path { color: var(--pf-ink); }
+.pf-cite-lines, .pf-cite-commit {
+  padding: 0 var(--pf-space-2);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface-2);
+  color: var(--pf-muted);
+  font-size: .75rem;
+  white-space: nowrap;
+}
+
+/* ---------- code ---------- */
+
+.pf-code { margin: 0; }
+.pf-code figcaption {
+  color: var(--pf-muted);
+  font-size: .875rem;
+  margin-bottom: var(--pf-space-3);
+  max-width: var(--pf-measure);
+}
+.pf-code-frame {
+  background: var(--pf-surface-2);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  overflow: hidden;
+}
+.pf-code-lang {
+  display: block;
+  padding: var(--pf-space-2) var(--pf-space-4);
+  border-bottom: 1px solid var(--pf-line);
+  font-family: var(--pf-mono);
+  font-size: .6875rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+.pf-code pre {
+  margin: 0;
+  padding: var(--pf-space-4) 0;
+  overflow-x: auto;
+  line-height: 1.7;
+  tab-size: 2;
+}
+.pf-code-line { display: block; padding: 0 var(--pf-space-4); white-space: pre; }
+.pf-code-no {
+  display: inline-block;
+  width: 3ch;
+  margin-right: var(--pf-space-4);
+  text-align: right;
+  color: var(--pf-muted);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- flow ---------- */
+
+.pf-flow { list-style: none; margin: 0; padding: 0; counter-reset: pf-step; }
+.pf-flow > li {
+  position: relative;
+  counter-increment: pf-step;
+  padding: 0 0 var(--pf-space-5) var(--pf-space-7);
+}
+.pf-flow > li:last-child { padding-bottom: 0; }
+.pf-flow > li::before {
+  content: counter(pf-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--pf-accent);
+  color: var(--pf-accent-ink);
+  font-size: .8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pf-flow > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: calc(.875rem - 1px);
+  top: 2rem;
+  bottom: var(--pf-space-2);
+  width: 2px;
+  background: var(--pf-line);
+}
+.pf-step-title { font-weight: 650; }
+.pf-step-detail { margin-top: var(--pf-space-2); color: var(--pf-muted); }
+.pf-step-next {
+  margin-top: var(--pf-space-2);
+  font-size: .8125rem;
+  color: var(--pf-muted);
+}
+
+/* ---------- quiz ---------- */
+
+.pf-quiz { display: grid; gap: var(--pf-space-4); }
+.pf-question { border: 0; margin: 0; padding: 0; }
+.pf-question legend {
+  padding: 0;
+  font-weight: 650;
+  margin-bottom: var(--pf-space-3);
+  max-width: var(--pf-measure);
+}
+.pf-options { display: grid; gap: var(--pf-space-2); margin-bottom: var(--pf-space-3); }
+.pf-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pf-space-3);
+  padding: var(--pf-space-3) var(--pf-space-4);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface);
+  cursor: pointer;
+}
+.pf-option:hover { border-color: var(--pf-accent); }
+.pf-option input { margin: .35rem 0 0; accent-color: var(--pf-accent); flex: none; }
+.pf-option[data-pf-verdict="correct"] {
+  border-color: var(--pf-ok);
+  box-shadow: inset 0 0 0 1px var(--pf-ok);
+}
+.pf-option[data-pf-verdict="incorrect"] {
+  border-color: var(--pf-no);
+  box-shadow: inset 0 0 0 1px var(--pf-no);
+}
+.pf-verdict { font-weight: 650; font-size: .8125rem; margin-left: auto; }
+.pf-option[data-pf-verdict="correct"] .pf-verdict { color: var(--pf-ok); }
+.pf-option[data-pf-verdict="incorrect"] .pf-verdict { color: var(--pf-no); }
+
+/* ---------- disclosure ---------- */
+
+.pf-reveal {
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface-2);
+  padding: var(--pf-space-2) var(--pf-space-4);
+}
+.pf-reveal > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: .875rem;
+  padding: var(--pf-space-1) 0;
+}
+.pf-reveal[open] > summary { margin-bottom: var(--pf-space-3); }
+.pf-reveal ol { margin: 0; padding-left: 1.25rem; }
+.pf-reveal li { margin-bottom: var(--pf-space-2); }
+.pf-reveal li:last-child { margin-bottom: 0; }
+
+/* ---------- provenance ---------- */
+
+.pf-provenance {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--pf-space-6) var(--pf-space-5) var(--pf-space-8);
+  border-top: 1px solid var(--pf-line);
+  color: var(--pf-muted);
+  font-size: .8125rem;
+}
+.pf-provenance dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--pf-space-2) var(--pf-space-4);
+  margin: 0 0 var(--pf-space-5);
+}
+.pf-provenance dt { font-weight: 650; color: var(--pf-ink); }
+.pf-provenance dd { margin: 0; font-family: var(--pf-mono); overflow-wrap: anywhere; }
+.pf-caveat { max-width: var(--pf-measure); }
+
+/* ---------- wide ---------- */
+
+@media (min-width: 900px) {
+  .pf-layout {
+    grid-template-columns: 248px minmax(0, 1fr);
+    gap: var(--pf-space-6);
+    padding: 0 var(--pf-space-5);
+  }
+  .pf-nav {
+    top: 76px;
+    align-self: start;
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--pf-space-6) 0 var(--pf-space-6);
+    border-bottom: 0;
+    background: transparent;
+  }
+  .pf-nav-label { display: block; }
+  .pf-nav-list { display: block; }
+  .pf-nav-list li { margin-bottom: var(--pf-space-1); }
+  .pf-nav-link {
+    white-space: normal;
+    border: 0;
+    border-left: 2px solid var(--pf-line);
+    border-radius: 0;
+    padding: var(--pf-space-2) var(--pf-space-3);
+  }
+  .pf-nav-link[aria-current="true"] {
+    border-left-color: var(--pf-accent);
+    background: var(--pf-surface-2);
+  }
+  .pf-main { padding: var(--pf-space-7) 0 var(--pf-space-8); }
+  .pf-provenance { padding-left: calc(248px + var(--pf-space-6) + var(--pf-space-5)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
+
+@media print {
+  .pf-header, .pf-nav, .pf-skip, .pf-theme-toggle { display: none; }
+  .pf-card { box-shadow: none; break-inside: avoid; }
+  .pf-reveal[open] > summary { list-style: none; }
+}
+.pf-canvas {
+  margin: var(--pf-space-5) 0 var(--pf-space-7);
+  padding: var(--pf-space-4);
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  box-shadow: var(--pf-shadow);
+  overflow-x: auto;
+}
+.pf-graph {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--pf-mono);
+}
+
+.pf-group-box {
+  fill: var(--pf-surface-2);
+  stroke: var(--pf-line-strong);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.pf-group[data-pf-depth="1"] .pf-group-box { stroke-dasharray: 2 3; }
+.pf-group-label {
+  fill: var(--pf-muted);
+  font-size: 12px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.pf-node-box {
+  fill: var(--pf-surface);
+  stroke: var(--pf-line-strong);
+  stroke-width: 2;
+}
+.pf-node[data-pf-role="store"] .pf-node-box,
+.pf-node[data-pf-role="queue"] .pf-node-box { stroke-dasharray: 7 3; }
+.pf-node[data-pf-role="external"] .pf-node-box,
+.pf-node[data-pf-role="actor"] .pf-node-box { stroke: var(--pf-accent); }
+.pf-node[data-pf-role="terminal"] .pf-node-box { stroke: var(--pf-ok); }
+.pf-node[data-pf-role="decision"] .pf-node-box { stroke: var(--pf-accent); stroke-dasharray: 3 3; }
+
+.pf-node-label {
+  fill: var(--pf-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.pf-node-role {
+  fill: var(--pf-muted);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.pf-edge-line {
+  fill: none;
+  stroke: var(--pf-line-strong);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.pf-edge-on-path .pf-edge-line { stroke: var(--pf-accent); stroke-width: 3; }
+.pf-edge[data-pf-relation="depends_on"] .pf-edge-line { stroke-dasharray: 5 4; }
+.pf-edge[data-pf-relation="publishes"] .pf-edge-line,
+.pf-edge[data-pf-relation="consumes"] .pf-edge-line { stroke-dasharray: 2 4; }
+.pf-edge-label {
+  fill: var(--pf-muted);
+  font-size: 11px;
+}
+.pf-edge-on-path .pf-edge-label { fill: var(--pf-link); }
+
+/* ---- the reading controls, and what a selection looks like ----
+
+   Three states, and the distinction is deliberate. "on" is what the reader
+   asked about. "near" is what it touches — still readable, because a component
+   whose neighbours have been greyed out tells you less than one whose
+   neighbours are merely quieter. "off" is the rest of the graph, dimmed rather
+   than removed: the document keeps every fact whatever is selected, and a
+   reader who dislikes the dimming can turn scripting off and read all of it.
+
+   No colour is defined here either. Selection reads through the accent that
+   already carries emphasis, and through opacity, so it works in both themes
+   without a second palette. Opacity alone would be a colour-only signal, so
+   the focused node also thickens its stroke. */
+.pf-graph-tools { margin: var(--pf-space-5) 0 calc(var(--pf-space-3) * -1); }
+.pf-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pf-space-2);
+}
+.pf-tool {
+  padding: 4px 10px;
+  background: var(--pf-surface);
+  color: var(--pf-ink);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: var(--pf-radius-sm);
+  font-family: var(--pf-mono);
+  font-size: .78rem;
+  cursor: pointer;
+}
+.pf-tool:hover:not(:disabled) { border-color: var(--pf-accent); color: var(--pf-link); }
+.pf-tool:disabled { opacity: .45; cursor: default; }
+.pf-tool-sep {
+  width: 1px;
+  height: 1.2em;
+  background: var(--pf-line);
+}
+.pf-graph-status {
+  margin: var(--pf-space-2) 0 0;
+  color: var(--pf-muted);
+  font-family: var(--pf-mono);
+  font-size: .78rem;
+}
+/* Inline and free to wrap. A float here escaped its heading at narrow widths,
+   which is exactly where this gets read. */
+.pf-pick { margin-left: var(--pf-space-2); white-space: nowrap; }
+
+.pf-canvas:focus-visible { outline: 3px solid var(--pf-accent); outline-offset: 2px; }
+.pf-canvas[data-pf-zoom="in"] .pf-graph { cursor: grab; }
+.pf-canvas[data-pf-dragging] .pf-graph { cursor: grabbing; }
+
+/* Selection. Keyed off attributes the script sets and nothing else, so the
+   delivered document is identical whether or not a browser ever runs it. */
+.pf-node[data-pf-state="off"],
+.pf-edge[data-pf-state="off"] { opacity: .22; }
+.pf-node[data-pf-state="near"],
+.pf-edge[data-pf-state="near"] { opacity: .75; }
+.pf-node[data-pf-state="on"] .pf-node-box {
+  stroke: var(--pf-accent);
+  stroke-width: 4;
+}
+.pf-edge[data-pf-state="on"] .pf-edge-line {
+  stroke: var(--pf-accent);
+  stroke-width: 3;
+}
+.pf-edge[data-pf-state="on"] .pf-edge-label { fill: var(--pf-link); }
+
+/* The written entry the selection points at. A left rule rather than a fill:
+   the card already has a surface, and stacking another on it would flatten
+   the hierarchy the evidence block sits in. */
+[data-pf-entry][aria-current] {
+  border-left: 3px solid var(--pf-accent);
+  padding-left: var(--pf-space-3);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pf-node, .pf-edge { transition: opacity 120ms linear; }
+}
+
+/* The reading list below the canvas: the same facts, as text, for a reader who
+   is not looking at a picture. */
+.pf-legend { display: grid; gap: var(--pf-space-4); }
+.pf-legend-role {
+  display: inline-block;
+  margin-left: var(--pf-space-2);
+  padding: 1px 6px;
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  color: var(--pf-muted);
+  font-family: var(--pf-mono);
+  font-size: .72rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+.pf-relation {
+  font-family: var(--pf-mono);
+  font-size: .82rem;
+  color: var(--pf-muted);
+}
+.pf-walk { margin: 0; padding-left: var(--pf-space-5); }
+.pf-walk li { margin-bottom: var(--pf-space-1); }
+</style>
+</head>
+<body>
+<a class="pf-skip" href="#pf-content">Skip to content</a>
+<header class="pf-header">
+<svg class="pf-mark" width="26" height="26" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><g fill="currentColor"><rect x="4" y="23" width="24" height="6.4" rx="3.2" transform="rotate(-3 16 26.2)"/><rect x="7" y="14.6" width="18" height="6" rx="3" transform="rotate(4 16 17.6)"/><rect x="9.6" y="7" width="12.8" height="5.4" rx="2.7" transform="rotate(-6 16 9.7)"/><rect x="12.4" y="1" width="7.2" height="4.4" rx="2.2" transform="rotate(5 16 3.2)"/></g></svg>
+<div class="pf-identity">
+<div class="pf-eyebrow">Pathfinder diagram</div>
+<div class="pf-title">A proposed read API</div>
+</div>
+<button type="button" class="pf-theme-toggle" id="pf-theme-toggle" hidden>Theme: auto</button>
+</header>
+<div class="pf-layout">
+<nav class="pf-nav" aria-label="In this diagram">
+<div class="pf-nav-label">In this diagram</div>
+<ul class="pf-nav-list">
+<li><a class="pf-nav-link" href="#s--g--edge" data-pf-nav="s--g--edge"><span class="pf-nav-index">1</span>At the edge</a></li>
+<li><a class="pf-nav-link" href="#s--g--read" data-pf-nav="s--g--read"><span class="pf-nav-index">2</span>The read path</a></li>
+<li><a class="pf-nav-link" href="#s--g--write" data-pf-nav="s--g--write"><span class="pf-nav-index">3</span>The write path</a></li>
+<li><a class="pf-nav-link" href="#s--v--two-consumers" data-pf-nav="s--v--two-consumers"><span class="pf-nav-index">4</span>One log, two consumers</a></li>
+<li><a class="pf-nav-link" href="#s--v--never-authoritative" data-pf-nav="s--v--never-authoritative"><span class="pf-nav-index">5</span>What a read never touches</a></li>
+</ul>
+</nav>
+<main class="pf-main" id="pf-content">
+<div class="pf-lead">
+<h1>A proposed read API</h1>
+<p class="pf-lead-sub">Auth, cache, queue, workers and storage, none of it built</p>
+<div class="pf-lead-summary"><p>There is no code for any of this and no repository to point at, so this specification declares no source and carries no citation. That is a complete and legal artifact: the diagram describes an intended system, and the engine reports its evidence layer as not run rather than as passed. Nothing here should be read as a claim about what currently runs.</p></div>
+</div>
+<div class="pf-graph-tools" data-pf-controls hidden>
+<div class="pf-toolbar" role="toolbar" aria-label="Diagram controls">
+<button type="button" class="pf-tool" data-pf-act="zoom-out">Zoom out</button>
+<button type="button" class="pf-tool" data-pf-act="zoom-in">Zoom in</button>
+<button type="button" class="pf-tool" data-pf-act="fit">Fit</button>
+<button type="button" class="pf-tool" data-pf-act="reset">Reset</button>
+<span class="pf-tool-sep" aria-hidden="true"></span>
+<button type="button" class="pf-tool" data-pf-act="upstream" disabled>Upstream</button>
+<button type="button" class="pf-tool" data-pf-act="downstream" disabled>Downstream</button>
+<button type="button" class="pf-tool" data-pf-act="details" disabled>Go to details</button>
+<button type="button" class="pf-tool" data-pf-act="clear" disabled>Clear</button>
+</div>
+<p class="pf-graph-status" data-pf-status aria-live="polite">Nothing selected. Choose a component to focus it.</p>
+</div>
+<div class="pf-canvas" data-pf-canvas tabindex="0" role="group" aria-label="Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits."><svg class="pf-graph" viewBox="0 0 1852 1052" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
+<title id="pf--diagram--title">Diagram</title>
+<defs>
+<marker id="pf-arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" markerUnits="userSpaceOnUse" orient="auto">
+<path d="M 0 0 L 9 4 L 0 8 z" fill="context-stroke"/>
+</marker>
+</defs>
+<g class="pf-group" data-pf-group="edge" data-pf-depth="0">
+<rect class="pf-group-box" id="g--edge" x="56" y="312" width="876" height="124" rx="14"/>
+<text class="pf-group-label" x="80" y="332">At the edge</text>
+</g>
+<g class="pf-group" data-pf-group="read" data-pf-depth="0">
+<rect class="pf-group-box" id="g--read" x="648" y="452" width="876" height="264" rx="14"/>
+<text class="pf-group-label" x="672" y="472">The read path</text>
+</g>
+<g class="pf-group" data-pf-group="write" data-pf-depth="0">
+<rect class="pf-group-box" id="g--write" x="352" y="732" width="580" height="264" rx="14"/>
+<text class="pf-group-label" x="376" y="752">The write path</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-edge="p-request" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-request" points="316,374 404,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="360" y="368">a query</text>
+</g>
+<g class="pf-edge" data-pf-edge="p-verify" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-verify" points="612,374 700,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="656" y="368">verify token</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-edge="p-route" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-route" points="612,374 656,374 656,584 700,584" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="656" y="473">routes the query</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-edge="p-consult" data-pf-relation="transitions_to" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-consult" points="908,584 996,584" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="952" y="578">cache first</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-edge="p-hit" data-pf-relation="reads" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-hit" points="1204,584 1248,584 1248,654 1292,654" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1248" y="613">on a hit</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-edge="p-miss" data-pf-relation="reads" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-miss" points="1204,584 1248,584 1248,514 1292,514" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1248" y="543">on a miss</text>
+</g>
+<g class="pf-edge" data-pf-edge="p-warm" data-pf-relation="writes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-warm" points="908,584 1100,584 1100,654 1292,654" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1004" y="578">warms it</text>
+</g>
+<g class="pf-edge" data-pf-edge="p-from-cache" data-pf-relation="transitions_to" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-from-cache" points="1500,654 1544,654 1544,164 1588,164" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1544" y="403">served</text>
+</g>
+<g class="pf-edge" data-pf-edge="p-from-store" data-pf-relation="transitions_to" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-from-store" points="1500,514 1544,514 1544,164 1588,164" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1544" y="333">served</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-edge="p-mutate" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-mutate" points="316,374 360,374 360,864 404,864" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="360" y="613">a mutation</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-edge="p-commit" data-pf-relation="writes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-commit" points="612,864 656,864 656,794 700,794" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="656" y="823">commits</text>
+</g>
+<g class="pf-edge" data-pf-edge="p-publish" data-pf-relation="publishes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-publish" points="612,864 656,864 656,934 700,934" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="656" y="893">what happened</text>
+</g>
+<g class="pf-edge" data-pf-edge="p-project" data-pf-relation="consumes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-project" points="316,94 508,94 508,934 700,934" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="508" y="508">change-events</text>
+</g>
+<g class="pf-edge" data-pf-edge="p-maintain" data-pf-relation="writes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-maintain" points="316,94 804,94 804,514 1292,514" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="560" y="88">maintains</text>
+</g>
+<g class="pf-edge" data-pf-edge="p-evict-consume" data-pf-relation="consumes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-evict-consume" points="316,234 508,234 508,934 700,934" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="508" y="578">change-events</text>
+</g>
+<g class="pf-edge" data-pf-edge="p-evict" data-pf-relation="writes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-evict" points="316,234 804,234 804,654 1292,654" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="560" y="228">evicts</text>
+</g>
+<g class="pf-edge" data-pf-edge="p-rebuild" data-pf-relation="reads" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--p-rebuild" points="316,94 508,94 508,794 700,794" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="508" y="438">cold rebuild</text>
+</g>
+<g class="pf-node" data-pf-node="client" data-pf-role="actor">
+<rect class="pf-node-box" id="n--client" x="108" y="336" width="208" height="76" rx="38"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="212" y="367">A client</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="212" y="400">actor</text>
+</g>
+<g class="pf-node" data-pf-node="gateway" data-pf-role="interface">
+<rect class="pf-node-box" id="n--gateway" x="404" y="336" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="508" y="367">API gateway</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="508" y="400">interface</text>
+</g>
+<g class="pf-node" data-pf-node="auth" data-pf-role="service">
+<rect class="pf-node-box" id="n--auth" x="700" y="336" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="804" y="367">Token service</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="804" y="400">service</text>
+</g>
+<g class="pf-node" data-pf-node="reads" data-pf-role="service">
+<rect class="pf-node-box" id="n--reads" x="700" y="546" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="804" y="577">Read service</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="804" y="610">service</text>
+</g>
+<g class="pf-node" data-pf-node="cache" data-pf-role="store">
+<rect class="pf-node-box" id="n--cache" x="1292" y="616" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="647">Read cache</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1396" y="680">store</text>
+</g>
+<g class="pf-node" data-pf-node="projections" data-pf-role="store">
+<rect class="pf-node-box" id="n--projections" x="1292" y="476" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="507">Projection store</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1396" y="540">store</text>
+</g>
+<g class="pf-node" data-pf-node="writes" data-pf-role="service">
+<rect class="pf-node-box" id="n--writes" x="404" y="826" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="508" y="857">Write service</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="508" y="890">service</text>
+</g>
+<g class="pf-node" data-pf-node="ledger" data-pf-role="store">
+<rect class="pf-node-box" id="n--ledger" x="700" y="756" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="804" y="778">Authoritative</tspan><tspan x="804" y="796">store</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="804" y="820">store</text>
+</g>
+<g class="pf-node" data-pf-node="events" data-pf-role="queue">
+<rect class="pf-node-box" id="n--events" x="700" y="896" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="804" y="927">change-events</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="804" y="960">queue</text>
+</g>
+<g class="pf-node" data-pf-node="projector" data-pf-role="job">
+<rect class="pf-node-box" id="n--projector" x="108" y="56" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="212" y="87">Projector</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="212" y="120">job</text>
+</g>
+<g class="pf-node" data-pf-node="invalidator" data-pf-role="job">
+<rect class="pf-node-box" id="n--invalidator" x="108" y="196" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="212" y="218">Cache</tspan><tspan x="212" y="236">invalidator</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="212" y="260">job</text>
+</g>
+<g class="pf-node" data-pf-node="stale" data-pf-role="decision">
+<rect class="pf-node-box" id="n--stale" x="996" y="546" width="208" height="76" rx="20"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1100" y="568">Stale or</tspan><tspan x="1100" y="586">missing?</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1100" y="610">decision</text>
+</g>
+<g class="pf-node" data-pf-node="answered" data-pf-role="terminal">
+<rect class="pf-node-box" id="n--answered" x="1588" y="126" width="208" height="76" rx="38"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1692" y="157">Answered</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1692" y="190">terminal</text>
+</g>
+</svg></div>
+<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--edge">
+<h3 class="pf-section-title">At the edge</h3>
+<div class="pf-card">
+<p class="pf-module-summary">What a client touches. Intended, not built.</p>
+<div class="pf-card" id="s--n--client" data-pf-entry="node" data-pf-for="client">
+<h4 class="pf-section-title">A client<span class="pf-legend-role">actor</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="client" aria-label="Focus A client">Focus</button></span></h4>
+<p>Would send a token on every request and expect the same answer from any region.</p>
+</div>
+<div class="pf-card" id="s--n--gateway" data-pf-entry="node" data-pf-for="gateway">
+<h4 class="pf-section-title">API gateway<span class="pf-legend-role">interface</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="gateway" aria-label="Focus API gateway">Focus</button></span></h4>
+<p>Would terminate TLS, apply rate limits, and route. It would hold no session state.</p>
+</div>
+<div class="pf-card" id="s--n--auth" data-pf-entry="node" data-pf-for="auth">
+<h4 class="pf-section-title">Token service<span class="pf-legend-role">service</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="auth" aria-label="Focus Token service">Focus</button></span></h4>
+<p>Would verify tokens and nothing else. Deliberately not the place where permissions live.</p>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--g--read">
+<h3 class="pf-section-title">The read path</h3>
+<div class="pf-card">
+<p class="pf-module-summary">Would answer from cache wherever it can, and never wait on the write path.</p>
+<div class="pf-card" id="s--n--reads" data-pf-entry="node" data-pf-for="reads">
+<h4 class="pf-section-title">Read service<span class="pf-legend-role">service</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="reads" aria-label="Focus Read service">Focus</button></span></h4>
+<p>Would serve every query, and would be the only thing allowed to answer from the cache.</p>
+</div>
+<div class="pf-card" id="s--n--cache" data-pf-entry="node" data-pf-for="cache">
+<h4 class="pf-section-title">Read cache<span class="pf-legend-role">store</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="cache" aria-label="Focus Read cache">Focus</button></span></h4>
+<p>Would hold projections, never authoritative state. Safe to lose entirely.</p>
+</div>
+<div class="pf-card" id="s--n--projections" data-pf-entry="node" data-pf-for="projections">
+<h4 class="pf-section-title">Projection store<span class="pf-legend-role">store</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="projections" aria-label="Focus Projection store">Focus</button></span></h4>
+<p>Would be rebuildable from the event log, which is what makes a cold start survivable.</p>
+</div>
+<div class="pf-card" id="s--n--stale" data-pf-entry="node" data-pf-for="stale">
+<h4 class="pf-section-title">Stale or missing?<span class="pf-legend-role">decision</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="stale" aria-label="Focus Stale or missing?">Focus</button></span></h4>
+<p>Would decide whether to answer from the cache or fall through to projections.</p>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--g--write">
+<h3 class="pf-section-title">The write path</h3>
+<div class="pf-card">
+<p class="pf-module-summary">Would own every mutation, and publish what happened rather than call whoever cares.</p>
+<div class="pf-card" id="s--n--writes" data-pf-entry="node" data-pf-for="writes">
+<h4 class="pf-section-title">Write service<span class="pf-legend-role">service</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="writes" aria-label="Focus Write service">Focus</button></span></h4>
+<p>Would own every mutation. The one writer of authoritative state.</p>
+</div>
+<div class="pf-card" id="s--n--ledger" data-pf-entry="node" data-pf-for="ledger">
+<h4 class="pf-section-title">Authoritative store<span class="pf-legend-role">store</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="ledger" aria-label="Focus Authoritative store">Focus</button></span></h4>
+<p>Would be the single source of truth, and would never be read by the read path directly.</p>
+</div>
+<div class="pf-card" id="s--n--events" data-pf-entry="node" data-pf-for="events">
+<h4 class="pf-section-title">change-events<span class="pf-legend-role">queue</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="events" aria-label="Focus change-events">Focus</button></span></h4>
+<p>Would carry what happened, never what should happen next.</p>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--ungrouped">
+<h3 class="pf-section-title">Not in a boundary</h3>
+<div class="pf-card">
+<div class="pf-card" id="s--n--projector" data-pf-entry="node" data-pf-for="projector">
+<h4 class="pf-section-title">Projector<span class="pf-legend-role">job</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="projector" aria-label="Focus Projector">Focus</button></span></h4>
+<p>Would consume events and maintain projections. Idempotent, so a replay is safe.</p>
+</div>
+<div class="pf-card" id="s--n--invalidator" data-pf-entry="node" data-pf-for="invalidator">
+<h4 class="pf-section-title">Cache invalidator<span class="pf-legend-role">job</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="invalidator" aria-label="Focus Cache invalidator">Focus</button></span></h4>
+<p>Would consume the same events and evict rather than write. Two consumers, one log.</p>
+</div>
+<div class="pf-card" id="s--n--answered" data-pf-entry="node" data-pf-for="answered">
+<h4 class="pf-section-title">Answered<span class="pf-legend-role">terminal</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="answered" aria-label="Focus Answered">Focus</button></span></h4>
+<p>Would be reached from either branch, which is the property worth designing for.</p>
+</div>
+</div>
+</section>
+<h2 class="pf-module-title">Relationships</h2><section class="pf-section" id="s--relationships">
+<div class="pf-card">
+<ul class="pf-legend"><li id="s--e--p-request" data-pf-entry="edge" data-pf-for="p-request"><span class="pf-step-title">A client</span> <span class="pf-relation">calls</span> <span class="pf-step-title">API gateway</span><p class="pf-step-detail">a query</p></li>
+<li id="s--e--p-verify" data-pf-entry="edge" data-pf-for="p-verify"><span class="pf-step-title">API gateway</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Token service</span><p class="pf-step-detail">verify token</p></li>
+<li id="s--e--p-route" data-pf-entry="edge" data-pf-for="p-route"><span class="pf-step-title">API gateway</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Read service</span><p class="pf-step-detail">routes the query</p></li>
+<li id="s--e--p-consult" data-pf-entry="edge" data-pf-for="p-consult"><span class="pf-step-title">Read service</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Stale or missing?</span><p class="pf-step-detail">cache first</p></li>
+<li id="s--e--p-hit" data-pf-entry="edge" data-pf-for="p-hit"><span class="pf-step-title">Stale or missing?</span> <span class="pf-relation">reads</span> <span class="pf-step-title">Read cache</span><p class="pf-step-detail">on a hit</p></li>
+<li id="s--e--p-miss" data-pf-entry="edge" data-pf-for="p-miss"><span class="pf-step-title">Stale or missing?</span> <span class="pf-relation">reads</span> <span class="pf-step-title">Projection store</span><p class="pf-step-detail">on a miss</p></li>
+<li id="s--e--p-warm" data-pf-entry="edge" data-pf-for="p-warm"><span class="pf-step-title">Read service</span> <span class="pf-relation">writes</span> <span class="pf-step-title">Read cache</span><p class="pf-step-detail">warms it</p></li>
+<li id="s--e--p-from-cache" data-pf-entry="edge" data-pf-for="p-from-cache"><span class="pf-step-title">Read cache</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Answered</span><p class="pf-step-detail">served</p></li>
+<li id="s--e--p-from-store" data-pf-entry="edge" data-pf-for="p-from-store"><span class="pf-step-title">Projection store</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Answered</span><p class="pf-step-detail">served</p></li>
+<li id="s--e--p-mutate" data-pf-entry="edge" data-pf-for="p-mutate"><span class="pf-step-title">A client</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Write service</span><p class="pf-step-detail">a mutation</p></li>
+<li id="s--e--p-commit" data-pf-entry="edge" data-pf-for="p-commit"><span class="pf-step-title">Write service</span> <span class="pf-relation">writes</span> <span class="pf-step-title">Authoritative store</span><p class="pf-step-detail">commits</p></li>
+<li id="s--e--p-publish" data-pf-entry="edge" data-pf-for="p-publish"><span class="pf-step-title">Write service</span> <span class="pf-relation">publishes to</span> <span class="pf-step-title">change-events</span><p class="pf-step-detail">what happened</p></li>
+<li id="s--e--p-project" data-pf-entry="edge" data-pf-for="p-project"><span class="pf-step-title">Projector</span> <span class="pf-relation">consumes from</span> <span class="pf-step-title">change-events</span><p class="pf-step-detail">change-events</p></li>
+<li id="s--e--p-maintain" data-pf-entry="edge" data-pf-for="p-maintain"><span class="pf-step-title">Projector</span> <span class="pf-relation">writes</span> <span class="pf-step-title">Projection store</span><p class="pf-step-detail">maintains</p></li>
+<li id="s--e--p-evict-consume" data-pf-entry="edge" data-pf-for="p-evict-consume"><span class="pf-step-title">Cache invalidator</span> <span class="pf-relation">consumes from</span> <span class="pf-step-title">change-events</span><p class="pf-step-detail">change-events</p></li>
+<li id="s--e--p-evict" data-pf-entry="edge" data-pf-for="p-evict"><span class="pf-step-title">Cache invalidator</span> <span class="pf-relation">writes</span> <span class="pf-step-title">Read cache</span><p class="pf-step-detail">evicts</p></li>
+<li id="s--e--p-rebuild" data-pf-entry="edge" data-pf-for="p-rebuild"><span class="pf-step-title">Projector</span> <span class="pf-relation">reads</span> <span class="pf-step-title">Authoritative store</span><p class="pf-step-detail">cold rebuild</p></li></ul>
+</div>
+</section>
+<h2 class="pf-module-title">Paths</h2><section class="pf-section" id="s--p--cache-hit" data-pf-entry="path" data-pf-for="cache-hit">
+<h3 class="pf-section-title">A query that hits</h3>
+<div class="pf-card">
+<p class="pf-module-summary">Four steps and nothing authoritative is read, which is the whole reason the read path exists.</p>
+<div class="pf-kicker">Walks</div>
+<ol class="pf-walk"><li>A client <span class="pf-relation">calls</span> API gateway — a query</li>
+<li>API gateway <span class="pf-relation">calls</span> Read service — routes the query</li>
+<li>Read service <span class="pf-relation">becomes</span> Stale or missing? — cache first</li>
+<li>Stale or missing? <span class="pf-relation">reads</span> Read cache — on a hit</li></ol>
+<div class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-act="path" data-pf-path="cache-hit" aria-label="Highlight A query that hits">Highlight</button></div>
+</div>
+</section>
+<section class="pf-section" id="s--p--cache-miss" data-pf-entry="path" data-pf-for="cache-miss">
+<h3 class="pf-section-title">A query that misses</h3>
+<div class="pf-card">
+<p class="pf-module-summary">The same first three steps, then a fall-through to projections rather than to the authoritative store.</p>
+<div class="pf-kicker">Walks</div>
+<ol class="pf-walk"><li>A client <span class="pf-relation">calls</span> API gateway — a query</li>
+<li>API gateway <span class="pf-relation">calls</span> Read service — routes the query</li>
+<li>Read service <span class="pf-relation">becomes</span> Stale or missing? — cache first</li>
+<li>Stale or missing? <span class="pf-relation">reads</span> Projection store — on a miss</li></ol>
+<div class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-act="path" data-pf-path="cache-miss" aria-label="Highlight A query that misses">Highlight</button></div>
+</div>
+</section>
+<section class="pf-section" id="s--p--mutation" data-pf-entry="path" data-pf-for="mutation">
+<h3 class="pf-section-title">A mutation, and its wake</h3>
+<div class="pf-card">
+<p class="pf-module-summary">The write path would publish once and be finished; two independent consumers would then do their own work.</p>
+<div class="pf-kicker">Walks</div>
+<ol class="pf-walk"><li>A client <span class="pf-relation">calls</span> Write service — a mutation</li>
+<li>Write service <span class="pf-relation">writes</span> Authoritative store — commits</li></ol>
+<div class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-act="path" data-pf-path="mutation" aria-label="Highlight A mutation, and its wake">Highlight</button></div>
+</div>
+</section>
+<h2 class="pf-module-title">Views</h2><section class="pf-section" id="s--v--two-consumers">
+<h3 class="pf-section-title">One log, two consumers</h3>
+<div class="pf-card">
+<p class="pf-module-summary">The projector maintains and the invalidator evicts. Neither would know about the other, and that independence is the design.</p>
+<div class="pf-kicker">Focuses on</div>
+<ul class="pf-legend"><li>change-events</li><li>Projector</li><li>Cache invalidator</li><li>Read cache</li><li>Projection store</li></ul>
+</div>
+</section>
+<section class="pf-section" id="s--v--never-authoritative">
+<h3 class="pf-section-title">What a read never touches</h3>
+<div class="pf-card">
+<div class="pf-kicker">Focuses on</div>
+<ul class="pf-legend"><li>Authoritative store</li><li>Read service</li><li>Read cache</li><li>Projection store</li></ul>
+</div>
+</section>
+</main>
+</div>
+<footer class="pf-provenance">
+<dl>
+<dt>Renderer</dt>
+<dd>Pathfinder render-artifact 0.5.0</dd>
+</dl>
+<p class="pf-caveat">This diagram describes an intended system. It names no repository and no commit, so it carries no citations and none were checked — there is nothing here that was verified against a source. It is a proposal, and it makes no claim about what currently exists.</p>
+</footer>
+<script>(function () {
+  "use strict";
+
+  var root = document.documentElement;
+  var MODES = ["auto", "light", "dark"];
+  var LABELS = { auto: "Theme: auto", light: "Theme: light", dark: "Theme: dark" };
+  var KEY = "pathfinder.artifact.theme";
+
+  function stored() {
+    try {
+      var value = window.localStorage.getItem(KEY);
+      return MODES.indexOf(value) >= 0 ? value : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function remember(mode) {
+    try {
+      window.localStorage.setItem(KEY, mode);
+    } catch (error) {
+      /* A reader who cannot store a preference still gets to use it. */
+    }
+  }
+
+  function apply(mode, button) {
+    root.setAttribute("data-pf-theme", mode);
+    if (button) {
+      button.textContent = LABELS[mode];
+      button.setAttribute("aria-label", LABELS[mode] + ". Activate to change.");
+    }
+  }
+
+  var toggle = document.getElementById("pf-theme-toggle");
+  var initial = stored() || "auto";
+  apply(initial, toggle);
+
+  if (toggle) {
+    toggle.hidden = false;
+    toggle.addEventListener("click", function () {
+      var next = MODES[(MODES.indexOf(root.getAttribute("data-pf-theme")) + 1) % MODES.length];
+      apply(next, toggle);
+      remember(next);
+    });
+  }
+
+  /* Mark the module the reader is in. Falls back to doing nothing where
+     IntersectionObserver is unavailable; the nav still navigates. */
+  var links = Array.prototype.slice.call(document.querySelectorAll("[data-pf-nav]"));
+  if (links.length > 0 && "IntersectionObserver" in window) {
+    var byId = {};
+    links.forEach(function (link) { byId[link.getAttribute("data-pf-nav")] = link; });
+
+    var visible = {};
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        visible[entry.target.id] = entry.isIntersecting;
+      });
+      var current = null;
+      for (var i = 0; i < links.length; i += 1) {
+        var id = links[i].getAttribute("data-pf-nav");
+        if (visible[id]) { current = id; break; }
+      }
+      links.forEach(function (link) {
+        var isCurrent = link.getAttribute("data-pf-nav") === current;
+        if (isCurrent) {
+          link.setAttribute("aria-current", "true");
+        } else {
+          link.removeAttribute("aria-current");
+        }
+      });
+    }, { rootMargin: "-30% 0px -60% 0px" });
+
+    Object.keys(byId).forEach(function (id) {
+      var target = document.getElementById(id);
+      if (target) observer.observe(target);
+    });
+  }
+
+  /* Quiz feedback. The correct answer is in the document either way; choosing
+     an option just says so sooner, and opens the explanation that was always
+     one click away. */
+  document.addEventListener("change", function (event) {
+    var input = event.target;
+    if (!input || input.type !== "radio" || !input.hasAttribute("data-pf-answer")) return;
+
+    var question = input.closest("[data-pf-question]");
+    if (!question) return;
+
+    var chosenIsCorrect = input.getAttribute("data-pf-answer") === "correct";
+    Array.prototype.forEach.call(question.querySelectorAll(".pf-option"), function (option) {
+      var field = option.querySelector("input[type=radio]");
+      var verdict = option.querySelector(".pf-verdict");
+      var correct = field.getAttribute("data-pf-answer") === "correct";
+      if (field.checked && !correct) {
+        option.setAttribute("data-pf-verdict", "incorrect");
+        if (verdict) verdict.textContent = "Not this one";
+      } else if (correct && (field.checked || !chosenIsCorrect)) {
+        option.setAttribute("data-pf-verdict", "correct");
+        if (verdict) verdict.textContent = "Correct";
+      } else {
+        option.removeAttribute("data-pf-verdict");
+        if (verdict) verdict.textContent = "";
+      }
+    });
+
+    var reveal = question.querySelector(".pf-reveal");
+    if (reveal) reveal.open = true;
+  });
+})();
+(function () {
+  "use strict";
+
+  var model = {"nodes":["client","gateway","auth","reads","cache","projections","writes","ledger","events","projector","invalidator","stale","answered"],"labels":{"client":"A client","gateway":"API gateway","auth":"Token service","reads":"Read service","cache":"Read cache","projections":"Projection store","writes":"Write service","ledger":"Authoritative store","events":"change-events","projector":"Projector","invalidator":"Cache invalidator","stale":"Stale or missing?","answered":"Answered"},"out":{"client":[["p-request","gateway"],["p-mutate","writes"]],"gateway":[["p-verify","auth"],["p-route","reads"]],"auth":[],"reads":[["p-consult","stale"],["p-warm","cache"]],"cache":[["p-from-cache","answered"]],"projections":[["p-from-store","answered"]],"writes":[["p-commit","ledger"],["p-publish","events"]],"ledger":[],"events":[],"projector":[["p-project","events"],["p-maintain","projections"],["p-rebuild","ledger"]],"invalidator":[["p-evict-consume","events"],["p-evict","cache"]],"stale":[["p-hit","cache"],["p-miss","projections"]],"answered":[]},"in":{"client":[],"gateway":[["p-request","client"]],"auth":[["p-verify","gateway"]],"reads":[["p-route","gateway"]],"cache":[["p-hit","stale"],["p-warm","reads"],["p-evict","invalidator"]],"projections":[["p-miss","stale"],["p-maintain","projector"]],"writes":[["p-mutate","client"]],"ledger":[["p-commit","writes"],["p-rebuild","projector"]],"events":[["p-publish","writes"],["p-project","projector"],["p-evict-consume","invalidator"]],"projector":[],"invalidator":[],"stale":[["p-consult","reads"]],"answered":[["p-from-cache","cache"],["p-from-store","projections"]]},"edges":{"p-request":["client","gateway"],"p-verify":["gateway","auth"],"p-route":["gateway","reads"],"p-consult":["reads","stale"],"p-hit":["stale","cache"],"p-miss":["stale","projections"],"p-warm":["reads","cache"],"p-from-cache":["cache","answered"],"p-from-store":["projections","answered"],"p-mutate":["client","writes"],"p-commit":["writes","ledger"],"p-publish":["writes","events"],"p-project":["projector","events"],"p-maintain":["projector","projections"],"p-evict-consume":["invalidator","events"],"p-evict":["invalidator","cache"],"p-rebuild":["projector","ledger"]},"paths":{"cache-hit":["p-request","p-route","p-consult","p-hit"],"cache-miss":["p-request","p-route","p-consult","p-miss"],"mutation":["p-mutate","p-commit"]}};
+
+  function pfTraverse(model, start, direction) {
+  var adjacency = direction === "in" ? model["in"] : model.out;
+  if (!adjacency || !adjacency[start]) return { nodes: [start], edges: [] };
+
+  var seenNodes = Object.create(null);
+  var seenEdges = Object.create(null);
+  var nodes = [];
+  var edges = [];
+  var queue = [start];
+
+  seenNodes[start] = true;
+  nodes.push(start);
+
+  while (queue.length > 0) {
+    var current = queue.shift();
+    var next = adjacency[current] || [];
+
+    for (var i = 0; i < next.length; i += 1) {
+      var edgeId = next[i][0];
+      var neighbour = next[i][1];
+
+      /* Every edge crossed is recorded, including one that leads somewhere
+         already reached. Two edges joining one pair are two claims, and a
+         traversal that kept only the first would highlight the wrong one. */
+      if (!seenEdges[edgeId]) {
+        seenEdges[edgeId] = true;
+        edges.push(edgeId);
+      }
+
+      /* A node already reached is never queued again. This single guard is
+         what terminates a cycle and what stops a self-edge looping. */
+      if (!seenNodes[neighbour]) {
+        seenNodes[neighbour] = true;
+        nodes.push(neighbour);
+        queue.push(neighbour);
+      }
+    }
+  }
+
+  return { nodes: nodes, edges: edges };
+}
+
+  var canvas = document.querySelector("[data-pf-canvas]");
+  var svg = canvas ? canvas.querySelector("[data-pf-graph]") : null;
+  if (!canvas || !svg) return;
+
+  var status = document.querySelector("[data-pf-status]");
+
+  function all(selector) {
+    return Array.prototype.slice.call(document.querySelectorAll(selector));
+  }
+
+  /* The canvas is a picture to assistive technology, so the interactive
+     surface is the toolbar and the written reading below it — real buttons,
+     in document order, carrying the stylesheet's existing focus ring. Every
+     one of them is revealed here rather than shipped visible, because a
+     control that cannot work should not be offered: with scripting off a
+     reader meets no dead buttons and loses nothing they could have read. */
+  all("[data-pf-controls]").forEach(function (group) { group.hidden = false; });
+
+  var viewBox = svg.getAttribute("viewBox").split(" ");
+  var BASE = { w: Number(viewBox[2]), h: Number(viewBox[3]) };
+  var MAX_ZOOM = 6;
+
+  var view = { zoom: 1, x: 0, y: 0 };
+  var state = { focus: null, trace: null, path: null };
+
+  var nodeGroups = all("[data-pf-node]");
+  var edgeGroups = all("[data-pf-edge]");
+  var entries = all("[data-pf-entry]");
+
+  /* ---- the view: zoom and pan, clamped to the graph's own bounds ---- */
+
+  function paint() {
+    var w = Math.max(1, Math.floor(BASE.w / view.zoom));
+    var h = Math.max(1, Math.floor(BASE.h / view.zoom));
+
+    /* Clamped to the content, so panning can never wander off into empty
+       space and "fit" is always the way back. */
+    view.x = Math.min(Math.max(view.x, 0), Math.max(0, BASE.w - w));
+    view.y = Math.min(Math.max(view.y, 0), Math.max(0, BASE.h - h));
+
+    svg.setAttribute("viewBox", view.x + " " + view.y + " " + w + " " + h);
+    canvas.setAttribute("data-pf-zoom", view.zoom === 1 ? "fit" : "in");
+    limits();
+  }
+
+  function zoomBy(factor) {
+    var before = { w: BASE.w / view.zoom, h: BASE.h / view.zoom };
+    var next = Math.min(Math.max(view.zoom * factor, 1), MAX_ZOOM);
+    if (next === view.zoom) return;
+
+    var after = { w: BASE.w / next, h: BASE.h / next };
+    /* Keep whatever is in the middle of the view in the middle of it. */
+    view.x = view.x + Math.floor((before.w - after.w) / 2);
+    view.y = view.y + Math.floor((before.h - after.h) / 2);
+    view.zoom = next;
+    paint();
+  }
+
+  function fit() {
+    view.zoom = 1;
+    view.x = 0;
+    view.y = 0;
+    paint();
+  }
+
+  function panBy(dx, dy) {
+    view.x = view.x + dx;
+    view.y = view.y + dy;
+    paint();
+  }
+
+  /* ---- the selection: focus, traversal, path ---- */
+
+  function endpointsOf(edgeId) {
+    return model.edges[edgeId] || null;
+  }
+
+  function selection() {
+    var nodes = Object.create(null);
+    var near = Object.create(null);
+    var edges = Object.create(null);
+    var mode = "";
+
+    if (state.path && model.paths[state.path]) {
+      /* Exactly the edges the producer authored, addressed by id. Two edges
+         joining one pair are two different claims, and only the one named by
+         the path is lit. */
+      mode = "path";
+      var walked = model.paths[state.path];
+      for (var i = 0; i < walked.length; i += 1) {
+        edges[walked[i]] = true;
+        var ends = endpointsOf(walked[i]);
+        if (ends) { near[ends[0]] = true; near[ends[1]] = true; }
+      }
+    } else if (state.focus && state.trace) {
+      mode = "trace";
+      var reached = pfTraverse(model, state.focus, state.trace);
+      for (var n = 0; n < reached.nodes.length; n += 1) nodes[reached.nodes[n]] = true;
+      for (var e = 0; e < reached.edges.length; e += 1) edges[reached.edges[e]] = true;
+    } else if (state.focus) {
+      mode = "focus";
+      nodes[state.focus] = true;
+      var sides = [model.out[state.focus] || [], model["in"][state.focus] || []];
+      for (var s = 0; s < sides.length; s += 1) {
+        for (var k = 0; k < sides[s].length; k += 1) {
+          edges[sides[s][k][0]] = true;
+          near[sides[s][k][1]] = true;
+        }
+      }
+    }
+
+    return { mode: mode, nodes: nodes, near: near, edges: edges };
+  }
+
+  function describe(picked) {
+    if (picked.mode === "path") {
+      return "Path: " + count(model.paths[state.path].length, "relationship") + ", exactly as authored.";
+    }
+    if (picked.mode === "trace") {
+      var word = state.trace === "in" ? "Upstream of " : "Downstream of ";
+      return word + label(state.focus) + ": " +
+        count(countOf(picked.nodes) - 1, "component") + " reached, " +
+        count(countOf(picked.edges), "relationship") + " crossed.";
+    }
+    if (picked.mode === "focus") {
+      return "Focused: " + label(state.focus) + ". " +
+        count(countOf(picked.edges), "direct relationship") + ".";
+    }
+    return "Nothing selected. Choose a component to focus it.";
+  }
+
+  function label(id) {
+    return model.labels[id] || id;
+  }
+
+  function count(n, noun) {
+    return n + " " + noun + (n === 1 ? "" : "s");
+  }
+
+  function countOf(set) {
+    return Object.keys(set).length;
+  }
+
+  function mark(elements, attribute, picked) {
+    for (var i = 0; i < elements.length; i += 1) {
+      var element = elements[i];
+      var id = element.getAttribute(attribute);
+      if (picked.mode === "") {
+        element.removeAttribute("data-pf-state");
+        continue;
+      }
+      var value = picked.nodes[id] ? "on"
+        : picked.edges[id] ? "on"
+        : picked.near[id] ? "near"
+        : "off";
+      element.setAttribute("data-pf-state", value);
+    }
+  }
+
+  function apply() {
+    var picked = selection();
+
+    canvas.setAttribute("data-pf-mode", picked.mode);
+    mark(nodeGroups, "data-pf-node", picked);
+    mark(edgeGroups, "data-pf-edge", picked);
+
+    /* The written reading is where the details and the evidence live. Marking
+       the selected entry current is the whole of the details interaction: the
+       reader is sent to the evidence already in the document rather than
+       shown a second copy of it. */
+    for (var i = 0; i < entries.length; i += 1) {
+      var entry = entries[i];
+      var kind = entry.getAttribute("data-pf-entry");
+      var forId = entry.getAttribute("data-pf-for");
+      var isCurrent = (kind === "node" && forId === state.focus)
+        || (kind === "path" && forId === state.path)
+        /* An edge row is current when the highlighted path walks it, which is
+           what makes "highlight this path" and "read its evidence" one act
+           rather than two. Keyed off the picked edge set, so it is exactly the
+           authored edges and never a similar-looking one. */
+        || (kind === "edge" && picked.mode === "path" && Boolean(picked.edges[forId]));
+      if (isCurrent) {
+        entry.setAttribute("aria-current", "true");
+      } else {
+        entry.removeAttribute("aria-current");
+      }
+    }
+
+    if (status) status.textContent = describe(picked);
+
+    act("upstream", !state.focus);
+    act("downstream", !state.focus);
+    act("details", !state.focus);
+    act("clear", picked.mode === "");
+  }
+
+  /* A control at its limit is disabled rather than left to do nothing when
+     pressed. Fit is the floor deliberately: zooming out past the whole graph
+     would only add empty space, and "fit" is then always the way back. */
+  function limits() {
+    act("zoom-out", view.zoom <= 1);
+    act("zoom-in", view.zoom >= MAX_ZOOM);
+    act("fit", view.zoom === 1 && view.x === 0 && view.y === 0);
+  }
+
+  function act(name, isDisabled) {
+    var button = document.querySelector('[data-pf-act="' + name + '"]');
+    if (button) button.disabled = Boolean(isDisabled);
+  }
+
+  function focusNode(id, options) {
+    if (!model.labels[id]) return;
+    state.focus = id;
+    state.trace = null;
+    state.path = null;
+    apply();
+    if (options && options.reveal) reveal(id);
+  }
+
+  function reveal(id) {
+    var entry = document.querySelector('[data-pf-entry="node"][data-pf-for="' + id + '"]');
+    if (!entry) return;
+    var open = entry.closest ? entry.closest("details") : null;
+    if (open) open.open = true;
+    if (entry.scrollIntoView) entry.scrollIntoView({ block: "nearest" });
+  }
+
+  function clear() {
+    state.focus = null;
+    state.trace = null;
+    state.path = null;
+    apply();
+    if (status) status.textContent = "Selection cleared.";
+  }
+
+  /* ---- wiring ---- */
+
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    if (!target || !target.closest) return;
+
+    var control = target.closest("[data-pf-act]");
+    if (control && !control.disabled) {
+      var action = control.getAttribute("data-pf-act");
+      if (action === "zoom-in") zoomBy(1.5);
+      else if (action === "zoom-out") zoomBy(1 / 1.5);
+      else if (action === "fit") fit();
+      else if (action === "reset") { fit(); clear(); }
+      else if (action === "upstream") { state.trace = "in"; state.path = null; apply(); }
+      else if (action === "downstream") { state.trace = "out"; state.path = null; apply(); }
+      else if (action === "details") reveal(state.focus);
+      else if (action === "clear") clear();
+      else if (action === "path") {
+        state.path = control.getAttribute("data-pf-path");
+        state.focus = null;
+        state.trace = null;
+        apply();
+      }
+      return;
+    }
+
+    /* A written entry's own button: the keyboard route into focus. */
+    var pick = target.closest("[data-pf-pick]");
+    if (pick) {
+      focusNode(pick.getAttribute("data-pf-pick"), { reveal: false });
+      return;
+    }
+
+    /* A node in the picture: the pointer route. Keyboard readers reach the
+       same state through the entry buttons above, which is why nothing in
+       the canvas is a tab stop. */
+    var drawn = target.closest("[data-pf-node]");
+    if (drawn) focusNode(drawn.getAttribute("data-pf-node"), { reveal: true });
+  });
+
+  /* Drag to pan. Pixels become user units through the element's rendered
+     width, which is a reading of the reader's window and not of anything
+     that decided the artifact's bytes. */
+  var dragging = null;
+  svg.addEventListener("pointerdown", function (event) {
+    if (view.zoom === 1) return;
+    dragging = { x: event.clientX, y: event.clientY };
+    canvas.setAttribute("data-pf-dragging", "true");
+    if (svg.setPointerCapture) svg.setPointerCapture(event.pointerId);
+  });
+  svg.addEventListener("pointermove", function (event) {
+    if (!dragging) return;
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    var scaleX = (BASE.w / view.zoom) / rect.width;
+    var scaleY = (BASE.h / view.zoom) / rect.height;
+    panBy(
+      Math.floor((dragging.x - event.clientX) * scaleX),
+      Math.floor((dragging.y - event.clientY) * scaleY));
+    dragging = { x: event.clientX, y: event.clientY };
+  });
+  function endDrag() {
+    dragging = null;
+    canvas.removeAttribute("data-pf-dragging");
+  }
+  svg.addEventListener("pointerup", endDrag);
+  svg.addEventListener("pointercancel", endDrag);
+
+  /* Keyboard panning, on the canvas itself, which is a tab stop for exactly
+     this reason. Escape clears from anywhere. */
+  canvas.addEventListener("keydown", function (event) {
+    var step = Math.max(16, Math.floor(BASE.w / view.zoom / 8));
+    var moved = true;
+    if (event.key === "ArrowLeft") panBy(-step, 0);
+    else if (event.key === "ArrowRight") panBy(step, 0);
+    else if (event.key === "ArrowUp") panBy(0, -step);
+    else if (event.key === "ArrowDown") panBy(0, step);
+    else if (event.key === "+" || event.key === "=") zoomBy(1.5);
+    else if (event.key === "-") zoomBy(1 / 1.5);
+    else if (event.key === "0") fit();
+    else moved = false;
+    if (moved) event.preventDefault();
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") clear();
+  });
+
+  paint();
+  apply();
+})();</script>
+</body>
+</html>

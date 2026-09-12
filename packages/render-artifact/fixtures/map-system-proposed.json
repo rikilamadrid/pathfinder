@@ -1,0 +1,274 @@
+{
+  "schema_version": "1.0",
+  "kind": "diagram",
+  "provenance": "proposed",
+  "artifact": {
+    "title": "A proposed read API",
+    "subtitle": "Auth, cache, queue, workers and storage, none of it built",
+    "summary": "There is no code for any of this and no repository to point at, so this specification declares no source and carries no citation. That is a complete and legal artifact: the diagram describes an intended system, and the engine reports its evidence layer as not run rather than as passed. Nothing here should be read as a claim about what currently runs."
+  },
+  "diagram": {
+    "topology": "graph",
+    "groups": [
+      {
+        "id": "edge",
+        "label": "At the edge",
+        "summary": "What a client touches. Intended, not built."
+      },
+      {
+        "id": "read",
+        "label": "The read path",
+        "summary": "Would answer from cache wherever it can, and never wait on the write path."
+      },
+      {
+        "id": "write",
+        "label": "The write path",
+        "summary": "Would own every mutation, and publish what happened rather than call whoever cares."
+      }
+    ],
+    "nodes": [
+      {
+        "id": "client",
+        "label": "A client",
+        "role": "actor",
+        "group": "edge",
+        "summary": "Would send a token on every request and expect the same answer from any region."
+      },
+      {
+        "id": "gateway",
+        "label": "API gateway",
+        "role": "interface",
+        "group": "edge",
+        "summary": "Would terminate TLS, apply rate limits, and route. It would hold no session state."
+      },
+      {
+        "id": "auth",
+        "label": "Token service",
+        "role": "service",
+        "group": "edge",
+        "summary": "Would verify tokens and nothing else. Deliberately not the place where permissions live."
+      },
+      {
+        "id": "reads",
+        "label": "Read service",
+        "role": "service",
+        "group": "read",
+        "summary": "Would serve every query, and would be the only thing allowed to answer from the cache."
+      },
+      {
+        "id": "cache",
+        "label": "Read cache",
+        "role": "store",
+        "group": "read",
+        "summary": "Would hold projections, never authoritative state. Safe to lose entirely."
+      },
+      {
+        "id": "projections",
+        "label": "Projection store",
+        "role": "store",
+        "group": "read",
+        "summary": "Would be rebuildable from the event log, which is what makes a cold start survivable."
+      },
+      {
+        "id": "writes",
+        "label": "Write service",
+        "role": "service",
+        "group": "write",
+        "summary": "Would own every mutation. The one writer of authoritative state."
+      },
+      {
+        "id": "ledger",
+        "label": "Authoritative store",
+        "role": "store",
+        "group": "write",
+        "summary": "Would be the single source of truth, and would never be read by the read path directly."
+      },
+      {
+        "id": "events",
+        "label": "change-events",
+        "role": "queue",
+        "group": "write",
+        "summary": "Would carry what happened, never what should happen next."
+      },
+      {
+        "id": "projector",
+        "label": "Projector",
+        "role": "job",
+        "summary": "Would consume events and maintain projections. Idempotent, so a replay is safe."
+      },
+      {
+        "id": "invalidator",
+        "label": "Cache invalidator",
+        "role": "job",
+        "summary": "Would consume the same events and evict rather than write. Two consumers, one log."
+      },
+      {
+        "id": "stale",
+        "label": "Stale or missing?",
+        "role": "decision",
+        "group": "read",
+        "summary": "Would decide whether to answer from the cache or fall through to projections."
+      },
+      {
+        "id": "answered",
+        "label": "Answered",
+        "role": "terminal",
+        "summary": "Would be reached from either branch, which is the property worth designing for."
+      }
+    ],
+    "edges": [
+      {
+        "id": "p-request",
+        "from": "client",
+        "to": "gateway",
+        "relation": "calls",
+        "label": "a query"
+      },
+      {
+        "id": "p-verify",
+        "from": "gateway",
+        "to": "auth",
+        "relation": "calls",
+        "label": "verify token"
+      },
+      {
+        "id": "p-route",
+        "from": "gateway",
+        "to": "reads",
+        "relation": "calls",
+        "label": "routes the query"
+      },
+      {
+        "id": "p-consult",
+        "from": "reads",
+        "to": "stale",
+        "relation": "transitions_to",
+        "label": "cache first"
+      },
+      {
+        "id": "p-hit",
+        "from": "stale",
+        "to": "cache",
+        "relation": "reads",
+        "label": "on a hit"
+      },
+      {
+        "id": "p-miss",
+        "from": "stale",
+        "to": "projections",
+        "relation": "reads",
+        "label": "on a miss"
+      },
+      {
+        "id": "p-warm",
+        "from": "reads",
+        "to": "cache",
+        "relation": "writes",
+        "label": "warms it"
+      },
+      {
+        "id": "p-from-cache",
+        "from": "cache",
+        "to": "answered",
+        "relation": "transitions_to",
+        "label": "served"
+      },
+      {
+        "id": "p-from-store",
+        "from": "projections",
+        "to": "answered",
+        "relation": "transitions_to",
+        "label": "served"
+      },
+      {
+        "id": "p-mutate",
+        "from": "client",
+        "to": "writes",
+        "relation": "calls",
+        "label": "a mutation"
+      },
+      {
+        "id": "p-commit",
+        "from": "writes",
+        "to": "ledger",
+        "relation": "writes",
+        "label": "commits"
+      },
+      {
+        "id": "p-publish",
+        "from": "writes",
+        "to": "events",
+        "relation": "publishes",
+        "label": "what happened"
+      },
+      {
+        "id": "p-project",
+        "from": "projector",
+        "to": "events",
+        "relation": "consumes",
+        "label": "change-events"
+      },
+      {
+        "id": "p-maintain",
+        "from": "projector",
+        "to": "projections",
+        "relation": "writes",
+        "label": "maintains"
+      },
+      {
+        "id": "p-evict-consume",
+        "from": "invalidator",
+        "to": "events",
+        "relation": "consumes",
+        "label": "change-events"
+      },
+      {
+        "id": "p-evict",
+        "from": "invalidator",
+        "to": "cache",
+        "relation": "writes",
+        "label": "evicts"
+      },
+      {
+        "id": "p-rebuild",
+        "from": "projector",
+        "to": "ledger",
+        "relation": "reads",
+        "label": "cold rebuild"
+      }
+    ],
+    "paths": [
+      {
+        "id": "cache-hit",
+        "label": "A query that hits",
+        "note": "Four steps and nothing authoritative is read, which is the whole reason the read path exists.",
+        "edges": ["p-request", "p-route", "p-consult", "p-hit"]
+      },
+      {
+        "id": "cache-miss",
+        "label": "A query that misses",
+        "note": "The same first three steps, then a fall-through to projections rather than to the authoritative store.",
+        "edges": ["p-request", "p-route", "p-consult", "p-miss"]
+      },
+      {
+        "id": "mutation",
+        "label": "A mutation, and its wake",
+        "note": "The write path would publish once and be finished; two independent consumers would then do their own work.",
+        "edges": ["p-mutate", "p-commit"]
+      }
+    ],
+    "views": [
+      {
+        "id": "two-consumers",
+        "label": "One log, two consumers",
+        "note": "The projector maintains and the invalidator evicts. Neither would know about the other, and that independence is the design.",
+        "focus": ["events", "projector", "invalidator", "cache", "projections"]
+      },
+      {
+        "id": "never-authoritative",
+        "label": "What a read never touches",
+        "focus": ["ledger", "reads", "cache", "projections"]
+      }
+    ]
+  }
+}
