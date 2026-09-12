@@ -784,7 +784,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div>
 <p class="pf-graph-status" data-pf-status aria-live="polite">Nothing selected. Choose a component to focus it.</p>
 </div>
-<div class="pf-canvas" data-pf-canvas tabindex="0" role="group" aria-label="Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits."><svg class="pf-graph" viewBox="0 0 1876 1192" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
+<div class="pf-canvas" data-pf-canvas tabindex="0" role="group" aria-label="Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits."><svg class="pf-graph" viewBox="0 0 2172 1332" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
 <title id="pf--diagram--title">Diagram</title>
 <defs>
 <marker id="pf-arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" markerUnits="userSpaceOnUse" orient="auto">
@@ -792,92 +792,96 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </marker>
 </defs>
 <g class="pf-group" data-pf-group="authoring" data-pf-depth="0">
-<rect class="pf-group-box" id="g--authoring" x="56" y="312" width="1764" height="124" rx="14"/>
+<rect class="pf-group-box" id="g--authoring" x="56" y="312" width="2060" height="124" rx="14"/>
 <text class="pf-group-label" x="80" y="332">Where behaviour is written</text>
 </g>
 <g class="pf-group" data-pf-group="generation" data-pf-depth="0">
-<rect class="pf-group-box" id="g--generation" x="648" y="452" width="876" height="264" rx="14"/>
+<rect class="pf-group-box" id="g--generation" x="648" y="452" width="876" height="404" rx="14"/>
 <text class="pf-group-label" x="672" y="472">Generation</text>
 </g>
 <g class="pf-group" data-pf-group="surfaces" data-pf-depth="0">
-<rect class="pf-group-box" id="g--surfaces" x="352" y="732" width="1172" height="264" rx="14"/>
-<text class="pf-group-label" x="376" y="752">Discovery surfaces</text>
+<rect class="pf-group-box" id="g--surfaces" x="352" y="872" width="1468" height="264" rx="14"/>
+<text class="pf-group-label" x="376" y="892">Discovery surfaces</text>
 </g>
 <g class="pf-group" data-pf-group="guards" data-pf-depth="0">
-<rect class="pf-group-box" id="g--guards" x="56" y="1012" width="580" height="124" rx="14"/>
-<text class="pf-group-label" x="80" y="1032">What catches drift</text>
+<rect class="pf-group-box" id="g--guards" x="56" y="1152" width="580" height="124" rx="14"/>
+<text class="pf-group-label" x="80" y="1172">What catches drift</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-edit" data-pf-relation="writes" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-edit" points="316,374 1588,374" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="952" y="368">edits</text>
+<polyline class="pf-edge-line" id="e--e-edit" points="316,374 1884,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1100" y="368">edits</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-list" data-pf-relation="writes" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-list" points="316,374 700,374" marker-end="url(#pf-arrow)"/>
 <text class="pf-edge-label" text-anchor="middle" x="508" y="368">lists the skill</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-regenerate" data-pf-relation="triggers" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-regenerate" points="316,374 508,374 508,584 700,584" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="508" y="473">regenerates</text>
+<polyline class="pf-edge-line" id="e--e-regenerate" points="316,374 508,374 508,654 700,654" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="508" y="508">regenerates</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-plan" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-plan" points="908,584 996,584" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="952" y="578">plans adapters</text>
+<polyline class="pf-edge-line" id="e--e-plan" points="908,654 996,654" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="952" y="648">plans adapters</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-registry" data-pf-relation="reads" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-registry" points="1204,584 1248,584 1248,654 1292,654" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1248" y="613">where and how</text>
+<polyline class="pf-edge-line" id="e--e-registry" points="1204,654 1248,654 1248,794 1292,794" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1248" y="718">where and how</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-render" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-render" points="1204,584 1248,584 1248,514 1292,514" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1248" y="543">renders each</text>
+<polyline class="pf-edge-line" id="e--e-render" points="1204,654 1248,654 1248,514 1292,514" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1248" y="578">renders each</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-frontmatter" data-pf-relation="reads" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-frontmatter" points="1500,514 1544,514 1544,374 1588,374" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1544" y="438">frontmatter</text>
+<polyline class="pf-edge-line" id="e--e-frontmatter" points="1500,514 1692,514 1692,374 1884,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1596" y="508">frontmatter</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-edge="e-apply" data-pf-relation="transitions_to" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-apply" points="1204,654 1292,654" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1248" y="648">once planned</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-write-claude" data-pf-relation="writes" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-write-claude" points="1204,584 1248,584 1248,794 1292,794" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1248" y="683">adapter</text>
+<polyline class="pf-edge-line" id="e--e-write-claude" points="1500,654 1544,654 1544,934 1588,934" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1544" y="788">adapter</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-write-codex" data-pf-relation="writes" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-write-codex" points="1204,584 1248,584 1248,934 1292,934" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1248" y="753">adapter</text>
+<polyline class="pf-edge-line" id="e--e-write-codex" points="1500,654 1544,654 1544,1074 1588,1074" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1544" y="858">adapter</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-points-at" data-pf-relation="depends_on" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-points-at" points="1500,794 1544,794 1544,374 1588,374" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1544" y="578">points at</text>
+<polyline class="pf-edge-line" id="e--e-points-at" points="1796,934 1840,934 1840,374 1884,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1840" y="648">points at</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-exposes" data-pf-relation="reads" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-exposes" points="612,864 1100,864 1100,374 1588,374" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1100" y="613">the tree itself</text>
+<polyline class="pf-edge-line" id="e--e-exposes" points="612,1004 1248,1004 1248,374 1884,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="930" y="998">the tree itself</text>
 </g>
-<g class="pf-edge" data-pf-edge="e-copies" data-pf-relation="writes" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-copies" points="316,94 952,94 952,374 1588,374" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="634" y="88">copies the kit</text>
+<g class="pf-edge" data-pf-edge="e-copies" data-pf-relation="reads" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-copies" points="316,94 1100,94 1100,374 1884,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="708" y="88">copies the kit</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-run" data-pf-relation="triggers" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-run" points="316,1074 404,1074" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="360" y="1068">every change</text>
+<polyline class="pf-edge-line" id="e--e-run" points="316,1214 404,1214" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="360" y="1208">every change</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-freshness" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-freshness" points="612,1074 656,1074 656,584 700,584" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="656" y="823">is this stale?</text>
+<polyline class="pf-edge-line" id="e--e-freshness" points="612,1214 656,1214 656,654 700,654" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="656" y="928">is this stale?</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-listing" data-pf-relation="reads" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-listing" points="612,1074 656,1074 656,374 700,374" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="656" y="718">must match</text>
+<polyline class="pf-edge-line" id="e--e-listing" points="612,1214 656,1214 656,374 700,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="656" y="788">must match</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-find-claude" data-pf-relation="reads" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-find-claude" points="316,234 804,234 804,794 1292,794" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="804" y="508">discovers</text>
+<polyline class="pf-edge-line" id="e--e-find-claude" points="316,234 952,234 952,934 1588,934" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="952" y="578">discovers</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-find-codex" data-pf-relation="reads" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-find-codex" points="316,234 804,234 804,934 1292,934" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="804" y="578">discovers</text>
+<polyline class="pf-edge-line" id="e--e-find-codex" points="316,234 952,234 952,1074 1588,1074" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="952" y="648">discovers</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-find-plugin" data-pf-relation="reads" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-find-plugin" points="316,234 360,234 360,864 404,864" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="360" y="543">namespaced</text>
+<polyline class="pf-edge-line" id="e--e-find-plugin" points="316,234 360,234 360,1004 404,1004" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="360" y="613">namespaced</text>
 </g>
 <g class="pf-node" data-pf-node="author" data-pf-role="actor">
 <rect class="pf-node-box" id="n--author" x="108" y="336" width="208" height="76" rx="38"/>
@@ -885,9 +889,9 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <text class="pf-node-role" text-anchor="middle" x="212" y="400">actor</text>
 </g>
 <g class="pf-node" data-pf-node="canonical" data-pf-role="store">
-<rect class="pf-node-box" id="n--canonical" x="1588" y="336" width="208" height="76" rx="6"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1692" y="358">skills/NAME/SKIL</tspan><tspan x="1692" y="376">L.md</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1692" y="400">store</text>
+<rect class="pf-node-box" id="n--canonical" x="1884" y="336" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1988" y="358">skills/NAME/SKIL</tspan><tspan x="1988" y="376">L.md</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1988" y="400">store</text>
 </g>
 <g class="pf-node" data-pf-node="claudemd" data-pf-role="store">
 <rect class="pf-node-box" id="n--claudemd" x="700" y="336" width="208" height="76" rx="6"/>
@@ -895,39 +899,44 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <text class="pf-node-role" text-anchor="middle" x="804" y="400">store</text>
 </g>
 <g class="pf-node" data-pf-node="generator" data-pf-role="job">
-<rect class="pf-node-box" id="n--generator" x="700" y="546" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="804" y="568">generate-adapter</tspan><tspan x="804" y="586">s.mjs</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="804" y="610">job</text>
+<rect class="pf-node-box" id="n--generator" x="700" y="616" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="804" y="638">generate-adapter</tspan><tspan x="804" y="656">s.mjs</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="804" y="680">job</text>
 </g>
 <g class="pf-node" data-pf-node="planner" data-pf-role="service">
-<rect class="pf-node-box" id="n--planner" x="996" y="546" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1100" y="577">planAdapters()</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1100" y="610">service</text>
+<rect class="pf-node-box" id="n--planner" x="996" y="616" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1100" y="647">planAdapters()</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1100" y="680">service</text>
 </g>
 <g class="pf-node" data-pf-node="renderer" data-pf-role="service">
 <rect class="pf-node-box" id="n--renderer" x="1292" y="476" width="208" height="76" rx="10"/>
 <text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="507">Adapter renderer</tspan></text>
 <text class="pf-node-role" text-anchor="middle" x="1396" y="540">service</text>
 </g>
+<g class="pf-node" data-pf-node="applier" data-pf-role="job">
+<rect class="pf-node-box" id="n--applier" x="1292" y="616" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="638">applyAdapterPlan</tspan><tspan x="1396" y="656">()</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1396" y="680">job</text>
+</g>
 <g class="pf-node" data-pf-node="registry" data-pf-role="store">
-<rect class="pf-node-box" id="n--registry" x="1292" y="616" width="208" height="76" rx="6"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="647">Harness registry</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1396" y="680">store</text>
+<rect class="pf-node-box" id="n--registry" x="1292" y="756" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="787">Harness registry</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1396" y="820">store</text>
 </g>
 <g class="pf-node" data-pf-node="claudeskills" data-pf-role="interface">
-<rect class="pf-node-box" id="n--claudeskills" x="1292" y="756" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="787">.claude/skills/</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1396" y="820">interface</text>
+<rect class="pf-node-box" id="n--claudeskills" x="1588" y="896" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1692" y="927">.claude/skills/</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1692" y="960">interface</text>
 </g>
 <g class="pf-node" data-pf-node="agentskills" data-pf-role="interface">
-<rect class="pf-node-box" id="n--agentskills" x="1292" y="896" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="927">.agents/skills/</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1396" y="960">interface</text>
+<rect class="pf-node-box" id="n--agentskills" x="1588" y="1036" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1692" y="1067">.agents/skills/</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1692" y="1100">interface</text>
 </g>
 <g class="pf-node" data-pf-node="plugin" data-pf-role="interface">
-<rect class="pf-node-box" id="n--plugin" x="404" y="826" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="508" y="848">The Claude Code</tspan><tspan x="508" y="866">plugin</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="508" y="890">interface</text>
+<rect class="pf-node-box" id="n--plugin" x="404" y="966" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="508" y="988">The Claude Code</tspan><tspan x="508" y="1006">plugin</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="508" y="1030">interface</text>
 </g>
 <g class="pf-node" data-pf-node="installer" data-pf-role="service">
 <rect class="pf-node-box" id="n--installer" x="108" y="56" width="208" height="76" rx="10"/>
@@ -935,14 +944,14 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <text class="pf-node-role" text-anchor="middle" x="212" y="120">service</text>
 </g>
 <g class="pf-node" data-pf-node="validator" data-pf-role="decision">
-<rect class="pf-node-box" id="n--validator" x="404" y="1036" width="208" height="76" rx="20"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="508" y="1067">validate-kit.py</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="508" y="1100">decision</text>
+<rect class="pf-node-box" id="n--validator" x="404" y="1176" width="208" height="76" rx="20"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="508" y="1207">validate-kit.py</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="508" y="1240">decision</text>
 </g>
 <g class="pf-node" data-pf-node="ci" data-pf-role="job">
-<rect class="pf-node-box" id="n--ci" x="108" y="1036" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="212" y="1058">The validate</tspan><tspan x="212" y="1076">workflow</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="212" y="1100">job</text>
+<rect class="pf-node-box" id="n--ci" x="108" y="1176" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="212" y="1198">The validate</tspan><tspan x="212" y="1216">workflow</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="212" y="1240">job</text>
 </g>
 <g class="pf-node" data-pf-node="agent" data-pf-role="external">
 <rect class="pf-node-box" id="n--agent" x="108" y="196" width="208" height="76" rx="38"/>
@@ -987,7 +996,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
-<li><span class="pf-cite-path">.github/scripts/validate-kit.py</span><span class="pf-cite-lines">lines 209–211</span></li>
+<li><span class="pf-cite-path">.github/scripts/validate-kit.py</span><span class="pf-cite-lines">lines 209–224</span></li>
 </ul>
 </div>
 </div>
@@ -1029,7 +1038,17 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
-<li><span class="pf-cite-path">packages/create-pathfinder/src/harnesses/adapter.mjs</span><span class="pf-cite-lines">lines 94–100</span></li>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/harnesses/adapter.mjs</span><span class="pf-cite-lines">lines 222–235</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--applier" data-pf-entry="node" data-pf-for="applier">
+<h4 class="pf-section-title">applyAdapterPlan()<span class="pf-legend-role">job</span><span class="pf-pick" data-pf-controls hidden><button type="button" class="pf-tool" data-pf-pick="applier" aria-label="Focus applyAdapterPlan()">Focus</button></span></h4>
+<p>Performs a plan, or reports what it would perform. Nothing is written until a plan exists.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 255–262</span></li>
 </ul>
 </div>
 </div>
@@ -1128,7 +1147,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
-<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 3–10</span></li>
+<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 2–10</span></li>
 </ul>
 </div>
 </div>
@@ -1155,7 +1174,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li id="s--e--e-list" data-pf-entry="edge" data-pf-for="e-list"><span class="pf-step-title">A maintainer</span> <span class="pf-relation">writes</span> <span class="pf-step-title">CLAUDE.md skills list</span><p class="pf-step-detail">lists the skill</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
-<li><span class="pf-cite-path">.github/scripts/validate-kit.py</span><span class="pf-cite-lines">lines 209–211</span></li>
+<li><span class="pf-cite-path">.github/scripts/validate-kit.py</span><span class="pf-cite-lines">lines 209–224</span></li>
 </ul>
 </div></li>
 <li id="s--e--e-regenerate" data-pf-entry="edge" data-pf-for="e-regenerate"><span class="pf-step-title">A maintainer</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">generate-adapters.mjs</span><p class="pf-step-detail">regenerates</p><div class="pf-evidence">
@@ -1185,19 +1204,25 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li id="s--e--e-frontmatter" data-pf-entry="edge" data-pf-for="e-frontmatter"><span class="pf-step-title">Adapter renderer</span> <span class="pf-relation">reads</span> <span class="pf-step-title">skills/NAME/SKILL.md</span><p class="pf-step-detail">frontmatter</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
-<li><span class="pf-cite-path">CLAUDE.md</span><span class="pf-cite-lines">lines 82–82</span></li>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/harnesses/adapter.mjs</span><span class="pf-cite-lines">lines 222–235</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-write-claude" data-pf-entry="edge" data-pf-for="e-write-claude"><span class="pf-step-title">planAdapters()</span> <span class="pf-relation">writes</span> <span class="pf-step-title">.claude/skills/</span><p class="pf-step-detail">adapter</p><div class="pf-evidence">
+<li id="s--e--e-apply" data-pf-entry="edge" data-pf-for="e-apply"><span class="pf-step-title">planAdapters()</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">applyAdapterPlan()</span><p class="pf-step-detail">once planned</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
-<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 255–256</span></li>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 255–262</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-write-codex" data-pf-entry="edge" data-pf-for="e-write-codex"><span class="pf-step-title">planAdapters()</span> <span class="pf-relation">writes</span> <span class="pf-step-title">.agents/skills/</span><p class="pf-step-detail">adapter</p><div class="pf-evidence">
+<li id="s--e--e-write-claude" data-pf-entry="edge" data-pf-for="e-write-claude"><span class="pf-step-title">applyAdapterPlan()</span> <span class="pf-relation">writes</span> <span class="pf-step-title">.claude/skills/</span><p class="pf-step-detail">adapter</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
-<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 255–256</span></li>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 255–262</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-write-codex" data-pf-entry="edge" data-pf-for="e-write-codex"><span class="pf-step-title">applyAdapterPlan()</span> <span class="pf-relation">writes</span> <span class="pf-step-title">.agents/skills/</span><p class="pf-step-detail">adapter</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 255–262</span></li>
 </ul>
 </div></li>
 <li id="s--e--e-points-at" data-pf-entry="edge" data-pf-for="e-points-at"><span class="pf-step-title">.claude/skills/</span> <span class="pf-relation">depends on</span> <span class="pf-step-title">skills/NAME/SKILL.md</span><p class="pf-step-detail">points at</p><div class="pf-evidence">
@@ -1212,10 +1237,10 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li><span class="pf-cite-path">CLAUDE.md</span><span class="pf-cite-lines">lines 80–80</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-copies" data-pf-entry="edge" data-pf-for="e-copies"><span class="pf-step-title">npx create-pathfinder</span> <span class="pf-relation">writes</span> <span class="pf-step-title">skills/NAME/SKILL.md</span><p class="pf-step-detail">copies the kit</p><div class="pf-evidence">
+<li id="s--e--e-copies" data-pf-entry="edge" data-pf-for="e-copies"><span class="pf-step-title">npx create-pathfinder</span> <span class="pf-relation">reads</span> <span class="pf-step-title">skills/NAME/SKILL.md</span><p class="pf-step-detail">copies the kit</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
-<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 3–10</span></li>
+<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 2–10</span></li>
 </ul>
 </div></li>
 <li id="s--e--e-run" data-pf-entry="edge" data-pf-for="e-run"><span class="pf-step-title">The validate workflow</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">validate-kit.py</span><p class="pf-step-detail">every change</p><div class="pf-evidence">
@@ -1259,11 +1284,12 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <h2 class="pf-module-title">Paths</h2><section class="pf-section" id="s--p--edit-to-discoverable" data-pf-entry="path" data-pf-for="edit-to-discoverable">
 <h3 class="pf-section-title">From an edit to a surface</h3>
 <div class="pf-card">
-<p class="pf-module-summary">Four steps, and the last one is the point: the generated adapter carries a pointer back to the canonical file rather than a copy of it.</p>
+<p class="pf-module-summary">Five steps, and the last one is the point: the generated adapter carries a pointer back to the canonical file rather than a copy of it.</p>
 <div class="pf-kicker">Walks</div>
 <ol class="pf-walk"><li>A maintainer <span class="pf-relation">triggers</span> generate-adapters.mjs — regenerates</li>
 <li>generate-adapters.mjs <span class="pf-relation">calls</span> planAdapters() — plans adapters</li>
-<li>planAdapters() <span class="pf-relation">writes</span> .claude/skills/ — adapter</li>
+<li>planAdapters() <span class="pf-relation">becomes</span> applyAdapterPlan() — once planned</li>
+<li>applyAdapterPlan() <span class="pf-relation">writes</span> .claude/skills/ — adapter</li>
 <li>.claude/skills/ <span class="pf-relation">depends on</span> skills/NAME/SKILL.md — points at</li></ol>
 <div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
@@ -1308,7 +1334,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <h3 class="pf-section-title">Generated, not written</h3>
 <div class="pf-card">
 <div class="pf-kicker">Focuses on</div>
-<ul class="pf-legend"><li>generate-adapters.mjs</li><li>planAdapters()</li><li>Adapter renderer</li><li>.claude/skills/</li><li>.agents/skills/</li></ul>
+<ul class="pf-legend"><li>generate-adapters.mjs</li><li>planAdapters()</li><li>applyAdapterPlan()</li><li>Adapter renderer</li><li>.claude/skills/</li><li>.agents/skills/</li></ul>
 </div>
 </section>
 </main>
@@ -1437,7 +1463,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 (function () {
   "use strict";
 
-  var model = {"nodes":["author","canonical","claudemd","generator","planner","renderer","registry","claudeskills","agentskills","plugin","installer","validator","ci","agent"],"labels":{"author":"A maintainer","canonical":"skills/NAME/SKILL.md","claudemd":"CLAUDE.md skills list","generator":"generate-adapters.mjs","planner":"planAdapters()","renderer":"Adapter renderer","registry":"Harness registry","claudeskills":".claude/skills/","agentskills":".agents/skills/","plugin":"The Claude Code plugin","installer":"npx create-pathfinder","validator":"validate-kit.py","ci":"The validate workflow","agent":"An AI harness"},"out":{"author":[["e-edit","canonical"],["e-list","claudemd"],["e-regenerate","generator"]],"canonical":[],"claudemd":[],"generator":[["e-plan","planner"]],"planner":[["e-registry","registry"],["e-render","renderer"],["e-write-claude","claudeskills"],["e-write-codex","agentskills"]],"renderer":[["e-frontmatter","canonical"]],"registry":[],"claudeskills":[["e-points-at","canonical"]],"agentskills":[],"plugin":[["e-exposes","canonical"]],"installer":[["e-copies","canonical"]],"validator":[["e-freshness","generator"],["e-listing","claudemd"]],"ci":[["e-run","validator"]],"agent":[["e-find-claude","claudeskills"],["e-find-codex","agentskills"],["e-find-plugin","plugin"]]},"in":{"author":[],"canonical":[["e-edit","author"],["e-frontmatter","renderer"],["e-points-at","claudeskills"],["e-exposes","plugin"],["e-copies","installer"]],"claudemd":[["e-list","author"],["e-listing","validator"]],"generator":[["e-regenerate","author"],["e-freshness","validator"]],"planner":[["e-plan","generator"]],"renderer":[["e-render","planner"]],"registry":[["e-registry","planner"]],"claudeskills":[["e-write-claude","planner"],["e-find-claude","agent"]],"agentskills":[["e-write-codex","planner"],["e-find-codex","agent"]],"plugin":[["e-find-plugin","agent"]],"installer":[],"validator":[["e-run","ci"]],"ci":[],"agent":[]},"edges":{"e-edit":["author","canonical"],"e-list":["author","claudemd"],"e-regenerate":["author","generator"],"e-plan":["generator","planner"],"e-registry":["planner","registry"],"e-render":["planner","renderer"],"e-frontmatter":["renderer","canonical"],"e-write-claude":["planner","claudeskills"],"e-write-codex":["planner","agentskills"],"e-points-at":["claudeskills","canonical"],"e-exposes":["plugin","canonical"],"e-copies":["installer","canonical"],"e-run":["ci","validator"],"e-freshness":["validator","generator"],"e-listing":["validator","claudemd"],"e-find-claude":["agent","claudeskills"],"e-find-codex":["agent","agentskills"],"e-find-plugin":["agent","plugin"]},"paths":{"edit-to-discoverable":["e-regenerate","e-plan","e-write-claude","e-points-at"],"drift-caught":["e-run","e-freshness"]}};
+  var model = {"nodes":["author","canonical","claudemd","generator","planner","renderer","applier","registry","claudeskills","agentskills","plugin","installer","validator","ci","agent"],"labels":{"author":"A maintainer","canonical":"skills/NAME/SKILL.md","claudemd":"CLAUDE.md skills list","generator":"generate-adapters.mjs","planner":"planAdapters()","renderer":"Adapter renderer","applier":"applyAdapterPlan()","registry":"Harness registry","claudeskills":".claude/skills/","agentskills":".agents/skills/","plugin":"The Claude Code plugin","installer":"npx create-pathfinder","validator":"validate-kit.py","ci":"The validate workflow","agent":"An AI harness"},"out":{"author":[["e-edit","canonical"],["e-list","claudemd"],["e-regenerate","generator"]],"canonical":[],"claudemd":[],"generator":[["e-plan","planner"]],"planner":[["e-registry","registry"],["e-render","renderer"],["e-apply","applier"]],"renderer":[["e-frontmatter","canonical"]],"applier":[["e-write-claude","claudeskills"],["e-write-codex","agentskills"]],"registry":[],"claudeskills":[["e-points-at","canonical"]],"agentskills":[],"plugin":[["e-exposes","canonical"]],"installer":[["e-copies","canonical"]],"validator":[["e-freshness","generator"],["e-listing","claudemd"]],"ci":[["e-run","validator"]],"agent":[["e-find-claude","claudeskills"],["e-find-codex","agentskills"],["e-find-plugin","plugin"]]},"in":{"author":[],"canonical":[["e-edit","author"],["e-frontmatter","renderer"],["e-points-at","claudeskills"],["e-exposes","plugin"],["e-copies","installer"]],"claudemd":[["e-list","author"],["e-listing","validator"]],"generator":[["e-regenerate","author"],["e-freshness","validator"]],"planner":[["e-plan","generator"]],"renderer":[["e-render","planner"]],"applier":[["e-apply","planner"]],"registry":[["e-registry","planner"]],"claudeskills":[["e-write-claude","applier"],["e-find-claude","agent"]],"agentskills":[["e-write-codex","applier"],["e-find-codex","agent"]],"plugin":[["e-find-plugin","agent"]],"installer":[],"validator":[["e-run","ci"]],"ci":[],"agent":[]},"edges":{"e-edit":["author","canonical"],"e-list":["author","claudemd"],"e-regenerate":["author","generator"],"e-plan":["generator","planner"],"e-registry":["planner","registry"],"e-render":["planner","renderer"],"e-frontmatter":["renderer","canonical"],"e-apply":["planner","applier"],"e-write-claude":["applier","claudeskills"],"e-write-codex":["applier","agentskills"],"e-points-at":["claudeskills","canonical"],"e-exposes":["plugin","canonical"],"e-copies":["installer","canonical"],"e-run":["ci","validator"],"e-freshness":["validator","generator"],"e-listing":["validator","claudemd"],"e-find-claude":["agent","claudeskills"],"e-find-codex":["agent","agentskills"],"e-find-plugin":["agent","plugin"]},"paths":{"edit-to-discoverable":["e-regenerate","e-plan","e-apply","e-write-claude","e-points-at"],"drift-caught":["e-run","e-freshness"]}};
 
   function pfTraverse(model, start, direction) {
   var adjacency = direction === "in" ? model["in"] : model.out;
