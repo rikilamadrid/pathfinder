@@ -56,6 +56,12 @@ const FAVICON = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%
  * @param {string} [parts.style]     a kind's own stylesheet, appended to the
  *        shared theme inside the one `<style>` element. Absent for a kind that
  *        needs none, and then not one byte of the document changes.
+ * @param {string} [parts.behavior]  a kind's own inline script, appended to the
+ *        shared behaviour inside the one `<script>` element, on the same terms
+ *        and for the same reason: a lesson has no graph to traverse, and
+ *        shipping it traversal code would put script in an artifact that can
+ *        never run it. Absent for a kind that needs none, and then not one
+ *        byte of the document changes.
  * @param {string} parts.nav         rendered navigation HTML
  * @param {string} parts.body        rendered lead and content HTML
  * @param {object} [parts.source]    the specification's source identity, when
@@ -101,7 +107,7 @@ export function renderShell(parts) {
     "</main>",
     "</div>",
     renderProvenance(parts.source, parts.verification, parts.provenance),
-    `<script>${BEHAVIOR_JS}</script>`,
+    `<script>${BEHAVIOR_JS}${parts.behavior ? `\n${parts.behavior}` : ""}</script>`,
     "</body>",
     "</html>",
     "",
