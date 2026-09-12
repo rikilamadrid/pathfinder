@@ -43,6 +43,18 @@ export function markPassed(result) {
 /**
  * Mint an attestation from a validation this engine performed and that passed.
  *
+ * The attestation carries *what* passed, not merely that something did, because
+ * the sentence an artifact is entitled to depends on it. `layers` says which
+ * layers ran — the evidence layer does not run for a specification with no
+ * source — and `resolvedCitations` says how many citations actually resolved at
+ * the declared commit.
+ *
+ * That count is the guard against a vacuous claim. A specification carrying no
+ * citations passes the evidence layer by having nothing to fail, and an artifact
+ * that said "every citation above was verified" on the strength of that would be
+ * making a stronger statement than anyone made. Zero is therefore a number the
+ * shell reads and declines to claim on, rather than a pass it cannot see.
+ *
  * @throws when handed anything else — an unbranded object, a hand-built
  *         `{ ok: true }`, or a result that failed.
  */
@@ -52,7 +64,10 @@ export function attest(result) {
       "a verification claim can only be minted from a validation this engine " +
       "performed and that passed; nothing else can vouch for an artifact");
   }
-  return markPassed({ layers: Object.freeze([...result.ran]) });
+  return markPassed({
+    layers: Object.freeze([...result.ran]),
+    resolvedCitations: result.resolvedCitations ?? 0,
+  });
 }
 
 /** Is this a real attestation? Used by the shell to decide whether to claim. */

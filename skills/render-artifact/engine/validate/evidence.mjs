@@ -11,26 +11,51 @@
  * pass would turn "the evidence was checked" into "the evidence was checked
  * somewhere, against something".
  *
- * Three failures, kept apart on purpose, because they mean three different
- * things to the person reading them:
+ * Three resolution failures, kept apart on purpose, because they mean three
+ * different things to the person reading them:
  *
  *   source_commit_unavailable  the declared commit cannot be resolved here
  *   evidence_path_absent       the commit resolves; the file is not in it
  *   evidence_range_invalid     the file is there; the cited lines are not
  *
+ * And, for a `derived` diagram, three requirement failures — a fact asserted
+ * with nothing behind it:
+ *
+ *   node_without_evidence      a component nothing in the repository shows
+ *   edge_without_evidence      a relationship nothing in the repository shows
+ *   claim_without_evidence     prose on a group, path or view, uncited
+ *
  * None of them is a warning and none of them downgrades to a skip. An engine
  * that shrugged at an unresolvable commit would deliver an artifact claiming
  * its evidence was verified when nothing had been.
+ *
+ * **What this layer establishes, exactly.** That the cited file exists at the
+ * declared commit, that the cited line range exists in it, and that the
+ * material cited is there to be read. Not that the assertion resting on it is
+ * true. Repository documentation — a README, an ADR, a runbook — is first-class
+ * citation material and is checked the same way, which is not a statement that
+ * documentation carries the same authority as the code it describes. Pathfinder
+ * verifies provenance, not truth, and no diagnostic here may suggest otherwise.
  */
 
 import { spawnSync } from "node:child_process";
 
+import { diagramEvidenceSites } from "./diagram-parts.mjs";
 import { diagnostic } from "./diagnostics.mjs";
+
+/**
+ * @typedef {object} EvidenceResult
+ * @property {import("./diagnostics.mjs").Diagnostic[]} diagnostics
+ * @property {number} resolved  citations that resolved completely. The
+ *          verification sentence is gated on this being non-zero, so a
+ *          specification with nothing to check cannot earn one by having
+ *          nothing go wrong.
+ */
 
 /**
  * @param {object} spec a specification that passed structure and composition
  * @param {string} repoDir  the directory whose Git history evidence resolves in
- * @returns {import("./diagnostics.mjs").Diagnostic[]}
+ * @returns {EvidenceResult}
  */
 export function validateEvidence(spec, repoDir) {
   const out = [];
@@ -42,7 +67,7 @@ export function validateEvidence(spec, repoDir) {
       `${git.reason} Evidence resolves against \`${spec.source.commit}\` in ` +
       `\`${spec.source.repo}\` using local Git only; nothing is fetched.`,
       spec.source.repo));
-    return out;
+    return { diagnostics: out, resolved: 0 };
   }
 
   /** Resolved object names, memoised per abbreviated commit. */
@@ -64,6 +89,8 @@ export function validateEvidence(spec, repoDir) {
 
   /** Blob line counts, memoised per `commit:path`. */
   const lineCounts = new Map();
+
+  let resolvedCount = 0;
 
   for (const citation of citations) {
     const commit = citation.commit ?? spec.source.commit;
@@ -89,16 +116,21 @@ export function validateEvidence(spec, repoDir) {
         out.push(diagnostic("evidence", "evidence_range_invalid", citation.path,
           `${citation.subject} cites lines ${start}-${end} of ` +
           `\`${citation.path}\`, which ends before it begins`, citation.subject));
-      } else if (end > count) {
+        continue;
+      }
+      if (end > count) {
         out.push(diagnostic("evidence", "evidence_range_invalid", citation.path,
           `${citation.subject} cites lines ${start}-${end} of ` +
           `\`${citation.path}\`, which has ${count} line(s) at commit ` +
           `\`${commit}\``, citation.subject));
+        continue;
       }
     }
+
+    resolvedCount += 1;
   }
 
-  return out;
+  return { diagnostics: out, resolved: resolvedCount };
 }
 
 /**
@@ -120,7 +152,7 @@ function collectCitations(spec, out) {
   };
 
   if (spec.kind === "diagram") {
-    collectDiagramCitations(spec, take);
+    collectDiagramCitations(spec, take, out);
     return citations;
   }
 
@@ -157,33 +189,58 @@ function collectCitations(spec, out) {
 }
 
 /**
- * A diagram's citations, in document order.
+ * A diagram's citations, in document order — and, for a `derived` diagram, the
+ * requirement that its facts have some.
  *
- * Every place evidence may appear is walked, and nothing here requires it. The
- * rules about *which* facts must be cited belong to the provenance contract,
- * which distinguishes a diagram derived from a repository from one describing
- * a system that does not exist yet. Until that distinction exists, this layer
- * makes the one claim it can stand behind: every citation that is present
- * resolves at the declared commit.
+ * `derived` means the diagram maps what the repository asserts about itself at
+ * the declared commit. So there is no uncited derived fact: a node says a
+ * component exists, an edge says two things relate, and each is a claim a
+ * reader must be able to go and check. A component that appears nowhere in
+ * source, configuration, infrastructure or repository documentation is not
+ * eligible for a `derived` diagram at all — a diagram that needs it is
+ * `proposed`.
+ *
+ * A group, path or view is the one place the rule is narrower, and deliberately:
+ * its label is a name, and a name asserts nothing that its already-cited members
+ * do not. Its `summary` or `note` is prose making a further claim, and that is
+ * what needs backing. A label-only boundary is free.
+ *
+ * `proposed` requires none of this. Its citations are optional and every one
+ * present is still resolved, which is the whole difference between a design
+ * document that cites its influences and one that claims to describe what runs.
  */
-function collectDiagramCitations(spec, take) {
-  const { nodes, edges } = spec.diagram;
+function collectDiagramCitations(spec, take, out) {
+  const derived = spec.provenance === "derived";
 
-  (spec.diagram.groups ?? []).forEach((group, g) => {
-    take(group.evidence, `group "${group.label}"`, `diagram.groups[${g}].evidence`);
-  });
-  nodes.forEach((node, n) => {
-    take(node.evidence, `node "${node.label}"`, `diagram.nodes[${n}].evidence`);
-  });
-  edges.forEach((edge, e) => {
-    take(edge.evidence, `edge \`${edge.id}\``, `diagram.edges[${e}].evidence`);
-  });
-  (spec.diagram.paths ?? []).forEach((path, p) => {
-    take(path.evidence, `path "${path.label}"`, `diagram.paths[${p}].evidence`);
-  });
-  (spec.diagram.views ?? []).forEach((view, v) => {
-    take(view.evidence, `view "${view.label}"`, `diagram.views[${v}].evidence`);
-  });
+  for (const site of diagramEvidenceSites(spec.diagram)) {
+    if (derived && site.evidence.length === 0) {
+      if (site.role === "node") {
+        out.push(diagnostic("evidence", "node_without_evidence", site.path,
+          `${site.subject} is a component this diagram says the repository ` +
+          `has, and cites nothing for it. A derived diagram maps what the ` +
+          `repository asserts about itself, so every node names where a reader ` +
+          `can check it — the entry point that accepts an actor, the client ` +
+          `for an external system, the manifest or entry module for a ` +
+          `subsystem. If nothing in the repository shows it, the diagram is ` +
+          `\`proposed\`.`, site.subject));
+      } else if (site.role === "edge") {
+        out.push(diagnostic("evidence", "edge_without_evidence", site.path,
+          `${site.subject} asserts a relationship and cites nothing for it. ` +
+          `That two things relate is exactly the kind of claim a reader comes ` +
+          `to a diagram to check, so a derived diagram says where the ` +
+          `relationship is visible.`, site.subject));
+      } else if (site.claim) {
+        out.push(diagnostic("evidence", "claim_without_evidence", site.path,
+          `${site.subject} carries prose that asserts something, and cites ` +
+          `nothing for it. Its label would have needed no citation — a name is ` +
+          `not a claim, and its members are cited already — but a \`summary\` ` +
+          `or \`note\` says something further. Cite it, or delete it and let ` +
+          `the label stand alone.`, site.subject));
+      }
+    }
+
+    take(site.evidence, site.subject, site.path);
+  }
 }
 
 /** Is there a Git we can ask, and is `repoDir` inside a repository? */

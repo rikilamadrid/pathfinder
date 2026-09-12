@@ -58,7 +58,11 @@ const FAVICON = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%
  *        needs none, and then not one byte of the document changes.
  * @param {string} parts.nav         rendered navigation HTML
  * @param {string} parts.body        rendered lead and content HTML
- * @param {object} parts.source      the specification's source identity
+ * @param {object} [parts.source]    the specification's source identity, when
+ *        it declares one. A kind describing a system with no repository behind
+ *        it has none, and then no provenance row is invented for it.
+ * @param {"derived"|"proposed"} [parts.provenance] what kind of claim the
+ *        artifact makes, for the kinds that distinguish. Absent for `lesson`.
  * @param {object} [parts.verification] an attestation, when — and only when —
  *        this engine validated the specification and the validation passed
  * @returns {string} a complete HTML document
@@ -96,7 +100,7 @@ export function renderShell(parts) {
     parts.body,
     "</main>",
     "</div>",
-    renderProvenance(parts.source, parts.verification),
+    renderProvenance(parts.source, parts.verification, parts.provenance),
     `<script>${BEHAVIOR_JS}</script>`,
     "</body>",
     "</html>",
@@ -106,12 +110,11 @@ export function renderShell(parts) {
 }
 
 /**
-/**
  * What this artifact claims about itself, and when it is entitled to.
  *
- * The provenance rows are facts copied out of the specification and are always
- * shown. The verification sentence is a claim about work the engine performed,
- * so it appears only against a real attestation — which only
+ * The provenance rows are facts copied out of the specification, and only the
+ * ones it actually carries. The verification sentence is a claim about work the
+ * engine performed, so it appears only against a real attestation — which only
  * `verification.attest()` can mint, and only from a validation that passed.
  *
  * Rendering without one emits no verification language whatsoever. Not a
@@ -120,10 +123,27 @@ export function renderShell(parts) {
  * signal. Saying "unverified" would still be the renderer making a claim about
  * a process it did not observe.
  *
- * Even with the attestation, note what the sentence is careful not to say. It
- * scopes itself to what was checked deterministically and hands the question of
- * whether the page reads well back to a person, because deterministic
- * validation never establishes that and must never be reported as if it did.
+ * Even with the attestation, note what the sentences are careful not to say.
+ * Each scopes itself to what was checked deterministically and hands the
+ * question of whether the page reads well back to a person, because
+ * deterministic validation never establishes that and must never be reported as
+ * if it did. None of them says the system drawn is correct, and the `derived`
+ * one in particular does not: what was verified is that the cited material is
+ * there at the cited commit. Provenance, not truth.
+ *
+ * **Three states, three sentences, and none of them selectable.** There is no
+ * field in any specification that chooses between these, softens one, or asks
+ * for one it has not earned. The words belong to the renderer for the same
+ * reason the claim does — a producer vouching for its own work is precisely
+ * what this design exists to make impossible — and they live in the shared
+ * shell rather than in a kind renderer because they describe what the *engine*
+ * did, which is the same whatever kind rendered into it.
+ */
+
+/**
+ * `lesson`, and any kind that draws no provenance distinction. Unchanged from
+ * the wording that shipped, deliberately: the lesson artifact's language is not
+ * what this contract set out to alter.
  */
 const CHECKED =
   "This artifact was checked deterministically: its specification satisfied " +
@@ -132,12 +152,56 @@ const CHECKED =
   "is not a judgement that the page reads well or looks right — a person has " +
   "to open it to know that.";
 
-function renderProvenance(source, verification) {
-  // Built from what is present rather than from a fixed shape. Every kind that
-  // exists today declares a source, so this emits exactly the rows it always
-  // did; the tolerance is here because a kind that describes a system with no
-  // repository behind it must be able to say so rather than crash, and that
-  // possibility should not arrive at the same time as the code for it.
+/**
+ * `derived`: the strongest sentence the engine can write, and still not a
+ * statement that the architecture is right. Every node, edge and claim carried
+ * a citation, and each resolved — which establishes that the cited material is
+ * in the repository at that commit, not that the reading of it is correct.
+ */
+const CHECKED_DERIVED =
+  "This diagram was checked deterministically against the commit named here: " +
+  "its specification satisfied the schema, its identifiers, references and " +
+  "graphs resolved, and every component, relationship and claim in it carried " +
+  "a citation that was verified at that commit. What that establishes is that " +
+  "the cited material is there to be read. It is not a finding that the " +
+  "architecture drawn here is correct, complete, or the best reading of that " +
+  "material, and it is not a judgement that the page reads well — a person " +
+  "has to open it to know either.";
+
+/**
+ * `proposed`, with a source and at least one citation that resolved. The
+ * citations were checked; the design was not. The second half of this sentence
+ * is the load-bearing half, and it is why this state cannot borrow the wording
+ * above: a reader who met "verified against the commit" on a proposed
+ * architecture would reasonably conclude the architecture was the thing found
+ * in the repository.
+ */
+const CHECKED_PROPOSED =
+  "This diagram describes a proposed design. Its specification satisfied the " +
+  "schema, its identifiers, references and graphs resolved, and the citations " +
+  "it supplied were verified against the commit named here. Those citations " +
+  "establish that the material they name exists at that commit — they do not " +
+  "establish that the system drawn here exists. Nothing was checked about " +
+  "whether it does, and nothing here should be read as saying it does.";
+
+/**
+ * `proposed`, with no source at all. Not a verification sentence: there is
+ * nothing to verify and the artifact says so in place of claiming anything.
+ * Shown whether or not an attestation exists, because it is a fact about the
+ * specification's own shape rather than a report of work the engine did.
+ */
+const NO_SOURCE =
+  "This diagram describes an intended system. It names no repository and no " +
+  "commit, so it carries no citations and none were checked — there is " +
+  "nothing here that was verified against a source. It is a proposal, and it " +
+  "makes no claim about what currently exists.";
+
+function renderProvenance(source, verification, provenance) {
+  // Built from what is present rather than from a fixed shape. A specification
+  // with no source gets no repository row, no commit row and no timestamp —
+  // none of them invented from the working directory, the environment, or a
+  // clock, because there is no honest value for them and a plausible one would
+  // be worse than none.
   const rows = [];
   if (source?.repo) rows.push(["Repository", source.repo]);
   if (source?.commit) rows.push(["Commit", source.commit]);
@@ -150,9 +214,35 @@ function renderProvenance(source, verification) {
     ...rows.flatMap(([term, value]) =>
       [`<dt>${esc(term)}</dt>`, `<dd>${esc(value)}</dd>`]),
     "</dl>",
-    isAttestation(verification) ? `<p class="pf-caveat">${esc(CHECKED)}</p>` : null,
+    provenanceNote(source, verification, provenance),
     "</footer>",
   ].filter((line) => line !== null).join("\n");
+}
+
+/**
+ * The one sentence this artifact is entitled to, or none.
+ *
+ * Two conditions gate every verification claim, and both are necessary. The
+ * attestation proves this engine validated the specification and that the
+ * validation passed. The resolved-citation count proves there was something to
+ * check: a specification carrying no citations passes the evidence layer by
+ * having nothing to fail, and a claim resting on that would be a stronger
+ * statement than anybody made. Vacuous success earns no sentence.
+ */
+function provenanceNote(source, verification, provenance) {
+  const caveat = (text) => `<p class="pf-caveat">${esc(text)}</p>`;
+
+  // A proposal with no repository behind it. Said plainly, and said whatever
+  // else is true, because it is a fact about the specification rather than a
+  // report of anything the engine did.
+  if (provenance === "proposed" && !source) return caveat(NO_SOURCE);
+
+  if (!isAttestation(verification)) return null;
+  if (!(verification.resolvedCitations >= 1)) return null;
+
+  if (provenance === "derived") return caveat(CHECKED_DERIVED);
+  if (provenance === "proposed") return caveat(CHECKED_PROPOSED);
+  return caveat(CHECKED);
 }
 
 /**

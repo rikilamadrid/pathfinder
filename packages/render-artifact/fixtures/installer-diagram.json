@@ -1,0 +1,476 @@
+{
+  "schema_version": "1.0",
+  "kind": "diagram",
+  "provenance": "derived",
+  "artifact": {
+    "title": "How create-pathfinder installs the kit",
+    "subtitle": "One npx invocation, from the registry to a destination project's working tree"
+  },
+  "source": {
+    "repo": "rikilamadrid/pathfinder",
+    "commit": "3d083a9"
+  },
+  "diagram": {
+    "topology": "graph",
+    "groups": [
+      {
+        "id": "entry",
+        "label": "Entry",
+        "summary": "The executable npm exposes, and the one function it hands control to.",
+        "evidence": [{ "path": "packages/create-pathfinder/package.json", "lines": [27, 29] }]
+      },
+      {
+        "id": "conversation",
+        "label": "What it asks the human",
+        "summary": "Nothing is installed without being offered first; a non-interactive run answers for itself.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/prompt.mjs", "lines": [74, 80] }]
+      },
+      {
+        "id": "planning",
+        "label": "Plan, then apply",
+        "summary": "Every write is planned as a whole before any of it happens, so a refusal costs nothing.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [57, 62] }]
+      },
+      {
+        "id": "publishing",
+        "label": "Getting the kit into the package",
+        "summary": "The kit lives at the repository root, and npm cannot reach outside the package directory.",
+        "evidence": [{ "path": "packages/create-pathfinder/package.json", "lines": [41, 48] }]
+      }
+    ],
+    "nodes": [
+      {
+        "id": "developer",
+        "label": "The developer",
+        "role": "actor",
+        "summary": "Runs one command in the repository they want the kit in, and answers what it asks.",
+        "evidence": [{ "path": "packages/create-pathfinder/bin/create-pathfinder.mjs", "lines": [44, 48] }]
+      },
+      {
+        "id": "registry",
+        "label": "The npm registry",
+        "role": "external",
+        "summary": "Serves the published package. What it contains is decided by the `files` field, not by the repository's shape.",
+        "evidence": [{ "path": "packages/create-pathfinder/package.json", "lines": [30, 40] }]
+      },
+      {
+        "id": "bin",
+        "label": "create-pathfinder",
+        "role": "interface",
+        "group": "entry",
+        "summary": "The declared bin. It builds a prompter and a theme and does nothing else itself.",
+        "evidence": [{ "path": "packages/create-pathfinder/bin/create-pathfinder.mjs", "lines": [1, 10] }]
+      },
+      {
+        "id": "cli",
+        "label": "run()",
+        "role": "service",
+        "group": "entry",
+        "summary": "The whole install, in one async function: locate the kit, ask, plan, apply, report.",
+        "detail": [
+          "It is also by far the largest module in the package, which is a fact about this codebase rather than a recommendation from it."
+        ],
+        "evidence": [{ "path": "packages/create-pathfinder/src/cli.mjs", "lines": [81, 90] }]
+      },
+      {
+        "id": "prompter",
+        "label": "Prompter",
+        "role": "interface",
+        "group": "conversation",
+        "summary": "Asks the questions. A non-interactive run swaps in one that answers without a terminal.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/prompt.mjs", "lines": [74, 80] }]
+      },
+      {
+        "id": "theme",
+        "label": "Theme",
+        "role": "service",
+        "group": "conversation",
+        "summary": "Colour and symbols for the terminal, degraded deliberately when the terminal cannot take them.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/theme.mjs", "lines": [412, 418] }]
+      },
+      {
+        "id": "detect",
+        "label": "Tool detection",
+        "role": "service",
+        "group": "conversation",
+        "summary": "Looks for the AI tools already present, so the offer matches the machine.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/detect.mjs", "lines": [84, 92] }]
+      },
+      {
+        "id": "harnesses",
+        "label": "Harness registry",
+        "role": "store",
+        "group": "conversation",
+        "summary": "The harnesses an adapter can be generated for, and where each one keeps its skills.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/harnesses/index.mjs", "lines": [52, 60] }]
+      },
+      {
+        "id": "copylist",
+        "label": "copy-list.json",
+        "role": "store",
+        "summary": "The canonical list of what a destination project receives. Changed here and nowhere else.",
+        "evidence": [{ "path": "packages/create-pathfinder/copy-list.json", "lines": [1, 11] }]
+      },
+      {
+        "id": "kit",
+        "label": "kit.mjs",
+        "role": "service",
+        "summary": "Reads the copy list, finds the kit root, and decides what must never ship.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/kit.mjs", "lines": [32, 40] }]
+      },
+      {
+        "id": "nevership",
+        "label": "neverShips()",
+        "role": "decision",
+        "summary": "The off switch. A path this refuses is kept out of the package and out of every install.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/kit.mjs", "lines": [114, 130] }]
+      },
+      {
+        "id": "plan",
+        "label": "planInstall()",
+        "role": "step",
+        "group": "planning",
+        "summary": "Decides every file to write and every collision to report, writing none of them.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [57, 62] }]
+      },
+      {
+        "id": "apply",
+        "label": "applyPlan()",
+        "role": "step",
+        "group": "planning",
+        "summary": "Performs a plan, or reports what it would perform when asked for a dry run.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [104, 110] }]
+      },
+      {
+        "id": "adapters",
+        "label": "Adapter generation",
+        "role": "job",
+        "group": "planning",
+        "summary": "Derives each harness's skill files from canonical frontmatter. Opt-in, never assumed.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [153, 160] }]
+      },
+      {
+        "id": "hooks",
+        "label": "Hook installation",
+        "role": "job",
+        "group": "planning",
+        "summary": "Installs the session-orientation hook for a harness that has one.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [321, 328] }]
+      },
+      {
+        "id": "gitinit",
+        "label": "Repository init",
+        "role": "job",
+        "summary": "Offered when the target is not a repository yet, because the kit assumes version control.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/git.mjs", "lines": [34, 40] }]
+      },
+      {
+        "id": "target",
+        "label": "The project",
+        "role": "store",
+        "summary": "The destination working tree. The only thing the run exists to change.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [104, 110] }]
+      },
+      {
+        "id": "outcome",
+        "label": "The report",
+        "role": "terminal",
+        "summary": "What was written, what was skipped, and what the human should do next.",
+        "evidence": [{ "path": "packages/create-pathfinder/src/outcome.mjs", "lines": [49, 56] }]
+      },
+      {
+        "id": "stage",
+        "label": "stage-kit.mjs",
+        "role": "job",
+        "group": "publishing",
+        "summary": "Copies the kit into the package before pack and removes it again afterwards.",
+        "evidence": [{ "path": "packages/create-pathfinder/scripts/stage-kit.mjs", "lines": [25, 32] }]
+      },
+      {
+        "id": "guard",
+        "label": "publish-guard.mjs",
+        "role": "decision",
+        "group": "publishing",
+        "summary": "The last check before a publish, run by npm rather than by a person remembering to.",
+        "evidence": [{ "path": "packages/create-pathfinder/scripts/publish-guard.mjs", "lines": [45, 52] }]
+      }
+    ],
+    "edges": [
+      {
+        "id": "e-invoke",
+        "from": "developer",
+        "to": "registry",
+        "relation": "triggers",
+        "label": "npx",
+        "evidence": [{ "path": "packages/create-pathfinder/package.json", "lines": [27, 29] }]
+      },
+      {
+        "id": "e-serve",
+        "from": "registry",
+        "to": "bin",
+        "relation": "triggers",
+        "label": "runs the bin",
+        "evidence": [{ "path": "packages/create-pathfinder/package.json", "lines": [27, 29] }]
+      },
+      {
+        "id": "e-handoff",
+        "from": "bin",
+        "to": "cli",
+        "relation": "calls",
+        "label": "run(argv)",
+        "evidence": [{ "path": "packages/create-pathfinder/bin/create-pathfinder.mjs", "lines": [44, 48] }]
+      },
+      {
+        "id": "e-prompter",
+        "from": "bin",
+        "to": "prompter",
+        "relation": "depends_on",
+        "label": "builds",
+        "evidence": [{ "path": "packages/create-pathfinder/bin/create-pathfinder.mjs", "lines": [1, 10] }]
+      },
+      {
+        "id": "e-theme",
+        "from": "bin",
+        "to": "theme",
+        "relation": "depends_on",
+        "label": "builds",
+        "evidence": [{ "path": "packages/create-pathfinder/bin/create-pathfinder.mjs", "lines": [1, 10] }]
+      },
+      {
+        "id": "e-ask",
+        "from": "cli",
+        "to": "prompter",
+        "relation": "calls",
+        "label": "asks",
+        "evidence": [{ "path": "packages/create-pathfinder/src/cli.mjs", "lines": [20, 21] }]
+      },
+      {
+        "id": "e-answer",
+        "from": "prompter",
+        "to": "developer",
+        "relation": "calls",
+        "label": "questions",
+        "evidence": [{ "path": "packages/create-pathfinder/src/prompt.mjs", "lines": [74, 80] }]
+      },
+      {
+        "id": "e-detect",
+        "from": "cli",
+        "to": "detect",
+        "relation": "calls",
+        "label": "finds tools",
+        "evidence": [{ "path": "packages/create-pathfinder/src/cli.mjs", "lines": [18, 18] }]
+      },
+      {
+        "id": "e-harnesses",
+        "from": "detect",
+        "to": "harnesses",
+        "relation": "reads",
+        "label": "known harnesses",
+        "evidence": [{ "path": "packages/create-pathfinder/src/harnesses/index.mjs", "lines": [127, 135] }]
+      },
+      {
+        "id": "e-kit",
+        "from": "cli",
+        "to": "kit",
+        "relation": "calls",
+        "label": "locates the kit",
+        "evidence": [{ "path": "packages/create-pathfinder/src/cli.mjs", "lines": [9, 9] }]
+      },
+      {
+        "id": "e-copylist",
+        "from": "kit",
+        "to": "copylist",
+        "relation": "reads",
+        "label": "at runtime",
+        "evidence": [{ "path": "packages/create-pathfinder/src/kit.mjs", "lines": [32, 40] }]
+      },
+      {
+        "id": "e-guarded",
+        "from": "kit",
+        "to": "nevership",
+        "relation": "depends_on",
+        "label": "exclusion",
+        "evidence": [{ "path": "packages/create-pathfinder/src/kit.mjs", "lines": [114, 130] }]
+      },
+      {
+        "id": "e-plan",
+        "from": "cli",
+        "to": "plan",
+        "relation": "calls",
+        "label": "plans the copy",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [57, 62] }]
+      },
+      {
+        "id": "e-planreads",
+        "from": "plan",
+        "to": "kit",
+        "relation": "reads",
+        "label": "copy list",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [28, 28] }]
+      },
+      {
+        "id": "e-planfilters",
+        "from": "plan",
+        "to": "nevership",
+        "relation": "calls",
+        "label": "excludes",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [28, 28] }]
+      },
+      {
+        "id": "e-apply",
+        "from": "plan",
+        "to": "apply",
+        "relation": "transitions_to",
+        "label": "once accepted",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [104, 110] }]
+      },
+      {
+        "id": "e-write",
+        "from": "apply",
+        "to": "target",
+        "relation": "writes",
+        "label": "the kit",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [104, 110] }]
+      },
+      {
+        "id": "e-adapters",
+        "from": "cli",
+        "to": "adapters",
+        "relation": "triggers",
+        "label": "if opted in",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [153, 160] }]
+      },
+      {
+        "id": "e-adapterswrite",
+        "from": "adapters",
+        "to": "target",
+        "relation": "writes",
+        "label": "adapters",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [255, 262] }]
+      },
+      {
+        "id": "e-adapterharness",
+        "from": "adapters",
+        "to": "harnesses",
+        "relation": "reads",
+        "label": "skills dir",
+        "evidence": [{ "path": "packages/create-pathfinder/src/harnesses/adapter.mjs", "lines": [94, 100] }]
+      },
+      {
+        "id": "e-hooks",
+        "from": "cli",
+        "to": "hooks",
+        "relation": "triggers",
+        "label": "if opted in",
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [321, 328] }]
+      },
+      {
+        "id": "e-hookswrite",
+        "from": "hooks",
+        "to": "target",
+        "relation": "writes",
+        "label": "hook config",
+        "evidence": [{ "path": "packages/create-pathfinder/src/harnesses/hook.mjs", "lines": [57, 64] }]
+      },
+      {
+        "id": "e-gitinit",
+        "from": "cli",
+        "to": "gitinit",
+        "relation": "triggers",
+        "label": "if offered",
+        "evidence": [{ "path": "packages/create-pathfinder/src/cli.mjs", "lines": [19, 19] }]
+      },
+      {
+        "id": "e-gitwrite",
+        "from": "gitinit",
+        "to": "target",
+        "relation": "writes",
+        "label": "git init",
+        "evidence": [{ "path": "packages/create-pathfinder/src/git.mjs", "lines": [34, 40] }]
+      },
+      {
+        "id": "e-report",
+        "from": "cli",
+        "to": "outcome",
+        "relation": "transitions_to",
+        "label": "summarises",
+        "evidence": [{ "path": "packages/create-pathfinder/src/cli.mjs", "lines": [26, 26] }]
+      },
+      {
+        "id": "e-told",
+        "from": "outcome",
+        "to": "developer",
+        "relation": "calls",
+        "label": "what happened",
+        "evidence": [{ "path": "packages/create-pathfinder/src/outcome.mjs", "lines": [49, 56] }]
+      },
+      {
+        "id": "e-stage",
+        "from": "stage",
+        "to": "copylist",
+        "relation": "reads",
+        "label": "what to stage",
+        "evidence": [{ "path": "packages/create-pathfinder/scripts/stage-kit.mjs", "lines": [25, 32] }]
+      },
+      {
+        "id": "e-stagenevership",
+        "from": "stage",
+        "to": "nevership",
+        "relation": "calls",
+        "label": "excludes",
+        "evidence": [{ "path": "packages/create-pathfinder/src/kit.mjs", "lines": [114, 130] }]
+      },
+      {
+        "id": "e-prepack",
+        "from": "stage",
+        "to": "registry",
+        "relation": "publishes",
+        "label": "package contents",
+        "evidence": [{ "path": "packages/create-pathfinder/package.json", "lines": [41, 48] }]
+      },
+      {
+        "id": "e-guard",
+        "from": "guard",
+        "to": "registry",
+        "relation": "triggers",
+        "label": "prepublishOnly",
+        "evidence": [{ "path": "packages/create-pathfinder/package.json", "lines": [47, 47] }]
+      }
+    ],
+    "paths": [
+      {
+        "id": "install",
+        "label": "A first install",
+        "note": "Six steps from one typed command to a changed working tree, and the human is asked before any of it is written.",
+        "edges": ["e-invoke", "e-serve", "e-handoff", "e-plan", "e-apply", "e-write"],
+        "evidence": [{ "path": "packages/create-pathfinder/src/cli.mjs", "lines": [81, 90] }]
+      },
+      {
+        "id": "offswitch",
+        "label": "The off switch",
+        "note": "Two callers ask the same question — the installer at install time and the staging script at pack time — which is why a file kept out of one is kept out of both.",
+        "edges": ["e-plan", "e-planfilters"],
+        "evidence": [{ "path": "packages/create-pathfinder/src/kit.mjs", "lines": [114, 130] }]
+      },
+      {
+        "id": "publish",
+        "label": "Packed, then run",
+        "edges": ["e-prepack", "e-serve", "e-handoff"]
+      }
+    ],
+    "views": [
+      {
+        "id": "writes",
+        "label": "Everything that writes",
+        "note": "Four jobs touch the destination, and each is separately offered.",
+        "focus": ["apply", "adapters", "hooks", "gitinit", "target"],
+        "evidence": [{ "path": "packages/create-pathfinder/src/install.mjs", "lines": [104, 110] }]
+      },
+      {
+        "id": "canonical",
+        "label": "One list, three readers",
+        "focus": ["copylist", "kit", "plan", "stage"]
+      }
+    ]
+  }
+}

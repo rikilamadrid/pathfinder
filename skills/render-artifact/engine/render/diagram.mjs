@@ -79,6 +79,11 @@ export function renderDiagram(spec, verification) {
     nav,
     body,
     source: spec.source,
+    // Handed over, never interpreted here. Which of the three things an
+    // artifact may say about its own provenance is the shell's decision and the
+    // shell's wording; this renderer's only part in it is reporting what the
+    // specification declared.
+    provenance: spec.provenance,
     verification,
   });
 }

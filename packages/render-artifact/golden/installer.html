@@ -1,0 +1,1564 @@
+<!doctype html>
+<html lang="en" data-pf-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How create-pathfinder installs the kit</title>
+<meta name="description" content="One npx invocation, from the registry to a destination project&#39;s working tree">
+<meta name="generator" content="Pathfinder render-artifact 0.4.0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
+<style>:root {
+  color-scheme: light;
+  --pf-page: #FDFCFB;
+  --pf-surface: #FFFFFF;
+  --pf-surface-2: #F5F2EF;
+  --pf-ink: #1B1815;
+  --pf-muted: #5C5550;
+  --pf-line: #E2DCD6;
+  --pf-line-strong: #8C837A;
+  --pf-accent: #E0611F;
+  --pf-accent-ink: #1B1815;
+  --pf-link: #B34A13;
+  --pf-ok: #1F6F43;
+  --pf-no: #A62B1E;
+  --pf-shadow: 0 1px 2px rgba(27, 24, 21, .06), 0 8px 24px rgba(27, 24, 21, .05);
+
+  --pf-space-1: .25rem;
+  --pf-space-2: .5rem;
+  --pf-space-3: .75rem;
+  --pf-space-4: 1rem;
+  --pf-space-5: 1.5rem;
+  --pf-space-6: 2rem;
+  --pf-space-7: 3rem;
+  --pf-space-8: 4rem;
+
+  --pf-radius: 10px;
+  --pf-radius-sm: 6px;
+  --pf-measure: 68ch;
+
+  --pf-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+             "Helvetica Neue", Arial, sans-serif;
+  --pf-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+             "Liberation Mono", monospace;
+}
+
+/* Light is the base, so a reader whose system states no preference gets a
+   readable page rather than whichever branch happened to be written first.
+   "auto" follows the system; "light" and "dark" are the reader overriding it,
+   and both win over the media query because they are on the element. */
+:root[data-pf-theme="dark"] {
+  color-scheme: dark;
+  --pf-page: #14120F;
+  --pf-surface: #1D1A16;
+  --pf-surface-2: #262218;
+  --pf-ink: #F2EEE9;
+  --pf-muted: #B0A79E;
+  --pf-line: #35302A;
+  --pf-line-strong: #7A7168;
+  --pf-accent: #E0611F;
+  --pf-accent-ink: #1B1815;
+  --pf-link: #F0A97E;
+  --pf-ok: #6FD39B;
+  --pf-no: #F09085;
+  --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-pf-theme="auto"] {
+    color-scheme: dark;
+    --pf-page: #14120F;
+    --pf-surface: #1D1A16;
+    --pf-surface-2: #262218;
+    --pf-ink: #F2EEE9;
+    --pf-muted: #B0A79E;
+    --pf-line: #35302A;
+    --pf-line-strong: #7A7168;
+    --pf-accent: #E0611F;
+    --pf-accent-ink: #1B1815;
+    --pf-link: #F0A97E;
+    --pf-ok: #6FD39B;
+    --pf-no: #F09085;
+    --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--pf-page);
+  color: var(--pf-ink);
+  font-family: var(--pf-sans);
+  font-size: 16px;
+  line-height: 1.65;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 {
+  line-height: 1.25;
+  letter-spacing: -.011em;
+  margin: 0;
+  font-weight: 650;
+}
+
+p { margin: 0 0 var(--pf-space-4); max-width: var(--pf-measure); }
+p:last-child { margin-bottom: 0; }
+
+a { color: var(--pf-link); text-underline-offset: .18em; }
+a:hover { text-decoration-thickness: 2px; }
+
+:focus-visible {
+  outline: 3px solid var(--pf-accent);
+  outline-offset: 2px;
+  border-radius: var(--pf-radius-sm);
+}
+
+code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
+
+/* ---------- skip link ---------- */
+
+.pf-skip {
+  position: absolute;
+  left: var(--pf-space-3);
+  top: var(--pf-space-3);
+  z-index: 40;
+  padding: var(--pf-space-2) var(--pf-space-4);
+  background: var(--pf-accent);
+  color: var(--pf-accent-ink);
+  border-radius: var(--pf-radius-sm);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+.pf-skip:focus { transform: translateY(0); }
+
+/* ---------- header ---------- */
+
+.pf-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: var(--pf-space-4);
+  padding: var(--pf-space-4) var(--pf-space-5);
+  background: var(--pf-surface);
+  border-bottom: 1px solid var(--pf-line);
+}
+
+.pf-mark { flex: none; color: var(--pf-accent); display: block; }
+
+.pf-identity { min-width: 0; flex: 1 1 auto; }
+.pf-title {
+  font-size: 1.0625rem;
+  font-weight: 650;
+  letter-spacing: -.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-eyebrow {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+
+.pf-theme-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pf-space-2);
+  padding: var(--pf-space-2) var(--pf-space-3);
+  font: inherit;
+  font-size: .8125rem;
+  font-weight: 600;
+  color: var(--pf-ink);
+  background: var(--pf-surface-2);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.pf-theme-toggle:hover { border-color: var(--pf-accent); }
+
+/* ---------- layout ---------- */
+
+.pf-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.pf-main {
+  min-width: 0;
+  padding: var(--pf-space-6) var(--pf-space-5) var(--pf-space-8);
+}
+
+/* ---------- navigation ---------- */
+
+.pf-nav {
+  position: sticky;
+  top: 64px;
+  z-index: 20;
+  background: var(--pf-page);
+  border-bottom: 1px solid var(--pf-line);
+  padding: var(--pf-space-3) var(--pf-space-5);
+  overflow-x: auto;
+}
+
+.pf-nav-label {
+  display: none;
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+  margin-bottom: var(--pf-space-3);
+}
+
+.pf-nav-list {
+  display: flex;
+  gap: var(--pf-space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pf-nav-link {
+  display: block;
+  white-space: nowrap;
+  padding: var(--pf-space-2) var(--pf-space-3);
+  border-radius: 999px;
+  border: 1px solid var(--pf-line);
+  color: var(--pf-ink);
+  text-decoration: none;
+  font-size: .875rem;
+  font-weight: 550;
+}
+.pf-nav-link:hover { border-color: var(--pf-accent); }
+.pf-nav-link[aria-current="true"] {
+  border-color: var(--pf-accent);
+  background: var(--pf-surface-2);
+  font-weight: 650;
+}
+.pf-nav-index {
+  color: var(--pf-muted);
+  font-variant-numeric: tabular-nums;
+  margin-right: var(--pf-space-2);
+}
+
+/* ---------- lesson head ---------- */
+
+.pf-lead {
+  margin: 0 0 var(--pf-space-7);
+  padding-bottom: var(--pf-space-6);
+  border-bottom: 1px solid var(--pf-line);
+}
+.pf-lead h1 { font-size: clamp(1.75rem, 1.2rem + 2.2vw, 2.5rem); }
+.pf-lead-sub {
+  margin-top: var(--pf-space-3);
+  font-size: 1.0625rem;
+  color: var(--pf-muted);
+  max-width: var(--pf-measure);
+}
+.pf-lead-summary { margin-top: var(--pf-space-4); }
+
+.pf-objectives {
+  margin: var(--pf-space-5) 0 0;
+  padding: var(--pf-space-4) var(--pf-space-5);
+  background: var(--pf-surface-2);
+  border-radius: var(--pf-radius);
+  border: 1px solid var(--pf-line);
+  max-width: var(--pf-measure);
+}
+.pf-objectives ul { margin: var(--pf-space-2) 0 0; padding-left: 1.25rem; }
+.pf-objectives li { margin-bottom: var(--pf-space-2); }
+.pf-objectives li:last-child { margin-bottom: 0; }
+
+/* ---------- modules and sections ---------- */
+
+.pf-module { margin-bottom: var(--pf-space-8); scroll-margin-top: 128px; }
+.pf-module-head { margin-bottom: var(--pf-space-5); }
+/* --pf-link, not --pf-accent. This is 11px text, so WCAG 2.1 AA wants 4.5:1
+   and the accent gives 3.47:1 on the light page — it clears the 3:1 non-text
+   bar the mark and the focus ring rely on, and fails as soon as it becomes
+   words. --pf-link is the accent darkened for exactly this: 5.25:1 light,
+   9.51:1 dark. Any future accent-coloured *text* takes this token. */
+.pf-module-index {
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--pf-link);
+}
+.pf-module-title { font-size: 1.5rem; margin-top: var(--pf-space-2); }
+.pf-module-summary { margin-top: var(--pf-space-3); color: var(--pf-muted); }
+
+.pf-requires {
+  margin-top: var(--pf-space-3);
+  font-size: .8125rem;
+  color: var(--pf-muted);
+}
+.pf-requires a { color: var(--pf-link); }
+
+.pf-section { margin-bottom: var(--pf-space-6); scroll-margin-top: 128px; }
+.pf-section-title { font-size: 1.125rem; margin-bottom: var(--pf-space-3); }
+
+.pf-card {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  padding: var(--pf-space-5);
+  box-shadow: var(--pf-shadow);
+}
+.pf-card--concept { border-left: 3px solid var(--pf-accent); }
+
+.pf-kicker {
+  display: inline-block;
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+  margin-bottom: var(--pf-space-2);
+}
+
+/* ---------- evidence ---------- */
+
+.pf-evidence {
+  margin: var(--pf-space-5) 0 0;
+  padding-top: var(--pf-space-4);
+  border-top: 1px dashed var(--pf-line);
+}
+.pf-evidence-label {
+  font-size: .625rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+.pf-evidence ul { list-style: none; margin: var(--pf-space-2) 0 0; padding: 0; }
+.pf-evidence li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pf-space-2);
+  padding: var(--pf-space-1) 0;
+  font-family: var(--pf-mono);
+  font-size: .8125rem;
+  overflow-wrap: anywhere;
+}
+.pf-cite-path { color: var(--pf-ink); }
+.pf-cite-lines, .pf-cite-commit {
+  padding: 0 var(--pf-space-2);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface-2);
+  color: var(--pf-muted);
+  font-size: .75rem;
+  white-space: nowrap;
+}
+
+/* ---------- code ---------- */
+
+.pf-code { margin: 0; }
+.pf-code figcaption {
+  color: var(--pf-muted);
+  font-size: .875rem;
+  margin-bottom: var(--pf-space-3);
+  max-width: var(--pf-measure);
+}
+.pf-code-frame {
+  background: var(--pf-surface-2);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  overflow: hidden;
+}
+.pf-code-lang {
+  display: block;
+  padding: var(--pf-space-2) var(--pf-space-4);
+  border-bottom: 1px solid var(--pf-line);
+  font-family: var(--pf-mono);
+  font-size: .6875rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+.pf-code pre {
+  margin: 0;
+  padding: var(--pf-space-4) 0;
+  overflow-x: auto;
+  line-height: 1.7;
+  tab-size: 2;
+}
+.pf-code-line { display: block; padding: 0 var(--pf-space-4); white-space: pre; }
+.pf-code-no {
+  display: inline-block;
+  width: 3ch;
+  margin-right: var(--pf-space-4);
+  text-align: right;
+  color: var(--pf-muted);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- flow ---------- */
+
+.pf-flow { list-style: none; margin: 0; padding: 0; counter-reset: pf-step; }
+.pf-flow > li {
+  position: relative;
+  counter-increment: pf-step;
+  padding: 0 0 var(--pf-space-5) var(--pf-space-7);
+}
+.pf-flow > li:last-child { padding-bottom: 0; }
+.pf-flow > li::before {
+  content: counter(pf-step);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--pf-accent);
+  color: var(--pf-accent-ink);
+  font-size: .8125rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pf-flow > li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: calc(.875rem - 1px);
+  top: 2rem;
+  bottom: var(--pf-space-2);
+  width: 2px;
+  background: var(--pf-line);
+}
+.pf-step-title { font-weight: 650; }
+.pf-step-detail { margin-top: var(--pf-space-2); color: var(--pf-muted); }
+.pf-step-next {
+  margin-top: var(--pf-space-2);
+  font-size: .8125rem;
+  color: var(--pf-muted);
+}
+
+/* ---------- quiz ---------- */
+
+.pf-quiz { display: grid; gap: var(--pf-space-4); }
+.pf-question { border: 0; margin: 0; padding: 0; }
+.pf-question legend {
+  padding: 0;
+  font-weight: 650;
+  margin-bottom: var(--pf-space-3);
+  max-width: var(--pf-measure);
+}
+.pf-options { display: grid; gap: var(--pf-space-2); margin-bottom: var(--pf-space-3); }
+.pf-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--pf-space-3);
+  padding: var(--pf-space-3) var(--pf-space-4);
+  border: 1px solid var(--pf-line-strong);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface);
+  cursor: pointer;
+}
+.pf-option:hover { border-color: var(--pf-accent); }
+.pf-option input { margin: .35rem 0 0; accent-color: var(--pf-accent); flex: none; }
+.pf-option[data-pf-verdict="correct"] {
+  border-color: var(--pf-ok);
+  box-shadow: inset 0 0 0 1px var(--pf-ok);
+}
+.pf-option[data-pf-verdict="incorrect"] {
+  border-color: var(--pf-no);
+  box-shadow: inset 0 0 0 1px var(--pf-no);
+}
+.pf-verdict { font-weight: 650; font-size: .8125rem; margin-left: auto; }
+.pf-option[data-pf-verdict="correct"] .pf-verdict { color: var(--pf-ok); }
+.pf-option[data-pf-verdict="incorrect"] .pf-verdict { color: var(--pf-no); }
+
+/* ---------- disclosure ---------- */
+
+.pf-reveal {
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  background: var(--pf-surface-2);
+  padding: var(--pf-space-2) var(--pf-space-4);
+}
+.pf-reveal > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: .875rem;
+  padding: var(--pf-space-1) 0;
+}
+.pf-reveal[open] > summary { margin-bottom: var(--pf-space-3); }
+.pf-reveal ol { margin: 0; padding-left: 1.25rem; }
+.pf-reveal li { margin-bottom: var(--pf-space-2); }
+.pf-reveal li:last-child { margin-bottom: 0; }
+
+/* ---------- provenance ---------- */
+
+.pf-provenance {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--pf-space-6) var(--pf-space-5) var(--pf-space-8);
+  border-top: 1px solid var(--pf-line);
+  color: var(--pf-muted);
+  font-size: .8125rem;
+}
+.pf-provenance dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--pf-space-2) var(--pf-space-4);
+  margin: 0 0 var(--pf-space-5);
+}
+.pf-provenance dt { font-weight: 650; color: var(--pf-ink); }
+.pf-provenance dd { margin: 0; font-family: var(--pf-mono); overflow-wrap: anywhere; }
+.pf-caveat { max-width: var(--pf-measure); }
+
+/* ---------- wide ---------- */
+
+@media (min-width: 900px) {
+  .pf-layout {
+    grid-template-columns: 248px minmax(0, 1fr);
+    gap: var(--pf-space-6);
+    padding: 0 var(--pf-space-5);
+  }
+  .pf-nav {
+    top: 76px;
+    align-self: start;
+    max-height: calc(100vh - 96px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: var(--pf-space-6) 0 var(--pf-space-6);
+    border-bottom: 0;
+    background: transparent;
+  }
+  .pf-nav-label { display: block; }
+  .pf-nav-list { display: block; }
+  .pf-nav-list li { margin-bottom: var(--pf-space-1); }
+  .pf-nav-link {
+    white-space: normal;
+    border: 0;
+    border-left: 2px solid var(--pf-line);
+    border-radius: 0;
+    padding: var(--pf-space-2) var(--pf-space-3);
+  }
+  .pf-nav-link[aria-current="true"] {
+    border-left-color: var(--pf-accent);
+    background: var(--pf-surface-2);
+  }
+  .pf-main { padding: var(--pf-space-7) 0 var(--pf-space-8); }
+  .pf-provenance { padding-left: calc(248px + var(--pf-space-6) + var(--pf-space-5)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
+
+@media print {
+  .pf-header, .pf-nav, .pf-skip, .pf-theme-toggle { display: none; }
+  .pf-card { box-shadow: none; break-inside: avoid; }
+  .pf-reveal[open] > summary { list-style: none; }
+}
+.pf-canvas {
+  margin: var(--pf-space-5) 0 var(--pf-space-7);
+  padding: var(--pf-space-4);
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  box-shadow: var(--pf-shadow);
+  overflow-x: auto;
+}
+.pf-graph {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--pf-mono);
+}
+
+.pf-group-box {
+  fill: var(--pf-surface-2);
+  stroke: var(--pf-line-strong);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.pf-group[data-pf-depth="1"] .pf-group-box { stroke-dasharray: 2 3; }
+.pf-group-label {
+  fill: var(--pf-muted);
+  font-size: 12px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.pf-node-box {
+  fill: var(--pf-surface);
+  stroke: var(--pf-line-strong);
+  stroke-width: 2;
+}
+.pf-node[data-pf-role="store"] .pf-node-box,
+.pf-node[data-pf-role="queue"] .pf-node-box { stroke-dasharray: 7 3; }
+.pf-node[data-pf-role="external"] .pf-node-box,
+.pf-node[data-pf-role="actor"] .pf-node-box { stroke: var(--pf-accent); }
+.pf-node[data-pf-role="terminal"] .pf-node-box { stroke: var(--pf-ok); }
+.pf-node[data-pf-role="decision"] .pf-node-box { stroke: var(--pf-accent); stroke-dasharray: 3 3; }
+
+.pf-node-label {
+  fill: var(--pf-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.pf-node-role {
+  fill: var(--pf-muted);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.pf-edge-line {
+  fill: none;
+  stroke: var(--pf-line-strong);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.pf-edge-on-path .pf-edge-line { stroke: var(--pf-accent); stroke-width: 3; }
+.pf-edge[data-pf-relation="depends_on"] .pf-edge-line { stroke-dasharray: 5 4; }
+.pf-edge[data-pf-relation="publishes"] .pf-edge-line,
+.pf-edge[data-pf-relation="consumes"] .pf-edge-line { stroke-dasharray: 2 4; }
+.pf-edge-label {
+  fill: var(--pf-muted);
+  font-size: 11px;
+}
+.pf-edge-on-path .pf-edge-label { fill: var(--pf-link); }
+
+/* The reading list below the canvas: the same facts, as text, for a reader who
+   is not looking at a picture. */
+.pf-legend { display: grid; gap: var(--pf-space-4); }
+.pf-legend-role {
+  display: inline-block;
+  margin-left: var(--pf-space-2);
+  padding: 1px 6px;
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  color: var(--pf-muted);
+  font-family: var(--pf-mono);
+  font-size: .72rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+.pf-relation {
+  font-family: var(--pf-mono);
+  font-size: .82rem;
+  color: var(--pf-muted);
+}
+.pf-walk { margin: 0; padding-left: var(--pf-space-5); }
+.pf-walk li { margin-bottom: var(--pf-space-1); }
+</style>
+</head>
+<body>
+<a class="pf-skip" href="#pf-content">Skip to content</a>
+<header class="pf-header">
+<svg class="pf-mark" width="26" height="26" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><g fill="currentColor"><rect x="4" y="23" width="24" height="6.4" rx="3.2" transform="rotate(-3 16 26.2)"/><rect x="7" y="14.6" width="18" height="6" rx="3" transform="rotate(4 16 17.6)"/><rect x="9.6" y="7" width="12.8" height="5.4" rx="2.7" transform="rotate(-6 16 9.7)"/><rect x="12.4" y="1" width="7.2" height="4.4" rx="2.2" transform="rotate(5 16 3.2)"/></g></svg>
+<div class="pf-identity">
+<div class="pf-eyebrow">Pathfinder diagram</div>
+<div class="pf-title">How create-pathfinder installs the kit</div>
+</div>
+<button type="button" class="pf-theme-toggle" id="pf-theme-toggle" hidden>Theme: auto</button>
+</header>
+<div class="pf-layout">
+<nav class="pf-nav" aria-label="In this diagram">
+<div class="pf-nav-label">In this diagram</div>
+<ul class="pf-nav-list">
+<li><a class="pf-nav-link" href="#s--g--entry" data-pf-nav="s--g--entry"><span class="pf-nav-index">1</span>Entry</a></li>
+<li><a class="pf-nav-link" href="#s--g--conversation" data-pf-nav="s--g--conversation"><span class="pf-nav-index">2</span>What it asks the human</a></li>
+<li><a class="pf-nav-link" href="#s--g--planning" data-pf-nav="s--g--planning"><span class="pf-nav-index">3</span>Plan, then apply</a></li>
+<li><a class="pf-nav-link" href="#s--g--publishing" data-pf-nav="s--g--publishing"><span class="pf-nav-index">4</span>Getting the kit into the package</a></li>
+<li><a class="pf-nav-link" href="#s--v--writes" data-pf-nav="s--v--writes"><span class="pf-nav-index">5</span>Everything that writes</a></li>
+<li><a class="pf-nav-link" href="#s--v--canonical" data-pf-nav="s--v--canonical"><span class="pf-nav-index">6</span>One list, three readers</a></li>
+</ul>
+</nav>
+<main class="pf-main" id="pf-content">
+<div class="pf-lead">
+<h1>How create-pathfinder installs the kit</h1>
+<p class="pf-lead-sub">One npx invocation, from the registry to a destination project&#39;s working tree</p>
+</div>
+<div class="pf-canvas"><svg class="pf-graph" viewBox="0 0 2148 1612" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
+<title id="pf--diagram--title">Diagram</title>
+<defs>
+<marker id="pf-arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" markerUnits="userSpaceOnUse" orient="auto">
+<path d="M 0 0 L 9 4 L 0 8 z" fill="context-stroke"/>
+</marker>
+</defs>
+<g class="pf-group" data-pf-depth="0">
+<rect class="pf-group-box" id="g--entry" x="648" y="452" width="580" height="124" rx="14"/>
+<text class="pf-group-label" x="672" y="472">Entry</text>
+</g>
+<g class="pf-group" data-pf-depth="0">
+<rect class="pf-group-box" id="g--conversation" x="944" y="592" width="876" height="264" rx="14"/>
+<text class="pf-group-label" x="968" y="612">What it asks the human</text>
+</g>
+<g class="pf-group" data-pf-depth="0">
+<rect class="pf-group-box" id="g--planning" x="1240" y="872" width="580" height="404" rx="14"/>
+<text class="pf-group-label" x="1264" y="892">Plan, then apply</text>
+</g>
+<g class="pf-group" data-pf-depth="0">
+<rect class="pf-group-box" id="g--publishing" x="56" y="1292" width="284" height="264" rx="14"/>
+<text class="pf-group-label" x="80" y="1312">Getting the kit into the package</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="triggers" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-invoke" points="316,234 404,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="360" y="228">npx</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="triggers" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-serve" points="612,234 656,234 656,514 700,514" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="656" y="368">runs the bin</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-handoff" points="908,514 996,514" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="952" y="508">run(argv)</text>
+</g>
+<g class="pf-edge" data-pf-relation="depends_on" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-prompter" points="908,514 1100,514 1100,794 1292,794" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1100" y="648">builds</text>
+</g>
+<g class="pf-edge" data-pf-relation="depends_on" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-theme" points="908,514 952,514 952,724 996,724" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="952" y="613">builds</text>
+</g>
+<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-ask" points="1204,514 1248,514 1248,794 1292,794" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1248" y="648">asks</text>
+</g>
+<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-answer" points="1292,794 804,794 804,234 316,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="804" y="508">questions</text>
+</g>
+<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-detect" points="1204,514 1248,514 1248,654 1292,654" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1248" y="578">finds tools</text>
+</g>
+<g class="pf-edge" data-pf-relation="reads" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-harnesses" points="1500,654 1544,654 1544,724 1588,724" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1544" y="683">known harnesses</text>
+</g>
+<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-kit" points="1204,514 1396,514 1396,234 1588,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1396" y="368">locates the kit</text>
+</g>
+<g class="pf-edge" data-pf-relation="reads" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-copylist" points="1796,234 1840,234 1840,94 1884,94" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1840" y="158">at runtime</text>
+</g>
+<g class="pf-edge" data-pf-relation="depends_on" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-guarded" points="1796,234 1884,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1840" y="228">exclusion</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-plan" points="1204,514 1248,514 1248,934 1292,934" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1248" y="718">plans the copy</text>
+</g>
+<g class="pf-edge" data-pf-relation="reads" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-planreads" points="1500,934 1544,934 1544,234 1588,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1544" y="578">copy list</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-planfilters" points="1500,934 1692,934 1692,234 1884,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1692" y="578">excludes</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="transitions_to" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-apply" points="1500,934 1544,934 1544,1074 1588,1074" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1544" y="998">once accepted</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="writes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-write" points="1796,1074 1840,1074 1840,374 1884,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1840" y="718">the kit</text>
+</g>
+<g class="pf-edge" data-pf-relation="triggers" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-adapters" points="1204,514 1248,514 1248,1074 1292,1074" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1248" y="788">if opted in</text>
+</g>
+<g class="pf-edge" data-pf-relation="writes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-adapterswrite" points="1500,1074 1692,1074 1692,374 1884,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1692" y="718">adapters</text>
+</g>
+<g class="pf-edge" data-pf-relation="reads" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-adapterharness" points="1500,1074 1544,1074 1544,724 1588,724" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1544" y="893">skills dir</text>
+</g>
+<g class="pf-edge" data-pf-relation="triggers" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-hooks" points="1204,514 1248,514 1248,1214 1292,1214" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1248" y="858">if opted in</text>
+</g>
+<g class="pf-edge" data-pf-relation="writes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-hookswrite" points="1500,1214 1692,1214 1692,374 1884,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1692" y="788">hook config</text>
+</g>
+<g class="pf-edge" data-pf-relation="triggers" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-gitinit" points="1204,514 1248,514 1248,304 1292,304" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1248" y="403">if offered</text>
+</g>
+<g class="pf-edge" data-pf-relation="writes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-gitwrite" points="1500,304 1692,304 1692,374 1884,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1596" y="298">git init</text>
+</g>
+<g class="pf-edge" data-pf-relation="transitions_to" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-report" points="1204,514 1248,514 1248,164 1292,164" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1248" y="333">summarises</text>
+</g>
+<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-told" points="1292,164 804,164 804,234 316,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1048" y="158">what happened</text>
+</g>
+<g class="pf-edge" data-pf-relation="reads" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-stage" points="316,1494 1100,1494 1100,94 1884,94" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1100" y="788">what to stage</text>
+</g>
+<g class="pf-edge" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-stagenevership" points="316,1494 1100,1494 1100,234 1884,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1100" y="858">excludes</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="publishes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-prepack" points="316,1494 360,1494 360,234 404,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="360" y="858">package contents</text>
+</g>
+<g class="pf-edge" data-pf-relation="triggers" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--e-guard" points="316,1354 360,1354 360,234 404,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="360" y="788">prepublishOnly</text>
+</g>
+<g class="pf-node" data-pf-role="actor">
+<rect class="pf-node-box" id="n--developer" x="108" y="196" width="208" height="76" rx="38"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="212" y="227">The developer</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="212" y="260">actor</text>
+</g>
+<g class="pf-node" data-pf-role="external">
+<rect class="pf-node-box" id="n--registry" x="404" y="196" width="208" height="76" rx="38"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="508" y="227">The npm registry</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="508" y="260">external</text>
+</g>
+<g class="pf-node" data-pf-role="interface">
+<rect class="pf-node-box" id="n--bin" x="700" y="476" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="804" y="498">create-pathfinde</tspan><tspan x="804" y="516">r</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="804" y="540">interface</text>
+</g>
+<g class="pf-node" data-pf-role="service">
+<rect class="pf-node-box" id="n--cli" x="996" y="476" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1100" y="507">run()</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1100" y="540">service</text>
+</g>
+<g class="pf-node" data-pf-role="interface">
+<rect class="pf-node-box" id="n--prompter" x="1292" y="756" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="787">Prompter</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1396" y="820">interface</text>
+</g>
+<g class="pf-node" data-pf-role="service">
+<rect class="pf-node-box" id="n--theme" x="996" y="686" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1100" y="717">Theme</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1100" y="750">service</text>
+</g>
+<g class="pf-node" data-pf-role="service">
+<rect class="pf-node-box" id="n--detect" x="1292" y="616" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="647">Tool detection</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1396" y="680">service</text>
+</g>
+<g class="pf-node" data-pf-role="store">
+<rect class="pf-node-box" id="n--harnesses" x="1588" y="686" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1692" y="717">Harness registry</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1692" y="750">store</text>
+</g>
+<g class="pf-node" data-pf-role="store">
+<rect class="pf-node-box" id="n--copylist" x="1884" y="56" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1988" y="87">copy-list.json</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1988" y="120">store</text>
+</g>
+<g class="pf-node" data-pf-role="service">
+<rect class="pf-node-box" id="n--kit" x="1588" y="196" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1692" y="227">kit.mjs</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1692" y="260">service</text>
+</g>
+<g class="pf-node" data-pf-role="decision">
+<rect class="pf-node-box" id="n--nevership" x="1884" y="196" width="208" height="76" rx="20"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1988" y="227">neverShips()</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1988" y="260">decision</text>
+</g>
+<g class="pf-node" data-pf-role="step">
+<rect class="pf-node-box" id="n--plan" x="1292" y="896" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="927">planInstall()</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1396" y="960">step</text>
+</g>
+<g class="pf-node" data-pf-role="step">
+<rect class="pf-node-box" id="n--apply" x="1588" y="1036" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1692" y="1067">applyPlan()</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1692" y="1100">step</text>
+</g>
+<g class="pf-node" data-pf-role="job">
+<rect class="pf-node-box" id="n--adapters" x="1292" y="1036" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="1058">Adapter</tspan><tspan x="1396" y="1076">generation</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1396" y="1100">job</text>
+</g>
+<g class="pf-node" data-pf-role="job">
+<rect class="pf-node-box" id="n--hooks" x="1292" y="1176" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="1198">Hook</tspan><tspan x="1396" y="1216">installation</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1396" y="1240">job</text>
+</g>
+<g class="pf-node" data-pf-role="job">
+<rect class="pf-node-box" id="n--gitinit" x="1292" y="266" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="297">Repository init</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1396" y="330">job</text>
+</g>
+<g class="pf-node" data-pf-role="store">
+<rect class="pf-node-box" id="n--target" x="1884" y="336" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1988" y="367">The project</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1988" y="400">store</text>
+</g>
+<g class="pf-node" data-pf-role="terminal">
+<rect class="pf-node-box" id="n--outcome" x="1292" y="126" width="208" height="76" rx="38"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="157">The report</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1396" y="190">terminal</text>
+</g>
+<g class="pf-node" data-pf-role="job">
+<rect class="pf-node-box" id="n--stage" x="108" y="1456" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="212" y="1487">stage-kit.mjs</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="212" y="1520">job</text>
+</g>
+<g class="pf-node" data-pf-role="decision">
+<rect class="pf-node-box" id="n--guard" x="108" y="1316" width="208" height="76" rx="20"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="212" y="1338">publish-guard.mj</tspan><tspan x="212" y="1356">s</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="212" y="1380">decision</text>
+</g>
+</svg></div>
+<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--entry">
+<h3 class="pf-section-title">Entry</h3>
+<div class="pf-card">
+<p class="pf-module-summary">The executable npm exposes, and the one function it hands control to.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/package.json</span><span class="pf-cite-lines">lines 27–29</span></li>
+</ul>
+</div>
+<div class="pf-card" id="s--n--bin">
+<h4 class="pf-section-title">create-pathfinder<span class="pf-legend-role">interface</span></h4>
+<p>The declared bin. It builds a prompter and a theme and does nothing else itself.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/bin/create-pathfinder.mjs</span><span class="pf-cite-lines">lines 1–10</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--cli">
+<h4 class="pf-section-title">run()<span class="pf-legend-role">service</span></h4>
+<p>The whole install, in one async function: locate the kit, ask, plan, apply, report.</p>
+<p>It is also by far the largest module in the package, which is a fact about this codebase rather than a recommendation from it.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/cli.mjs</span><span class="pf-cite-lines">lines 81–90</span></li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--g--conversation">
+<h3 class="pf-section-title">What it asks the human</h3>
+<div class="pf-card">
+<p class="pf-module-summary">Nothing is installed without being offered first; a non-interactive run answers for itself.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/prompt.mjs</span><span class="pf-cite-lines">lines 74–80</span></li>
+</ul>
+</div>
+<div class="pf-card" id="s--n--prompter">
+<h4 class="pf-section-title">Prompter<span class="pf-legend-role">interface</span></h4>
+<p>Asks the questions. A non-interactive run swaps in one that answers without a terminal.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/prompt.mjs</span><span class="pf-cite-lines">lines 74–80</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--theme">
+<h4 class="pf-section-title">Theme<span class="pf-legend-role">service</span></h4>
+<p>Colour and symbols for the terminal, degraded deliberately when the terminal cannot take them.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/theme.mjs</span><span class="pf-cite-lines">lines 412–418</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--detect">
+<h4 class="pf-section-title">Tool detection<span class="pf-legend-role">service</span></h4>
+<p>Looks for the AI tools already present, so the offer matches the machine.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/detect.mjs</span><span class="pf-cite-lines">lines 84–92</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--harnesses">
+<h4 class="pf-section-title">Harness registry<span class="pf-legend-role">store</span></h4>
+<p>The harnesses an adapter can be generated for, and where each one keeps its skills.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/harnesses/index.mjs</span><span class="pf-cite-lines">lines 52–60</span></li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--g--planning">
+<h3 class="pf-section-title">Plan, then apply</h3>
+<div class="pf-card">
+<p class="pf-module-summary">Every write is planned as a whole before any of it happens, so a refusal costs nothing.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 57–62</span></li>
+</ul>
+</div>
+<div class="pf-card" id="s--n--plan">
+<h4 class="pf-section-title">planInstall()<span class="pf-legend-role">step</span></h4>
+<p>Decides every file to write and every collision to report, writing none of them.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 57–62</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--apply">
+<h4 class="pf-section-title">applyPlan()<span class="pf-legend-role">step</span></h4>
+<p>Performs a plan, or reports what it would perform when asked for a dry run.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 104–110</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--adapters">
+<h4 class="pf-section-title">Adapter generation<span class="pf-legend-role">job</span></h4>
+<p>Derives each harness&#39;s skill files from canonical frontmatter. Opt-in, never assumed.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 153–160</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--hooks">
+<h4 class="pf-section-title">Hook installation<span class="pf-legend-role">job</span></h4>
+<p>Installs the session-orientation hook for a harness that has one.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 321–328</span></li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--g--publishing">
+<h3 class="pf-section-title">Getting the kit into the package</h3>
+<div class="pf-card">
+<p class="pf-module-summary">The kit lives at the repository root, and npm cannot reach outside the package directory.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/package.json</span><span class="pf-cite-lines">lines 41–48</span></li>
+</ul>
+</div>
+<div class="pf-card" id="s--n--stage">
+<h4 class="pf-section-title">stage-kit.mjs<span class="pf-legend-role">job</span></h4>
+<p>Copies the kit into the package before pack and removes it again afterwards.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/scripts/stage-kit.mjs</span><span class="pf-cite-lines">lines 25–32</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--guard">
+<h4 class="pf-section-title">publish-guard.mjs<span class="pf-legend-role">decision</span></h4>
+<p>The last check before a publish, run by npm rather than by a person remembering to.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/scripts/publish-guard.mjs</span><span class="pf-cite-lines">lines 45–52</span></li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--ungrouped">
+<h3 class="pf-section-title">Not in a boundary</h3>
+<div class="pf-card">
+<div class="pf-card" id="s--n--developer">
+<h4 class="pf-section-title">The developer<span class="pf-legend-role">actor</span></h4>
+<p>Runs one command in the repository they want the kit in, and answers what it asks.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/bin/create-pathfinder.mjs</span><span class="pf-cite-lines">lines 44–48</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--registry">
+<h4 class="pf-section-title">The npm registry<span class="pf-legend-role">external</span></h4>
+<p>Serves the published package. What it contains is decided by the `files` field, not by the repository&#39;s shape.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/package.json</span><span class="pf-cite-lines">lines 30–40</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--copylist">
+<h4 class="pf-section-title">copy-list.json<span class="pf-legend-role">store</span></h4>
+<p>The canonical list of what a destination project receives. Changed here and nowhere else.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 1–11</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--kit">
+<h4 class="pf-section-title">kit.mjs<span class="pf-legend-role">service</span></h4>
+<p>Reads the copy list, finds the kit root, and decides what must never ship.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 32–40</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--nevership">
+<h4 class="pf-section-title">neverShips()<span class="pf-legend-role">decision</span></h4>
+<p>The off switch. A path this refuses is kept out of the package and out of every install.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 114–130</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--gitinit">
+<h4 class="pf-section-title">Repository init<span class="pf-legend-role">job</span></h4>
+<p>Offered when the target is not a repository yet, because the kit assumes version control.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/git.mjs</span><span class="pf-cite-lines">lines 34–40</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--target">
+<h4 class="pf-section-title">The project<span class="pf-legend-role">store</span></h4>
+<p>The destination working tree. The only thing the run exists to change.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 104–110</span></li>
+</ul>
+</div>
+</div>
+<div class="pf-card" id="s--n--outcome">
+<h4 class="pf-section-title">The report<span class="pf-legend-role">terminal</span></h4>
+<p>What was written, what was skipped, and what the human should do next.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/outcome.mjs</span><span class="pf-cite-lines">lines 49–56</span></li>
+</ul>
+</div>
+</div>
+</div>
+</section>
+<h2 class="pf-module-title">Relationships</h2><section class="pf-section" id="s--relationships">
+<div class="pf-card">
+<ul class="pf-legend"><li id="s--e--e-invoke"><span class="pf-step-title">The developer</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">The npm registry</span><p class="pf-step-detail">npx</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/package.json</span><span class="pf-cite-lines">lines 27–29</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-serve"><span class="pf-step-title">The npm registry</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">create-pathfinder</span><p class="pf-step-detail">runs the bin</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/package.json</span><span class="pf-cite-lines">lines 27–29</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-handoff"><span class="pf-step-title">create-pathfinder</span> <span class="pf-relation">calls</span> <span class="pf-step-title">run()</span><p class="pf-step-detail">run(argv)</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/bin/create-pathfinder.mjs</span><span class="pf-cite-lines">lines 44–48</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-prompter"><span class="pf-step-title">create-pathfinder</span> <span class="pf-relation">depends on</span> <span class="pf-step-title">Prompter</span><p class="pf-step-detail">builds</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/bin/create-pathfinder.mjs</span><span class="pf-cite-lines">lines 1–10</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-theme"><span class="pf-step-title">create-pathfinder</span> <span class="pf-relation">depends on</span> <span class="pf-step-title">Theme</span><p class="pf-step-detail">builds</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/bin/create-pathfinder.mjs</span><span class="pf-cite-lines">lines 1–10</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-ask"><span class="pf-step-title">run()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Prompter</span><p class="pf-step-detail">asks</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/cli.mjs</span><span class="pf-cite-lines">lines 20–21</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-answer"><span class="pf-step-title">Prompter</span> <span class="pf-relation">calls</span> <span class="pf-step-title">The developer</span><p class="pf-step-detail">questions</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/prompt.mjs</span><span class="pf-cite-lines">lines 74–80</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-detect"><span class="pf-step-title">run()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Tool detection</span><p class="pf-step-detail">finds tools</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/cli.mjs</span><span class="pf-cite-lines">lines 18–18</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-harnesses"><span class="pf-step-title">Tool detection</span> <span class="pf-relation">reads</span> <span class="pf-step-title">Harness registry</span><p class="pf-step-detail">known harnesses</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/harnesses/index.mjs</span><span class="pf-cite-lines">lines 127–135</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-kit"><span class="pf-step-title">run()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">kit.mjs</span><p class="pf-step-detail">locates the kit</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/cli.mjs</span><span class="pf-cite-lines">lines 9–9</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-copylist"><span class="pf-step-title">kit.mjs</span> <span class="pf-relation">reads</span> <span class="pf-step-title">copy-list.json</span><p class="pf-step-detail">at runtime</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 32–40</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-guarded"><span class="pf-step-title">kit.mjs</span> <span class="pf-relation">depends on</span> <span class="pf-step-title">neverShips()</span><p class="pf-step-detail">exclusion</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 114–130</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-plan"><span class="pf-step-title">run()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">planInstall()</span><p class="pf-step-detail">plans the copy</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 57–62</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-planreads"><span class="pf-step-title">planInstall()</span> <span class="pf-relation">reads</span> <span class="pf-step-title">kit.mjs</span><p class="pf-step-detail">copy list</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 28–28</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-planfilters"><span class="pf-step-title">planInstall()</span> <span class="pf-relation">calls</span> <span class="pf-step-title">neverShips()</span><p class="pf-step-detail">excludes</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 28–28</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-apply"><span class="pf-step-title">planInstall()</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">applyPlan()</span><p class="pf-step-detail">once accepted</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 104–110</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-write"><span class="pf-step-title">applyPlan()</span> <span class="pf-relation">writes</span> <span class="pf-step-title">The project</span><p class="pf-step-detail">the kit</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 104–110</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-adapters"><span class="pf-step-title">run()</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Adapter generation</span><p class="pf-step-detail">if opted in</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 153–160</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-adapterswrite"><span class="pf-step-title">Adapter generation</span> <span class="pf-relation">writes</span> <span class="pf-step-title">The project</span><p class="pf-step-detail">adapters</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 255–262</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-adapterharness"><span class="pf-step-title">Adapter generation</span> <span class="pf-relation">reads</span> <span class="pf-step-title">Harness registry</span><p class="pf-step-detail">skills dir</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/harnesses/adapter.mjs</span><span class="pf-cite-lines">lines 94–100</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-hooks"><span class="pf-step-title">run()</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Hook installation</span><p class="pf-step-detail">if opted in</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 321–328</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-hookswrite"><span class="pf-step-title">Hook installation</span> <span class="pf-relation">writes</span> <span class="pf-step-title">The project</span><p class="pf-step-detail">hook config</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/harnesses/hook.mjs</span><span class="pf-cite-lines">lines 57–64</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-gitinit"><span class="pf-step-title">run()</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Repository init</span><p class="pf-step-detail">if offered</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/cli.mjs</span><span class="pf-cite-lines">lines 19–19</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-gitwrite"><span class="pf-step-title">Repository init</span> <span class="pf-relation">writes</span> <span class="pf-step-title">The project</span><p class="pf-step-detail">git init</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/git.mjs</span><span class="pf-cite-lines">lines 34–40</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-report"><span class="pf-step-title">run()</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">The report</span><p class="pf-step-detail">summarises</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/cli.mjs</span><span class="pf-cite-lines">lines 26–26</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-told"><span class="pf-step-title">The report</span> <span class="pf-relation">calls</span> <span class="pf-step-title">The developer</span><p class="pf-step-detail">what happened</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/outcome.mjs</span><span class="pf-cite-lines">lines 49–56</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-stage"><span class="pf-step-title">stage-kit.mjs</span> <span class="pf-relation">reads</span> <span class="pf-step-title">copy-list.json</span><p class="pf-step-detail">what to stage</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/scripts/stage-kit.mjs</span><span class="pf-cite-lines">lines 25–32</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-stagenevership"><span class="pf-step-title">stage-kit.mjs</span> <span class="pf-relation">calls</span> <span class="pf-step-title">neverShips()</span><p class="pf-step-detail">excludes</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 114–130</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-prepack"><span class="pf-step-title">stage-kit.mjs</span> <span class="pf-relation">publishes to</span> <span class="pf-step-title">The npm registry</span><p class="pf-step-detail">package contents</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/package.json</span><span class="pf-cite-lines">lines 41–48</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-guard"><span class="pf-step-title">publish-guard.mjs</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">The npm registry</span><p class="pf-step-detail">prepublishOnly</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/package.json</span><span class="pf-cite-lines">lines 47–47</span></li>
+</ul>
+</div></li></ul>
+</div>
+</section>
+<h2 class="pf-module-title">Paths</h2><section class="pf-section" id="s--p--install">
+<h3 class="pf-section-title">A first install</h3>
+<div class="pf-card">
+<p class="pf-module-summary">Six steps from one typed command to a changed working tree, and the human is asked before any of it is written.</p>
+<div class="pf-kicker">Walks</div>
+<ol class="pf-walk"><li>The developer <span class="pf-relation">triggers</span> The npm registry — npx</li>
+<li>The npm registry <span class="pf-relation">triggers</span> create-pathfinder — runs the bin</li>
+<li>create-pathfinder <span class="pf-relation">calls</span> run() — run(argv)</li>
+<li>run() <span class="pf-relation">calls</span> planInstall() — plans the copy</li>
+<li>planInstall() <span class="pf-relation">becomes</span> applyPlan() — once accepted</li>
+<li>applyPlan() <span class="pf-relation">writes</span> The project — the kit</li></ol>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/cli.mjs</span><span class="pf-cite-lines">lines 81–90</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--p--offswitch">
+<h3 class="pf-section-title">The off switch</h3>
+<div class="pf-card">
+<p class="pf-module-summary">Two callers ask the same question — the installer at install time and the staging script at pack time — which is why a file kept out of one is kept out of both.</p>
+<div class="pf-kicker">Walks</div>
+<ol class="pf-walk"><li>run() <span class="pf-relation">calls</span> planInstall() — plans the copy</li>
+<li>planInstall() <span class="pf-relation">calls</span> neverShips() — excludes</li></ol>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 114–130</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--p--publish">
+<h3 class="pf-section-title">Packed, then run</h3>
+<div class="pf-card">
+<div class="pf-kicker">Walks</div>
+<ol class="pf-walk"><li>stage-kit.mjs <span class="pf-relation">publishes to</span> The npm registry — package contents</li>
+<li>The npm registry <span class="pf-relation">triggers</span> create-pathfinder — runs the bin</li>
+<li>create-pathfinder <span class="pf-relation">calls</span> run() — run(argv)</li></ol>
+</div>
+</section>
+<h2 class="pf-module-title">Views</h2><section class="pf-section" id="s--v--writes">
+<h3 class="pf-section-title">Everything that writes</h3>
+<div class="pf-card">
+<p class="pf-module-summary">Four jobs touch the destination, and each is separately offered.</p>
+<div class="pf-kicker">Focuses on</div>
+<ul class="pf-legend"><li>applyPlan()</li><li>Adapter generation</li><li>Hook installation</li><li>Repository init</li><li>The project</li></ul>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">packages/create-pathfinder/src/install.mjs</span><span class="pf-cite-lines">lines 104–110</span></li>
+</ul>
+</div>
+</div>
+</section>
+<section class="pf-section" id="s--v--canonical">
+<h3 class="pf-section-title">One list, three readers</h3>
+<div class="pf-card">
+<div class="pf-kicker">Focuses on</div>
+<ul class="pf-legend"><li>copy-list.json</li><li>kit.mjs</li><li>planInstall()</li><li>stage-kit.mjs</li></ul>
+</div>
+</section>
+</main>
+</div>
+<footer class="pf-provenance">
+<dl>
+<dt>Repository</dt>
+<dd>rikilamadrid/pathfinder</dd>
+<dt>Commit</dt>
+<dd>3d083a9</dd>
+<dt>Renderer</dt>
+<dd>Pathfinder render-artifact 0.4.0</dd>
+</dl>
+<p class="pf-caveat">This diagram was checked deterministically against the commit named here: its specification satisfied the schema, its identifiers, references and graphs resolved, and every component, relationship and claim in it carried a citation that was verified at that commit. What that establishes is that the cited material is there to be read. It is not a finding that the architecture drawn here is correct, complete, or the best reading of that material, and it is not a judgement that the page reads well — a person has to open it to know either.</p>
+</footer>
+<script>(function () {
+  "use strict";
+
+  var root = document.documentElement;
+  var MODES = ["auto", "light", "dark"];
+  var LABELS = { auto: "Theme: auto", light: "Theme: light", dark: "Theme: dark" };
+  var KEY = "pathfinder.artifact.theme";
+
+  function stored() {
+    try {
+      var value = window.localStorage.getItem(KEY);
+      return MODES.indexOf(value) >= 0 ? value : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function remember(mode) {
+    try {
+      window.localStorage.setItem(KEY, mode);
+    } catch (error) {
+      /* A reader who cannot store a preference still gets to use it. */
+    }
+  }
+
+  function apply(mode, button) {
+    root.setAttribute("data-pf-theme", mode);
+    if (button) {
+      button.textContent = LABELS[mode];
+      button.setAttribute("aria-label", LABELS[mode] + ". Activate to change.");
+    }
+  }
+
+  var toggle = document.getElementById("pf-theme-toggle");
+  var initial = stored() || "auto";
+  apply(initial, toggle);
+
+  if (toggle) {
+    toggle.hidden = false;
+    toggle.addEventListener("click", function () {
+      var next = MODES[(MODES.indexOf(root.getAttribute("data-pf-theme")) + 1) % MODES.length];
+      apply(next, toggle);
+      remember(next);
+    });
+  }
+
+  /* Mark the module the reader is in. Falls back to doing nothing where
+     IntersectionObserver is unavailable; the nav still navigates. */
+  var links = Array.prototype.slice.call(document.querySelectorAll("[data-pf-nav]"));
+  if (links.length > 0 && "IntersectionObserver" in window) {
+    var byId = {};
+    links.forEach(function (link) { byId[link.getAttribute("data-pf-nav")] = link; });
+
+    var visible = {};
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        visible[entry.target.id] = entry.isIntersecting;
+      });
+      var current = null;
+      for (var i = 0; i < links.length; i += 1) {
+        var id = links[i].getAttribute("data-pf-nav");
+        if (visible[id]) { current = id; break; }
+      }
+      links.forEach(function (link) {
+        var isCurrent = link.getAttribute("data-pf-nav") === current;
+        if (isCurrent) {
+          link.setAttribute("aria-current", "true");
+        } else {
+          link.removeAttribute("aria-current");
+        }
+      });
+    }, { rootMargin: "-30% 0px -60% 0px" });
+
+    Object.keys(byId).forEach(function (id) {
+      var target = document.getElementById(id);
+      if (target) observer.observe(target);
+    });
+  }
+
+  /* Quiz feedback. The correct answer is in the document either way; choosing
+     an option just says so sooner, and opens the explanation that was always
+     one click away. */
+  document.addEventListener("change", function (event) {
+    var input = event.target;
+    if (!input || input.type !== "radio" || !input.hasAttribute("data-pf-answer")) return;
+
+    var question = input.closest("[data-pf-question]");
+    if (!question) return;
+
+    var chosenIsCorrect = input.getAttribute("data-pf-answer") === "correct";
+    Array.prototype.forEach.call(question.querySelectorAll(".pf-option"), function (option) {
+      var field = option.querySelector("input[type=radio]");
+      var verdict = option.querySelector(".pf-verdict");
+      var correct = field.getAttribute("data-pf-answer") === "correct";
+      if (field.checked && !correct) {
+        option.setAttribute("data-pf-verdict", "incorrect");
+        if (verdict) verdict.textContent = "Not this one";
+      } else if (correct && (field.checked || !chosenIsCorrect)) {
+        option.setAttribute("data-pf-verdict", "correct");
+        if (verdict) verdict.textContent = "Correct";
+      } else {
+        option.removeAttribute("data-pf-verdict");
+        if (verdict) verdict.textContent = "";
+      }
+    });
+
+    var reveal = question.querySelector(".pf-reveal");
+    if (reveal) reveal.open = true;
+  });
+})();</script>
+</body>
+</html>

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>What the Pathfinder kit hands over</title>
-<meta name="description" content="Pathfinder is copied into a project rather than depended on, so the exact set of files that crosses that boundary is the product. This lesson follows that set from the list that declares it to the checks that stop it drifting.">
+<title>An intended order pipeline</title>
+<meta name="description" content="There is no code for any of this and no repository to point at, so this specification declares no source and carries no citation. That is a legal and complete artifact: the diagram describes something intended rather than something that runs, and the engine reports its evidence layer as not run rather than as passed.">
 <meta name="generator" content="Pathfinder render-artifact 0.4.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
 <style>:root {
@@ -567,283 +567,317 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
   .pf-header, .pf-nav, .pf-skip, .pf-theme-toggle { display: none; }
   .pf-card { box-shadow: none; break-inside: avoid; }
   .pf-reveal[open] > summary { list-style: none; }
-}</style>
+}
+.pf-canvas {
+  margin: var(--pf-space-5) 0 var(--pf-space-7);
+  padding: var(--pf-space-4);
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  box-shadow: var(--pf-shadow);
+  overflow-x: auto;
+}
+.pf-graph {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: var(--pf-mono);
+}
+
+.pf-group-box {
+  fill: var(--pf-surface-2);
+  stroke: var(--pf-line-strong);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+.pf-group[data-pf-depth="1"] .pf-group-box { stroke-dasharray: 2 3; }
+.pf-group-label {
+  fill: var(--pf-muted);
+  font-size: 12px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.pf-node-box {
+  fill: var(--pf-surface);
+  stroke: var(--pf-line-strong);
+  stroke-width: 2;
+}
+.pf-node[data-pf-role="store"] .pf-node-box,
+.pf-node[data-pf-role="queue"] .pf-node-box { stroke-dasharray: 7 3; }
+.pf-node[data-pf-role="external"] .pf-node-box,
+.pf-node[data-pf-role="actor"] .pf-node-box { stroke: var(--pf-accent); }
+.pf-node[data-pf-role="terminal"] .pf-node-box { stroke: var(--pf-ok); }
+.pf-node[data-pf-role="decision"] .pf-node-box { stroke: var(--pf-accent); stroke-dasharray: 3 3; }
+
+.pf-node-label {
+  fill: var(--pf-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+.pf-node-role {
+  fill: var(--pf-muted);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.pf-edge-line {
+  fill: none;
+  stroke: var(--pf-line-strong);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.pf-edge-on-path .pf-edge-line { stroke: var(--pf-accent); stroke-width: 3; }
+.pf-edge[data-pf-relation="depends_on"] .pf-edge-line { stroke-dasharray: 5 4; }
+.pf-edge[data-pf-relation="publishes"] .pf-edge-line,
+.pf-edge[data-pf-relation="consumes"] .pf-edge-line { stroke-dasharray: 2 4; }
+.pf-edge-label {
+  fill: var(--pf-muted);
+  font-size: 11px;
+}
+.pf-edge-on-path .pf-edge-label { fill: var(--pf-link); }
+
+/* The reading list below the canvas: the same facts, as text, for a reader who
+   is not looking at a picture. */
+.pf-legend { display: grid; gap: var(--pf-space-4); }
+.pf-legend-role {
+  display: inline-block;
+  margin-left: var(--pf-space-2);
+  padding: 1px 6px;
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius-sm);
+  color: var(--pf-muted);
+  font-family: var(--pf-mono);
+  font-size: .72rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+.pf-relation {
+  font-family: var(--pf-mono);
+  font-size: .82rem;
+  color: var(--pf-muted);
+}
+.pf-walk { margin: 0; padding-left: var(--pf-space-5); }
+.pf-walk li { margin-bottom: var(--pf-space-1); }
+</style>
 </head>
 <body>
 <a class="pf-skip" href="#pf-content">Skip to content</a>
 <header class="pf-header">
 <svg class="pf-mark" width="26" height="26" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><g fill="currentColor"><rect x="4" y="23" width="24" height="6.4" rx="3.2" transform="rotate(-3 16 26.2)"/><rect x="7" y="14.6" width="18" height="6" rx="3" transform="rotate(4 16 17.6)"/><rect x="9.6" y="7" width="12.8" height="5.4" rx="2.7" transform="rotate(-6 16 9.7)"/><rect x="12.4" y="1" width="7.2" height="4.4" rx="2.2" transform="rotate(5 16 3.2)"/></g></svg>
 <div class="pf-identity">
-<div class="pf-eyebrow">Pathfinder lesson</div>
-<div class="pf-title">What the Pathfinder kit hands over</div>
+<div class="pf-eyebrow">Pathfinder diagram</div>
+<div class="pf-title">An intended order pipeline</div>
 </div>
 <button type="button" class="pf-theme-toggle" id="pf-theme-toggle" hidden>Theme: auto</button>
 </header>
 <div class="pf-layout">
-<nav class="pf-nav" aria-label="Modules">
-<div class="pf-nav-label">Modules</div>
+<nav class="pf-nav" aria-label="In this diagram">
+<div class="pf-nav-label">In this diagram</div>
 <ul class="pf-nav-list">
-<li><a class="pf-nav-link" href="#m--what-ships" data-pf-nav="m--what-ships"><span class="pf-nav-index">1</span>What ships</a></li>
-<li><a class="pf-nav-link" href="#m--keeping-it-honest" data-pf-nav="m--keeping-it-honest"><span class="pf-nav-index">2</span>Keeping it honest</a></li>
+<li><a class="pf-nav-link" href="#s--g--edge" data-pf-nav="s--g--edge"><span class="pf-nav-index">1</span>At the edge</a></li>
+<li><a class="pf-nav-link" href="#s--g--core" data-pf-nav="s--g--core"><span class="pf-nav-index">2</span>Order handling</a></li>
+<li><a class="pf-nav-link" href="#s--v--async" data-pf-nav="s--v--async"><span class="pf-nav-index">3</span>What would be asynchronous</a></li>
 </ul>
 </nav>
 <main class="pf-main" id="pf-content">
 <div class="pf-lead">
-<h1>What the Pathfinder kit hands over</h1>
-<p class="pf-lead-sub">The copy list, the files that are tracked but never shipped, and the checks that keep both honest.</p>
-<div class="pf-lead-summary"><p>Pathfinder is copied into a project rather than depended on, so the exact set of files that crosses that boundary is the product. This lesson follows that set from the list that declares it to the checks that stop it drifting.</p></div>
-<div class="pf-objectives">
-<div class="pf-kicker">What you should be able to do</div>
-<ul>
-<li>Name the single file that decides what an installed project receives.</li>
-<li>Explain why a file can be tracked in Git and still never ship.</li>
-<li>Point at the check that would fail if a manifest appeared at the repository root.</li>
-</ul>
+<h1>An intended order pipeline</h1>
+<p class="pf-lead-sub">A design with no repository behind it</p>
+<div class="pf-lead-summary"><p>There is no code for any of this and no repository to point at, so this specification declares no source and carries no citation. That is a legal and complete artifact: the diagram describes something intended rather than something that runs, and the engine reports its evidence layer as not run rather than as passed.</p></div>
 </div>
-</div>
-<section class="pf-module" id="m--what-ships" aria-labelledby="m--what-ships--h">
-<div class="pf-module-head">
-<div class="pf-module-index">Module 1</div>
-<h2 class="pf-module-title" id="m--what-ships--h">What ships</h2>
-<p class="pf-module-summary">One list decides it, and every other statement of the list is checked against that one.</p>
-</div>
-<section class="pf-section" id="s--why-a-list">
-<h3 class="pf-section-title" id="s--why-a-list--h">Why a list at all</h3>
+<div class="pf-canvas"><svg class="pf-graph" viewBox="0 0 1160 896" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
+<title id="pf--diagram--title">Diagram</title>
+<defs>
+<marker id="pf-arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" markerUnits="userSpaceOnUse" orient="auto">
+<path d="M 0 0 L 9 4 L 0 8 z" fill="context-stroke"/>
+</marker>
+</defs>
+<g class="pf-group" data-pf-depth="0">
+<rect class="pf-group-box" id="g--edge" x="304" y="56" width="256" height="316" rx="14"/>
+<text class="pf-group-label" x="328" y="76">At the edge</text>
+</g>
+<g class="pf-group" data-pf-depth="0">
+<rect class="pf-group-box" id="g--core" x="576" y="384" width="528" height="316" rx="14"/>
+<text class="pf-group-label" x="600" y="404">Order handling</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--i-place" points="432,184 432,272" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="432" y="222">places an order</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--i-submit" points="432,348 432,392 840,392 840,436" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="636" y="386">submits</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="writes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--i-write" points="840,512 840,556 704,556 704,600" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="772" y="550">order state</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--i-charge" points="840,512 840,556 160,556 160,600" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="500" y="550">charge</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="triggers" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--i-decide" points="160,676 160,764" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="160" y="714">on failure</text>
+</g>
+<g class="pf-edge pf-edge-on-path" data-pf-relation="calls" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--i-again" points="160,764 160,676" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="160" y="714">retries once</text>
+</g>
+<g class="pf-edge" data-pf-relation="publishes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--i-publish" points="840,512 840,556 976,556 976,600" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="908" y="550">order placed</text>
+</g>
+<g class="pf-edge" data-pf-relation="consumes" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--i-consume" points="160,184 160,392 976,392 976,600" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="568" y="386">order placed</text>
+</g>
+<g class="pf-edge" data-pf-relation="reads" data-pf-shape="forward">
+<polyline class="pf-edge-line" id="e--i-read" points="160,184 160,392 704,392 704,600" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="432" y="386">what to ship</text>
+</g>
+<g class="pf-node" data-pf-role="actor">
+<rect class="pf-node-box" id="n--customer" x="328" y="108" width="208" height="76" rx="38"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="432" y="139">Customer</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="432" y="172">actor</text>
+</g>
+<g class="pf-node" data-pf-role="interface">
+<rect class="pf-node-box" id="n--storefront" x="328" y="272" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="432" y="303">Storefront</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="432" y="336">interface</text>
+</g>
+<g class="pf-node" data-pf-role="service">
+<rect class="pf-node-box" id="n--orders" x="736" y="436" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="840" y="467">Order service</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="840" y="500">service</text>
+</g>
+<g class="pf-node" data-pf-role="store">
+<rect class="pf-node-box" id="n--ledger" x="600" y="600" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="704" y="631">Order ledger</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="704" y="664">store</text>
+</g>
+<g class="pf-node" data-pf-role="queue">
+<rect class="pf-node-box" id="n--events" x="872" y="600" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="976" y="631">order-events</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="976" y="664">queue</text>
+</g>
+<g class="pf-node" data-pf-role="external">
+<rect class="pf-node-box" id="n--payments" x="56" y="600" width="208" height="76" rx="38"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="160" y="631">Payments</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="160" y="664">external</text>
+</g>
+<g class="pf-node" data-pf-role="job">
+<rect class="pf-node-box" id="n--fulfilment" x="56" y="108" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="160" y="139">Fulfilment</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="160" y="172">job</text>
+</g>
+<g class="pf-node" data-pf-role="decision">
+<rect class="pf-node-box" id="n--retry" x="56" y="764" width="208" height="76" rx="20"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="160" y="795">Retry</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="160" y="828">decision</text>
+</g>
+</svg></div>
+<h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--edge">
+<h3 class="pf-section-title">At the edge</h3>
 <div class="pf-card">
-<p>Pathfinder installs by copying. There is no package to depend on at runtime, no import to resolve, and nothing that reaches back to this repository after the copy. The destination project ends up holding files, and the question of which files is the whole contract.</p>
-<p>A contract spread across an installer, a staging script, a README and a validator is four contracts. So there is one file, and everything else is checked against it.</p>
+<p class="pf-module-summary">What a customer would touch. Intended, not built.</p>
+<div class="pf-card" id="s--n--customer">
+<h4 class="pf-section-title">Customer<span class="pf-legend-role">actor</span></h4>
+<p>Places an order and expects one confirmation, not three.</p>
 </div>
-</section>
-<section class="pf-section" id="s--copy-list-is-canonical">
-<h3 class="pf-section-title" id="s--copy-list-is-canonical--h">The copy list is the single source of truth</h3>
-<div class="pf-card pf-card--concept">
-<span class="pf-kicker">Concept</span>
-<p>copy-list.json names the top-level entries a destination project receives. The installer reads it at runtime, the structural validator checks every other statement of the list against it, and npm publishes it inside the package so the installer stays self-contained.</p>
-<p>Note that `context` is a directory entry. Anything placed beneath it ships by default, which is what makes the exclusions in the next section necessary rather than tidy.</p>
-<div class="pf-evidence">
-<div class="pf-evidence-label">Evidence</div>
-<ul>
-<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 1–11</span></li>
-</ul>
+<div class="pf-card" id="s--n--storefront">
+<h4 class="pf-section-title">Storefront<span class="pf-legend-role">interface</span></h4>
+<p>Would accept the order and hand it on without holding it.</p>
 </div>
 </div>
 </section>
-<section class="pf-section" id="s--copy-list-entries">
-<h3 class="pf-section-title">The entries themselves</h3>
-<figure class="pf-code">
-<figcaption>Six entries. A destination project receives these and nothing else.</figcaption>
-<div class="pf-code-frame"><span class="pf-code-lang">json</span>
-<pre><code>
-<span class="pf-code-line"><span class="pf-code-no">3</span>  &quot;entries&quot;: [</span>
-<span class="pf-code-line"><span class="pf-code-no">4</span>    &quot;AGENTS.md&quot;,</span>
-<span class="pf-code-line"><span class="pf-code-no">5</span>    &quot;CLAUDE.md&quot;,</span>
-<span class="pf-code-line"><span class="pf-code-no">6</span>    &quot;context&quot;,</span>
-<span class="pf-code-line"><span class="pf-code-no">7</span>    &quot;roles&quot;,</span>
-<span class="pf-code-line"><span class="pf-code-no">8</span>    &quot;skills&quot;,</span>
-<span class="pf-code-line"><span class="pf-code-no">9</span>    &quot;templates&quot;</span>
-<span class="pf-code-line"><span class="pf-code-no">10</span>  ]</span>
-<span class="pf-code-line"><span class="pf-code-no">11</span>}</span>
-</code></pre></div>
-<div class="pf-card"><div class="pf-evidence">
-<div class="pf-evidence-label">Evidence</div>
-<ul>
-<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 3–11</span></li>
-</ul>
-</div></div>
-</figure>
-</section>
-<section class="pf-section" id="s--never-ships">
-<h3 class="pf-section-title" id="s--never-ships--h">Tracked, and never shipped</h3>
-<div class="pf-card pf-card--concept">
-<span class="pf-kicker">Concept</span>
-<p>Five paths under context/ are excluded from the copy even though the directory ships. Four of them are transient session state — one maintainer&#39;s in-flight work, meaningless in another checkout.</p>
-<p>The fifth, context/history.md, is the interesting one. It is durable project truth, tracked in version control exactly as a project should track it. It is simply another project&#39;s truth, so the promise made about it is the publication half only: never shipped, emphatically tracked.</p>
-<p>An ignore rule could not carry this. .gitignore is advisory, a single `git add -f` defeats it, and the staging script copies from the working tree without consulting it at all.</p>
-<div class="pf-evidence">
-<div class="pf-evidence-label">Evidence</div>
-<ul>
-<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 97–105</span></li>
-<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 80–96</span></li>
-</ul>
-</div>
-</div>
-</section>
-<section class="pf-section" id="s--install-flow">
-<h3 class="pf-section-title" id="s--install-flow--h">What an install actually does</h3>
+<section class="pf-section" id="s--g--core">
+<h3 class="pf-section-title">Order handling</h3>
 <div class="pf-card">
-<span class="pf-kicker">Walkthrough</span>
-<ol class="pf-flow">
-<li>
-<div class="pf-step-title">Read the copy list</div>
-<p class="pf-step-detail">The installer reads copy-list.json from inside its own package, so the list it obeys travelled with it.</p>
-</li>
-<li>
-<div class="pf-step-title">Copy each entry</div>
-<p class="pf-step-detail">Files are copied verbatim. Directory entries are copied recursively, which is why skills/ arrives whole.</p>
-</li>
-<li>
-<div class="pf-step-title">Drop the never-ships paths</div>
-<p class="pf-step-detail">A filter matched on the kit-relative path — never the basename — removes the five excluded files as the copy walks.</p>
-<div class="pf-evidence">
-<div class="pf-evidence-label">Evidence</div>
-<ul>
-<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 106–130</span></li>
-</ul>
+<div class="pf-card" id="s--n--orders">
+<h4 class="pf-section-title">Order service<span class="pf-legend-role">service</span></h4>
+<p>Would own the order&#39;s lifecycle and nothing else.</p>
 </div>
-</li>
-<li>
-<div class="pf-step-title">Generate harness adapters, if asked</div>
-<p class="pf-step-detail">Adapters are rendered from skill frontmatter. They carry a pointer to the canonical skill and no behaviour of their own.</p>
-</li>
-</ol>
+<div class="pf-card" id="s--n--ledger">
+<h4 class="pf-section-title">Order ledger<span class="pf-legend-role">store</span></h4>
+<p>Would be the only writer of order state.</p>
+</div>
+<div class="pf-card" id="s--n--events">
+<h4 class="pf-section-title">order-events<span class="pf-legend-role">queue</span></h4>
+<p>Would carry what happened, never what should happen next.</p>
+</div>
 </div>
 </section>
-<section class="pf-section" id="s--what-ships-quiz">
-<h3 class="pf-section-title" id="s--what-ships-quiz--h">Check your understanding</h3>
+<section class="pf-section" id="s--ungrouped">
+<h3 class="pf-section-title">Not in a boundary</h3>
 <div class="pf-card">
-<span class="pf-kicker">Check your understanding</span>
-<div class="pf-quiz">
-<fieldset class="pf-question" data-pf-question="q--what-ships-quiz--which-file">
-<legend>A contributor wants to add a new top-level directory to what installed projects receive. Which file do they change?</legend>
-<div class="pf-options"><label class="pf-option" for="q--what-ships-quiz--which-file--0"><input type="radio" id="q--what-ships-quiz--which-file--0" name="q--what-ships-quiz--which-file" value="0" data-pf-answer="correct"><span>packages/create-pathfinder/copy-list.json</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--what-ships-quiz--which-file--1"><input type="radio" id="q--what-ships-quiz--which-file--1" name="q--what-ships-quiz--which-file" value="1" data-pf-answer="other"><span>The installer&#39;s src/kit.mjs</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--what-ships-quiz--which-file--2"><input type="radio" id="q--what-ships-quiz--which-file--2" name="q--what-ships-quiz--which-file" value="2" data-pf-answer="other"><span>.gitignore</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--what-ships-quiz--which-file--3"><input type="radio" id="q--what-ships-quiz--which-file--3" name="q--what-ships-quiz--which-file" value="3" data-pf-answer="other"><span>Both the installer and the README, together</span><span class="pf-verdict" aria-live="polite"></span></label></div>
-<details class="pf-reveal">
-<summary>Show the answer</summary>
-<p><strong>Correct:</strong> packages/create-pathfinder/copy-list.json</p>
-<p>The list is declared once. The installer reads it, and validation checks every other statement of the list against it, so changing it anywhere else is what the checks exist to catch.</p>
-<div class="pf-evidence">
-<div class="pf-evidence-label">Evidence</div>
-<ul>
-<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 2–2</span></li>
-</ul>
+<div class="pf-card" id="s--n--payments">
+<h4 class="pf-section-title">Payments<span class="pf-legend-role">external</span></h4>
+<p>A third party. Would be called once, idempotently.</p>
 </div>
-</details>
-</fieldset>
-<fieldset class="pf-question" data-pf-question="q--what-ships-quiz--history-md">
-<legend>Why is context/history.md excluded from the copy but still tracked in Git?</legend>
-<div class="pf-options"><label class="pf-option" for="q--what-ships-quiz--history-md--0"><input type="radio" id="q--what-ships-quiz--history-md--0" name="q--what-ships-quiz--history-md" value="0" data-pf-answer="other"><span>It is generated, so tracking it would create merge conflicts</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--what-ships-quiz--history-md--1"><input type="radio" id="q--what-ships-quiz--history-md--1" name="q--what-ships-quiz--history-md" value="1" data-pf-answer="correct"><span>It is this repository&#39;s own completed-work record — durable truth, but somebody else&#39;s project should write its own</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--what-ships-quiz--history-md--2"><input type="radio" id="q--what-ships-quiz--history-md--2" name="q--what-ships-quiz--history-md" value="2" data-pf-answer="other"><span>It is too large to ship inside an npm package</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--what-ships-quiz--history-md--3"><input type="radio" id="q--what-ships-quiz--history-md--3" name="q--what-ships-quiz--history-md" value="3" data-pf-answer="other"><span>It is transient session state, like the handoff file</span><span class="pf-verdict" aria-live="polite"></span></label></div>
-<details class="pf-reveal">
-<summary>Show the answer</summary>
-<p><strong>Correct:</strong> It is this repository&#39;s own completed-work record — durable truth, but somebody else&#39;s project should write its own</p>
-<p>The other four excluded paths are transient and are ignored by Git as well. This one is durable and tracked; only publication is withheld.</p>
-</details>
-</fieldset>
+<div class="pf-card" id="s--n--fulfilment">
+<h4 class="pf-section-title">Fulfilment<span class="pf-legend-role">job</span></h4>
+<p>Would consume events rather than being called.</p>
+</div>
+<div class="pf-card" id="s--n--retry">
+<h4 class="pf-section-title">Retry<span class="pf-legend-role">decision</span></h4>
+<p>Would decide whether a failed charge is worth another attempt.</p>
 </div>
 </div>
 </section>
-</section>
-<section class="pf-module" id="m--keeping-it-honest" aria-labelledby="m--keeping-it-honest--h">
-<div class="pf-module-head">
-<div class="pf-module-index">Module 2</div>
-<h2 class="pf-module-title" id="m--keeping-it-honest--h">Keeping it honest</h2>
-<p class="pf-module-summary">The promises above are only worth what enforces them.</p>
-<p class="pf-requires">Builds on: <a href="#m--what-ships">What ships</a></p>
-</div>
-<section class="pf-section" id="s--no-root-manifest">
-<h3 class="pf-section-title" id="s--no-root-manifest--h">No manifest at the repository root</h3>
-<div class="pf-card pf-card--concept">
-<span class="pf-kicker">Concept</span>
-<p>The kit promises a destination project acquires no runtime and no package manager. A package.json at this repository&#39;s root would contradict that in the most visible place possible, so CI asserts its absence by name for eight different manifest files.</p>
-<p>Nested tooling may carry its own manifest — the installer under packages/ does. The rule is about the root, because the root is what a reader looks at to decide what kind of project this is.</p>
-<div class="pf-evidence">
-<div class="pf-evidence-label">Evidence</div>
-<ul>
-<li><span class="pf-cite-path">.github/workflows/validate.yml</span><span class="pf-cite-lines">lines 43–54</span></li>
-<li><span class="pf-cite-path">NOT_A_FRAMEWORK.md</span><span class="pf-cite-lines">lines 1–5</span></li>
-</ul>
-</div>
-</div>
-</section>
-<section class="pf-section" id="s--root-manifest-check">
-<h3 class="pf-section-title">The assertion itself</h3>
-<figure class="pf-code">
-<figcaption>Named manifests, checked one at a time, with the reason in the comment above them.</figcaption>
-<div class="pf-code-frame"><span class="pf-code-lang">yaml</span>
-<pre><code>
-<span class="pf-code-line"><span class="pf-code-no">43</span>      - name: Assert no root manifest</span>
-<span class="pf-code-line"><span class="pf-code-no">44</span>        # NOT_A_FRAMEWORK.md promises the kit has no runtime and no package</span>
-<span class="pf-code-line"><span class="pf-code-no">45</span>        # manager. Nested tooling may carry its own manifest; the root may not.</span>
-<span class="pf-code-line"><span class="pf-code-no">46</span>        run: |</span>
-<span class="pf-code-line"><span class="pf-code-no">47</span>          for f in package.json package-lock.json pnpm-lock.yaml yarn.lock \</span>
-<span class="pf-code-line"><span class="pf-code-no">48</span>                   requirements.txt pyproject.toml Gemfile go.mod; do</span>
-<span class="pf-code-line"><span class="pf-code-no">49</span>            if [ -e &quot;$f&quot; ]; then</span>
-<span class="pf-code-line"><span class="pf-code-no">50</span>              echo &quot;::error file=$f::$f at the repository root contradicts NOT_A_FRAMEWORK.md&quot;</span>
-</code></pre></div>
-<div class="pf-card"><div class="pf-evidence">
-<div class="pf-evidence-label">Evidence</div>
-<ul>
-<li><span class="pf-cite-path">.github/workflows/validate.yml</span><span class="pf-cite-lines">lines 43–50</span></li>
-</ul>
-</div></div>
-</figure>
-</section>
-<section class="pf-section" id="s--one-store">
-<h3 class="pf-section-title" id="s--one-store--h">One artifact, never a mirror</h3>
-<div class="pf-card pf-card--concept">
-<span class="pf-kicker">Concept</span>
-<p>The same instinct governs tickets. A project&#39;s tickets live in exactly one store, and nothing publishes, projects, or synchronizes them, because there is never a second copy to reconcile.</p>
-<p>Local Markdown is a store in its own right rather than a fallback or a mirror of a real one. A project using GitHub Issues has nothing under context/tickets/, and a project using Markdown has its tickets there and nowhere else.</p>
-<div class="pf-evidence">
-<div class="pf-evidence-label">Evidence</div>
-<ul>
-<li><span class="pf-cite-path">skills/ticket/store.md</span><span class="pf-cite-lines">lines 7–16</span></li>
-</ul>
-</div>
-</div>
-</section>
-<section class="pf-section" id="s--trace-a-file">
-<h3 class="pf-section-title" id="s--trace-a-file--h">Trace a file across the boundary</h3>
+<h2 class="pf-module-title">Relationships</h2><section class="pf-section" id="s--relationships">
 <div class="pf-card">
-<span class="pf-kicker">Practice</span>
-<p>Pick any file in this repository and decide, without running the installer, whether an installed project receives it. Then check yourself against copy-list.json and the never-ships set.</p>
-<p>Try context/coding-standards.md, context/handoff.md, and CONTRIBUTING.md. One of the three is a different answer from what the directory it sits in would suggest.</p>
-<details class="pf-reveal">
-<summary>Hints</summary>
-<ol>
-<li>Start from the top-level entry. If the file&#39;s first path segment is not in the copy list, nothing below it ships.</li>
-<li>If the first segment is `context`, check the never-ships set before answering — the directory entry ships its contents by default.</li>
-<li>CONTRIBUTING.md is not a top-level entry in the list at all.</li>
-</ol>
-</details>
-<div class="pf-evidence">
-<div class="pf-evidence-label">Evidence</div>
-<ul>
-<li><span class="pf-cite-path">packages/create-pathfinder/copy-list.json</span><span class="pf-cite-lines">lines 3–10</span></li>
-<li><span class="pf-cite-path">packages/create-pathfinder/src/kit.mjs</span><span class="pf-cite-lines">lines 97–105</span></li>
-</ul>
-</div>
+<ul class="pf-legend"><li id="s--e--i-place"><span class="pf-step-title">Customer</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Storefront</span><p class="pf-step-detail">places an order</p></li>
+<li id="s--e--i-submit"><span class="pf-step-title">Storefront</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Order service</span><p class="pf-step-detail">submits</p></li>
+<li id="s--e--i-write"><span class="pf-step-title">Order service</span> <span class="pf-relation">writes</span> <span class="pf-step-title">Order ledger</span><p class="pf-step-detail">order state</p></li>
+<li id="s--e--i-charge"><span class="pf-step-title">Order service</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Payments</span><p class="pf-step-detail">charge</p></li>
+<li id="s--e--i-decide"><span class="pf-step-title">Payments</span> <span class="pf-relation">triggers</span> <span class="pf-step-title">Retry</span><p class="pf-step-detail">on failure</p></li>
+<li id="s--e--i-again"><span class="pf-step-title">Retry</span> <span class="pf-relation">calls</span> <span class="pf-step-title">Payments</span><p class="pf-step-detail">retries once</p></li>
+<li id="s--e--i-publish"><span class="pf-step-title">Order service</span> <span class="pf-relation">publishes to</span> <span class="pf-step-title">order-events</span><p class="pf-step-detail">order placed</p></li>
+<li id="s--e--i-consume"><span class="pf-step-title">Fulfilment</span> <span class="pf-relation">consumes from</span> <span class="pf-step-title">order-events</span><p class="pf-step-detail">order placed</p></li>
+<li id="s--e--i-read"><span class="pf-step-title">Fulfilment</span> <span class="pf-relation">reads</span> <span class="pf-step-title">Order ledger</span><p class="pf-step-detail">what to ship</p></li></ul>
 </div>
 </section>
-<section class="pf-section" id="s--honesty-quiz">
+<h2 class="pf-module-title">Paths</h2><section class="pf-section" id="s--p--happy">
+<h3 class="pf-section-title">The intended happy path</h3>
 <div class="pf-card">
-<span class="pf-kicker">Check your understanding</span>
-<div class="pf-quiz">
-<fieldset class="pf-question" data-pf-question="q--honesty-quiz--root-manifest-why">
-<legend>Why does CI name eight specific manifest files rather than checking for any dependency file?</legend>
-<div class="pf-options"><label class="pf-option" for="q--honesty-quiz--root-manifest-why--0"><input type="radio" id="q--honesty-quiz--root-manifest-why--0" name="q--honesty-quiz--root-manifest-why" value="0" data-pf-answer="other"><span>Because a glob would be slower in CI</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--honesty-quiz--root-manifest-why--1"><input type="radio" id="q--honesty-quiz--root-manifest-why--1" name="q--honesty-quiz--root-manifest-why" value="1" data-pf-answer="correct"><span>Because the rule is about the root only, and naming the files makes what it forbids readable in the failure message</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--honesty-quiz--root-manifest-why--2"><input type="radio" id="q--honesty-quiz--root-manifest-why--2" name="q--honesty-quiz--root-manifest-why" value="2" data-pf-answer="other"><span>Because the repository might legitimately contain a package.json at the root</span><span class="pf-verdict" aria-live="polite"></span></label><label class="pf-option" for="q--honesty-quiz--root-manifest-why--3"><input type="radio" id="q--honesty-quiz--root-manifest-why--3" name="q--honesty-quiz--root-manifest-why" value="3" data-pf-answer="other"><span>Because GitHub Actions cannot express a glob</span><span class="pf-verdict" aria-live="polite"></span></label></div>
-<details class="pf-reveal">
-<summary>Show the answer</summary>
-<p><strong>Correct:</strong> Because the rule is about the root only, and naming the files makes what it forbids readable in the failure message</p>
-<p>The check prints the offending filename and the promise it contradicts. A reader who trips it learns why, not just that.</p>
-</details>
-</fieldset>
-</div>
+<p class="pf-module-summary">Three steps, and the order is durable in the ledger before anybody is charged.</p>
+<div class="pf-kicker">Walks</div>
+<ol class="pf-walk"><li>Customer <span class="pf-relation">calls</span> Storefront — places an order</li>
+<li>Storefront <span class="pf-relation">calls</span> Order service — submits</li>
+<li>Order service <span class="pf-relation">writes</span> Order ledger — order state</li></ol>
 </div>
 </section>
+<section class="pf-section" id="s--p--charge">
+<h3 class="pf-section-title">Charging, and failing</h3>
+<div class="pf-card">
+<p class="pf-module-summary">The walk returns to the payment provider it just left, which is a cycle and a fact about retries rather than a modelling slip.</p>
+<div class="pf-kicker">Walks</div>
+<ol class="pf-walk"><li>Order service <span class="pf-relation">calls</span> Payments — charge</li>
+<li>Payments <span class="pf-relation">triggers</span> Retry — on failure</li>
+<li>Retry <span class="pf-relation">calls</span> Payments — retries once</li></ol>
+</div>
+</section>
+<h2 class="pf-module-title">Views</h2><section class="pf-section" id="s--v--async">
+<h3 class="pf-section-title">What would be asynchronous</h3>
+<div class="pf-card">
+<p class="pf-module-summary">Fulfilment would never be called directly, which is the whole point of the queue.</p>
+<div class="pf-kicker">Focuses on</div>
+<ul class="pf-legend"><li>order-events</li><li>Fulfilment</li><li>Order service</li></ul>
+</div>
 </section>
 </main>
 </div>
 <footer class="pf-provenance">
 <dl>
-<dt>Repository</dt>
-<dd>rikilamadrid/pathfinder</dd>
-<dt>Commit</dt>
-<dd>78fbc34</dd>
-<dt>Specification generated</dt>
-<dd>2026-09-10</dd>
 <dt>Renderer</dt>
 <dd>Pathfinder render-artifact 0.4.0</dd>
 </dl>
-<p class="pf-caveat">This artifact was checked deterministically: its specification satisfied the schema, its references and graphs resolved, and every citation above was verified against the commit named here. That is what was checked. It is not a judgement that the page reads well or looks right — a person has to open it to know that.</p>
+<p class="pf-caveat">This diagram describes an intended system. It names no repository and no commit, so it carries no citations and none were checked — there is nothing here that was verified against a source. It is a proposal, and it makes no claim about what currently exists.</p>
 </footer>
 <script>(function () {
   "use strict";

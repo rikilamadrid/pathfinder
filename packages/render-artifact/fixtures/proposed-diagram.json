@@ -1,0 +1,170 @@
+{
+  "schema_version": "1.0",
+  "kind": "diagram",
+  "provenance": "proposed",
+  "artifact": {
+    "title": "Proposed: an index of delivered artifacts",
+    "subtitle": "A design that does not exist, drawn against the parts of the engine it would build on",
+    "summary": "Nothing below is installed. The engine, its receipts and its delivery layer are real and are cited; the index, its store and its page are the proposal. An `artifact.summary` is permitted here for exactly that reason — this document is a design argument rather than a map of what runs, and saying so is the honest thing for its opening paragraph to do."
+  },
+  "source": {
+    "repo": "rikilamadrid/pathfinder",
+    "commit": "3d083a9"
+  },
+  "diagram": {
+    "topology": "graph",
+    "groups": [
+      {
+        "id": "today",
+        "label": "What exists today",
+        "summary": "Each of these is in the repository at the commit named below, and each is cited.",
+        "evidence": [{ "path": "skills/render-artifact/engine/deliver.mjs", "lines": [1, 28] }]
+      },
+      {
+        "id": "proposal",
+        "label": "What is proposed",
+        "summary": "None of this exists. No citation is offered for any of it, because there is nothing to cite."
+      }
+    ],
+    "nodes": [
+      {
+        "id": "producer",
+        "label": "A producer skill",
+        "role": "actor",
+        "group": "today",
+        "summary": "Writes a specification and calls the engine. Two of them exist.",
+        "evidence": [{ "path": "skills/render-artifact/SKILL.md", "lines": [56, 79] }]
+      },
+      {
+        "id": "engine",
+        "label": "render-artifact",
+        "role": "service",
+        "group": "today",
+        "summary": "Validates, renders, digests and commits atomically.",
+        "evidence": [{ "path": "skills/render-artifact/engine/deliver.mjs", "lines": [57, 62] }]
+      },
+      {
+        "id": "receipt",
+        "label": "The receipt",
+        "role": "store",
+        "group": "today",
+        "summary": "Names the renderer version and the digest and byte count of both the specification and the artifact.",
+        "evidence": [{ "path": "skills/render-artifact/engine/deliver.mjs", "lines": [110, 126] }]
+      },
+      {
+        "id": "artifact",
+        "label": "A delivered artifact",
+        "role": "store",
+        "group": "today",
+        "summary": "One self-contained HTML file, written by rename over its destination.",
+        "evidence": [{ "path": "skills/render-artifact/engine/deliver.mjs", "lines": [159, 181] }]
+      },
+      {
+        "id": "collector",
+        "label": "Receipt collector",
+        "role": "job",
+        "group": "proposal",
+        "summary": "Would watch for receipts and record them. Does not exist."
+      },
+      {
+        "id": "index",
+        "label": "The index store",
+        "role": "store",
+        "group": "proposal",
+        "summary": "Would hold one row per delivered artifact. Does not exist."
+      },
+      {
+        "id": "page",
+        "label": "The index page",
+        "role": "interface",
+        "group": "proposal",
+        "summary": "Would be a third artifact kind listing the other two. Does not exist, and would need a Feature decision before it could."
+      },
+      {
+        "id": "reader",
+        "label": "A reader",
+        "role": "terminal",
+        "group": "proposal",
+        "summary": "Would open the index instead of hunting through directories."
+      }
+    ],
+    "edges": [
+      {
+        "id": "p-call",
+        "from": "producer",
+        "to": "engine",
+        "relation": "calls",
+        "label": "deliver",
+        "evidence": [{ "path": "skills/render-artifact/SKILL.md", "lines": [70, 77] }]
+      },
+      {
+        "id": "p-receipt",
+        "from": "engine",
+        "to": "receipt",
+        "relation": "writes",
+        "label": "on success",
+        "evidence": [{ "path": "skills/render-artifact/engine/deliver.mjs", "lines": [110, 126] }]
+      },
+      {
+        "id": "p-artifact",
+        "from": "engine",
+        "to": "artifact",
+        "relation": "writes",
+        "label": "atomically",
+        "evidence": [{ "path": "skills/render-artifact/engine/deliver.mjs", "lines": [159, 181] }]
+      },
+      {
+        "id": "p-collect",
+        "from": "receipt",
+        "to": "collector",
+        "relation": "triggers",
+        "label": "would be read by"
+      },
+      {
+        "id": "p-record",
+        "from": "collector",
+        "to": "index",
+        "relation": "writes",
+        "label": "would record"
+      },
+      {
+        "id": "p-render",
+        "from": "index",
+        "to": "page",
+        "relation": "triggers",
+        "label": "would render"
+      },
+      {
+        "id": "p-read",
+        "from": "page",
+        "to": "reader",
+        "relation": "calls",
+        "label": "would be opened by"
+      },
+      {
+        "id": "p-links",
+        "from": "page",
+        "to": "artifact",
+        "relation": "depends_on",
+        "label": "would link"
+      }
+    ],
+    "paths": [
+      {
+        "id": "proposed-flow",
+        "label": "The proposed flow",
+        "note": "The first three edges happen today. The last four do not, and no citation is offered for them.",
+        "edges": ["p-call", "p-receipt", "p-collect", "p-record", "p-render", "p-read"]
+      }
+    ],
+    "views": [
+      {
+        "id": "real",
+        "label": "Only the cited parts",
+        "note": "Everything in this view is in the repository at the declared commit.",
+        "evidence": [{ "path": "skills/render-artifact/engine/deliver.mjs", "lines": [1, 28] }],
+        "focus": ["producer", "engine", "receipt", "artifact"]
+      }
+    ]
+  }
+}
