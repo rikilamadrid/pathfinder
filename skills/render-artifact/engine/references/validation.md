@@ -15,6 +15,17 @@ that already has the right shape, so if structural fails they do not run and the
 report says so rather than showing them as passing. Composition and evidence are
 independent of each other and run together, so one round trip surfaces both.
 
+A layer can also be **not run because it does not apply**, which is reported
+distinctly from both a pass and a skip. A `diagram` declaring no source has no
+evidence layer: there is no commit to resolve against, and the structural layer
+has already refused any citation in it, so there is provably nothing to check.
+The report says `~ evidence: not run` and gives the reason.
+
+That distinction is the whole point of keeping it. Reporting such a layer as
+`ok evidence` would put the strongest word in the report against the weakest
+claim in it, and a reader skimming four green lines would conclude the citations
+had been verified when there were none.
+
 ## Commands
 
 ```sh
@@ -50,6 +61,14 @@ Schema validation, plus two refusals that come before it:
 | `unknown_field` | a field this contract does not have |
 | `missing_field` | a required field is absent |
 | `schema_*` | one keyword rejected one value; the message names both |
+| `topology_unsupported` | a `diagram` asked for a layout this renderer does not have |
+| `label_too_long` | a label is wider than its column cap. Refused, never shortened |
+| `source_required_for_derived` | a `derived` diagram does not say which repository or which commit it was derived from |
+| `citation_without_source` | a specification with no source carries a citation. There is nothing to resolve it against |
+| `artifact_summary_forbidden` | a `derived` diagram carries `artifact.summary`, which is the one claim-bearing prose with nowhere to put a citation |
+
+The last three are the provenance contract's structural half — see
+**Provenance** below.
 
 `presentation_control` and `unknown_field` have the same *outcome* —
 `additionalProperties: false` rejects either. They differ in the diagnostic,
@@ -87,14 +106,70 @@ evidence was not verified, and the engine says so rather than going to find one.
 | `evidence_path_absent` | the commit resolves; the file is not in it |
 | `evidence_range_invalid` | the file is there; the cited lines are not |
 | `concept_without_evidence` | a concept cites nothing |
+| `node_without_evidence` | a `derived` diagram says a component exists and cites nothing for it |
+| `edge_without_evidence` | a `derived` diagram asserts a relationship and cites nothing for it |
+| `claim_without_evidence` | a `derived` group, path or view carries `summary` or `note` prose with no citation |
 
-These stay apart because they mean three different things to the person reading
-them: a stale fixture, a moved file, and a shifted range are three different
-fixes.
+The first three stay apart because they mean three different things to the
+person reading them: a stale fixture, a moved file, and a shifted range are
+three different fixes.
 
 None of them downgrades to a skip. An engine that shrugged at an unresolvable
 commit would deliver an artifact whose provenance block claims its evidence was
 verified when nothing was.
+
+### What this layer establishes, and what it does not
+
+That the cited file exists at the declared commit, that the cited line range
+exists in it, and that the material is there to be read.
+
+Not that the claim resting on it is true.
+
+Repository documentation — a README, an ADR, a runbook — is first-class citation
+material and is checked exactly the same way. That is not a statement that
+documentation carries the same authority as the code it describes; it is a
+statement that the engine can tell you where to look and cannot tell you whether
+what you find is right.
+
+**Pathfinder verifies provenance, not truth.** No diagnostic and no word in any
+artifact may imply otherwise.
+
+## Provenance
+
+A `diagram` declares `provenance`, and it decides how strictly the diagram is
+checked. There is no default: a diagram that did not say would have a trust level
+assigned to it by the engine, and the engine has no business guessing which claim
+its producer meant to make.
+
+| | `derived` | `proposed`, with source | `proposed`, no source |
+| --- | --- | --- | --- |
+| `source` | required | permitted | absent |
+| citations | required on every node and edge | optional | **refused** |
+| claim-bearing group, path or view | must cite | optional | **refused** |
+| label-only group, path or view | needs nothing | needs nothing | needs nothing |
+| `artifact.summary` | refused | permitted | permitted |
+| evidence layer | runs | runs | not run, with the reason |
+
+A `derived` diagram maps what the repository asserts about itself at the declared
+commit, so there is no uncited derived fact. A node says a component exists and
+an edge says two things relate; each is a claim a reader must be able to go and
+check. Evidence is *where a reader goes to check an assertion*, which is not
+always the code implementing it — an actor is cited by the entry point that
+accepts it, an external system by its client or its configuration, a subsystem by
+its manifest or entry module.
+
+A component that appears nowhere in source, configuration, infrastructure or
+repository documentation is not eligible for a `derived` diagram at all. A
+diagram that needs it is `proposed`.
+
+A group, path or view is the one narrower case. Its label is a name, and a name
+asserts nothing its already-cited members do not. Its `summary` or `note` is
+prose making a further claim, and that is what needs backing.
+
+`lesson` has no `provenance` field and is unaffected by any of it. `source`
+remains unconditionally required there: the conditional lives in the diagram
+schema, not in the shared contract, precisely so that making one kind's source
+optional did not make every kind's provenance optional.
 
 ## Delivery
 
@@ -112,8 +187,41 @@ from the file on disk.
 ### Verification is earned, not asserted
 
 An artifact carries a sentence saying its evidence was checked against the named
-commit. It carries that sentence only when this engine validated it and the
-validation passed.
+commit. It carries that sentence only when **both** of these are true:
+
+1. this engine validated the specification and the validation passed, and
+2. at least one citation actually resolved.
+
+The second condition is the guard against a vacuous claim. A specification
+carrying no citations passes the evidence layer by having nothing to fail, and an
+artifact saying "every citation above was verified against the commit named here"
+on the strength of that would be a stronger statement than anybody made — with
+no citation above, and sometimes a commit that does not exist. Nothing to check
+is not the same as everything checking out.
+
+So a `proposed` diagram with a source and no citations gets no sentence, and
+neither does a lesson that cites nothing. Both are still valid, and both still
+deliver; what they do not get is credit for a check that had no subject.
+
+#### The three wordings
+
+Renderer-owned, and different in each state because each supports a different
+claim. **No field in any specification selects, softens, or requests one.** They
+live in the shared shell rather than in a kind renderer because they describe
+what the *engine* did, which is the same whatever kind rendered into it.
+
+| State | What the artifact says |
+| --- | --- |
+| `derived` | the schema, references and graphs checked out, and every component, relationship and claim carried a citation verified at the declared commit. Explicitly **not** a finding that the architecture drawn is correct or complete |
+| `proposed`, source, ≥1 resolved citation | the citations supplied were verified at the declared commit, and explicitly **do not** establish that the system drawn exists |
+| `proposed`, source, no citations | nothing |
+| `proposed`, no source | no verification sentence. Instead: that the diagram describes an intended system, names no repository or commit, and makes no claim about what currently exists |
+| `lesson` | unchanged from what it has always said |
+
+A source-less artifact also carries **no repository row, no commit row and no
+timestamp**. None of them is invented from the working directory, the
+environment, or a clock: there is no honest value, and a plausible one would be
+worse than none, because it would read as provenance.
 
 `render()` is a public export and does not validate. Called directly it emits
 the provenance rows and **no verification language at all** — not "unverified",

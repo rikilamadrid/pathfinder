@@ -1,6 +1,7 @@
 {
   "schema_version": "1.0",
   "kind": "diagram",
+  "provenance": "proposed",
   "artifact": {
     "title": "Typography probe — every script the cap admits",
     "subtitle": "Latin, CJK, Arabic, Devanagari and emoji, at and around the column cap",

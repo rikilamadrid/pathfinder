@@ -44,6 +44,21 @@ const FIXTURE_BYTES = readFileSync(SPECS.fixture);
 const FIXTURE = JSON.parse(FIXTURE_BYTES.toString("utf8"));
 const GOLDEN_FIXTURE_DIGEST = readFileSync(goldenPaths("fixture").digest, "utf8").trim();
 
+/**
+ * The citing lesson. The claim tests need a specification with evidence in it,
+ * because a verification sentence is now gated on at least one citation having
+ * resolved as well as on the attestation.
+ *
+ * That gate is why these two specimens are both here. `fixture` cites nothing,
+ * so it passes the evidence layer by having nothing to fail — and an artifact
+ * claiming "every citation above was verified" on the strength of that would be
+ * making a stronger statement than anybody made. It is the specimen for the
+ * absence of the sentence. `example` cites this repository, so it is the
+ * specimen for its presence.
+ */
+const CITING_BYTES = readFileSync(SPECS.example);
+const CITING = JSON.parse(CITING_BYTES.toString("utf8"));
+
 /** The sentence the artifact carries only when its evidence really was checked. */
 const CLAIM = "was verified against the commit named here";
 
@@ -142,7 +157,7 @@ describe("receipt integrity — the receipt describes what was rendered", () => 
 });
 
 describe("verification gating — a claim can only be earned", () => {
-  const passing = () => validateSpecification(FIXTURE, { repoDir: REPO_ROOT });
+  const passing = () => validateSpecification(CITING, { repoDir: REPO_ROOT });
 
   it("mints an attestation from a validation this engine performed", () => {
     const result = passing();
@@ -151,6 +166,9 @@ describe("verification gating — a claim can only be earned", () => {
     const attestation = attest(result);
     assert.ok(isAttestation(attestation));
     assert.deepEqual([...attestation.layers], ["structural", "composition", "evidence"]);
+    assert.ok(attestation.resolvedCitations >= 1,
+      "the attestation carries how many citations resolved, because the " +
+      "sentence is gated on there having been something to check");
   });
 
   it("refuses a hand-built result that merely says it passed", () => {
@@ -169,7 +187,7 @@ describe("verification gating — a claim can only be earned", () => {
     // A concept that cites nothing. Structurally legal, and rejected by the
     // evidence layer — so this fails without needing a commit to resolve,
     // which keeps the test saying the same thing on every machine.
-    const uncited = structuredClone(FIXTURE);
+    const uncited = structuredClone(CITING);
     uncited.lesson.modules[0].sections.push({
       type: "concept",
       id: "uncited-claim",
@@ -202,11 +220,12 @@ describe("verification gating — a claim can only be earned", () => {
 
     assert.ok(!JSON.stringify(result).includes("validated"),
       "the brand is enumerable and is reaching serialized output");
-    assert.deepEqual(Object.keys(result), ["ok", "diagnostics", "ran", "skipped"]);
+    assert.deepEqual(Object.keys(result),
+      ["ok", "diagnostics", "ran", "skipped", "notRun", "resolvedCitations"]);
   });
 
   it("renders no claim without an attestation", () => {
-    const html = render(FIXTURE);
+    const html = render(CITING);
 
     assert.ok(!html.includes(CLAIM),
       "an artifact rendered without an attestation asserted that its evidence " +
@@ -217,28 +236,52 @@ describe("verification gating — a claim can only be earned", () => {
   });
 
   it("renders the claim against a real attestation, and only then", () => {
-    const withClaim = render(FIXTURE, attest(passing()));
+    const withClaim = render(CITING, attest(passing()));
     assert.ok(withClaim.includes(CLAIM),
       "delivery validated and the artifact still made no verification claim");
 
     // Same specification, same renderer, one difference: whether validation
     // happened. If these were equal the attestation would be decorative.
-    assert.notEqual(withClaim, render(FIXTURE));
+    assert.notEqual(withClaim, render(CITING));
   });
 
   it("gives `renderOnly` no route to a claim", () => {
     // `doctor` and anyone comparing two renders go through here. Neither
     // validates, so neither may produce a page that says otherwise.
-    assert.ok(!renderOnly(FIXTURE).html.includes(CLAIM));
+    assert.ok(!renderOnly(CITING).html.includes(CLAIM));
   });
 
   it("delivers an artifact that does carry the claim", () => {
     const out = join(temporaryDirectory(), "artifact.html");
-    assert.ok(deliver(FIXTURE_BYTES, SPECS.fixture, out, { repoDir: REPO_ROOT }).ok);
+    assert.ok(deliver(CITING_BYTES, SPECS.example, out, { repoDir: REPO_ROOT }).ok);
 
     assert.ok(readFileSync(out, "utf8").includes(CLAIM),
       "delivery is the one path that validates, so it is the one path whose " +
       "artifact may say so");
+  });
+
+  it("makes no claim on a validation that had nothing to check", () => {
+    // The citation-free lesson. Its evidence layer runs and passes, because
+    // zero citations is zero failures — and that is precisely the success worth
+    // nothing. Before this gate the artifact said every citation above had been
+    // verified against the commit named here, with no citation above and a
+    // commit that does not exist.
+    const result = validateSpecification(FIXTURE, { repoDir: REPO_ROOT });
+
+    assert.ok(result.ok, JSON.stringify(result.diagnostics, null, 2));
+    assert.deepEqual([...result.ran], ["structural", "composition", "evidence"],
+      "the evidence layer did run; having nothing to check is not the same as " +
+      "being skipped, and the report must not conflate them");
+    assert.equal(result.resolvedCitations, 0);
+
+    assert.ok(!render(FIXTURE, attest(result)).includes(CLAIM),
+      "an artifact with no citations claimed its citations were verified");
+
+    const out = join(temporaryDirectory(), "artifact.html");
+    assert.ok(deliver(FIXTURE_BYTES, SPECS.fixture, out, { repoDir: REPO_ROOT }).ok,
+      "a lesson that cites nothing is still valid and still delivers; what it " +
+      "does not get is a sentence saying its citations were checked");
+    assert.ok(!readFileSync(out, "utf8").includes(CLAIM));
   });
 
   it("offers exactly one door onto the gate", () => {

@@ -30,7 +30,8 @@ import { cellWidth } from "../../../skills/render-artifact/engine/render/graph/w
 import { render } from "../../../skills/render-artifact/engine/render/index.mjs";
 import { RENDERER_VERSION } from "../../../skills/render-artifact/engine/version.mjs";
 import {
-  REPO_ROOT, SPECS, cleanUpTemporaryDirectories, deliverInSubprocess, temporaryDirectory,
+  DIAGRAM_SPECIMENS, REPO_ROOT, SPECS, cleanUpTemporaryDirectories,
+  deliverInSubprocess, temporaryDirectory,
 } from "../lib/harness.mjs";
 
 after(cleanUpTemporaryDirectories);
@@ -126,8 +127,58 @@ function groupClassOf(html, edgeId) {
   return html.slice(openedAt, html.indexOf(">", openedAt));
 }
 
+/**
+ * Every diagram specimen, not only the shipped example.
+ *
+ * The example was authored alongside the renderer, so it is the graph least
+ * likely to catch a layout defect. `installer` is a diagram of a real
+ * repository whose topology nobody chose to suit the layout, and the
+ * multilingual and proposed specimens push the label and node extremes. A
+ * geometry claim worth making is a claim about all of them.
+ */
+const GEOMETRY_SPECIMENS = DIAGRAM_SPECIMENS.map((name) => ({
+  name,
+  spec: JSON.parse(readFileSync(SPECS[name], "utf8")),
+}));
+
 describe("diagram — geometry is integer, checked structurally", () => {
   const layout = layoutGraph(EXAMPLE.diagram);
+
+  for (const { name, spec } of GEOMETRY_SPECIMENS) {
+    it(`every number the ${name} layout produces is an integer`, () => {
+      const produced = layoutGraph(spec.diagram);
+      const offenders = [];
+      const check = (path, value) => {
+        if (typeof value !== "number") return;
+        if (!Number.isInteger(value)) offenders.push(`${path} = ${value}`);
+      };
+
+      check("width", produced.width);
+      check("height", produced.height);
+      for (const node of produced.nodes) {
+        for (const key of ["x", "y", "w", "h"]) {
+          check(`node ${node.id}.box.${key}`, node.box[key]);
+        }
+        check(`node ${node.id}.rank`, node.rank);
+        check(`node ${node.id}.order`, node.order);
+      }
+      for (const group of produced.groups) {
+        for (const key of ["x", "y", "w", "h"]) {
+          check(`group ${group.id}.box.${key}`, group.box[key]);
+        }
+      }
+      for (const edge of produced.edges) {
+        edge.points.forEach(([x, y], i) => {
+          check(`edge ${edge.id}.points[${i}].x`, x);
+          check(`edge ${edge.id}.points[${i}].y`, y);
+        });
+      }
+
+      assert.deepEqual(offenders, [],
+        `a non-integer coordinate in the ${name} layout is a fraction, and a ` +
+        `fraction is where platform-dependent arithmetic gets into the artifact`);
+    });
+  }
 
   it("every number the layout produces is an integer", () => {
     const offenders = [];
@@ -174,6 +225,12 @@ describe("diagram — geometry is integer, checked structurally", () => {
       "the integer walk did not notice a fractional coordinate");
   });
 
+  for (const { name } of GEOMETRY_SPECIMENS) {
+    it(`every geometry attribute in the delivered ${name} SVG is an integer`, () => {
+      assertIntegerSvg(deliverInSubprocess({ spec: SPECS[name] }).html, name);
+    });
+  }
+
   it("every geometry attribute in the delivered SVG parses as an integer", () => {
     const html = deliverInSubprocess({ spec: SPECS.diagram }).html;
     const opensAt = html.indexOf("<svg class=\"pf-graph\"");
@@ -212,6 +269,47 @@ describe("diagram — geometry is integer, checked structurally", () => {
     assert.ok(svg.includes("points="), "no routes were emitted, so nothing was checked");
   });
 });
+
+/**
+ * Assert that every geometric value in a delivered artifact's canvas is a whole
+ * number.
+ *
+ * Read attribute by attribute rather than by scanning the document for a
+ * decimal point: a stylesheet is full of them, and a test that failed because
+ * `stroke-width: .5` appeared somewhere would be failing for a reason that has
+ * nothing to do with layout.
+ */
+function assertIntegerSvg(html, what) {
+  const opensAt = html.indexOf('<svg class="pf-graph"');
+  assert.notEqual(opensAt, -1, `no diagram canvas in the ${what} artifact`);
+  // The header mark is an `<svg>` too, so the close is searched for from the
+  // canvas onward rather than from the top of the document.
+  const svg = html.slice(opensAt, html.indexOf("</svg>", opensAt));
+
+  const offenders = [];
+
+  for (const attribute of ["x", "y", "width", "height", "rx", "x1", "y1", "x2", "y2"]) {
+    const pattern = new RegExp(`\\s${attribute}="([^"]*)"`, "g");
+    for (const [, value] of svg.matchAll(pattern)) {
+      if (!/^-?\d+$/.test(value)) offenders.push(`${attribute}="${value}"`);
+    }
+  }
+
+  for (const [, value] of svg.matchAll(/\spoints="([^"]*)"/g)) {
+    for (const pair of value.split(" ")) {
+      if (!/^-?\d+,-?\d+$/.test(pair)) offenders.push(`points pair "${pair}"`);
+    }
+  }
+
+  const [, viewBox] = svg.match(/viewBox="([^"]*)"/) ?? [];
+  assert.ok(viewBox, `the ${what} canvas declares no viewBox`);
+  for (const value of viewBox.split(" ")) {
+    if (!/^-?\d+$/.test(value)) offenders.push(`viewBox value "${value}"`);
+  }
+
+  assert.deepEqual(offenders, [],
+    `non-integer geometry in the delivered ${what} SVG`);
+}
 
 describe("diagram — the producer owns meaning, never the canvas", () => {
   const DRAWING_CONTROLS = [
@@ -377,6 +475,11 @@ describe("diagram — coherence the schema cannot express", () => {
     const spec = example();
     spec.diagram.edges.push({
       id: "e-other", from: "proposed", to: "ready", relation: "triggers",
+      // The example is `derived`, so a relationship added to it is a claim that
+      // needs a citation like every other. Borrowed from the edge this one sits
+      // beside rather than invented, so the assertion stays about the duplicate
+      // rule and not about evidence.
+      evidence: [{ path: "skills/ticket/SKILL.md", lines: [47, 47] }],
     });
     assert.equal(deliverSpec(spec).status, 0);
   });
@@ -436,7 +539,13 @@ describe("diagram — what stays legal, because systems are like this", () => {
 
   it("an isolated node is legal", () => {
     const spec = example();
-    spec.diagram.nodes.push({ id: "orphan", label: "Not wired up", role: "service" });
+    spec.diagram.nodes.push({
+      id: "orphan", label: "Not wired up", role: "service",
+      // Cited for the same reason as above: an isolated node is still a claim
+      // that something exists. Being unwired is what is under test here, not
+      // being unevidenced — the uncited case has its own test.
+      evidence: [{ path: "skills/ticket/store.md", lines: [7, 17] }],
+    });
     assert.equal(deliverSpec(spec).status, 0);
   });
 
@@ -445,6 +554,104 @@ describe("diagram — what stays legal, because systems are like this", () => {
     spec.diagram.edges = [];
     delete spec.diagram.paths;
     assert.equal(deliverSpec(spec).status, 0);
+  });
+
+  it("a diagram exactly at the node ceiling is legal, and lays out", () => {
+    // Forty-one is refused above. Forty is the ceiling itself, which is the
+    // case a cap test usually forgets: the refusal is easy to get right and the
+    // boundary is where an off-by-one lives. Proposed with no source, so the
+    // subject under test is the ceiling rather than forty citations.
+    const spec = {
+      schema_version: "1.0",
+      kind: "diagram",
+      provenance: "proposed",
+      artifact: { title: "Forty nodes" },
+      diagram: {
+        topology: "graph",
+        nodes: Array.from({ length: 40 }, (_, i) => ({
+          id: `n${i}`, label: `Node ${i}`, role: "service",
+        })),
+        // A chain, plus a back edge, so the ceiling is exercised with a cycle
+        // in it rather than as forty things in a row.
+        edges: [
+          ...Array.from({ length: 39 }, (_, i) => ({
+            id: `c${i}`, from: `n${i}`, to: `n${i + 1}`, relation: "calls",
+          })),
+          { id: "back", from: "n39", to: "n0", relation: "depends_on" },
+        ],
+      },
+    };
+
+    const delivery = deliverSpec(spec);
+    assert.equal(delivery.status, 0,
+      `the node ceiling itself was refused:\n${
+        JSON.stringify(delivery.receipt.diagnostics, null, 2)}`);
+
+    for (let i = 0; i < 40; i += 1) {
+      assert.ok(delivery.html.includes(`id="n--n${i}"`), `node n${i} is missing`);
+    }
+    assert.match(delivery.html, /<svg class="pf-graph" viewBox="0 0 \d+ \d+"/);
+  });
+});
+
+describe("diagram — two edges between one pair stay distinguishable", () => {
+  /**
+   * The reason a path names edges rather than nodes.
+   *
+   * Two edges join the same pair here, and a path walks exactly one of them. A
+   * node sequence could not say which, so the highlight would have to guess —
+   * and the acceptance criterion is that it covers exactly the authored edges,
+   * not the pair they happen to join.
+   */
+  const spec = (() => {
+    const it = example();
+    it.diagram.edges.push({
+      id: "e-notify",
+      from: "in-progress",
+      to: "store",
+      relation: "publishes",
+      label: "progress",
+      evidence: [{ path: "skills/ticket/store.md", lines: [46, 52] }],
+    });
+    it.diagram.paths = [{
+      id: "recording",
+      label: "Recording the status",
+      note: "Walks the write, and deliberately not the publish beside it.",
+      edges: ["e-start", "e-record"],
+      evidence: [{ path: "skills/ticket/store.md", lines: [46, 52] }],
+    }];
+    return it;
+  })();
+
+  const delivery = deliverSpec(spec);
+
+  it("accepts both edges and the path that walks one of them", () => {
+    assert.equal(delivery.status, 0,
+      `${JSON.stringify(delivery.receipt.diagnostics, null, 2)}\n${delivery.stderr}`);
+  });
+
+  it("emphasises exactly the authored edges, not the pair", () => {
+    const authored = new Set(spec.diagram.paths[0].edges);
+
+    for (const edge of spec.diagram.edges) {
+      assert.equal(
+        groupClassOf(delivery.html, edge.id).includes("pf-edge-on-path"),
+        authored.has(edge.id),
+        `edge ${edge.id} runs ${edge.from} -> ${edge.to} and is drawn ` +
+        `${authored.has(edge.id) ? "unemphasised" : "emphasised"}, which the ` +
+        `authored path does not say. Two edges join in-progress and store; ` +
+        `only one is on the path.`);
+    }
+
+    // Both endpoints are shared, so this is the assertion that would pass by
+    // accident if emphasis were derived from nodes.
+    assert.ok(authored.has("e-record") && !authored.has("e-notify"),
+      "the fixture no longer has one walked and one unwalked edge on the pair");
+  });
+
+  it("renders both relationships in the written reading", () => {
+    assert.ok(delivery.html.includes('id="s--e--e-record"'));
+    assert.ok(delivery.html.includes('id="s--e--e-notify"'));
   });
 });
 
@@ -544,10 +751,17 @@ describe("diagram — the renderer never deletes a producer's words", () => {
 });
 
 describe("diagram — the shell tolerates a specification with no source", () => {
-  // Unreachable through validation today, because both kinds require `source`.
-  // It is covered anyway: the branch exists so that a later kind describing a
-  // system with no repository can say so, and an uncovered branch rots before
-  // the ticket that needs it arrives.
+  // This branch was written before anything could reach it, against the day a
+  // kind would describe a system with no repository behind it. That day is the
+  // provenance contract, and `provenance.test.mjs` now drives it end to end
+  // through validation and delivery.
+  //
+  // What is kept here is the narrower claim, at the level the branch lives: the
+  // renderer itself tolerates an absent source, without help from a validator
+  // that might one day stop calling it. Rendering a `derived` specification
+  // stripped of its source is deliberately a state validation refuses — it
+  // cannot arrive this way in practice, which is exactly why the shell is asked
+  // directly rather than through the engine.
   const html = render(JSON.parse(JSON.stringify(
     { ...EXAMPLE, source: undefined })));
 

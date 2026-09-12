@@ -95,11 +95,18 @@ function runValidate([specPath], flags) {
   const result = validateSpecification(loaded.spec, { repoDir: repoDirFor(specPath, flags) });
 
   if (flags.json) {
+    // `not_run` is reported here for the same reason it is in the human-readable
+    // report: a caller that saw `ok: true` beside two layers, with nothing
+    // saying why the third is missing, would have to infer the difference
+    // between "everything passed" and "one layer did not apply" — and the point
+    // of keeping the layers apart is that nobody has to infer it.
     process.stdout.write(`${JSON.stringify({
       ok: result.ok,
       renderer_version: RENDERER_VERSION,
       ran: result.ran,
       skipped: result.skipped,
+      not_run: result.notRun,
+      resolved_citations: result.resolvedCitations,
       diagnostics: result.diagnostics,
     }, null, 2)}\n`);
     return result.ok ? 0 : 1;

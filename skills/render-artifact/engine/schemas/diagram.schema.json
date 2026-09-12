@@ -3,11 +3,21 @@
   "title": "Pathfinder artifact specification — diagram",
   "description": "One diagram artifact. The producer describes the system: what exists, what each thing is, what relates to what, which things belong together, and which ordered walks matter. It describes no part of the canvas. Geometry, ranking, axis, size, spacing, routing, label placement, typography, shape, colour and emphasis are the renderer's, and the schema rejects an attempt at any of them rather than ignoring it.",
   "type": "object",
-  "required": ["schema_version", "kind", "artifact", "source", "diagram"],
+  "required": ["schema_version", "kind", "provenance", "artifact", "diagram"],
   "additionalProperties": false,
+  "if": {
+    "description": "A derived diagram is the one that must declare where it was derived from. The requirement is conditional because a proposed diagram may legitimately have no repository behind it at all, and it is written as a conditional so the contract lives in the schema rather than only in code.",
+    "required": ["provenance"],
+    "properties": { "provenance": { "const": "derived" } }
+  },
+  "then": { "required": ["source"] },
   "properties": {
     "schema_version": { "$ref": "common.schema.json#/$defs/schema_version" },
     "kind": { "const": "diagram" },
+    "provenance": {
+      "description": "What kind of claim this diagram makes, and the only thing that decides how strictly it is checked. `derived` maps what the repository asserts about itself at the declared commit: it requires a source, every node and edge carries a citation, claim-bearing prose on a group, path or view carries one, and `artifact.summary` is not permitted. `proposed` describes an intended system: citations are optional, and with no source they are refused outright. There is no default — a diagram that did not say would be assigned a trust level by the engine, and the engine has no business guessing which claim a producer meant to make.",
+      "enum": ["derived", "proposed"]
+    },
     "artifact": { "$ref": "common.schema.json#/$defs/artifact" },
     "source": { "$ref": "common.schema.json#/$defs/source" },
     "diagram": {

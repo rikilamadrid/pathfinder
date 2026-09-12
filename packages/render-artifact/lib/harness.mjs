@@ -46,7 +46,25 @@ export const ENGINE_BIN = join(ENGINE_ROOT, "bin", "render.mjs");
  * `multilingual` is the typography probe's specimen: Latin, CJK, Arabic,
  * Devanagari and emoji, each at or near the column cap. It is a fixture rather
  * than a shipped example because it exists to stress the boundary, and it is
- * the specification a human opens in three browser engines.
+ * the specification a human opens in three browser engines. It is `proposed`
+ * and cites nothing, which makes it the specimen for the state that earns no
+ * verification sentence: a source, and no citation to check against it.
+ *
+ * `proposed` and `intended-system` are the other two provenance states. The
+ * first supplies citations for the parts of itself that exist and none for the
+ * parts it is proposing; the second declares no source at all, which is the
+ * case the shell had to stop assuming. Between them and `diagram`, all three
+ * states a reader must be able to tell apart are delivered by the real engine
+ * rather than asserted in a test.
+ *
+ * `installer` is a diagram of a real repository, hand-authored before any
+ * producer existed to generate one. Its topology was not chosen to suit the
+ * layout — it is what `npx create-pathfinder` actually does, twenty nodes and
+ * thirty edges of it, with a cycle back through the human, one node written to
+ * by four separate jobs, and two subsystems that meet nowhere but a JSON file.
+ * That is the point: deterministic layout either survives a graph nobody
+ * designed for it or it does not, and a specimen shaped to flatter the renderer
+ * could not tell the difference.
  *
  * `learn-feature` and `learn-codebase` are the producers' own output, frozen.
  * Each is a real lesson its skill produced — one for a completed feature, one
@@ -60,6 +78,9 @@ export const SPECS = Object.freeze({
   example: join(ENGINE_ROOT, "examples", "lesson.json"),
   diagram: join(ENGINE_ROOT, "examples", "diagram.json"),
   multilingual: join(PACKAGE_ROOT, "fixtures", "multilingual-diagram.json"),
+  proposed: join(PACKAGE_ROOT, "fixtures", "proposed-diagram.json"),
+  "intended-system": join(PACKAGE_ROOT, "fixtures", "intended-system-diagram.json"),
+  installer: join(PACKAGE_ROOT, "fixtures", "installer-diagram.json"),
   "learn-feature": join(PACKAGE_ROOT, "fixtures", "learn-feature.json"),
   "learn-codebase": join(PACKAGE_ROOT, "fixtures", "learn-codebase.json"),
 });
@@ -77,11 +98,30 @@ export const SPECS = Object.freeze({
 export const PRODUCER_SPECIMENS = Object.freeze(["learn-feature", "learn-codebase"]);
 
 /**
- * The diagram specimens. Both carry geometry, which is the part of rendering
- * most able to drift between machines, so both are swept across environments
- * rather than only the lesson specimens that predate them.
+ * The diagram specimens. Every one carries geometry, which is the part of
+ * rendering most able to drift between machines, so all of them are swept
+ * across environments rather than only the lesson specimens that predate them.
+ *
+ * `installer` is in this list deliberately rather than incidentally: a diagram
+ * of a real repository is the specimen most likely to expose an environment
+ * dependency, because it has the most geometry to get wrong.
  */
-export const DIAGRAM_SPECIMENS = Object.freeze(["diagram", "multilingual"]);
+export const DIAGRAM_SPECIMENS = Object.freeze([
+  "diagram", "multilingual", "proposed", "intended-system", "installer",
+]);
+
+/**
+ * The three provenance states, and which specimen delivers each.
+ *
+ * Tests read this rather than naming a fixture, so the claim "a reader can tell
+ * these three apart" is checked against all three every time and cannot quietly
+ * become a claim about two of them.
+ */
+export const PROVENANCE_SPECIMENS = Object.freeze({
+  derived: "diagram",
+  "proposed-with-citations": "proposed",
+  "proposed-without-source": "intended-system",
+});
 
 /** Everything the cross-environment sweep renders. */
 export const CROSS_ENVIRONMENT_SPECIMENS = Object.freeze([

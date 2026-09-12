@@ -1,0 +1,167 @@
+{
+  "schema_version": "1.0",
+  "kind": "diagram",
+  "provenance": "proposed",
+  "artifact": {
+    "title": "An intended order pipeline",
+    "subtitle": "A design with no repository behind it",
+    "summary": "There is no code for any of this and no repository to point at, so this specification declares no source and carries no citation. That is a legal and complete artifact: the diagram describes something intended rather than something that runs, and the engine reports its evidence layer as not run rather than as passed.",
+    "locale": "en"
+  },
+  "diagram": {
+    "topology": "graph",
+    "groups": [
+      {
+        "id": "edge",
+        "label": "At the edge",
+        "summary": "What a customer would touch. Intended, not built."
+      },
+      {
+        "id": "core",
+        "label": "Order handling"
+      }
+    ],
+    "nodes": [
+      {
+        "id": "customer",
+        "label": "Customer",
+        "role": "actor",
+        "group": "edge",
+        "summary": "Places an order and expects one confirmation, not three."
+      },
+      {
+        "id": "storefront",
+        "label": "Storefront",
+        "role": "interface",
+        "group": "edge",
+        "summary": "Would accept the order and hand it on without holding it."
+      },
+      {
+        "id": "orders",
+        "label": "Order service",
+        "role": "service",
+        "group": "core",
+        "summary": "Would own the order's lifecycle and nothing else."
+      },
+      {
+        "id": "ledger",
+        "label": "Order ledger",
+        "role": "store",
+        "group": "core",
+        "summary": "Would be the only writer of order state."
+      },
+      {
+        "id": "events",
+        "label": "order-events",
+        "role": "queue",
+        "group": "core",
+        "summary": "Would carry what happened, never what should happen next."
+      },
+      {
+        "id": "payments",
+        "label": "Payments",
+        "role": "external",
+        "summary": "A third party. Would be called once, idempotently."
+      },
+      {
+        "id": "fulfilment",
+        "label": "Fulfilment",
+        "role": "job",
+        "summary": "Would consume events rather than being called."
+      },
+      {
+        "id": "retry",
+        "label": "Retry",
+        "role": "decision",
+        "summary": "Would decide whether a failed charge is worth another attempt."
+      }
+    ],
+    "edges": [
+      {
+        "id": "i-place",
+        "from": "customer",
+        "to": "storefront",
+        "relation": "calls",
+        "label": "places an order"
+      },
+      {
+        "id": "i-submit",
+        "from": "storefront",
+        "to": "orders",
+        "relation": "calls",
+        "label": "submits"
+      },
+      {
+        "id": "i-write",
+        "from": "orders",
+        "to": "ledger",
+        "relation": "writes",
+        "label": "order state"
+      },
+      {
+        "id": "i-charge",
+        "from": "orders",
+        "to": "payments",
+        "relation": "calls",
+        "label": "charge"
+      },
+      {
+        "id": "i-decide",
+        "from": "payments",
+        "to": "retry",
+        "relation": "triggers",
+        "label": "on failure"
+      },
+      {
+        "id": "i-again",
+        "from": "retry",
+        "to": "payments",
+        "relation": "calls",
+        "label": "retries once"
+      },
+      {
+        "id": "i-publish",
+        "from": "orders",
+        "to": "events",
+        "relation": "publishes",
+        "label": "order placed"
+      },
+      {
+        "id": "i-consume",
+        "from": "fulfilment",
+        "to": "events",
+        "relation": "consumes",
+        "label": "order placed"
+      },
+      {
+        "id": "i-read",
+        "from": "fulfilment",
+        "to": "ledger",
+        "relation": "reads",
+        "label": "what to ship"
+      }
+    ],
+    "paths": [
+      {
+        "id": "happy",
+        "label": "The intended happy path",
+        "note": "Three steps, and the order is durable in the ledger before anybody is charged.",
+        "edges": ["i-place", "i-submit", "i-write"]
+      },
+      {
+        "id": "charge",
+        "label": "Charging, and failing",
+        "note": "The walk returns to the payment provider it just left, which is a cycle and a fact about retries rather than a modelling slip.",
+        "edges": ["i-charge", "i-decide", "i-again"]
+      }
+    ],
+    "views": [
+      {
+        "id": "async",
+        "label": "What would be asynchronous",
+        "note": "Fulfilment would never be called directly, which is the whole point of the queue.",
+        "focus": ["events", "fulfilment", "orders"]
+      }
+    ]
+  }
+}

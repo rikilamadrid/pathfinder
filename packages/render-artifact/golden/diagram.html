@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>The Pathfinder ticket lifecycle</title>
-<meta name="description" content="Four states and two exits. Every transition below is performed by one of the four ticket actions, and none of them is performed by the agent deciding its own work is done.">
-<meta name="generator" content="Pathfinder render-artifact 0.3.0">
+<meta name="description" content="The states a ticket occupies, who moves it, and where the status lives">
+<meta name="generator" content="Pathfinder render-artifact 0.4.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
 <style>:root {
   color-scheme: light;
@@ -689,7 +689,6 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <div class="pf-lead">
 <h1>The Pathfinder ticket lifecycle</h1>
 <p class="pf-lead-sub">The states a ticket occupies, who moves it, and where the status lives</p>
-<div class="pf-lead-summary"><p>Four states and two exits. Every transition below is performed by one of the four ticket actions, and none of them is performed by the agent deciding its own work is done.</p></div>
 </div>
 <div class="pf-canvas"><svg class="pf-graph" viewBox="0 0 912 1112" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
 <title id="pf--diagram--title">Diagram</title>
@@ -871,6 +870,12 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <div class="pf-card" id="s--n--cancelled">
 <h4 class="pf-section-title">Cancelled<span class="pf-legend-role">terminal</span></h4>
 <p>A terminal alternative, alongside Superseded. Neither is a failure state.</p>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/ticket/SKILL.md</span><span class="pf-cite-lines">lines 45–45</span></li>
+</ul>
+</div>
 </div>
 </div>
 </section>
@@ -935,15 +940,30 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <li><span class="pf-cite-path">skills/ticket/actions/start.md</span><span class="pf-cite-lines">lines 22–23</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-submit"><span class="pf-step-title">In Progress</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Review</span><p class="pf-step-detail">ticket review</p></li>
-<li id="s--e--e-rework"><span class="pf-step-title">Review</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">In Progress</span><p class="pf-step-detail">changes requested</p></li>
+<li id="s--e--e-submit"><span class="pf-step-title">In Progress</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Review</span><p class="pf-step-detail">ticket review</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/ticket/SKILL.md</span><span class="pf-cite-lines">lines 30–31</span></li>
+</ul>
+</div></li>
+<li id="s--e--e-rework"><span class="pf-step-title">Review</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">In Progress</span><p class="pf-step-detail">changes requested</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/ticket/actions/review.md</span><span class="pf-cite-lines">lines 42–44</span></li>
+</ul>
+</div></li>
 <li id="s--e--e-accept"><span class="pf-step-title">Review</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Complete</span><p class="pf-step-detail">human accepts</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
 <li><span class="pf-cite-path">skills/ticket/actions/complete.md</span><span class="pf-cite-lines">lines 19–20</span></li>
 </ul>
 </div></li>
-<li id="s--e--e-cancel"><span class="pf-step-title">Ready</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Cancelled</span><p class="pf-step-detail">human cancels</p></li>
+<li id="s--e--e-cancel"><span class="pf-step-title">Ready</span> <span class="pf-relation">becomes</span> <span class="pf-step-title">Cancelled</span><p class="pf-step-detail">human cancels</p><div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">context/ai-interaction.md</span><span class="pf-cite-lines">lines 67–67</span></li>
+</ul>
+</div></li>
 <li id="s--e--e-record"><span class="pf-step-title">In Progress</span> <span class="pf-relation">writes</span> <span class="pf-step-title">Ticket store</span><p class="pf-step-detail">status</p><div class="pf-evidence">
 <div class="pf-evidence-label">Evidence</div>
 <ul>
@@ -982,6 +1002,12 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <div class="pf-kicker">Walks</div>
 <ol class="pf-walk"><li>In Progress <span class="pf-relation">becomes</span> Review — ticket review</li>
 <li>Review <span class="pf-relation">becomes</span> In Progress — changes requested</li></ol>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/ticket/actions/review.md</span><span class="pf-cite-lines">lines 38–44</span></li>
+</ul>
+</div>
 </div>
 </section>
 <h2 class="pf-module-title">Views</h2><section class="pf-section" id="s--v--human-authority">
@@ -990,6 +1016,12 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <p class="pf-module-summary">Two gates, and neither is an agent&#39;s to pass on its own.</p>
 <div class="pf-kicker">Focuses on</div>
 <ul class="pf-legend"><li>The human</li><li>Ready</li><li>Complete</li></ul>
+<div class="pf-evidence">
+<div class="pf-evidence-label">Evidence</div>
+<ul>
+<li><span class="pf-cite-path">skills/ticket/SKILL.md</span><span class="pf-cite-lines">lines 63–64</span></li>
+</ul>
+</div>
 </div>
 </section>
 <section class="pf-section" id="s--v--exits">
@@ -1008,9 +1040,9 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <dt>Commit</dt>
 <dd>7e437f6</dd>
 <dt>Renderer</dt>
-<dd>Pathfinder render-artifact 0.3.0</dd>
+<dd>Pathfinder render-artifact 0.4.0</dd>
 </dl>
-<p class="pf-caveat">This artifact was checked deterministically: its specification satisfied the schema, its references and graphs resolved, and every citation above was verified against the commit named here. That is what was checked. It is not a judgement that the page reads well or looks right — a person has to open it to know that.</p>
+<p class="pf-caveat">This diagram was checked deterministically against the commit named here: its specification satisfied the schema, its identifiers, references and graphs resolved, and every component, relationship and claim in it carried a citation that was verified at that commit. What that establishes is that the cited material is there to be read. It is not a finding that the architecture drawn here is correct, complete, or the best reading of that material, and it is not a judgement that the page reads well — a person has to open it to know either.</p>
 </footer>
 <script>(function () {
   "use strict";

@@ -15,9 +15,34 @@ attempt fails loudly instead of silently doing nothing.
 | Field | Required | What it is |
 | --- | --- | --- |
 | `schema_version` | yes | `"1.0"`. The contract this specification is written against. |
-| `kind` | yes | Selects the kind schema and the renderer. `lesson` is the only value. |
+| `kind` | yes | Selects the kind schema and the renderer. `lesson` and `diagram`. |
 | `artifact` | yes | Metadata about the artifact: `title`, and optionally `subtitle`, `summary`, `locale`. |
-| `source` | yes | Where the claims come from: `repo`, `commit`, and optionally `generated_at`. |
+| `source` | see below | Where the claims come from: `repo`, `commit`, and optionally `generated_at`. |
+
+`source` is required by the `lesson` kind unconditionally. For `diagram` it is
+conditional on `provenance`, and the condition is written into
+`diagram.schema.json` rather than into the shared contract — see
+[`provenance`](#provenance) below. The shared `source` definition itself is
+unchanged and is not loosened: a kind that declares a source declares a complete
+one.
+
+### `provenance`
+
+`diagram` only. `"derived"` or `"proposed"`, and required — there is no default,
+because a diagram that did not say would have a trust level assigned to it by the
+engine.
+
+- **`derived`** maps what the repository asserts about itself at the declared
+  commit. `source` is required, every node and edge carries at least one
+  citation, a group, path or view carrying `summary` or `note` prose carries one
+  too, and `artifact.summary` is not permitted.
+- **`proposed`** describes an intended system. Citations are optional, and every
+  one supplied is still resolved. With no `source` at all, citations are refused
+  rather than ignored, and the evidence layer is reported as not run.
+
+`validation.md` has the full table and the diagnostics. The short version: what
+you may assert is decided by what you are willing to cite, and the renderer's
+wording follows from that rather than from anything you can ask for.
 
 ### `source`
 
@@ -108,6 +133,13 @@ There is no field for whether the specification was validated, whether its
 evidence checked out, or whether the artifact is trustworthy. Those are claims
 about work the engine performs, and the engine is the only thing entitled to
 make them — see the verification section of `validation.md`.
+
+Nor is there a field for the *wording* of those claims. The three provenance
+sentences are the renderer's, and a producer cannot select one, soften one, or
+request one it has not earned. `provenance` is not an exception: it declares what
+kind of claim the diagram is making and thereby what will be *required* of it. A
+producer choosing `derived` is choosing the stricter rules, not choosing the
+stronger sentence.
 
 ## Text is text
 
