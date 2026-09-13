@@ -128,3 +128,33 @@ Compact record of completed work.
 - Verification: `validate-kit.py` OK (21 skills); 580/580 installer tests pass, including new `version.test.mjs` regression tests for the `--version` defect the tester review found (an earlier bad argument beat `--version`). All PR checks green.
 - Commit/PR: `574b4b0` — PR #48, squash-merged into `main`, branch deleted.
 - Follow-up: Cut the MAJOR release from `[Unreleased]` per `CONTRIBUTING.md` § Releasing.
+
+### 2026-08-21 — Feature 37: load-feature promotes the spec to Ready
+
+- Outcome: `skills/load-feature/SKILL.md` writes the Feature spec's own
+  `## Status` — `Proposed` becomes `Ready`, terminal statuses block the load,
+  an already-`Ready` spec is left alone. The write sits after the step 5
+  blocker check and before `context/current-feature.md`, so a blocked load
+  leaves no promoted spec. Approving a Feature for execution now lands in the
+  durable record instead of nowhere.
+- Verification: `validate-kit.py` OK; 572 installer tests pass with no test
+  file edited; `generate-adapters.mjs` reports 0 written, so the unchanged
+  frontmatter needed no adapter commit. All rerun on `main` after merge.
+- Commit/PR: PR #46, squash-merged to `main` as `ea85f93`
+- Follow-up: nothing writes `In Progress`. That gap is real and out of scope
+  here by the spec's own decision; it needs its own Feature.
+
+### 2026-08-21 — Feature 36: One install outcome module
+
+- Outcome: `packages/create-pathfinder/src/outcome.mjs` derives the install
+  summary once. Both renderings read it instead of recomputing four derivations
+  ten times; `report` and its helpers no longer take `plan`, `result`, or
+  `adapters`. Every printed byte is unchanged.
+- Verification: 572 tests pass with no test file edited but the new
+  `test/outcome.test.mjs`; `validate-kit.py` OK; `capture-transcript.py --check`
+  and `generate-adapters.mjs --check` report no change. Old and new `cli.mjs`
+  compared byte-for-byte over ten scenarios in both tiers, 20 runs, identical.
+- Commit/PR: PR #45, squash-merged to `main` as `a61106f`
+- Follow-up: none. `countWritten`, the streaming milestone counts, and
+  reconciling `written` with the `--force` "copied" count stay out of scope by
+  the spec's own decision.
