@@ -30,10 +30,33 @@
  * still a readable, navigable page. What is lost is the ability to ask it
  * questions, which is the definition of an enhancement.
  *
- * Pointer and keyboard panning do read the element's rendered size, because
- * turning a drag in pixels into a movement in user units cannot be done
- * without it. That is a reading of the reader's window at the time they drag;
- * it happens long after the bytes were written and cannot affect them.
+ * **The camera is screen-space, and the `viewBox` is never written.** Camera
+ * state is a scale and an offset applied as one `transform` on the SVG, which
+ * is what lets a drag be the pointer's own pixel delta rather than a value
+ * converted into user units, rounded into an integer attribute and clamped —
+ * three steps that each discard a fraction of the movement, and together are
+ * why the previous camera crept. It also keeps scale a float the stylesheet
+ * can transition, so camera movement is animatable and interruptible.
+ *
+ * The only measurement is the element's own box: how large the browser is
+ * currently painting this SVG, which is a fact about the reader's window at
+ * the moment they gesture. It happens long after the bytes were written and
+ * cannot affect them — no text is measured, no node box is measured, and no
+ * coordinate is inferred from anything drawn. Every position the camera aims
+ * at still comes from the integer coordinates the build-time layout wrote.
+ *
+ * **One gesture, one surface.** Dragging the background pans; a node or an
+ * edge is activated, never dragged; a control does its own thing; and ordinary
+ * wheel and trackpad scrolling belongs to the page and is not intercepted.
+ * Wheel zoom and pinch zoom were removed from this Feature rather than
+ * repaired — the interaction reference installs no wheel handler at all and
+ * still reads unmistakably as a spatial explorer.
+ *
+ * **Activating a node does not navigate.** It selects, and nothing else moves:
+ * no scroll position changes, no document section is scrolled into view, and
+ * no location is written. The full written reading stays available behind an
+ * explicit control, which is a reader asking for it rather than a side effect
+ * of touching the map.
  */
 
 import { TRAVERSAL_JS } from "./interaction.mjs";
@@ -49,6 +72,11 @@ import { TRAVERSAL_JS } from "./interaction.mjs";
 const UI = Object.freeze({
   nothing: "Nothing selected. Choose a component to focus it.",
   cleared: "Selection cleared.",
+  // The two faces of one control. Naming the destination rather than the
+  // mechanism -- "full reading", not "toggle panel" -- is what makes it read
+  // as the deliberate secondary route it is.
+  readingOpen: "Full reading",
+  readingClose: "Back to map",
 });
 
 /**
@@ -82,56 +110,95 @@ export function graphBehavior(modelJson) {
      reader meets no dead buttons and loses nothing they could have read. */
   all("[data-pf-controls]").forEach(function (group) { group.hidden = false; });
 
-  var viewBox = svg.getAttribute("viewBox").split(" ");
-  var BASE = { w: Number(viewBox[2]), h: Number(viewBox[3]) };
-  var MAX_ZOOM = 6;
+  var MAX_ZOOM = 4;
+  var ZOOM_STEP = 0.25;
 
-  var view = { zoom: 1, x: 0, y: 0 };
+  /* The camera is screen-space state applied as one transform on the SVG, and
+     the viewBox is never written again. That is the whole of the change from
+     the previous camera, and every property this ticket had to deliver follows
+     from it.
+
+     A drag can be the pointer's own delta, in client pixels, added straight to
+     the offset -- no conversion into user units and back, so nothing is
+     quantised and nothing drifts. A previous implementation converted every
+     pointer step through getScreenCTM(), rounded the result into the integer
+     viewBox, clamped it, and then re-read the grabbed point from the clamped
+     value; each of those three steps discards a fraction of the movement, and
+     together they are why dragging crept and fought the zoom.
+
+     Scale is a float the stylesheet can transition, so a camera move is
+     animatable and interruptible rather than a sequence of rewritten
+     attributes. And with transform-origin at 0 0 the arithmetic is the
+     simplest form there is: a point p inside the element lands at x + p*scale
+     on screen, which makes the clamp below two comparisons.
+
+     Nothing here measures the picture. The camera reads the element's own box
+     -- where the browser is painting right now, a fact about the reader's
+     window -- and never a node, a label or a rendered glyph. */
+  var view = { scale: 1, x: 0, y: 0 };
   var state = { focus: null, trace: null, path: null };
 
   var nodeGroups = all("[data-pf-node]");
   var edgeGroups = all("[data-pf-edge]");
   var entries = all("[data-pf-entry]");
 
-  /* ---- the view: zoom and pan, clamped to the graph's own bounds ---- */
+  /* ---- the camera ---- */
+
+  function frame() {
+    return { w: svg.clientWidth || 1, h: svg.clientHeight || 1 };
+  }
+
+  /* Keep the content covering the frame. At scale 1 both bounds collapse to
+     zero, which is the honest statement that there is nowhere to pan at
+     overview -- the same fact the pan gate below reads. */
+  function clamp() {
+    var box = frame();
+    view.x = Math.min(0, Math.max(box.w - box.w * view.scale, view.x));
+    view.y = Math.min(0, Math.max(box.h - box.h * view.scale, view.y));
+  }
 
   function paint() {
-    var w = Math.max(1, Math.floor(BASE.w / view.zoom));
-    var h = Math.max(1, Math.floor(BASE.h / view.zoom));
-
-    /* Clamped to the content, so panning can never wander off into empty
-       space and "fit" is always the way back. */
-    view.x = Math.min(Math.max(view.x, 0), Math.max(0, BASE.w - w));
-    view.y = Math.min(Math.max(view.y, 0), Math.max(0, BASE.h - h));
-
-    svg.setAttribute("viewBox", view.x + " " + view.y + " " + w + " " + h);
-    canvas.setAttribute("data-pf-zoom", view.zoom === 1 ? "fit" : "in");
+    clamp();
+    svg.style.transform =
+      "translate(" + view.x + "px, " + view.y + "px) scale(" + view.scale + ")";
+    canvas.setAttribute("data-pf-zoom", view.scale <= 1 ? "fit" : "in");
+    canvas.setAttribute("data-pf-pannable", view.scale > 1 ? "true" : "false");
     limits();
   }
 
-  function zoomBy(factor) {
-    var before = { w: BASE.w / view.zoom, h: BASE.h / view.zoom };
-    var next = Math.min(Math.max(view.zoom * factor, 1), MAX_ZOOM);
-    if (next === view.zoom) return;
-
-    var after = { w: BASE.w / next, h: BASE.h / next };
-    /* Keep whatever is in the middle of the view in the middle of it. */
-    view.x = view.x + Math.floor((before.w - after.w) / 2);
-    view.y = view.y + Math.floor((before.h - after.h) / 2);
-    view.zoom = next;
+  /* Zoom about the middle of the frame. Neither a button nor a key names a
+     point to zoom toward, and this Feature no longer carries a gesture that
+     does -- wheel and pinch zoom were removed rather than repaired, because
+     the reference viewer installs no wheel handler at all and still reads as
+     an explorer, and because a wheel handler on a page that also scrolls gives
+     one physical gesture two meanings. */
+  function zoomTo(next) {
+    next = Math.round(Math.min(Math.max(next, 1), MAX_ZOOM) * 100) / 100;
+    if (next === view.scale) return;
+    var box = frame();
+    var cx = box.w / 2;
+    var cy = box.h / 2;
+    var atX = (cx - view.x) / view.scale;
+    var atY = (cy - view.y) / view.scale;
+    view.scale = next;
+    view.x = cx - atX * next;
+    view.y = cy - atY * next;
     paint();
   }
 
+  function zoomBy(step) { zoomTo(view.scale + step); }
+
   function fit() {
-    view.zoom = 1;
+    view.scale = 1;
     view.x = 0;
     view.y = 0;
     paint();
   }
 
+  /* Screen pixels in, screen pixels out. */
   function panBy(dx, dy) {
-    view.x = view.x + dx;
-    view.y = view.y + dy;
+    view.x += dx;
+    view.y += dy;
     paint();
   }
 
@@ -264,9 +331,15 @@ export function graphBehavior(modelJson) {
      pressed. Fit is the floor deliberately: zooming out past the whole graph
      would only add empty space, and "fit" is then always the way back. */
   function limits() {
-    act("zoom-out", view.zoom <= 1);
-    act("zoom-in", view.zoom >= MAX_ZOOM);
-    act("fit", view.zoom === 1 && view.x === 0 && view.y === 0);
+    act("zoom-out", view.scale <= 1);
+    act("zoom-in", view.scale >= MAX_ZOOM);
+    act("fit", view.scale === 1 && view.x === 0 && view.y === 0);
+
+    /* The camera says where it is, on the control that takes you back. A
+       reader who can see "140%" knows both that the map moved and what the
+       control will undo, which is the cheapest orientation signal there is. */
+    var readout = document.querySelector("[data-pf-scale]");
+    if (readout) readout.textContent = Math.round(view.scale * 100) + "%";
   }
 
   function act(name, isDisabled) {
@@ -302,19 +375,32 @@ export function graphBehavior(modelJson) {
   /* ---- wiring ---- */
 
   document.addEventListener("click", function (event) {
+    /* The click a finished pan emits. Consumed here rather than suppressed at
+       the source, because the pointer gesture cannot cancel it and a reader
+       who dragged the map did not ask to select whatever they let go over. */
+    if (swallowClick) {
+      swallowClick = false;
+      return;
+    }
+
     var target = event.target;
     if (!target || !target.closest) return;
 
     var control = target.closest("[data-pf-act]");
     if (control && !control.disabled) {
       var action = control.getAttribute("data-pf-act");
-      if (action === "zoom-in") zoomBy(1.5);
-      else if (action === "zoom-out") zoomBy(1 / 1.5);
+      if (action === "zoom-in") zoomBy(ZOOM_STEP);
+      else if (action === "zoom-out") zoomBy(-ZOOM_STEP);
       else if (action === "fit") fit();
-      else if (action === "reset") { fit(); clear(); }
+      else if (action === "reset") { fit(); clear(); reading(false); }
+      else if (action === "reading") reading(!readingOpen);
       else if (action === "upstream") { state.trace = "in"; state.path = null; apply(); }
       else if (action === "downstream") { state.trace = "out"; state.path = null; apply(); }
-      else if (action === "details") reveal(state.focus);
+      /* The explicit secondary path into the full written reading, and the
+         only route that still scrolls anything. A reader pressing a control
+         labelled for it has asked to go there; a reader touching the map has
+         not. */
+      else if (action === "details") { reading(true); reveal(state.focus); }
       else if (action === "clear") clear();
       else if (action === "path") {
         state.path = control.getAttribute("data-pf-path");
@@ -332,52 +418,104 @@ export function graphBehavior(modelJson) {
       return;
     }
 
-    /* A node in the picture: the pointer route. Keyboard readers reach the
-       same state through the entry buttons above, which is why nothing in
-       the canvas is a tab stop. */
+    /* A node in the picture: the pointer route. It selects and does nothing
+       else -- no scroll, no navigation, no location. Reaching the written
+       reading is the "details" control above, deliberately pressed. Keyboard
+       readers reach this same state through the entry buttons, which is why
+       nothing in the canvas is a tab stop. */
     var drawn = target.closest("[data-pf-node]");
-    if (drawn) focusNode(drawn.getAttribute("data-pf-node"), { reveal: true });
+    if (drawn) focusNode(drawn.getAttribute("data-pf-node"), { reveal: false });
   });
 
-  /* Drag to pan. Pixels become user units through the element's rendered
-     width, which is a reading of the reader's window and not of anything
-     that decided the artifact's bytes. */
-  var dragging = null;
+  /* ---- pointer gestures: one gesture, one surface ----
+
+     There is exactly one pointer gesture now: drag the background to pan. The
+     previous implementation put wheel zoom, pinch zoom, drag pan and click
+     focus on the same element at every scale, on a page that also scrolled,
+     and left them to sort themselves out. They did not. This resolves the
+     arbitration structurally instead, by giving each gesture a surface it does
+     not share:
+
+       background  -> pan          (and only where there is somewhere to pan)
+       node, edge  -> activate
+       controls    -> their own action
+       wheel       -> the page's, untouched
+
+     A gesture that begins on a node is never a pan, so dragging across a
+     component cannot drag the map out from under the click. A drag that has
+     actually moved swallows the click it would otherwise emit, so releasing a
+     pan over a component does not select it. And at overview the clamp leaves
+     nothing to pan to, so the gate is closed there rather than letting a drag
+     look broken by doing nothing visible. */
+  var DRAG_SLOP = 3;
+  var readingOpen = false;
+  var grab = null;
+  var dragging = false;
+  var swallowClick = false;
+
+  /* What a pan may start on. Anything the reader can act on owns its own
+     gesture; the background is what is left. */
+  function panSurface(target) {
+    if (!target || !target.closest) return false;
+    if (target.closest("[data-pf-node]")) return false;
+    if (target.closest("[data-pf-edge]")) return false;
+    if (target.closest("[data-pf-act]")) return false;
+    if (target.closest("[data-pf-pick]")) return false;
+    return Boolean(target.closest("[data-pf-graph]"));
+  }
+
   svg.addEventListener("pointerdown", function (event) {
-    if (view.zoom === 1) return;
-    dragging = { x: event.clientX, y: event.clientY };
-    canvas.setAttribute("data-pf-dragging", "true");
-    if (svg.setPointerCapture) svg.setPointerCapture(event.pointerId);
+    swallowClick = false;
+    if (event.button !== 0) return;
+    if (view.scale <= 1) return;
+    if (!panSurface(event.target)) return;
+
+    grab = { x: event.clientX, y: event.clientY };
+    dragging = false;
   });
+
   svg.addEventListener("pointermove", function (event) {
-    if (!dragging) return;
-    var rect = svg.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    var scaleX = (BASE.w / view.zoom) / rect.width;
-    var scaleY = (BASE.h / view.zoom) / rect.height;
-    panBy(
-      Math.floor((dragging.x - event.clientX) * scaleX),
-      Math.floor((dragging.y - event.clientY) * scaleY));
-    dragging = { x: event.clientX, y: event.clientY };
+    if (!grab) return;
+
+    if (!dragging) {
+      if (Math.abs(event.clientX - grab.x) < DRAG_SLOP &&
+          Math.abs(event.clientY - grab.y) < DRAG_SLOP) return;
+      dragging = true;
+      canvas.setAttribute("data-pf-dragging", "true");
+      /* Captured only once the gesture is certainly a drag. Capturing on
+         pointerdown would retarget the compatibility mouse events -- a
+         captured pointer sends its click to the capturing element, not to the
+         node under it -- and take the pointer route into selection away
+         entirely. */
+      if (svg.setPointerCapture) {
+        try { svg.setPointerCapture(event.pointerId); } catch (ignored) { /* gone */ }
+      }
+    }
+
+    /* The delta the pointer actually travelled, straight into the camera. */
+    panBy(event.clientX - grab.x, event.clientY - grab.y);
+    grab = { x: event.clientX, y: event.clientY };
   });
-  function endDrag() {
-    dragging = null;
+
+  function endPointer() {
+    if (dragging) swallowClick = true;
+    grab = null;
+    dragging = false;
     canvas.removeAttribute("data-pf-dragging");
   }
-  svg.addEventListener("pointerup", endDrag);
-  svg.addEventListener("pointercancel", endDrag);
+  svg.addEventListener("pointerup", endPointer);
+  svg.addEventListener("pointercancel", endPointer);
 
-  /* Keyboard panning, on the canvas itself, which is a tab stop for exactly
-     this reason. Escape clears from anywhere. */
   canvas.addEventListener("keydown", function (event) {
-    var step = Math.max(16, Math.floor(BASE.w / view.zoom / 8));
+    /* A step in screen pixels, like the drag it stands in for. */
+    var step = Math.max(24, Math.round(frame().w / 8));
     var moved = true;
-    if (event.key === "ArrowLeft") panBy(-step, 0);
-    else if (event.key === "ArrowRight") panBy(step, 0);
-    else if (event.key === "ArrowUp") panBy(0, -step);
-    else if (event.key === "ArrowDown") panBy(0, step);
-    else if (event.key === "+" || event.key === "=") zoomBy(1.5);
-    else if (event.key === "-") zoomBy(1 / 1.5);
+    if (event.key === "ArrowLeft") panBy(step, 0);
+    else if (event.key === "ArrowRight") panBy(-step, 0);
+    else if (event.key === "ArrowUp") panBy(0, step);
+    else if (event.key === "ArrowDown") panBy(0, -step);
+    else if (event.key === "+" || event.key === "=") zoomBy(ZOOM_STEP);
+    else if (event.key === "-") zoomBy(-ZOOM_STEP);
     else if (event.key === "0") fit();
     else moved = false;
     if (moved) event.preventDefault();
@@ -387,6 +525,35 @@ export function graphBehavior(modelJson) {
     if (event.key === "Escape") clear();
   });
 
+  /* ---- the written reading ----
+
+     Enhanced, the explorer is the application and the written reading is not a
+     scrolling companion beneath it: the reader came to a map, and a map with
+     thirteen thousand pixels of article under it is a document. It is closed
+     here rather than removed, so every fact stays in the delivered document
+     and one control reopens it.
+
+     With no scripting this never runs. The attribute is never set, the CSS
+     that depends on it never applies, and the artifact is the complete
+     readable document it has always been -- which is the whole of what the
+     no-scripting mode owes. It does not owe an explorer. */
+  function reading(open) {
+    readingOpen = Boolean(open);
+    document.body.setAttribute("data-pf-reading", readingOpen ? "open" : "closed");
+    var control = document.querySelector('[data-pf-act="reading"]');
+    if (control) {
+      control.setAttribute("aria-expanded", readingOpen ? "true" : "false");
+      control.textContent = readingOpen
+        ? ${JSON.stringify(UI.readingClose)}
+        : ${JSON.stringify(UI.readingOpen)};
+    }
+  }
+
+  /* The camera's frame changes with the window, and a clamp computed against
+     the old one would leave the content parked off-centre. */
+  window.addEventListener("resize", function () { paint(); });
+
+  reading(false);
   paint();
   apply();
 })();

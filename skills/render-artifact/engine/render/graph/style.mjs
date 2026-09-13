@@ -143,8 +143,129 @@ export const GRAPH_CSS = `
 .pf-pick { margin-left: var(--pf-space-2); white-space: nowrap; }
 
 .pf-canvas:focus-visible { outline: 3px solid var(--pf-accent); outline-offset: 2px; }
-.pf-canvas[data-pf-zoom="in"] .pf-graph { cursor: grab; }
+
+/* ---- what the map says about itself before it is touched ----
+
+   Every other signal this artifact has is state-dependent: a control un-greys
+   once it can do something, a node lights up once it is chosen, the status line
+   describes a selection once there is one. At rest all of them are off, and a
+   reader who has not yet guessed that the picture answers gestures is shown
+   nothing that says it does. That is a discoverability failure, not a styling
+   preference, and the cursor is the cheapest honest fix: it is present before
+   any click, it follows the pointer, and it names the gesture that will work.
+
+   It changes with the state rather than claiming one thing throughout, because
+   the available gesture genuinely changes. At fit the whole graph is framed and
+   the clamp makes panning a no-op, so a grab cursor there would promise a
+   movement that cannot happen; zoom is what is on offer, and the cursor says
+   so. Once zoomed there is somewhere to pan to, and it becomes a grab. */
+.pf-canvas[data-pf-pannable="true"] .pf-graph { cursor: grab; }
 .pf-canvas[data-pf-dragging] .pf-graph { cursor: grabbing; }
+/* A node is a thing you press, at every scale, including the one where the
+   background is not draggable. The pointer says which surface it is over,
+   which is the whole of the gesture arbitration made visible. */
+.pf-canvas .pf-node { cursor: pointer; }
+.pf-canvas[data-pf-dragging] .pf-node { cursor: grabbing; }
+
+/* A node answers the pointer before it is clicked. The same argument: focusing
+   a component has worked since the reading interactions shipped, and nothing
+   on the canvas ever admitted it. This adds no behaviour — it makes behaviour
+   that already exists visible. */
+.pf-node { cursor: pointer; }
+.pf-node:hover .pf-node-box { stroke: var(--pf-accent); }
+
+/* The live scale, set in the same type as the rest of the instrument panel
+   and given a fixed-width figure so the control surface does not twitch as
+   the camera moves through 100% / 125% / 150%. */
+.pf-tool-scale {
+  padding: 4px 8px;
+  color: var(--pf-muted);
+  font-family: var(--pf-mono);
+  font-size: .78rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 4.5ch;
+  text-align: center;
+}
+
+/* ---- the stage ----
+
+   Inside the explorer the canvas is not a figure in a column; it is the screen.
+   It loses the card treatment it wore as an illustration — the margin, the
+   border, the radius, the shadow, the horizontal scrollbar — because a surface
+   that fills the viewport has nothing to sit on and nothing to scroll beside.
+
+   The SVG is sized to the stage rather than to its own aspect ratio, and the
+   viewBox does the rest: with the default xMidYMid meet, zoom 1 is the whole
+   graph centred in whatever shape the window happens to be. That is what makes
+   "fit" mean fit-to-screen here without a single measurement.
+
+   Native touch scrolling is deliberately left alone. The explorer takes no
+   touch gesture of its own, so suppressing the browser's would cost a touch
+   reader the page and buy nothing. */
+[data-pf-layout="explorer"] .pf-stage {
+  display: flex;
+  flex-direction: column;
+}
+[data-pf-layout="explorer"] .pf-lead {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: var(--pf-space-4) var(--pf-space-5) var(--pf-space-3);
+}
+[data-pf-layout="explorer"] .pf-lead h1 { margin: 0; font-size: 1.35rem; }
+[data-pf-layout="explorer"] .pf-lead-sub {
+  margin: var(--pf-space-1) 0 0;
+  font-size: .9rem;
+}
+[data-pf-layout="explorer"] .pf-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: hidden;
+}
+[data-pf-layout="explorer"] .pf-graph {
+  width: 100%;
+  height: 100%;
+  /* The camera's own origin. With the transform anchored at the top-left, a
+     point p inside the element lands at x + p*scale on screen, which is what
+     makes the clamp two comparisons and the pan a raw pixel delta.
+
+     The touch-action property is deliberately absent. It was here to stop the browser
+     scrolling the page before custom touch gestures could see it; those
+     gestures are gone, and suppressing native touch scrolling for a gesture
+     stack that no longer exists would take the page away from touch readers
+     for nothing. */
+  transform-origin: 0 0;
+  transition: transform .18s ease;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The camera still reaches every state; it simply arrives immediately. */
+  [data-pf-layout="explorer"] .pf-graph { transition: none; }
+}
+
+/* The controls float over the map at its bottom-left corner — out of the way
+   of the title, and in the corner a map's controls are looked for. They keep
+   the toolbar markup and the button styling they have in the article layout;
+   only the placement changes. */
+[data-pf-layout="explorer"] .pf-graph-tools {
+  position: absolute;
+  left: var(--pf-space-5);
+  bottom: var(--pf-space-5);
+  z-index: 2;
+  max-width: calc(100% - var(--pf-space-5) * 2);
+  margin: 0;
+  padding: var(--pf-space-3);
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  box-shadow: var(--pf-shadow);
+}
+[data-pf-layout="explorer"] .pf-graph-status { margin-top: var(--pf-space-2); }
 
 /* Selection. Keyed off attributes the script sets and nothing else, so the
    delivered document is identical whether or not a browser ever runs it. */

@@ -18,7 +18,7 @@
  * Bump this in the same commit as any change that can alter rendered HTML --
  * markup, CSS, inline behaviour, ordering, or escaping.
  */
-export const RENDERER_VERSION = "0.5.0";
+export const RENDERER_VERSION = "0.6.0";
 
 /** The specification `schema_version` this engine understands. */
 export const SCHEMA_VERSION = "1.0";

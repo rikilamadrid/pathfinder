@@ -396,19 +396,33 @@ describe("the script that ships runs, and computes the right state", () => {
     const dom = fakeDocument();
     run(script, dom);
 
+    /* The camera is transform state now, and the viewBox is the build-time
+       frame it never rewrites. Reading `style.transform` is reading exactly
+       what the browser would paint. */
+    const camera = () => {
+      const m = /translate\(([-\d.]+)px, ([-\d.]+)px\) scale\(([\d.]+)\)/
+        .exec(dom.svg.style.transform || "");
+      assert.ok(m, `camera transform unreadable: ${dom.svg.style.transform}`);
+      return { x: Number(m[1]), y: Number(m[2]), scale: Number(m[3]) };
+    };
+
     dom.clickAct("zoom-in");
-    const zoomed = dom.svg.getAttribute("viewBox").split(" ").map(Number);
-    assert.ok(zoomed[2] < 1000 && zoomed[3] < 800, "zooming in did not narrow the view");
+    const zoomed = camera();
+    assert.ok(zoomed.scale > 1, "zooming in did not raise the scale");
+    assert.equal(dom.svg.getAttribute("viewBox"), "0 0 1000 800",
+      "the camera rewrote the viewBox, which is the build-time frame");
     assert.equal(dom.tool("zoom-out").disabled, false);
 
     dom.key("ArrowRight");
-    const panned = dom.svg.getAttribute("viewBox").split(" ").map(Number);
-    assert.ok(panned[0] > zoomed[0], "arrow-key panning did not move the view");
-    assert.ok(panned[0] + panned[2] <= 1000,
-      "panning left the graph's own bounds, so there is empty space on screen");
+    const panned = camera();
+    assert.notEqual(panned.x, zoomed.x, "arrow-key panning did not move the camera");
+    assert.ok(panned.x <= 0 && panned.y <= 0,
+      "the camera left the graph's bounds, so there is empty space on screen");
+    assert.ok(panned.x >= 800 - 800 * panned.scale,
+      "the camera panned past the content's far edge");
 
     dom.clickAct("fit");
-    assert.equal(dom.svg.getAttribute("viewBox"), "0 0 1000 800");
+    assert.deepEqual(camera(), { x: 0, y: 0, scale: 1 }, "fit did not restore the overview");
   });
 
   it("clears on Escape, and reset clears with it", () => {
@@ -439,7 +453,11 @@ describe("the script that ships runs, and computes the right state", () => {
 
   /** Run the emitted script against a stub document. */
   function run(source, dom) {
-    new Function("document", "window", source)(dom.document, { localStorage: null });
+    new Function("document", "window", source)(dom.document, {
+      localStorage: null,
+      addEventListener() {},
+      matchMedia: () => ({ matches: false, addEventListener() {} }),
+    });
   }
 
   /**
@@ -463,6 +481,12 @@ describe("the script that ships runs, and computes the right state", () => {
       closest() { return null; },
       scrollIntoView() {},
       getBoundingClientRect() { return { width: 800, height: 600 }; },
+      // A screen-space camera writes one style property and reads the box the
+      // browser is painting. Both are legitimate for the script to touch, so
+      // the stub carries them; it still lays nothing out and draws nothing.
+      style: {},
+      clientWidth: 800,
+      clientHeight: 600,
     });
 
     const svg = element({ viewBox: "0 0 1000 800" });
@@ -487,13 +511,19 @@ describe("the script that ships runs, and computes the right state", () => {
     const tools = {};
     for (const name of [
       "zoom-in", "zoom-out", "fit", "reset",
-      "upstream", "downstream", "details", "clear",
+      "upstream", "downstream", "details", "clear", "reading",
     ]) tools[name] = element({ "data-pf-act": name });
 
     const listeners = { document: [], canvas: [] };
     canvas.addEventListener = (type, fn) => listeners.canvas.push([type, fn]);
 
+    // The explorer closes the written reading on the body, so the stub has
+    // one. It carries nothing else: the page shape it drives is a stylesheet
+    // concern, and this document lays nothing out.
+    const body = element();
+
     const document = {
+      body,
       querySelector(selector) {
         if (selector.includes("data-pf-canvas")) return canvas;
         if (selector.includes("data-pf-status")) return status;

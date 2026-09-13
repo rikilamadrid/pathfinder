@@ -17,7 +17,7 @@
 import { RENDERER_VERSION } from "../version.mjs";
 import { isAttestation } from "../verification.mjs";
 import { esc } from "./escape.mjs";
-import { THEME_CSS } from "./theme.mjs";
+import { THEME_CSS, EXPLORER_CSS } from "./theme.mjs";
 import { BEHAVIOR_JS } from "./behavior.mjs";
 
 /**
@@ -64,6 +64,19 @@ const FAVICON = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%
  *        byte of the document changes.
  * @param {string} parts.nav         rendered navigation HTML
  * @param {string} parts.body        rendered lead and content HTML
+ * @param {"article"|"explorer"} [parts.layout] which page shape this kind
+ *        renders into. Defaults to `article` — the reading column with its
+ *        navigation beside it, which is what every kind had before a kind
+ *        needed a canvas. `explorer` gives the kind a full-width stage that
+ *        fills the first screen, with `parts.body` still rendered into the
+ *        same article layout beneath it.
+ *
+ *        This is deliberately one choice with two values rather than a set of
+ *        layout knobs. A kind picks the page shape it needs; it cannot
+ *        describe a page shape, and no specification field reaches this.
+ * @param {string} [parts.stage]     what fills the explorer's stage. Ignored by
+ *        the article layout, and absent for a kind that has no canvas — and
+ *        then not one byte of the document changes.
  * @param {object} [parts.source]    the specification's source identity, when
  *        it declares one. A kind describing a system with no repository behind
  *        it has none, and then no provenance row is invented for it.
@@ -74,6 +87,12 @@ const FAVICON = "data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%
  * @returns {string} a complete HTML document
  */
 export function renderShell(parts) {
+  // One structural choice, resolved once. Everything below reads this rather
+  // than asking which kind is rendering: the shell has never known that, and
+  // an explorer flag that meant "diagram" would be the same coupling wearing a
+  // different name.
+  const explorer = parts.layout === "explorer";
+
   const lines = [
     "<!doctype html>",
     `<html lang="${esc(parts.lang)}" data-pf-theme="auto">`,
@@ -86,10 +105,15 @@ export function renderShell(parts) {
       : null,
     `<meta name="generator" content="Pathfinder render-artifact ${esc(RENDERER_VERSION)}">`,
     `<link rel="icon" href="${FAVICON}">`,
-    `<style>${THEME_CSS}${parts.style ? `\n${parts.style}\n` : ""}</style>`,
+    `<style>${THEME_CSS}${explorer ? `\n${EXPLORER_CSS}` : ""}${parts.style ? `\n${parts.style}\n` : ""}</style>`,
     "</head>",
-    "<body>",
+    explorer ? '<body data-pf-layout="explorer">' : "<body>",
     '<a class="pf-skip" href="#pf-content">Skip to content</a>',
+    // The explorer's first screen: the header and the stage in one flex
+    // column, so the stage takes whatever height the header leaves instead of
+    // a hard-coded offset guessing at it. The reading below is outside this
+    // wrapper and scrolls normally.
+    explorer ? '<div class="pf-screen">' : null,
     '<header class="pf-header">',
     MARK,
     '<div class="pf-identity">',
@@ -100,6 +124,10 @@ export function renderShell(parts) {
     // not be offered. Without scripting the theme still follows the system.
     '<button type="button" class="pf-theme-toggle" id="pf-theme-toggle" hidden>Theme: auto</button>',
     "</header>",
+    explorer ? '<div class="pf-stage">' : null,
+    explorer ? parts.stage : null,
+    explorer ? "</div>" : null,
+    explorer ? "</div>" : null,
     '<div class="pf-layout">',
     parts.nav,
     '<main class="pf-main" id="pf-content">',

@@ -81,9 +81,97 @@ describe("diagram — the pipeline, end to end", () => {
   });
 
   it("carries an inline SVG canvas and no external reference", () => {
-    assert.match(delivery.html, /<svg class="pf-graph" viewBox="0 0 \d+ \d+"/);
+    assert.match(delivery.html, /<svg class="pf-graph" data-pf-graph viewBox="0 0 \d+ \d+"/);
     assert.doesNotMatch(delivery.html, /<img\b/, "an image would not be self-contained");
     assert.doesNotMatch(delivery.html, /https?:\/\/(?!www\.w3\.org)/i);
+  });
+
+  /* The script and the markup are written in two different files, and the only
+     thing joining them is a handful of attribute names. Nothing else in this
+     suite notices when one side drops a hook: an assertion that the canvas is
+     "an inline SVG" is satisfied by an SVG the camera cannot find, and every
+     interaction test that parses the script or runs it against a stub DOM
+     supplies its own elements and so cannot see the delivered document at all.
+     That is how a diagram shipped with its entire behaviour layer dead --
+     `canvas.querySelector("[data-pf-graph]")` returned null, the script
+     returned on its third line, and the goldens recorded it without complaint.
+
+     So this test asserts the join itself, against the delivered bytes: every
+     element the script must find is really in the document, and the one it
+     guards its own entry on is really inside the canvas it looks under. */
+  it("ships every element its inline script has to find", () => {
+    const markup = delivery.html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
+
+    for (const hook of [
+      "data-pf-canvas",   // the camera's container, and the keyboard tab stop
+      "data-pf-graph",    // the SVG the camera writes viewBox on
+      "data-pf-status",   // the live region the status sentence goes to
+      "data-pf-controls", // the groups the script reveals
+      "data-pf-act",      // the toolbar buttons it wires
+      "data-pf-node",
+      "data-pf-edge",
+      "data-pf-entry",
+    ]) {
+      assert.ok(markup.includes(hook),
+        `the script addresses [${hook}] and the document carries no such ` +
+        `element, so that interaction is dead in a browser`);
+    }
+
+    // The guard the whole script returns on, checked the way the script asks
+    // it: the graph hook has to be *inside* the canvas, not merely present.
+    const canvasAt = markup.indexOf("data-pf-canvas");
+    const graphAt = markup.indexOf("data-pf-graph");
+    assert.ok(canvasAt !== -1 && graphAt > canvasAt,
+      "the script looks for [data-pf-graph] under [data-pf-canvas]; if the " +
+      "graph is not nested there it finds nothing and every gesture is dead");
+  });
+
+  /* The gesture model this Feature removed. These are worth asserting because
+     the removal is the requirement -- a later change that "adds zoom back" by
+     reinstating a wheel handler would silently restore the conflict the
+     amendment exists to end, and nothing else here would notice. */
+  it("intercepts no wheel or pinch gesture, and takes no touch surface", () => {
+    const script = delivery.html.slice(delivery.html.indexOf("<script"));
+
+    assert.doesNotMatch(script, /addEventListener\(\s*["']wheel["']/,
+      "the explorer must not intercept wheel or trackpad scrolling");
+    assert.doesNotMatch(script, /\bdeltaMode\b|\bdeltaY\b/,
+      "wheel delta handling is the removed gesture model");
+    assert.doesNotMatch(delivery.html, /touch-action\s*:/,
+      "touch-action existed only to starve the removed touch gestures of " +
+      "native scrolling; with them gone it only takes the page from touch readers");
+  });
+
+  it("drives the camera by transform, never by rewriting the viewBox", () => {
+    const script = delivery.html.slice(delivery.html.indexOf("<script"));
+
+    assert.doesNotMatch(script, /setAttribute\(\s*["']viewBox["']/,
+      "the viewBox is the build-time frame; a camera that rewrites it " +
+      "quantises every pan into integers and cannot be transitioned");
+    assert.match(script, /style\.transform\s*=/,
+      "the camera is screen-space transform state");
+    assert.match(delivery.html, /transform-origin:\s*0 0/,
+      "the transform is anchored top-left, which is what makes the pan a " +
+      "raw pixel delta and the clamp two comparisons");
+  });
+
+  it("offers the camera's scale and an explicit route to the full reading", () => {
+    const markup = delivery.html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
+
+    assert.match(markup, /data-pf-scale/,
+      "the camera says where it is, on the control surface");
+    assert.match(markup, /data-pf-act="reading"/,
+      "the written reading is reachable by a deliberate press");
+
+    // Both live inside the controls block, so scripting reveals them together
+    // with the buttons: with no scripting the reading is simply already there
+    // and no control promising to open it is offered.
+    const tools = markup.slice(markup.indexOf('class="pf-graph-tools"'));
+    const closed = tools.indexOf("data-pf-status");
+    assert.ok(tools.indexOf("data-pf-scale") < closed, "scale readout is inside the controls");
+    assert.ok(tools.indexOf('data-pf-act="reading"') < closed, "reading control is inside the controls");
+    assert.match(markup, /<div class="pf-graph-tools" data-pf-controls hidden>/,
+      "a control that cannot work without scripting is not shipped visible");
   });
 
   it("says its evidence was checked, having had some to check", () => {
@@ -590,7 +678,7 @@ describe("diagram — what stays legal, because systems are like this", () => {
     for (let i = 0; i < 40; i += 1) {
       assert.ok(delivery.html.includes(`id="n--n${i}"`), `node n${i} is missing`);
     }
-    assert.match(delivery.html, /<svg class="pf-graph" viewBox="0 0 \d+ \d+"/);
+    assert.match(delivery.html, /<svg class="pf-graph" data-pf-graph viewBox="0 0 \d+ \d+"/);
   });
 });
 
