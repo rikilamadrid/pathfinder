@@ -108,14 +108,23 @@ export function renderShell(parts) {
     `<style>${THEME_CSS}${explorer ? `\n${EXPLORER_CSS}` : ""}${parts.style ? `\n${parts.style}\n` : ""}</style>`,
     "</head>",
     explorer ? '<body data-pf-layout="explorer">' : "<body>",
-    // One skip link, and the hook that lets a kind aim it. The href shipped
-    // here is the one that is always right in the delivered document: with no
-    // scripting the whole reading is on the page and `#pf-content` is where a
-    // reader wants to land. A kind whose enhanced presentation puts something
-    // else on screen re-aims this same link rather than shipping a second one,
-    // so there is never more than one first tab stop and never a state in
-    // which it points at something that is not there.
-    '<a class="pf-skip" data-pf-skip href="#pf-content">Skip to content</a>',
+    // One skip link. The href shipped here is the one that is always right in
+    // the delivered document: with no scripting the whole reading is on the
+    // page and `#pf-content` is where a reader wants to land.
+    //
+    // `data-pf-skip` is the hook a runtime needs to re-aim that link, and only
+    // the explorer has a runtime that re-aims it — the stage is on screen
+    // before the reading is, so the link has to follow. An article ships no
+    // such runtime, nothing would ever read the attribute there, and a hook
+    // with no reader is a byte of the document that has to be explained. So
+    // the layout that needs it gets it, and the page shape decides that, not
+    // the kind and not the specimen. A kind whose enhanced presentation puts
+    // something else on screen re-aims this same link rather than shipping a
+    // second one, so there is never more than one first tab stop and never a
+    // state in which it points at something that is not there.
+    explorer
+      ? '<a class="pf-skip" data-pf-skip href="#pf-content">Skip to content</a>'
+      : '<a class="pf-skip" href="#pf-content">Skip to content</a>',
     // The explorer's first screen: the header and the stage in one flex
     // column, so the stage takes whatever height the header leaves instead of
     // a hard-coded offset guessing at it. The reading below is outside this
