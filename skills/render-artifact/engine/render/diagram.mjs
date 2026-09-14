@@ -23,6 +23,16 @@ import { GRAPH_CSS } from "./graph/style.mjs";
 import { graphBehavior } from "./graph/behavior.mjs";
 import { interactionModel, serializeModel } from "./graph/interaction.mjs";
 
+/**
+ * Where the skip link lands when the explorer is the presentation on screen.
+ *
+ * A literal rather than a `domId` composition, for the same reason `pf-content`
+ * in the shell is one: it names a fixed part of the page shape, not a thing the
+ * producer identified, so no specification identifier reaches it and it is the
+ * same string in every artifact.
+ */
+const MAP_ID = "pf-map";
+
 /** Renderer-owned interface language. The producer supplies none of this. */
 const UI = Object.freeze({
   eyebrow: "Pathfinder diagram",
@@ -37,6 +47,11 @@ const UI = Object.freeze({
   focuses: "Focuses on",
   canvasLabel: "Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits.",
   toolbar: "Diagram controls",
+  // The scale readout's accessible name. The visible text is the live
+  // percentage the script writes; this is what a screen reader hears instead
+  // of a bare number.
+  scaleLabel: "Current zoom",
+  reading: "Full reading",
   nothing: "Nothing selected. Choose a component to focus it.",
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",
@@ -76,11 +91,25 @@ export function renderDiagram(spec, verification) {
     ...views.map((view) => ({ id: domId("s", "v", view.id), label: view.label })),
   ], UI.navLabel);
 
-  const body = [
+  // The stage is the map and the controls that drive it. The body is the same
+  // graph written out — every component, relationship, walk, view and citation
+  // — and it stays a full part of the document rather than something the canvas
+  // replaced. With no scripting the stage is a picture and the body is the
+  // artifact, which is the whole of the progressive-enhancement bargain.
+  const stage = [
     renderLead(spec),
     renderTools(),
-    `<div class="pf-canvas" data-pf-canvas tabindex="0" role="group" ` +
-    `aria-label="${esc(UI.canvasLabel)}">${drawGraph(diagram, layout)}</div>`,
+    // `id` so the shell's one skip link can be aimed here when the enhanced
+    // explorer has closed the written reading, and `tabindex` so landing on it
+    // actually moves focus rather than only moving the sequential navigation
+    // point. Both are as true with no scripting as with it: the canvas is a
+    // real keyboard surface either way.
+    `<div class="pf-canvas" id="${esc(MAP_ID)}" data-pf-canvas tabindex="0" ` +
+    `role="group" aria-label="${esc(UI.canvasLabel)}">` +
+    `${drawGraph(diagram, layout)}</div>`,
+  ].join("\n");
+
+  const body = [
     renderComponents(diagram),
     renderRelationships(diagram),
     renderPaths(diagram),
@@ -88,6 +117,8 @@ export function renderDiagram(spec, verification) {
   ].filter((part) => part !== "").join("\n");
 
   return renderShell({
+    layout: "explorer",
+    stage,
     lang: spec.artifact.locale ?? "en",
     title: spec.artifact.title,
     eyebrow: UI.eyebrow,
@@ -129,12 +160,24 @@ function renderTools() {
     button("zoom-out", UI.zoomOut),
     button("zoom-in", UI.zoomIn),
     button("fit", UI.fit),
+    // The camera's own readout, beside the control that resets it. The script
+    // writes the percentage; shipped as "100%" so the control is never blank
+    // and the delivered bytes already say where the camera starts.
+    `<span class="pf-tool-scale" data-pf-scale role="img" ` +
+    `aria-label="${esc(UI.scaleLabel)}">100%</span>`,
     button("reset", UI.reset),
     '<span class="pf-tool-sep" aria-hidden="true"></span>',
     button("upstream", UI.upstream, " disabled"),
     button("downstream", UI.downstream, " disabled"),
     button("details", UI.details, " disabled"),
     button("clear", UI.clear, " disabled"),
+    '<span class="pf-tool-sep" aria-hidden="true"></span>',
+    // The explicit secondary route into the written reading, and the only
+    // control that takes the reader off the map. Inside the controls block, so
+    // the same script that can honour it is the one that reveals it: with no
+    // scripting the reading is simply already there, and no control promising
+    // to open it is offered.
+    button("reading", UI.reading, ' aria-expanded="false"'),
     "</div>",
     `<p class="pf-graph-status" data-pf-status aria-live="polite">` +
     `${esc(UI.nothing)}</p>`,

@@ -17,7 +17,9 @@ import { readFileSync } from "node:fs";
 import { after, describe, it } from "node:test";
 
 import { esc } from "../../../skills/render-artifact/engine/render/escape.mjs";
-import { SPECS, cleanUpTemporaryDirectories, deliverInSubprocess } from "../lib/harness.mjs";
+import {
+  DIAGRAM_SPECIMENS, SPECS, cleanUpTemporaryDirectories, deliverInSubprocess,
+} from "../lib/harness.mjs";
 
 after(cleanUpTemporaryDirectories);
 
@@ -62,6 +64,30 @@ for (const name of Object.keys(SPECS)) {
         assert.match(delivery.html, new RegExp(`<html[^>]*lang="${spec.artifact.locale}"`),
           "the document language comes from the specification, not the machine");
       }
+    });
+
+    it("carries the runtime skip hook only where a runtime reads it", () => {
+      // `data-pf-skip` is how the explorer's runtime finds the skip link to
+      // re-aim it at the stage. An article ships no such runtime, so the
+      // attribute would be a hook nothing reads — and every byte of a lesson
+      // is a byte its goldens have to keep justifying.
+      //
+      // The expectation is derived from the specimen list rather than written
+      // per specimen, so a new diagram fixture is covered the day it is
+      // registered and a new lesson cannot quietly acquire the hook.
+      const explorer = DIAGRAM_SPECIMENS.includes(name);
+      const links = delivery.html.match(/<a class="pf-skip"[^>]*>/g) ?? [];
+
+      assert.equal(links.length, 1,
+        "one skip mechanism — two links is two first tab stops");
+      assert.equal(links[0].includes("data-pf-skip"), explorer,
+        explorer
+          ? "the explorer's skip link cannot be re-aimed without the hook, so "
+            + "the first tab stop lands in reading that is off screen"
+          : "an article ships no runtime that reads this hook; carrying it "
+            + "changes lesson bytes for nobody's benefit");
+      assert.match(links[0], /href="#pf-content"/,
+        "the shipped href is the one that is right with no scripting at all");
     });
 
     it("emits modules in specification order", { skip: spec.kind !== "lesson" }, () => {

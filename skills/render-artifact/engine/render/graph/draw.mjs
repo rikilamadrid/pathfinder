@@ -79,7 +79,12 @@ export function drawGraph(diagram, layout) {
 
   const titleId = domId("pf", "diagram", "title");
   const out = [
-    `<svg class="pf-graph" viewBox="0 0 ${layout.width} ${layout.height}" ` +
+    // `data-pf-graph` is the behaviour hook, and it is what the camera holds
+    // on to. The class beside it is the stylesheet's; keeping the two separate
+    // is the same rule the rest of the document follows -- `data-pf-canvas`,
+    // `data-pf-node`, `data-pf-edge` and `data-pf-act` are all hooks a script
+    // addresses, and never selectors a theme could rename out from under it.
+    `<svg class="pf-graph" data-pf-graph viewBox="0 0 ${layout.width} ${layout.height}" ` +
     `role="img" aria-labelledby="${esc(titleId)}" ` +
     `xmlns="http://www.w3.org/2000/svg">`,
     `<title id="${esc(titleId)}">${esc(UI.canvasLabel)}</title>`,

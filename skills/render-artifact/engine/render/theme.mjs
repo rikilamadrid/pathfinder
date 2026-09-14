@@ -590,3 +590,127 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
   .pf-reveal[open] > summary { list-style: none; }
 }
 `.trim();
+
+/**
+ * The explorer layout, shipped only to a kind that asked for it.
+ *
+ * Separate from `THEME_CSS` on exactly the same terms as a kind's own
+ * stylesheet and a kind's own script: a lesson has no stage, and putting these
+ * rules in the shared theme would send every lesson forty lines of layout it
+ * can never use. The shell appends this when, and only when, a kind renders
+ * into the explorer.
+ *
+ * It lives here rather than beside the diagram renderer because the markup it
+ * styles — the screen wrapper and the stage — is the shell's, not a kind's. A
+ * second kind that needs a canvas inherits this layout by choosing it, the same
+ * way it inherits the header and the provenance footer.
+ */
+export const EXPLORER_CSS = `
+/* ---------- the explorer layout ----------
+
+   A kind with a canvas gets the first screen. The header and the stage are one
+   flex column exactly one viewport tall, so the stage takes whatever the header
+   leaves rather than subtracting a hard-coded header height that the next
+   typography change would falsify.
+
+   svh rather than vh, because a mobile browser's retracting toolbar makes
+   vh taller than the screen and pushes the bottom of the stage out of sight;
+   vh stays as the fallback for anything that does not know the unit.
+
+   Everything below the stage is the ordinary article layout, unchanged. That is
+   what keeps the written reading — every node, relationship, path, view and
+   citation — a real part of the document rather than a thing the canvas
+   replaced. */
+[data-pf-layout="explorer"] .pf-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100svh;
+}
+[data-pf-layout="explorer"] .pf-header { position: static; flex: 0 0 auto; }
+[data-pf-layout="explorer"] .pf-stage {
+  position: relative;
+  flex: 1 1 auto;
+  /* Without this a flex item refuses to shrink below its content, and the
+     canvas would push the stage past the bottom of the screen. */
+  min-height: 0;
+  border-bottom: 1px solid var(--pf-line);
+  background: var(--pf-surface-2);
+}
+/* The footer follows the page's gutter rather than the reading column's
+   navigation offset. In the explorer the dominant element is full width, so
+   indenting the footer to clear a 248px column it no longer sits beside would
+   be aligning to something the reader cannot see. */
+[data-pf-layout="explorer"] .pf-provenance { padding-left: var(--pf-space-5); }
+@media (min-width: 900px) {
+  [data-pf-layout="explorer"] .pf-provenance {
+    padding-left: calc(var(--pf-space-5) * 2);
+  }
+}
+
+/* ---------- enhanced: the map is the application ----------
+
+   The data-pf-reading attribute exists only once scripting has run. Until then
+   none of this applies, and the artifact is the article it always was: the map,
+   then the whole written reading, then the provenance. That is the entire
+   no-scripting obligation, and it is met by doing nothing.
+
+   Once enhanced, the page becomes exactly the viewport -- header, stage, and
+   the provenance row that is this artifact's whole point -- and the written
+   reading closes behind one control. Not removed: every node, relationship,
+   path, view and citation is still in the document, one press away. What is
+   removed is a thirteen-thousand-pixel scroll under a map, which is what made
+   an explorer read as documentation with a picture in it.
+
+   The body becomes the flex column so the provenance is laid out with the
+   screen rather than after it. Otherwise "one viewport" means one viewport
+   plus a footer, and the page scrolls by exactly the amount that tells a
+   reader they are in a document. */
+[data-pf-layout="explorer"][data-pf-reading="closed"] {
+  height: 100vh;
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+[data-pf-layout="explorer"][data-pf-reading="closed"] .pf-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+[data-pf-layout="explorer"][data-pf-reading="closed"] .pf-layout { display: none; }
+
+/* Provenance stays on screen -- it is the point of the artifact, and an
+   explorer that hides where its claims came from would be trading away the
+   only thing that distinguishes it. What it does not get is forty percent of
+   the first screen: closed, it is the identity strip, laid along one line so
+   the map keeps the height. The caveat paragraph that qualifies the check is
+   still in the document, one press from here, with the reading it belongs to.
+
+   This is the same bargain as the reading itself. Nothing is removed, nothing
+   is restated, and no second copy of any claim is made: one row is laid out
+   differently and one paragraph waits to be asked for. */
+[data-pf-layout="explorer"][data-pf-reading="closed"] .pf-provenance {
+  flex: 0 0 auto;
+  max-width: none;
+  padding-block: var(--pf-space-3);
+}
+[data-pf-layout="explorer"][data-pf-reading="closed"] .pf-provenance dl {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pf-space-2) var(--pf-space-4);
+  margin: 0;
+}
+[data-pf-layout="explorer"][data-pf-reading="closed"] .pf-provenance dd {
+  margin-right: var(--pf-space-4);
+}
+[data-pf-layout="explorer"][data-pf-reading="closed"] .pf-caveat { display: none; }
+
+/* Reading open: the stage keeps a workable height so the map is still there to
+   come back to, and the reading scrolls beneath it as it always did. */
+[data-pf-layout="explorer"][data-pf-reading="open"] .pf-screen {
+  height: 62vh;
+  height: 62svh;
+}
+`.trim();

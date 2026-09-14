@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How a Pathfinder skill reaches an agent</title>
 <meta name="description" content="One canonical file, three discovery surfaces, and what keeps them from disagreeing">
-<meta name="generator" content="Pathfinder render-artifact 0.5.0">
+<meta name="generator" content="Pathfinder render-artifact 0.6.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
 <style>:root {
   color-scheme: light;
@@ -568,6 +568,113 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
   .pf-card { box-shadow: none; break-inside: avoid; }
   .pf-reveal[open] > summary { list-style: none; }
 }
+/* ---------- the explorer layout ----------
+
+   A kind with a canvas gets the first screen. The header and the stage are one
+   flex column exactly one viewport tall, so the stage takes whatever the header
+   leaves rather than subtracting a hard-coded header height that the next
+   typography change would falsify.
+
+   svh rather than vh, because a mobile browser's retracting toolbar makes
+   vh taller than the screen and pushes the bottom of the stage out of sight;
+   vh stays as the fallback for anything that does not know the unit.
+
+   Everything below the stage is the ordinary article layout, unchanged. That is
+   what keeps the written reading — every node, relationship, path, view and
+   citation — a real part of the document rather than a thing the canvas
+   replaced. */
+[data-pf-layout="explorer"] .pf-screen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100svh;
+}
+[data-pf-layout="explorer"] .pf-header { position: static; flex: 0 0 auto; }
+[data-pf-layout="explorer"] .pf-stage {
+  position: relative;
+  flex: 1 1 auto;
+  /* Without this a flex item refuses to shrink below its content, and the
+     canvas would push the stage past the bottom of the screen. */
+  min-height: 0;
+  border-bottom: 1px solid var(--pf-line);
+  background: var(--pf-surface-2);
+}
+/* The footer follows the page's gutter rather than the reading column's
+   navigation offset. In the explorer the dominant element is full width, so
+   indenting the footer to clear a 248px column it no longer sits beside would
+   be aligning to something the reader cannot see. */
+[data-pf-layout="explorer"] .pf-provenance { padding-left: var(--pf-space-5); }
+@media (min-width: 900px) {
+  [data-pf-layout="explorer"] .pf-provenance {
+    padding-left: calc(var(--pf-space-5) * 2);
+  }
+}
+
+/* ---------- enhanced: the map is the application ----------
+
+   The data-pf-reading attribute exists only once scripting has run. Until then
+   none of this applies, and the artifact is the article it always was: the map,
+   then the whole written reading, then the provenance. That is the entire
+   no-scripting obligation, and it is met by doing nothing.
+
+   Once enhanced, the page becomes exactly the viewport -- header, stage, and
+   the provenance row that is this artifact's whole point -- and the written
+   reading closes behind one control. Not removed: every node, relationship,
+   path, view and citation is still in the document, one press away. What is
+   removed is a thirteen-thousand-pixel scroll under a map, which is what made
+   an explorer read as documentation with a picture in it.
+
+   The body becomes the flex column so the provenance is laid out with the
+   screen rather than after it. Otherwise "one viewport" means one viewport
+   plus a footer, and the page scrolls by exactly the amount that tells a
+   reader they are in a document. */
+[data-pf-layout="explorer"][data-pf-reading="closed"] {
+  height: 100vh;
+  height: 100svh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+[data-pf-layout="explorer"][data-pf-reading="closed"] .pf-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+}
+[data-pf-layout="explorer"][data-pf-reading="closed"] .pf-layout { display: none; }
+
+/* Provenance stays on screen -- it is the point of the artifact, and an
+   explorer that hides where its claims came from would be trading away the
+   only thing that distinguishes it. What it does not get is forty percent of
+   the first screen: closed, it is the identity strip, laid along one line so
+   the map keeps the height. The caveat paragraph that qualifies the check is
+   still in the document, one press from here, with the reading it belongs to.
+
+   This is the same bargain as the reading itself. Nothing is removed, nothing
+   is restated, and no second copy of any claim is made: one row is laid out
+   differently and one paragraph waits to be asked for. */
+[data-pf-layout="explorer"][data-pf-reading="closed"] .pf-provenance {
+  flex: 0 0 auto;
+  max-width: none;
+  padding-block: var(--pf-space-3);
+}
+[data-pf-layout="explorer"][data-pf-reading="closed"] .pf-provenance dl {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--pf-space-2) var(--pf-space-4);
+  margin: 0;
+}
+[data-pf-layout="explorer"][data-pf-reading="closed"] .pf-provenance dd {
+  margin-right: var(--pf-space-4);
+}
+[data-pf-layout="explorer"][data-pf-reading="closed"] .pf-caveat { display: none; }
+
+/* Reading open: the stage keeps a workable height so the map is still there to
+   come back to, and the reading scrolls beneath it as it always did. */
+[data-pf-layout="explorer"][data-pf-reading="open"] .pf-screen {
+  height: 62vh;
+  height: 62svh;
+}
 .pf-canvas {
   margin: var(--pf-space-5) 0 var(--pf-space-7);
   padding: var(--pf-space-4);
@@ -687,8 +794,146 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 .pf-pick { margin-left: var(--pf-space-2); white-space: nowrap; }
 
 .pf-canvas:focus-visible { outline: 3px solid var(--pf-accent); outline-offset: 2px; }
-.pf-canvas[data-pf-zoom="in"] .pf-graph { cursor: grab; }
+
+/* ---- what the map says about itself before it is touched ----
+
+   Every other signal this artifact has is state-dependent: a control un-greys
+   once it can do something, a node lights up once it is chosen, the status line
+   describes a selection once there is one. At rest all of them are off, and a
+   reader who has not yet guessed that the picture answers gestures is shown
+   nothing that says it does. That is a discoverability failure, not a styling
+   preference, and the cursor is the cheapest honest fix: it is present before
+   any click, it follows the pointer, and it names the gesture that will work.
+
+   It changes with the state rather than claiming one thing throughout, because
+   the available gesture genuinely changes. At fit the whole graph is framed and
+   the clamp makes panning a no-op, so a grab cursor there would promise a
+   movement that cannot happen; zoom is what is on offer, and the cursor says
+   so. Once zoomed there is somewhere to pan to, and it becomes a grab. */
+.pf-canvas[data-pf-pannable="true"] .pf-graph { cursor: grab; }
 .pf-canvas[data-pf-dragging] .pf-graph { cursor: grabbing; }
+/* A node is a thing you press, at every scale, including the one where the
+   background is not draggable. The pointer says which surface it is over,
+   which is the whole of the gesture arbitration made visible. */
+.pf-canvas .pf-node { cursor: pointer; }
+.pf-canvas[data-pf-dragging] .pf-node { cursor: grabbing; }
+
+/* A node answers the pointer before it is clicked. The same argument: focusing
+   a component has worked since the reading interactions shipped, and nothing
+   on the canvas ever admitted it. This adds no behaviour — it makes behaviour
+   that already exists visible. */
+.pf-node { cursor: pointer; }
+.pf-node:hover .pf-node-box { stroke: var(--pf-accent); }
+
+/* ---- where the keyboard is, on the map ----
+
+   The drawn component is the control, so the focus indicator belongs on it and
+   in the same vocabulary the canvas's own tab stop already uses: the accent,
+   three pixels of it, held off the shape so the node's stroke stays readable
+   underneath. An outline rather than a thicker stroke deliberately, because
+   the thicker accent stroke already means *selected* — a reader tabbing across
+   the map has to be able to tell where the keyboard is from what they have
+   chosen, and two signals that look alike tell them neither.
+
+   The :focus-visible rule alone would be the whole of it if every engine
+   agreed about that pseudo-class on an SVG element; the pair below is the
+   ordinary fallback, and it resolves to the same thing: a ring for the
+   keyboard, and nothing for a click.
+
+   Opacity is restored last. A focused node may be one the current selection
+   dims to 22%, and a focus ring nobody can see is not a focus indicator. */
+.pf-node:focus { outline: 3px solid var(--pf-accent); outline-offset: 3px; }
+.pf-node:focus:not(:focus-visible) { outline: none; }
+.pf-node:focus-visible { outline: 3px solid var(--pf-accent); outline-offset: 3px; }
+.pf-node[data-pf-state]:focus-visible { opacity: 1; }
+
+/* The live scale, set in the same type as the rest of the instrument panel
+   and given a fixed-width figure so the control surface does not twitch as
+   the camera moves through 100% / 125% / 150%. */
+.pf-tool-scale {
+  padding: 4px 8px;
+  color: var(--pf-muted);
+  font-family: var(--pf-mono);
+  font-size: .78rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 4.5ch;
+  text-align: center;
+}
+
+/* ---- the stage ----
+
+   Inside the explorer the canvas is not a figure in a column; it is the screen.
+   It loses the card treatment it wore as an illustration — the margin, the
+   border, the radius, the shadow, the horizontal scrollbar — because a surface
+   that fills the viewport has nothing to sit on and nothing to scroll beside.
+
+   The SVG is sized to the stage rather than to its own aspect ratio, and the
+   viewBox does the rest: with the default xMidYMid meet, zoom 1 is the whole
+   graph centred in whatever shape the window happens to be. That is what makes
+   "fit" mean fit-to-screen here without a single measurement.
+
+   Native touch scrolling is deliberately left alone. The explorer takes no
+   touch gesture of its own, so suppressing the browser's would cost a touch
+   reader the page and buy nothing. */
+[data-pf-layout="explorer"] .pf-stage {
+  display: flex;
+  flex-direction: column;
+}
+[data-pf-layout="explorer"] .pf-lead {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: var(--pf-space-4) var(--pf-space-5) var(--pf-space-3);
+}
+[data-pf-layout="explorer"] .pf-lead h1 { margin: 0; font-size: 1.35rem; }
+[data-pf-layout="explorer"] .pf-lead-sub {
+  margin: var(--pf-space-1) 0 0;
+  font-size: .9rem;
+}
+[data-pf-layout="explorer"] .pf-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: hidden;
+}
+[data-pf-layout="explorer"] .pf-graph {
+  width: 100%;
+  height: 100%;
+  /* The camera's own origin. With the transform anchored at the top-left, a
+     point p inside the element lands at x + p*scale on screen, which is what
+     makes the clamp two comparisons and the pan a raw pixel delta.
+
+     The touch-action property is deliberately absent. It was here to stop the browser
+     scrolling the page before custom touch gestures could see it; those
+     gestures are gone, and suppressing native touch scrolling for a gesture
+     stack that no longer exists would take the page away from touch readers
+     for nothing. */
+  transform-origin: 0 0;
+  transition: transform .18s ease;
+  will-change: transform;
+}
+/* The controls float over the map at its bottom-left corner — out of the way
+   of the title, and in the corner a map's controls are looked for. They keep
+   the toolbar markup and the button styling they have in the article layout;
+   only the placement changes. */
+[data-pf-layout="explorer"] .pf-graph-tools {
+  position: absolute;
+  left: var(--pf-space-5);
+  bottom: var(--pf-space-5);
+  z-index: 2;
+  max-width: calc(100% - var(--pf-space-5) * 2);
+  margin: 0;
+  padding: var(--pf-space-3);
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-line);
+  border-radius: var(--pf-radius);
+  box-shadow: var(--pf-shadow);
+}
+[data-pf-layout="explorer"] .pf-graph-status { margin-top: var(--pf-space-2); }
 
 /* Selection. Keyed off attributes the script sets and nothing else, so the
    delivered document is identical whether or not a browser ever runs it. */
@@ -743,8 +988,9 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 .pf-walk li { margin-bottom: var(--pf-space-1); }
 </style>
 </head>
-<body>
-<a class="pf-skip" href="#pf-content">Skip to content</a>
+<body data-pf-layout="explorer">
+<a class="pf-skip" data-pf-skip href="#pf-content">Skip to content</a>
+<div class="pf-screen">
 <header class="pf-header">
 <svg class="pf-mark" width="26" height="26" viewBox="0 0 32 32" aria-hidden="true" focusable="false"><g fill="currentColor"><rect x="4" y="23" width="24" height="6.4" rx="3.2" transform="rotate(-3 16 26.2)"/><rect x="7" y="14.6" width="18" height="6" rx="3" transform="rotate(4 16 17.6)"/><rect x="9.6" y="7" width="12.8" height="5.4" rx="2.7" transform="rotate(-6 16 9.7)"/><rect x="12.4" y="1" width="7.2" height="4.4" rx="2.2" transform="rotate(5 16 3.2)"/></g></svg>
 <div class="pf-identity">
@@ -753,19 +999,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div>
 <button type="button" class="pf-theme-toggle" id="pf-theme-toggle" hidden>Theme: auto</button>
 </header>
-<div class="pf-layout">
-<nav class="pf-nav" aria-label="In this diagram">
-<div class="pf-nav-label">In this diagram</div>
-<ul class="pf-nav-list">
-<li><a class="pf-nav-link" href="#s--g--authoring" data-pf-nav="s--g--authoring"><span class="pf-nav-index">1</span>Where behaviour is written</a></li>
-<li><a class="pf-nav-link" href="#s--g--generation" data-pf-nav="s--g--generation"><span class="pf-nav-index">2</span>Generation</a></li>
-<li><a class="pf-nav-link" href="#s--g--surfaces" data-pf-nav="s--g--surfaces"><span class="pf-nav-index">3</span>Discovery surfaces</a></li>
-<li><a class="pf-nav-link" href="#s--g--guards" data-pf-nav="s--g--guards"><span class="pf-nav-index">4</span>What catches drift</a></li>
-<li><a class="pf-nav-link" href="#s--v--three-ways-in" data-pf-nav="s--v--three-ways-in"><span class="pf-nav-index">5</span>Three ways in, one contract</a></li>
-<li><a class="pf-nav-link" href="#s--v--generated" data-pf-nav="s--v--generated"><span class="pf-nav-index">6</span>Generated, not written</a></li>
-</ul>
-</nav>
-<main class="pf-main" id="pf-content">
+<div class="pf-stage">
 <div class="pf-lead">
 <h1>How a Pathfinder skill reaches an agent</h1>
 <p class="pf-lead-sub">One canonical file, three discovery surfaces, and what keeps them from disagreeing</p>
@@ -775,16 +1009,19 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <button type="button" class="pf-tool" data-pf-act="zoom-out">Zoom out</button>
 <button type="button" class="pf-tool" data-pf-act="zoom-in">Zoom in</button>
 <button type="button" class="pf-tool" data-pf-act="fit">Fit</button>
+<span class="pf-tool-scale" data-pf-scale role="img" aria-label="Current zoom">100%</span>
 <button type="button" class="pf-tool" data-pf-act="reset">Reset</button>
 <span class="pf-tool-sep" aria-hidden="true"></span>
 <button type="button" class="pf-tool" data-pf-act="upstream" disabled>Upstream</button>
 <button type="button" class="pf-tool" data-pf-act="downstream" disabled>Downstream</button>
 <button type="button" class="pf-tool" data-pf-act="details" disabled>Go to details</button>
 <button type="button" class="pf-tool" data-pf-act="clear" disabled>Clear</button>
+<span class="pf-tool-sep" aria-hidden="true"></span>
+<button type="button" class="pf-tool" data-pf-act="reading" aria-expanded="false">Full reading</button>
 </div>
 <p class="pf-graph-status" data-pf-status aria-live="polite">Nothing selected. Choose a component to focus it.</p>
 </div>
-<div class="pf-canvas" data-pf-canvas tabindex="0" role="group" aria-label="Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits."><svg class="pf-graph" viewBox="0 0 2172 1332" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
+<div class="pf-canvas" id="pf-map" data-pf-canvas tabindex="0" role="group" aria-label="Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits."><svg class="pf-graph" data-pf-graph viewBox="0 0 2172 1332" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
 <title id="pf--diagram--title">Diagram</title>
 <defs>
 <marker id="pf-arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" markerUnits="userSpaceOnUse" orient="auto">
@@ -959,6 +1196,21 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <text class="pf-node-role" text-anchor="middle" x="212" y="260">external</text>
 </g>
 </svg></div>
+</div>
+</div>
+<div class="pf-layout">
+<nav class="pf-nav" aria-label="In this diagram">
+<div class="pf-nav-label">In this diagram</div>
+<ul class="pf-nav-list">
+<li><a class="pf-nav-link" href="#s--g--authoring" data-pf-nav="s--g--authoring"><span class="pf-nav-index">1</span>Where behaviour is written</a></li>
+<li><a class="pf-nav-link" href="#s--g--generation" data-pf-nav="s--g--generation"><span class="pf-nav-index">2</span>Generation</a></li>
+<li><a class="pf-nav-link" href="#s--g--surfaces" data-pf-nav="s--g--surfaces"><span class="pf-nav-index">3</span>Discovery surfaces</a></li>
+<li><a class="pf-nav-link" href="#s--g--guards" data-pf-nav="s--g--guards"><span class="pf-nav-index">4</span>What catches drift</a></li>
+<li><a class="pf-nav-link" href="#s--v--three-ways-in" data-pf-nav="s--v--three-ways-in"><span class="pf-nav-index">5</span>Three ways in, one contract</a></li>
+<li><a class="pf-nav-link" href="#s--v--generated" data-pf-nav="s--v--generated"><span class="pf-nav-index">6</span>Generated, not written</a></li>
+</ul>
+</nav>
+<main class="pf-main" id="pf-content">
 <h2 class="pf-module-title">Components</h2><section class="pf-section" id="s--g--authoring">
 <h3 class="pf-section-title">Where behaviour is written</h3>
 <div class="pf-card">
@@ -1346,7 +1598,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <dt>Commit</dt>
 <dd>d5ee4c7</dd>
 <dt>Renderer</dt>
-<dd>Pathfinder render-artifact 0.5.0</dd>
+<dd>Pathfinder render-artifact 0.6.0</dd>
 </dl>
 <p class="pf-caveat">This diagram was checked deterministically against the commit named here: its specification satisfied the schema, its identifiers, references and graphs resolved, and every component, relationship and claim in it carried a citation that was verified at that commit. What that establishes is that the cited material is there to be read. It is not a finding that the architecture drawn here is correct, complete, or the best reading of that material, and it is not a judgement that the page reads well — a person has to open it to know either.</p>
 </footer>
@@ -1517,64 +1769,148 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
     return Array.prototype.slice.call(document.querySelectorAll(selector));
   }
 
-  /* The canvas is a picture to assistive technology, so the interactive
-     surface is the toolbar and the written reading below it — real buttons,
-     in document order, carrying the stylesheet's existing focus ring. Every
-     one of them is revealed here rather than shipped visible, because a
+  /* Every control is revealed here rather than shipped visible, because a
      control that cannot work should not be offered: with scripting off a
-     reader meets no dead buttons and loses nothing they could have read. */
+     reader meets no dead buttons and loses nothing they could have read --
+     every fact these navigate to is already written out below the canvas. */
   all("[data-pf-controls]").forEach(function (group) { group.hidden = false; });
 
-  var viewBox = svg.getAttribute("viewBox").split(" ");
-  var BASE = { w: Number(viewBox[2]), h: Number(viewBox[3]) };
-  var MAX_ZOOM = 6;
+  var MAX_ZOOM = 4;
+  var ZOOM_STEP = 0.25;
 
-  var view = { zoom: 1, x: 0, y: 0 };
+  /* The camera is screen-space state applied as one transform on the SVG, and
+     the viewBox is never written again. That is the whole of the change from
+     the previous camera, and every property this ticket had to deliver follows
+     from it.
+
+     A drag can be the pointer's own delta, in client pixels, added straight to
+     the offset -- no conversion into user units and back, so nothing is
+     quantised and nothing drifts. A previous implementation converted every
+     pointer step through getScreenCTM(), rounded the result into the integer
+     viewBox, clamped it, and then re-read the grabbed point from the clamped
+     value; each of those three steps discards a fraction of the movement, and
+     together they are why dragging crept and fought the zoom.
+
+     Scale is a float the stylesheet can transition, so a camera move is
+     animatable and interruptible rather than a sequence of rewritten
+     attributes. And with transform-origin at 0 0 the arithmetic is the
+     simplest form there is: a point p inside the element lands at x + p*scale
+     on screen, which makes the clamp below two comparisons.
+
+     Nothing here measures the picture. The camera reads the element's own box
+     -- where the browser is painting right now, a fact about the reader's
+     window -- and never a node, a label or a rendered glyph. */
+  var view = { scale: 1, x: 0, y: 0 };
   var state = { focus: null, trace: null, path: null };
 
   var nodeGroups = all("[data-pf-node]");
   var edgeGroups = all("[data-pf-edge]");
   var entries = all("[data-pf-entry]");
 
-  /* ---- the view: zoom and pan, clamped to the graph's own bounds ---- */
+  /* ---- the map is the application, so the components on it are the controls
+
+     Enhanced, the written reading is closed, and with it went the per-entry
+     focus buttons that used to be the only keyboard route into selection.
+     Reopening the reading to get them back would have made the keyboard
+     reader's explorer a different artifact from everyone else's -- the
+     fallback document, reached by a control nobody else has to press. So the
+     drawn component becomes the control instead: one visible thing that the
+     pointer presses and the keyboard focuses, carrying one selection
+     behaviour, named once.
+
+     Promoted here rather than emitted as markup, on exactly the terms every
+     other control in this artifact is. tabindex in the delivered bytes would
+     put twenty tab stops in a document where nothing can answer a press, and
+     a button role on a shape that does nothing is a promise the no-scripting
+     artifact cannot keep. With no scripting the picture stays a picture, the
+     reading is already open beneath it, and its focus buttons are the route --
+     which is what they are for.
+
+     The SVG sheds an img role at the same moment and for the same reason.
+     img prunes everything inside it from the accessibility tree, which is
+     the correct description of a picture and a fatal one for a picture with
+     twenty buttons in it: the nodes would take focus and announce nothing.
+     group keeps the title the shell drew and lets what is inside be reached.
+     Nothing about the picture's own words changes -- no text is written, moved
+     or restated; one attribute that says "there is nothing in here" stops
+     being true and is corrected.
+
+     The accessible name is the producer's own label out of the interaction
+     index, behind the renderer's verb. Nothing is invented, nothing is
+     duplicated, and no evidence reaches it. */
+  svg.setAttribute("role", "group");
+  for (var promoted = 0; promoted < nodeGroups.length; promoted += 1) {
+    var drawnNode = nodeGroups[promoted];
+    var drawnId = drawnNode.getAttribute("data-pf-node");
+    /* A drawn node the model does not carry cannot be selected and cannot be
+       named, so it is not offered as a control. Unreachable from this
+       renderer -- the picture and the index are built from one node list --
+       and asserted rather than assumed, because a focusable thing that does
+       nothing when pressed is the defect this repair exists to remove. */
+    if (!model.labels[drawnId]) continue;
+    drawnNode.setAttribute("tabindex", "0");
+    drawnNode.setAttribute("role", "button");
+    drawnNode.setAttribute("aria-label",
+      "Focus" + " " + model.labels[drawnId]);
+  }
+
+  /* ---- the camera ---- */
+
+  function frame() {
+    return { w: svg.clientWidth || 1, h: svg.clientHeight || 1 };
+  }
+
+  /* Keep the content covering the frame. At scale 1 both bounds collapse to
+     zero, which is the honest statement that there is nowhere to pan at
+     overview -- the same fact the pan gate below reads. */
+  function clamp() {
+    var box = frame();
+    view.x = Math.min(0, Math.max(box.w - box.w * view.scale, view.x));
+    view.y = Math.min(0, Math.max(box.h - box.h * view.scale, view.y));
+  }
 
   function paint() {
-    var w = Math.max(1, Math.floor(BASE.w / view.zoom));
-    var h = Math.max(1, Math.floor(BASE.h / view.zoom));
-
-    /* Clamped to the content, so panning can never wander off into empty
-       space and "fit" is always the way back. */
-    view.x = Math.min(Math.max(view.x, 0), Math.max(0, BASE.w - w));
-    view.y = Math.min(Math.max(view.y, 0), Math.max(0, BASE.h - h));
-
-    svg.setAttribute("viewBox", view.x + " " + view.y + " " + w + " " + h);
-    canvas.setAttribute("data-pf-zoom", view.zoom === 1 ? "fit" : "in");
+    clamp();
+    svg.style.transform =
+      "translate(" + view.x + "px, " + view.y + "px) scale(" + view.scale + ")";
+    canvas.setAttribute("data-pf-zoom", view.scale <= 1 ? "fit" : "in");
+    canvas.setAttribute("data-pf-pannable", view.scale > 1 ? "true" : "false");
     limits();
   }
 
-  function zoomBy(factor) {
-    var before = { w: BASE.w / view.zoom, h: BASE.h / view.zoom };
-    var next = Math.min(Math.max(view.zoom * factor, 1), MAX_ZOOM);
-    if (next === view.zoom) return;
-
-    var after = { w: BASE.w / next, h: BASE.h / next };
-    /* Keep whatever is in the middle of the view in the middle of it. */
-    view.x = view.x + Math.floor((before.w - after.w) / 2);
-    view.y = view.y + Math.floor((before.h - after.h) / 2);
-    view.zoom = next;
+  /* Zoom about the middle of the frame. Neither a button nor a key names a
+     point to zoom toward, and this Feature no longer carries a gesture that
+     does -- wheel and pinch zoom were removed rather than repaired, because
+     the reference viewer installs no wheel handler at all and still reads as
+     an explorer, and because a wheel handler on a page that also scrolls gives
+     one physical gesture two meanings. */
+  function zoomTo(next) {
+    next = Math.round(Math.min(Math.max(next, 1), MAX_ZOOM) * 100) / 100;
+    if (next === view.scale) return;
+    var box = frame();
+    var cx = box.w / 2;
+    var cy = box.h / 2;
+    var atX = (cx - view.x) / view.scale;
+    var atY = (cy - view.y) / view.scale;
+    view.scale = next;
+    view.x = cx - atX * next;
+    view.y = cy - atY * next;
     paint();
   }
 
+  function zoomBy(step) { zoomTo(view.scale + step); }
+
   function fit() {
-    view.zoom = 1;
+    view.scale = 1;
     view.x = 0;
     view.y = 0;
     paint();
   }
 
+  /* Screen pixels in, screen pixels out. */
   function panBy(dx, dy) {
-    view.x = view.x + dx;
-    view.y = view.y + dy;
+    view.x += dx;
+    view.y += dy;
     paint();
   }
 
@@ -1673,6 +2009,19 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
     mark(nodeGroups, "data-pf-node", picked);
     mark(edgeGroups, "data-pf-edge", picked);
 
+    /* The drawn node the reader chose says so, in the same word the written
+       entry uses. Dimming is a visual signal and aria-current is the one a
+       reader who is not looking at the picture gets; without it a screen
+       reader moving back over the map would find twenty buttons and no way to
+       tell which one is the current selection. */
+    for (var drawn = 0; drawn < nodeGroups.length; drawn += 1) {
+      if (nodeGroups[drawn].getAttribute("data-pf-node") === state.focus) {
+        nodeGroups[drawn].setAttribute("aria-current", "true");
+      } else {
+        nodeGroups[drawn].removeAttribute("aria-current");
+      }
+    }
+
     /* The written reading is where the details and the evidence live. Marking
        the selected entry current is the whole of the details interaction: the
        reader is sent to the evidence already in the document rather than
@@ -1707,9 +2056,15 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
      pressed. Fit is the floor deliberately: zooming out past the whole graph
      would only add empty space, and "fit" is then always the way back. */
   function limits() {
-    act("zoom-out", view.zoom <= 1);
-    act("zoom-in", view.zoom >= MAX_ZOOM);
-    act("fit", view.zoom === 1 && view.x === 0 && view.y === 0);
+    act("zoom-out", view.scale <= 1);
+    act("zoom-in", view.scale >= MAX_ZOOM);
+    act("fit", view.scale === 1 && view.x === 0 && view.y === 0);
+
+    /* The camera says where it is, on the control that takes you back. A
+       reader who can see "140%" knows both that the map moved and what the
+       control will undo, which is the cheapest orientation signal there is. */
+    var readout = document.querySelector("[data-pf-scale]");
+    if (readout) readout.textContent = Math.round(view.scale * 100) + "%";
   }
 
   function act(name, isDisabled) {
@@ -1745,19 +2100,32 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
   /* ---- wiring ---- */
 
   document.addEventListener("click", function (event) {
+    /* The click a finished pan emits. Consumed here rather than suppressed at
+       the source, because the pointer gesture cannot cancel it and a reader
+       who dragged the map did not ask to select whatever they let go over. */
+    if (swallowClick) {
+      swallowClick = false;
+      return;
+    }
+
     var target = event.target;
     if (!target || !target.closest) return;
 
     var control = target.closest("[data-pf-act]");
     if (control && !control.disabled) {
       var action = control.getAttribute("data-pf-act");
-      if (action === "zoom-in") zoomBy(1.5);
-      else if (action === "zoom-out") zoomBy(1 / 1.5);
+      if (action === "zoom-in") zoomBy(ZOOM_STEP);
+      else if (action === "zoom-out") zoomBy(-ZOOM_STEP);
       else if (action === "fit") fit();
-      else if (action === "reset") { fit(); clear(); }
+      else if (action === "reset") { fit(); clear(); reading(false); }
+      else if (action === "reading") reading(!readingOpen);
       else if (action === "upstream") { state.trace = "in"; state.path = null; apply(); }
       else if (action === "downstream") { state.trace = "out"; state.path = null; apply(); }
-      else if (action === "details") reveal(state.focus);
+      /* The explicit secondary path into the full written reading, and the
+         only route that still scrolls anything. A reader pressing a control
+         labelled for it has asked to go there; a reader touching the map has
+         not. */
+      else if (action === "details") { reading(true); reveal(state.focus); }
       else if (action === "clear") clear();
       else if (action === "path") {
         state.path = control.getAttribute("data-pf-path");
@@ -1775,52 +2143,179 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
       return;
     }
 
-    /* A node in the picture: the pointer route. Keyboard readers reach the
-       same state through the entry buttons above, which is why nothing in
-       the canvas is a tab stop. */
+    /* A node in the picture: the pointer route into the same control the
+       keyboard focuses. It selects and does nothing else -- no scroll, no
+       navigation, no location. Reaching the written reading is the "details"
+       control above, deliberately pressed. */
     var drawn = target.closest("[data-pf-node]");
-    if (drawn) focusNode(drawn.getAttribute("data-pf-node"), { reveal: true });
+    if (drawn) focusNode(drawn.getAttribute("data-pf-node"), { reveal: false });
   });
 
-  /* Drag to pan. Pixels become user units through the element's rendered
-     width, which is a reading of the reader's window and not of anything
-     that decided the artifact's bytes. */
-  var dragging = null;
+  /* ---- pointer gestures: one gesture, one surface ----
+
+     There is exactly one pointer gesture now: drag the background to pan. The
+     previous implementation put wheel zoom, pinch zoom, drag pan and click
+     focus on the same element at every scale, on a page that also scrolled,
+     and left them to sort themselves out. They did not. This resolves the
+     arbitration structurally instead, by giving each gesture a surface it does
+     not share:
+
+       background  -> pan          (and only where there is somewhere to pan)
+       node, edge  -> activate
+       controls    -> their own action
+       wheel       -> the page's, untouched
+
+     A gesture that begins on a node is never a pan, so dragging across a
+     component cannot drag the map out from under the click. A drag that has
+     actually moved swallows the click it would otherwise emit, so releasing a
+     pan over a component does not select it. And at overview the clamp leaves
+     nothing to pan to, so the gate is closed there rather than letting a drag
+     look broken by doing nothing visible. */
+  var DRAG_SLOP = 3;
+  var readingOpen = false;
+  var grab = null;
+  var dragging = false;
+  var swallowClick = false;
+
+  /* What a pan may start on. Anything the reader can act on owns its own
+     gesture; the background is what is left. */
+  function panSurface(target) {
+    if (!target || !target.closest) return false;
+    if (target.closest("[data-pf-node]")) return false;
+    if (target.closest("[data-pf-edge]")) return false;
+    if (target.closest("[data-pf-act]")) return false;
+    if (target.closest("[data-pf-pick]")) return false;
+    return Boolean(target.closest("[data-pf-graph]"));
+  }
+
   svg.addEventListener("pointerdown", function (event) {
-    if (view.zoom === 1) return;
-    dragging = { x: event.clientX, y: event.clientY };
-    canvas.setAttribute("data-pf-dragging", "true");
-    if (svg.setPointerCapture) svg.setPointerCapture(event.pointerId);
+    swallowClick = false;
+    if (event.button !== 0) return;
+    if (view.scale <= 1) return;
+    if (!panSurface(event.target)) return;
+
+    grab = { x: event.clientX, y: event.clientY };
+    dragging = false;
   });
+
   svg.addEventListener("pointermove", function (event) {
-    if (!dragging) return;
-    var rect = svg.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    var scaleX = (BASE.w / view.zoom) / rect.width;
-    var scaleY = (BASE.h / view.zoom) / rect.height;
-    panBy(
-      Math.floor((dragging.x - event.clientX) * scaleX),
-      Math.floor((dragging.y - event.clientY) * scaleY));
-    dragging = { x: event.clientX, y: event.clientY };
+    if (!grab) return;
+
+    if (!dragging) {
+      if (Math.abs(event.clientX - grab.x) < DRAG_SLOP &&
+          Math.abs(event.clientY - grab.y) < DRAG_SLOP) return;
+      dragging = true;
+      canvas.setAttribute("data-pf-dragging", "true");
+      /* Captured only once the gesture is certainly a drag. Capturing on
+         pointerdown would retarget the compatibility mouse events -- a
+         captured pointer sends its click to the capturing element, not to the
+         node under it -- and take the pointer route into selection away
+         entirely. */
+      if (svg.setPointerCapture) {
+        try { svg.setPointerCapture(event.pointerId); } catch (ignored) { /* gone */ }
+      }
+    }
+
+    /* The delta the pointer actually travelled, straight into the camera. */
+    panBy(event.clientX - grab.x, event.clientY - grab.y);
+    grab = { x: event.clientX, y: event.clientY };
   });
-  function endDrag() {
-    dragging = null;
+
+  function endPointer() {
+    if (dragging) swallowClick = true;
+    grab = null;
+    dragging = false;
     canvas.removeAttribute("data-pf-dragging");
   }
-  svg.addEventListener("pointerup", endDrag);
-  svg.addEventListener("pointercancel", endDrag);
+  svg.addEventListener("pointerup", endPointer);
+  svg.addEventListener("pointercancel", endPointer);
 
-  /* Keyboard panning, on the canvas itself, which is a tab stop for exactly
-     this reason. Escape clears from anywhere. */
+  /* Enter and Space on a drawn component, which is what a button role
+     promises and what a keyboard reader will press. Delegated on the SVG so
+     one listener covers every node, and taken before the canvas's own key
+     handler below sees it -- that one owns the arrows, plus, minus and zero,
+     and deliberately still does while focus is on a node, so panning and
+     zooming stay available from wherever the reader happens to be.
+
+     Space is prevented for the reason every scripted button prevents it: left
+     alone it scrolls. Enter is prevented so that a node inside a page that
+     also has links cannot become a navigation. Neither writes a location,
+     scrolls a section into view, or opens the reading -- keyboard activation
+     reaches exactly the state a click reaches, which is the point. */
+  svg.addEventListener("keydown", function (event) {
+    if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
+    var target = event.target;
+    if (!target || !target.closest) return;
+    var drawn = target.closest("[data-pf-node]");
+    if (!drawn) return;
+    event.preventDefault();
+    focusNode(drawn.getAttribute("data-pf-node"), { reveal: false });
+  });
+
+  /* Focus has to land somewhere the reader can see.
+
+     Two things would otherwise move the map out from under a tab stop. The
+     browser scrolls a focused element into view, and the stage clips rather
+     than scrolls, so that scroll is invisible movement the camera does not
+     know about -- it is undone here rather than prevented, because a Tab is
+     not a programmatic focus and there is no flag to pass it. And at any zoom
+     above the overview a node can simply be outside the frame, focused,
+     ringed, and off screen -- a focus indicator nobody can see is not one.
+
+     So the camera moves instead, by the smallest amount that brings the
+     focused node inside the frame, which is the same service the browser's
+     scroll performs on a page that scrolls. At the overview every node is in
+     frame already and this does nothing at all.
+
+     It reads one painted box: where the browser is drawing the thing that just
+     took focus. That is the same kind of measurement the camera already makes
+     of its own frame, and it is a camera decision end to end. No box is ever
+     compared with another to decide what is upstream, downstream, adjacent or
+     grouped -- those come from the index and only from the index. */
+  var FOCUS_MARGIN = 16;
+
+  function numeric(box) {
+    return box && typeof box.left === "number" && typeof box.right === "number"
+      && typeof box.top === "number" && typeof box.bottom === "number";
+  }
+
+  /** How far to move one axis so [near, far] sits inside [low, high]. */
+  function nudge(near, far, low, high) {
+    if (near < low) return Math.min(low - near, high - far);
+    if (far > high) return Math.max(high - far, low - near);
+    return 0;
+  }
+
+  canvas.addEventListener("focusin", function (event) {
+    canvas.scrollLeft = 0;
+    canvas.scrollTop = 0;
+
+    var target = event && event.target;
+    if (!target || !target.closest || !target.getBoundingClientRect) return;
+    var drawn = target.closest("[data-pf-node]");
+    if (!drawn || !drawn.getBoundingClientRect) return;
+
+    var node = drawn.getBoundingClientRect();
+    var frameBox = canvas.getBoundingClientRect();
+    if (!numeric(node) || !numeric(frameBox)) return;
+
+    var dx = nudge(node.left, node.right,
+      frameBox.left + FOCUS_MARGIN, frameBox.right - FOCUS_MARGIN);
+    var dy = nudge(node.top, node.bottom,
+      frameBox.top + FOCUS_MARGIN, frameBox.bottom - FOCUS_MARGIN);
+    if (dx || dy) panBy(dx, dy);
+  });
+
   canvas.addEventListener("keydown", function (event) {
-    var step = Math.max(16, Math.floor(BASE.w / view.zoom / 8));
+    /* A step in screen pixels, like the drag it stands in for. */
+    var step = Math.max(24, Math.round(frame().w / 8));
     var moved = true;
-    if (event.key === "ArrowLeft") panBy(-step, 0);
-    else if (event.key === "ArrowRight") panBy(step, 0);
-    else if (event.key === "ArrowUp") panBy(0, -step);
-    else if (event.key === "ArrowDown") panBy(0, step);
-    else if (event.key === "+" || event.key === "=") zoomBy(1.5);
-    else if (event.key === "-") zoomBy(1 / 1.5);
+    if (event.key === "ArrowLeft") panBy(step, 0);
+    else if (event.key === "ArrowRight") panBy(-step, 0);
+    else if (event.key === "ArrowUp") panBy(0, step);
+    else if (event.key === "ArrowDown") panBy(0, -step);
+    else if (event.key === "+" || event.key === "=") zoomBy(ZOOM_STEP);
+    else if (event.key === "-") zoomBy(-ZOOM_STEP);
     else if (event.key === "0") fit();
     else moved = false;
     if (moved) event.preventDefault();
@@ -1830,6 +2325,67 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
     if (event.key === "Escape") clear();
   });
 
+  /* ---- the written reading ----
+
+     Enhanced, the explorer is the application and the written reading is not a
+     scrolling companion beneath it: the reader came to a map, and a map with
+     thirteen thousand pixels of article under it is a document. It is closed
+     here rather than removed, so every fact stays in the delivered document
+     and one control reopens it.
+
+     With no scripting this never runs. The attribute is never set, the CSS
+     that depends on it never applies, and the artifact is the complete
+     readable document it has always been -- which is the whole of what the
+     no-scripting mode owes. It does not owe an explorer. */
+  function reading(open) {
+    readingOpen = Boolean(open);
+    document.body.setAttribute("data-pf-reading", readingOpen ? "open" : "closed");
+    var control = document.querySelector('[data-pf-act="reading"]');
+    if (control) {
+      control.setAttribute("aria-expanded", readingOpen ? "true" : "false");
+      control.textContent = readingOpen
+        ? "Back to map"
+        : "Full reading";
+    }
+    aimSkip();
+  }
+
+  /* The page's first tab stop, aimed at the reading that is actually on
+     screen. One link, re-aimed -- not a second link, and not a link that is
+     right in one state and points into a hidden subtree in the other.
+
+     The shipped href and the shipped words are the fallback, and they are
+     already correct: with no scripting the whole reading is on the page and
+     #pf-content is where a reader wants to land. They are read off the link
+     rather than restated here, so the no-scripting wording and the
+     reading-open wording cannot drift apart. Closed, the reading is
+     display:none and the map is the content, so the link says so and goes
+     there. */
+  var skip = document.querySelector("[data-pf-skip]");
+  var skipFallback = skip
+    ? { href: skip.getAttribute("href"), text: skip.textContent }
+    : null;
+
+  function aimSkip() {
+    if (!skip || !skipFallback) return;
+    /* The fallback is also what an explorer with no id on its map gets: a
+       link that lands in the document it shipped beats one aimed at a
+       fragment that does not resolve. Unreachable from this renderer, which
+       always writes the id, and cheap enough to be certain of. */
+    if (readingOpen || !canvas.id) {
+      skip.setAttribute("href", skipFallback.href);
+      skip.textContent = skipFallback.text;
+      return;
+    }
+    skip.setAttribute("href", "#" + canvas.id);
+    skip.textContent = "Skip to the map";
+  }
+
+  /* The camera's frame changes with the window, and a clamp computed against
+     the old one would leave the content parked off-centre. */
+  window.addEventListener("resize", function () { paint(); });
+
+  reading(false);
   paint();
   apply();
 })();</script>
