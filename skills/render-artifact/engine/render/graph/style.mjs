@@ -174,6 +174,28 @@ export const GRAPH_CSS = `
 .pf-node { cursor: pointer; }
 .pf-node:hover .pf-node-box { stroke: var(--pf-accent); }
 
+/* ---- where the keyboard is, on the map ----
+
+   The drawn component is the control, so the focus indicator belongs on it and
+   in the same vocabulary the canvas's own tab stop already uses: the accent,
+   three pixels of it, held off the shape so the node's stroke stays readable
+   underneath. An outline rather than a thicker stroke deliberately, because
+   the thicker accent stroke already means *selected* — a reader tabbing across
+   the map has to be able to tell where the keyboard is from what they have
+   chosen, and two signals that look alike tell them neither.
+
+   The :focus-visible rule alone would be the whole of it if every engine
+   agreed about that pseudo-class on an SVG element; the pair below is the
+   ordinary fallback, and it resolves to the same thing: a ring for the
+   keyboard, and nothing for a click.
+
+   Opacity is restored last. A focused node may be one the current selection
+   dims to 22%, and a focus ring nobody can see is not a focus indicator. */
+.pf-node:focus { outline: 3px solid var(--pf-accent); outline-offset: 3px; }
+.pf-node:focus:not(:focus-visible) { outline: none; }
+.pf-node:focus-visible { outline: 3px solid var(--pf-accent); outline-offset: 3px; }
+.pf-node[data-pf-state]:focus-visible { opacity: 1; }
+
 /* The live scale, set in the same type as the rest of the instrument panel
    and given a fixed-width figure so the control surface does not twitch as
    the camera moves through 100% / 125% / 150%. */
@@ -243,11 +265,6 @@ export const GRAPH_CSS = `
   transition: transform .18s ease;
   will-change: transform;
 }
-@media (prefers-reduced-motion: reduce) {
-  /* The camera still reaches every state; it simply arrives immediately. */
-  [data-pf-layout="explorer"] .pf-graph { transition: none; }
-}
-
 /* The controls float over the map at its bottom-left corner — out of the way
    of the title, and in the corner a map's controls are looked for. They keep
    the toolbar markup and the button styling they have in the article layout;

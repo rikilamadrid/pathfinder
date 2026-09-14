@@ -23,6 +23,16 @@ import { GRAPH_CSS } from "./graph/style.mjs";
 import { graphBehavior } from "./graph/behavior.mjs";
 import { interactionModel, serializeModel } from "./graph/interaction.mjs";
 
+/**
+ * Where the skip link lands when the explorer is the presentation on screen.
+ *
+ * A literal rather than a `domId` composition, for the same reason `pf-content`
+ * in the shell is one: it names a fixed part of the page shape, not a thing the
+ * producer identified, so no specification identifier reaches it and it is the
+ * same string in every artifact.
+ */
+const MAP_ID = "pf-map";
+
 /** Renderer-owned interface language. The producer supplies none of this. */
 const UI = Object.freeze({
   eyebrow: "Pathfinder diagram",
@@ -89,8 +99,14 @@ export function renderDiagram(spec, verification) {
   const stage = [
     renderLead(spec),
     renderTools(),
-    `<div class="pf-canvas" data-pf-canvas tabindex="0" role="group" ` +
-    `aria-label="${esc(UI.canvasLabel)}">${drawGraph(diagram, layout)}</div>`,
+    // `id` so the shell's one skip link can be aimed here when the enhanced
+    // explorer has closed the written reading, and `tabindex` so landing on it
+    // actually moves focus rather than only moving the sequential navigation
+    // point. Both are as true with no scripting as with it: the canvas is a
+    // real keyboard surface either way.
+    `<div class="pf-canvas" id="${esc(MAP_ID)}" data-pf-canvas tabindex="0" ` +
+    `role="group" aria-label="${esc(UI.canvasLabel)}">` +
+    `${drawGraph(diagram, layout)}</div>`,
   ].join("\n");
 
   const body = [

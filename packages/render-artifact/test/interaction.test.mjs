@@ -442,6 +442,108 @@ describe("the script that ships runs, and computes the right state", () => {
     assert.equal(dom.state("node", "on").length, 0);
   });
 
+  /* ---- the map is the application, so the map is the keyboard surface ----
+
+     Enhanced, the written reading is closed and its per-node focus buttons go
+     with it. If selection is only reachable through them, a keyboard-only
+     reader cannot select a component at all without first leaving the
+     explorer for the fallback document — which is the defect these four cases
+     exist to keep repaired. */
+
+  it("makes every drawn component a control, named from the index", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+
+    assert.equal(dom.svg.getAttribute("role"), "group",
+      "the SVG kept role=img, which prunes everything inside it from the " +
+      "accessibility tree: the nodes would take focus and announce nothing");
+
+    for (const node of INSTALLER.diagram.nodes) {
+      const drawn = dom.node(node.id);
+      assert.equal(drawn.getAttribute("tabindex"), "0",
+        `${node.id} is not a tab stop, so the keyboard cannot reach it`);
+      assert.equal(drawn.getAttribute("role"), "button");
+      assert.equal(drawn.getAttribute("aria-label"), `Focus ${node.label}`,
+        "the accessible name has to carry the label the reader can see");
+    }
+  });
+
+  for (const key of ["Enter", " "]) {
+    it(`selects from the keyboard on ${key === " " ? "Space" : key}`, () => {
+      const dom = fakeDocument();
+      run(script, dom);
+      const event = dom.pressNode("cli", key);
+
+      assert.equal(dom.canvas.getAttribute("data-pf-mode"), "focus");
+      assert.deepEqual(dom.state("node", "on"), ["cli"]);
+      assert.equal(dom.node("cli").getAttribute("aria-current"), "true",
+        "a reader who is not looking at the picture cannot tell which of " +
+        "twenty buttons is the current selection");
+      assert.ok(dom.state("node", "off").length > 0, "nothing was dimmed");
+      assert.equal(dom.tool("upstream").disabled, false);
+      assert.ok(event.prevented,
+        "left alone, Space scrolls and Enter can navigate");
+    });
+  }
+
+  it("reaches the same selection by keyboard and by pointer", () => {
+    const shape = (dom) => ({
+      mode: dom.canvas.getAttribute("data-pf-mode"),
+      on: sorted(dom.state("node", "on")),
+      near: sorted(dom.state("node", "near")),
+      off: sorted(dom.state("node", "off")),
+      edges: sorted(dom.state("edge", "on")),
+      current: dom.current(),
+      status: dom.status.textContent,
+      reading: dom.document.body.getAttribute("data-pf-reading"),
+      tools: ["upstream", "downstream", "details", "clear"]
+        .map((name) => `${name}:${dom.tool(name).disabled}`),
+    });
+
+    const byKey = fakeDocument();
+    run(script, byKey);
+    byKey.pressNode("prompter", "Enter");
+
+    const byPointer = fakeDocument();
+    run(script, byPointer);
+    byPointer.clickNode("prompter");
+
+    assert.deepEqual(shape(byKey), shape(byPointer),
+      "one visible control with two ways in has to reach one state");
+  });
+
+  it("offers no control for a drawn node the model does not carry", () => {
+    // A focusable thing that does nothing when pressed is the defect this
+    // repair removes, so an unnameable node is not promoted in the first place.
+    const dom = fakeDocument();
+    run(script, dom);
+    const orphan = dom.pressNode("no-such-node", "Enter");
+
+    assert.equal(dom.canvas.getAttribute("data-pf-mode"), "",
+      "the script invented a selection for an id the model does not carry");
+    assert.ok(!orphan.prevented,
+      "a key the script does not act on must stay the page's");
+  });
+
+  it("aims the one skip link at whichever reading is on screen", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+
+    assert.equal(dom.skip.getAttribute("href"), "#pf-map",
+      "closed, the reading is display:none and the skip link is the page's " +
+      "first tab stop: it has to land on the map, not inside the hidden article");
+    assert.equal(dom.skip.textContent, "Skip to the map");
+
+    dom.clickAct("reading");
+    assert.equal(dom.skip.getAttribute("href"), "#pf-content",
+      "open, the written reading is the content again");
+    assert.equal(dom.skip.textContent, "Skip to content",
+      "the fallback wording is read off the delivered link, never restated");
+
+    dom.clickAct("reading");
+    assert.equal(dom.skip.getAttribute("href"), "#pf-map");
+  });
+
   it("ignores a node it does not have", () => {
     const dom = fakeDocument();
     run(script, dom);
@@ -489,12 +591,20 @@ describe("the script that ships runs, and computes the right state", () => {
       clientHeight: 600,
     });
 
-    const svg = element({ viewBox: "0 0 1000 800" });
+    const svg = element({ viewBox: "0 0 1000 800", role: "img" });
     const canvas = element({ "data-pf-canvas": "" });
     canvas.querySelector = () => svg;
+    // The explorer's map carries the id the one skip link is aimed at.
+    canvas.id = "pf-map";
 
-    const nodes = INSTALLER.diagram.nodes.map((node) =>
-      element({ "data-pf-node": node.id }));
+    const nodes = INSTALLER.diagram.nodes.map((node) => {
+      const drawn = element({ "data-pf-node": node.id });
+      // A drawn node is the control now, so the stub has to answer the same
+      // question the script asks of a key event's target.
+      drawn.closest = (selector) =>
+        selector === "[data-pf-node]" ? drawn : null;
+      return drawn;
+    });
     const edges = INSTALLER.diagram.edges.map((edge) =>
       element({ "data-pf-edge": edge.id }));
     const entries = [
@@ -514,8 +624,13 @@ describe("the script that ships runs, and computes the right state", () => {
       "upstream", "downstream", "details", "clear", "reading",
     ]) tools[name] = element({ "data-pf-act": name });
 
-    const listeners = { document: [], canvas: [] };
+    const listeners = { document: [], canvas: [], svg: [] };
     canvas.addEventListener = (type, fn) => listeners.canvas.push([type, fn]);
+    svg.addEventListener = (type, fn) => listeners.svg.push([type, fn]);
+
+    // The shell's one skip link, shipped aimed at the written reading.
+    const skip = element({ "data-pf-skip": "", href: "#pf-content" });
+    skip.textContent = "Skip to content";
 
     // The explorer closes the written reading on the body, so the stub has
     // one. It carries nothing else: the page shape it drives is a stylesheet
@@ -527,6 +642,7 @@ describe("the script that ships runs, and computes the right state", () => {
       querySelector(selector) {
         if (selector.includes("data-pf-canvas")) return canvas;
         if (selector.includes("data-pf-status")) return status;
+        if (selector.includes("data-pf-skip")) return skip;
         const act = selector.match(/data-pf-act="([a-z-]+)"/);
         if (act) return tools[act[1]] ?? null;
         const entry = selector.match(/data-pf-for="([^"]*)"/);
@@ -558,7 +674,8 @@ describe("the script that ships runs, and computes the right state", () => {
     };
 
     return {
-      document, canvas, svg, status, controls,
+      document, canvas, svg, status, controls, skip,
+      node: (id) => nodes.find((n) => n.getAttribute("data-pf-node") === id),
       tool: (name) => tools[name],
       state: (kind, value) => (kind === "node" ? nodes : edges)
         .filter((el) => el.getAttribute("data-pf-state") === value)
@@ -582,6 +699,21 @@ describe("the script that ships runs, and computes the right state", () => {
       key: (name, { onDocument = false } = {}) => fire(
         onDocument ? "document" : "canvas", "keydown",
         { key: name, preventDefault() {} }),
+      // The keyboard route into selection: a key pressed while a drawn
+      // component holds focus, delivered where the browser would deliver it.
+      pressNode: (id, name) => {
+        const target = nodes.find((n) => n.getAttribute("data-pf-node") === id)
+          ?? element({ "data-pf-node": id });
+        if (!target.closest) target.closest = () => target;
+        const event = {
+          key: name, target, prevented: false,
+          preventDefault() { this.prevented = true; },
+        };
+        fire("svg", "keydown", event);
+        return event;
+      },
+      // The pointer route, for comparing the two against each other.
+      clickNode: (id) => clickTarget("data-pf-node", id),
     };
   }
 });

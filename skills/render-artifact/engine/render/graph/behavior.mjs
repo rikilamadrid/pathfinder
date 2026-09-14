@@ -18,10 +18,13 @@
  * put things.
  *
  * **The script only changes state.** It sets attributes — `data-pf-state`,
- * `data-pf-mode`, `aria-current`, `disabled` — and the stylesheet decides what
- * those look like. It writes one `viewBox` for zoom and pan. It never creates a
- * node, never writes text into the document, and never restates a summary or a
- * citation. That last part is load-bearing for the provenance contract: an
+ * `data-pf-mode`, `aria-current`, `disabled`, and the `tabindex`, `role` and
+ * `aria-label` that make a drawn component a control — and the stylesheet
+ * decides what those look like. It writes one `transform` for the camera. It
+ * never creates a node, never writes text into the document, and never
+ * restates a summary or a citation. The one name it composes is a drawn node's
+ * accessible name, and both halves of that are already in the artifact: the
+ * renderer's own verb, and the label the producer gave that node. That last part is load-bearing for the provenance contract: an
  * interaction that re-rendered evidence could get it wrong, or make it read as
  * stronger than it is. Focusing a component takes the reader to the evidence
  * that is already there, in the words the renderer already chose.
@@ -57,6 +60,14 @@
  * no location is written. The full written reading stays available behind an
  * explicit control, which is a reader asking for it rather than a side effect
  * of touching the map.
+ *
+ * **One control, two ways in.** The drawn component is the control: the
+ * pointer presses it and the keyboard focuses the same visible thing, and both
+ * reach the same selection. There is no keyboard-only copy of a node anywhere
+ * in the document, because a second representation is a second thing to keep
+ * true. Enhanced, this is the whole of how selection is reached — the written
+ * reading is closed, and a keyboard reader is not made to open the fallback
+ * document to use the explorer everybody else is using.
  */
 
 import { TRAVERSAL_JS } from "./interaction.mjs";
@@ -77,6 +88,19 @@ const UI = Object.freeze({
   // as the deliberate secondary route it is.
   readingOpen: "Full reading",
   readingClose: "Back to map",
+  // What a drawn component is called once it is a control. The verb is the
+  // renderer's and the noun after it is the label the producer already gave
+  // that node, read back out of the interaction index -- so the accessible
+  // name contains the visible one, which is what a reader speaking the name
+  // they can see needs it to do. It is the same construction the written
+  // entry's own button uses, deliberately: two routes to one act should not
+  // be two different names for it.
+  pick: "Focus",
+  // The skip link's destination when the map is the presentation on screen.
+  // The other face of it is whatever the document shipped, which is the right
+  // answer for the full reading and for no scripting at all, and is read off
+  // the link rather than restated here.
+  skipMap: "Skip to the map",
 });
 
 /**
@@ -102,12 +126,10 @@ export function graphBehavior(modelJson) {
     return Array.prototype.slice.call(document.querySelectorAll(selector));
   }
 
-  /* The canvas is a picture to assistive technology, so the interactive
-     surface is the toolbar and the written reading below it — real buttons,
-     in document order, carrying the stylesheet's existing focus ring. Every
-     one of them is revealed here rather than shipped visible, because a
+  /* Every control is revealed here rather than shipped visible, because a
      control that cannot work should not be offered: with scripting off a
-     reader meets no dead buttons and loses nothing they could have read. */
+     reader meets no dead buttons and loses nothing they could have read --
+     every fact these navigate to is already written out below the canvas. */
   all("[data-pf-controls]").forEach(function (group) { group.hidden = false; });
 
   var MAX_ZOOM = 4;
@@ -141,6 +163,53 @@ export function graphBehavior(modelJson) {
   var nodeGroups = all("[data-pf-node]");
   var edgeGroups = all("[data-pf-edge]");
   var entries = all("[data-pf-entry]");
+
+  /* ---- the map is the application, so the components on it are the controls
+
+     Enhanced, the written reading is closed, and with it went the per-entry
+     focus buttons that used to be the only keyboard route into selection.
+     Reopening the reading to get them back would have made the keyboard
+     reader's explorer a different artifact from everyone else's -- the
+     fallback document, reached by a control nobody else has to press. So the
+     drawn component becomes the control instead: one visible thing that the
+     pointer presses and the keyboard focuses, carrying one selection
+     behaviour, named once.
+
+     Promoted here rather than emitted as markup, on exactly the terms every
+     other control in this artifact is. tabindex in the delivered bytes would
+     put twenty tab stops in a document where nothing can answer a press, and
+     a button role on a shape that does nothing is a promise the no-scripting
+     artifact cannot keep. With no scripting the picture stays a picture, the
+     reading is already open beneath it, and its focus buttons are the route --
+     which is what they are for.
+
+     The SVG sheds an img role at the same moment and for the same reason.
+     img prunes everything inside it from the accessibility tree, which is
+     the correct description of a picture and a fatal one for a picture with
+     twenty buttons in it: the nodes would take focus and announce nothing.
+     group keeps the title the shell drew and lets what is inside be reached.
+     Nothing about the picture's own words changes -- no text is written, moved
+     or restated; one attribute that says "there is nothing in here" stops
+     being true and is corrected.
+
+     The accessible name is the producer's own label out of the interaction
+     index, behind the renderer's verb. Nothing is invented, nothing is
+     duplicated, and no evidence reaches it. */
+  svg.setAttribute("role", "group");
+  for (var promoted = 0; promoted < nodeGroups.length; promoted += 1) {
+    var drawnNode = nodeGroups[promoted];
+    var drawnId = drawnNode.getAttribute("data-pf-node");
+    /* A drawn node the model does not carry cannot be selected and cannot be
+       named, so it is not offered as a control. Unreachable from this
+       renderer -- the picture and the index are built from one node list --
+       and asserted rather than assumed, because a focusable thing that does
+       nothing when pressed is the defect this repair exists to remove. */
+    if (!model.labels[drawnId]) continue;
+    drawnNode.setAttribute("tabindex", "0");
+    drawnNode.setAttribute("role", "button");
+    drawnNode.setAttribute("aria-label",
+      ${JSON.stringify(UI.pick)} + " " + model.labels[drawnId]);
+  }
 
   /* ---- the camera ---- */
 
@@ -297,6 +366,19 @@ export function graphBehavior(modelJson) {
     mark(nodeGroups, "data-pf-node", picked);
     mark(edgeGroups, "data-pf-edge", picked);
 
+    /* The drawn node the reader chose says so, in the same word the written
+       entry uses. Dimming is a visual signal and aria-current is the one a
+       reader who is not looking at the picture gets; without it a screen
+       reader moving back over the map would find twenty buttons and no way to
+       tell which one is the current selection. */
+    for (var drawn = 0; drawn < nodeGroups.length; drawn += 1) {
+      if (nodeGroups[drawn].getAttribute("data-pf-node") === state.focus) {
+        nodeGroups[drawn].setAttribute("aria-current", "true");
+      } else {
+        nodeGroups[drawn].removeAttribute("aria-current");
+      }
+    }
+
     /* The written reading is where the details and the evidence live. Marking
        the selected entry current is the whole of the details interaction: the
        reader is sent to the evidence already in the document rather than
@@ -418,11 +500,10 @@ export function graphBehavior(modelJson) {
       return;
     }
 
-    /* A node in the picture: the pointer route. It selects and does nothing
-       else -- no scroll, no navigation, no location. Reaching the written
-       reading is the "details" control above, deliberately pressed. Keyboard
-       readers reach this same state through the entry buttons, which is why
-       nothing in the canvas is a tab stop. */
+    /* A node in the picture: the pointer route into the same control the
+       keyboard focuses. It selects and does nothing else -- no scroll, no
+       navigation, no location. Reaching the written reading is the "details"
+       control above, deliberately pressed. */
     var drawn = target.closest("[data-pf-node]");
     if (drawn) focusNode(drawn.getAttribute("data-pf-node"), { reveal: false });
   });
@@ -506,6 +587,82 @@ export function graphBehavior(modelJson) {
   svg.addEventListener("pointerup", endPointer);
   svg.addEventListener("pointercancel", endPointer);
 
+  /* Enter and Space on a drawn component, which is what a button role
+     promises and what a keyboard reader will press. Delegated on the SVG so
+     one listener covers every node, and taken before the canvas's own key
+     handler below sees it -- that one owns the arrows, plus, minus and zero,
+     and deliberately still does while focus is on a node, so panning and
+     zooming stay available from wherever the reader happens to be.
+
+     Space is prevented for the reason every scripted button prevents it: left
+     alone it scrolls. Enter is prevented so that a node inside a page that
+     also has links cannot become a navigation. Neither writes a location,
+     scrolls a section into view, or opens the reading -- keyboard activation
+     reaches exactly the state a click reaches, which is the point. */
+  svg.addEventListener("keydown", function (event) {
+    if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return;
+    var target = event.target;
+    if (!target || !target.closest) return;
+    var drawn = target.closest("[data-pf-node]");
+    if (!drawn) return;
+    event.preventDefault();
+    focusNode(drawn.getAttribute("data-pf-node"), { reveal: false });
+  });
+
+  /* Focus has to land somewhere the reader can see.
+
+     Two things would otherwise move the map out from under a tab stop. The
+     browser scrolls a focused element into view, and the stage clips rather
+     than scrolls, so that scroll is invisible movement the camera does not
+     know about -- it is undone here rather than prevented, because a Tab is
+     not a programmatic focus and there is no flag to pass it. And at any zoom
+     above the overview a node can simply be outside the frame, focused,
+     ringed, and off screen -- a focus indicator nobody can see is not one.
+
+     So the camera moves instead, by the smallest amount that brings the
+     focused node inside the frame, which is the same service the browser's
+     scroll performs on a page that scrolls. At the overview every node is in
+     frame already and this does nothing at all.
+
+     It reads one painted box: where the browser is drawing the thing that just
+     took focus. That is the same kind of measurement the camera already makes
+     of its own frame, and it is a camera decision end to end. No box is ever
+     compared with another to decide what is upstream, downstream, adjacent or
+     grouped -- those come from the index and only from the index. */
+  var FOCUS_MARGIN = 16;
+
+  function numeric(box) {
+    return box && typeof box.left === "number" && typeof box.right === "number"
+      && typeof box.top === "number" && typeof box.bottom === "number";
+  }
+
+  /** How far to move one axis so [near, far] sits inside [low, high]. */
+  function nudge(near, far, low, high) {
+    if (near < low) return Math.min(low - near, high - far);
+    if (far > high) return Math.max(high - far, low - near);
+    return 0;
+  }
+
+  canvas.addEventListener("focusin", function (event) {
+    canvas.scrollLeft = 0;
+    canvas.scrollTop = 0;
+
+    var target = event && event.target;
+    if (!target || !target.closest || !target.getBoundingClientRect) return;
+    var drawn = target.closest("[data-pf-node]");
+    if (!drawn || !drawn.getBoundingClientRect) return;
+
+    var node = drawn.getBoundingClientRect();
+    var frameBox = canvas.getBoundingClientRect();
+    if (!numeric(node) || !numeric(frameBox)) return;
+
+    var dx = nudge(node.left, node.right,
+      frameBox.left + FOCUS_MARGIN, frameBox.right - FOCUS_MARGIN);
+    var dy = nudge(node.top, node.bottom,
+      frameBox.top + FOCUS_MARGIN, frameBox.bottom - FOCUS_MARGIN);
+    if (dx || dy) panBy(dx, dy);
+  });
+
   canvas.addEventListener("keydown", function (event) {
     /* A step in screen pixels, like the drag it stands in for. */
     var step = Math.max(24, Math.round(frame().w / 8));
@@ -547,6 +704,38 @@ export function graphBehavior(modelJson) {
         ? ${JSON.stringify(UI.readingClose)}
         : ${JSON.stringify(UI.readingOpen)};
     }
+    aimSkip();
+  }
+
+  /* The page's first tab stop, aimed at the reading that is actually on
+     screen. One link, re-aimed -- not a second link, and not a link that is
+     right in one state and points into a hidden subtree in the other.
+
+     The shipped href and the shipped words are the fallback, and they are
+     already correct: with no scripting the whole reading is on the page and
+     #pf-content is where a reader wants to land. They are read off the link
+     rather than restated here, so the no-scripting wording and the
+     reading-open wording cannot drift apart. Closed, the reading is
+     display:none and the map is the content, so the link says so and goes
+     there. */
+  var skip = document.querySelector("[data-pf-skip]");
+  var skipFallback = skip
+    ? { href: skip.getAttribute("href"), text: skip.textContent }
+    : null;
+
+  function aimSkip() {
+    if (!skip || !skipFallback) return;
+    /* The fallback is also what an explorer with no id on its map gets: a
+       link that lands in the document it shipped beats one aimed at a
+       fragment that does not resolve. Unreachable from this renderer, which
+       always writes the id, and cheap enough to be certain of. */
+    if (readingOpen || !canvas.id) {
+      skip.setAttribute("href", skipFallback.href);
+      skip.textContent = skipFallback.text;
+      return;
+    }
+    skip.setAttribute("href", "#" + canvas.id);
+    skip.textContent = ${JSON.stringify(UI.skipMap)};
   }
 
   /* The camera's frame changes with the window, and a clamp computed against

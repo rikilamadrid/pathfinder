@@ -174,6 +174,81 @@ describe("diagram — the pipeline, end to end", () => {
       "a control that cannot work without scripting is not shipped visible");
   });
 
+  /* The keyboard route into selection, asserted on both sides of the join.
+
+     Enhanced, the written reading is closed and the per-node focus buttons in
+     it are unreachable, so the drawn component is the only way a keyboard
+     reader selects anything. What makes that safe is that the promotion is the
+     script's and not the document's: shipped markup would put twenty tab stops
+     and twenty button roles into an artifact where, with no scripting, nothing
+     can answer a press. Both halves are checked here because either one alone
+     passes while the artifact is broken. */
+  it("ships no keyboard control it cannot honour, and promotes every one it can", () => {
+    const markup = delivery.html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
+    const script = delivery.html.slice(delivery.html.indexOf("<script"));
+
+    assert.doesNotMatch(markup, /<g class="pf-node"[^>]*tabindex/,
+      "a drawn node ships as a tab stop, so a reader with no scripting meets " +
+      "twenty focusable shapes that do nothing when pressed");
+    assert.doesNotMatch(markup, /<g class="pf-node"[^>]*role="button"/,
+      "a drawn node ships as a button, which is a promise the no-scripting " +
+      "artifact cannot keep");
+    assert.match(markup, /<svg class="pf-graph" data-pf-graph[^>]*role="img"/,
+      "with no scripting the canvas is a picture, and says so");
+
+    assert.match(script, /setAttribute\("tabindex", "0"\)/,
+      "nothing in the map is a tab stop, so keyboard selection is unreachable");
+    assert.match(script, /setAttribute\("role", "button"\)/);
+    assert.match(script, /setAttribute\("aria-label",\s*"Focus"/,
+      "a focusable node with no accessible name announces nothing");
+    assert.match(script, /setAttribute\("role", "group"\)/,
+      "role=img prunes the nodes from the accessibility tree; promoting them " +
+      "without lifting it gives twenty buttons that announce nothing");
+    assert.match(script, /event\.key !== "Enter"/,
+      "a button role that Enter does not activate is a lie about the control");
+  });
+
+  it("aims its one skip link, and gives it somewhere to land", () => {
+    const markup = delivery.html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/g, "");
+    const script = delivery.html.slice(delivery.html.indexOf("<script"));
+
+    assert.equal((markup.match(/class="pf-skip"/g) ?? []).length, 1,
+      "one skip mechanism, re-aimed — two links is two first tab stops");
+    assert.match(markup, /<a class="pf-skip" data-pf-skip href="#pf-content">/,
+      "the shipped href is the one that is right with no scripting at all");
+    assert.match(markup, /<div class="pf-canvas" id="pf-map" data-pf-canvas tabindex="0"/,
+      "the enhanced skip target has to exist, and has to take focus");
+    assert.match(script, /\[data-pf-skip\]/,
+      "the skip link is never re-aimed, so closed it points into the hidden " +
+      "reading and the page's first tab stop leads nowhere");
+  });
+
+  it("shows the keyboard where it is on the map", () => {
+    const style = delivery.html.slice(delivery.html.indexOf("<style"),
+      delivery.html.indexOf("</style>"));
+
+    assert.match(style, /\.pf-node:focus-visible \{ outline: 3px solid var\(--pf-accent\)/,
+      "a control with no visible focus indicator is not keyboard operable");
+    assert.match(style, /\.pf-node:focus:not\(:focus-visible\) \{ outline: none; \}/,
+      "a ring after an ordinary click is noise");
+    assert.match(style, /\.pf-node\[data-pf-state\]:focus-visible \{ opacity: 1; \}/,
+      "a focused node the selection dims to 22% has a focus ring nobody sees");
+  });
+
+  /* Finding 3's repair, asserted so it cannot come back. `THEME_CSS` already
+     forces every transition to 1ms under reduced motion, with `!important`; a
+     second rule saying the same thing more weakly never applies, and a rule
+     that never applies is a rule nobody can be wrong about. */
+  it("states reduced motion once, where it actually applies", () => {
+    const style = delivery.html.slice(delivery.html.indexOf("<style"),
+      delivery.html.indexOf("</style>"));
+
+    assert.match(style, /transition-duration: 1ms !important/,
+      "the global reduced-motion rule is what produces the behaviour");
+    assert.doesNotMatch(style, /\[data-pf-layout="explorer"\] \.pf-graph \{ transition: none; \}/,
+      "a reduced-motion rule the global one already overrides is dead weight");
+  });
+
   it("says its evidence was checked, having had some to check", () => {
     assert.match(delivery.html, /checked deterministically/);
   });
