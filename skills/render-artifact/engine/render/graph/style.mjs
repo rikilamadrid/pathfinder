@@ -276,8 +276,25 @@ export const GRAPH_CSS = `
      stack that no longer exists would take the page away from touch readers
      for nothing. */
   transform-origin: 0 0;
-  transition: transform .18s ease;
   will-change: transform;
+}
+/* Motion only for an automatic move, and only while one is running.
+
+   The transition is opt-in rather than standing, because a standing one is
+   applied to every write of this property -- including the sixty a second a
+   drag makes. Each of those would then be eased over its own duration, and the
+   map would lag the pointer by most of it: a 1:1 pan cannot go through an
+   easing curve and still be 1:1. The script sets the attribute when it moves
+   the camera itself and clears it the moment the reader takes over, so the
+   rule is on for exactly the movement it is for.
+
+   Slower than a control's feedback and eased out rather than in-and-out,
+   because this is the viewpoint travelling over a fixed map. Nothing in the
+   graph moves: the transform is on the map as a whole, so every node keeps
+   every coordinate the build-time layout gave it, and what changes is where
+   the reader is standing. */
+[data-pf-layout="explorer"] .pf-canvas[data-pf-camera] .pf-graph {
+  transition: transform .34s cubic-bezier(.22, .61, .36, 1);
 }
 /* The controls float over the map at its bottom-left corner — out of the way
    of the title, and in the corner a map's controls are looked for. They keep

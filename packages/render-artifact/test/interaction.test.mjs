@@ -28,6 +28,10 @@ import {
 } from "../../../skills/render-artifact/engine/render/graph/interaction.mjs";
 import { graphBehavior }
   from "../../../skills/render-artifact/engine/render/graph/behavior.mjs";
+import { CAMERA_JS }
+  from "../../../skills/render-artifact/engine/render/graph/camera.mjs";
+import { layoutGraph }
+  from "../../../skills/render-artifact/engine/render/graph/layout.mjs";
 import { BEHAVIOR_JS } from "../../../skills/render-artifact/engine/render/behavior.mjs";
 import {
   DIAGRAM_SPECIMENS, REPO_ROOT, SPECS, cleanUpTemporaryDirectories,
@@ -39,7 +43,14 @@ after(cleanUpTemporaryDirectories);
 /** The shipped traversal, as the artifact will run it. */
 const pfTraverse = new Function(`${TRAVERSAL_JS}\nreturn pfTraverse;`)();
 
+/** The shipped camera, on exactly the same terms. */
+const pfCameraTarget =
+  new Function(`${CAMERA_JS}\nreturn pfCameraTarget;`)();
+
 const INSTALLER = JSON.parse(readFileSync(SPECS.installer, "utf8"));
+/** The acceptance specimen's own geometry, as the engine computes it. */
+const LAYOUT = layoutGraph(INSTALLER.diagram);
+const CANVAS = `0 0 ${LAYOUT.width} ${LAYOUT.height}`;
 const EXAMPLE = JSON.parse(readFileSync(SPECS.diagram, "utf8"));
 
 /** A diagram body from a compact description, for the awkward shapes. */
@@ -323,7 +334,7 @@ describe("the script that ships runs, and computes the right state", () => {
 
     assert.ok(dom.controls.every((group) => group.hidden === false),
       "the controls were never revealed, so nothing is operable");
-    assert.equal(dom.svg.getAttribute("viewBox"), "0 0 1000 800",
+    assert.equal(dom.svg.getAttribute("viewBox"), CANVAS,
       "the initial view is the whole graph");
     assert.equal(dom.canvas.getAttribute("data-pf-zoom"), "fit");
     assert.match(dom.status.textContent, /Nothing selected/);
@@ -409,7 +420,7 @@ describe("the script that ships runs, and computes the right state", () => {
     dom.clickAct("zoom-in");
     const zoomed = camera();
     assert.ok(zoomed.scale > 1, "zooming in did not raise the scale");
-    assert.equal(dom.svg.getAttribute("viewBox"), "0 0 1000 800",
+    assert.equal(dom.svg.getAttribute("viewBox"), CANVAS,
       "the camera rewrote the viewBox, which is the build-time frame");
     assert.equal(dom.tool("zoom-out").disabled, false);
 
@@ -438,7 +449,7 @@ describe("the script that ships runs, and computes the right state", () => {
     dom.clickPick("cli");
     dom.clickAct("zoom-in");
     dom.clickAct("reset");
-    assert.equal(dom.svg.getAttribute("viewBox"), "0 0 1000 800");
+    assert.equal(dom.svg.getAttribute("viewBox"), CANVAS);
     assert.equal(dom.state("node", "on").length, 0);
   });
 
@@ -652,17 +663,178 @@ describe("the script that ships runs, and computes the right state", () => {
       "framing into it would park a node under them");
   });
 
-  it("moves no camera of its own", () => {
+  /* ---- selecting a component moves the camera to it ----
+
+     52.3 asserted here that selection moved no camera, because the panel was
+     the only thing being built and a camera framing into a rectangle that did
+     not exist yet would have been guesswork. The rectangle exists now, so the
+     assertion inverts: the camera moves, it frames into what the panel and the
+     toolbar left free, and the graph underneath it does not move at all. */
+
+  it("moves the camera to the component the reader selected", () => {
     const dom = fakeDocument();
     run(script, dom);
-    const before = dom.canvas.getAttribute("data-pf-zoom");
-    const transform = dom.svg.style.transform;
+    const before = dom.svg.style.transform;
 
     dom.clickNode("cli");
 
-    assert.equal(dom.svg.style.transform, transform,
-      "selecting a node moved the camera; framing is 52.2, not this ticket");
-    assert.equal(dom.canvas.getAttribute("data-pf-zoom"), before);
+    assert.notEqual(dom.svg.style.transform, before,
+      "selecting a component left the camera where it was, so the reader was " +
+      "given a selection they may not be able to see");
+    assert.equal(dom.canvas.getAttribute("data-pf-zoom"), "in",
+      "the camera framed a component without leaving the overview scale, " +
+      "which is the scale this Feature exists to escape");
+    assert.equal(dom.svg.getAttribute("viewBox"), CANVAS,
+      "the camera rewrote the viewBox rather than moving the viewpoint");
+  });
+
+  it("moves the viewpoint, and never the graph", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+
+    /* Every coordinate the build-time layout wrote, before and after a
+       sequence that moves the camera four times. Nothing in the graph may
+       translate, reflow or appear to change position, because nothing in the
+       graph does -- and the integers on the drawn elements are where that
+       claim is either true or false. */
+    const coordinates = () => LAYOUT.nodes.map((placed) => {
+      const rect = dom.node(placed.id).querySelector("rect");
+      return [
+        rect.getAttribute("x"), rect.getAttribute("y"),
+        rect.getAttribute("width"), rect.getAttribute("height"),
+      ].join(",");
+    });
+
+    const before = coordinates();
+    dom.clickNode("cli");
+    dom.clickNode("copylist");
+    dom.clickAct("zoom-in");
+    dom.key("ArrowRight");
+    dom.clickAct("fit");
+
+    assert.deepEqual(coordinates(), before,
+      "a node's drawn coordinates changed across a sequence of interactions, " +
+      "so the map is not fixed and the motion is not a camera");
+  });
+
+  it("says how many related components the frame left out", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+
+    /* `copylist` is the specimen's worst case: its direct neighbours span
+       1984x1476 of a 2148x1612 canvas, which cannot be framed whole at any
+       readable scale. The reader is told so rather than left to conclude the
+       relationships are not there. */
+    dom.clickNode("copylist");
+    assert.match(dom.status.textContent,
+      /^Focused: .*\. \d+ direct relationships?\. \d+ related components? outside the frame\.$/,
+      `the status line does not report the off-frame remainder: ` +
+      `"${dom.status.textContent}"`);
+
+    /* And a component whose neighbourhood does fit says nothing about a
+       remainder, because there is none. An affordance that fires either way
+       teaches a reader to ignore it. */
+    dom.clickNode("theme");
+    assert.match(dom.status.textContent, /^Focused: .*\. \d+ direct relationships?\.$/,
+      `a fully framed neighbourhood still claimed something was off-frame: ` +
+      `"${dom.status.textContent}"`);
+  });
+
+  it("applies the camera immediately when the reader prefers reduced motion", () => {
+    const dom = fakeDocument();
+    run(script, dom, { reduceMotion: true });
+    const before = dom.svg.style.transform;
+
+    dom.clickNode("cli");
+
+    assert.equal(dom.canvas.getAttribute("data-pf-camera"), null,
+      "the camera announced an animated move to a reader who asked for none");
+    assert.notEqual(dom.svg.style.transform, before,
+      "reduced motion withheld the camera change itself; the state has to " +
+      "remain reachable, only the animation goes");
+  });
+
+  it("animates a step, and leaves a drag alone", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+
+    /* A zoom control is a jump between two positions of a fixed map, so it
+       moves the way an automatic focus moves. */
+    dom.clickAct("zoom-in");
+    assert.equal(dom.canvas.getAttribute("data-pf-camera"), "move",
+      "pressing a zoom control jumped the camera instead of moving it");
+
+    const at = () => {
+      const m = /translate\((-?[\d.]+)px, (-?[\d.]+)px\)/
+        .exec(dom.svg.style.transform);
+      assert.ok(m, `camera transform unreadable: ${dom.svg.style.transform}`);
+      return { x: Number(m[1]), y: Number(m[2]) };
+    };
+    const before = at();
+
+    /* A drag is already continuous. Easing it would put the map behind the
+       hand moving it, which is the opposite of the 1:1 pan this Feature
+       requires. */
+    dom.drag(-40, -24);
+    assert.equal(dom.canvas.getAttribute("data-pf-camera"), null,
+      "the camera animated a drag, so the map lags the pointer and the pan " +
+      "is no longer 1:1");
+
+    /* And it followed the pointer exactly: the delta the hand travelled,
+       straight into the camera, with nothing rounded or eased out of it. */
+    const after = at();
+    assert.equal(after.x - before.x, -40, "the drag lost horizontal movement");
+    assert.equal(after.y - before.y, -24, "the drag lost vertical movement");
+  });
+
+  it("does not leave a move running when the camera did not move", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+
+    /* Focusing the component that is already focused computes the same target,
+       so the transform never changes, so no transition starts and no
+       transitionend can arrive to end the move. Left set, the moving state
+       outlives a move that never happened and the next camera write animates
+       when it should track -- a resize correction easing into place instead of
+       following the window. */
+    dom.clickNode("cli");
+    assert.equal(dom.canvas.getAttribute("data-pf-camera"), "move",
+      "the first focus did not start a move, so this case proves nothing");
+
+    dom.clickNode("cli");
+    assert.equal(dom.canvas.getAttribute("data-pf-camera"), null,
+      "re-focusing the focused component left the camera in its moving state, " +
+      "waiting for a transitionend that cannot happen");
+
+    /* The same defect reached through a different door: fit, while already
+       fitted, writes the transform it already wrote. */
+    dom.clickAct("fit");
+    dom.key("0");
+    assert.equal(dom.canvas.getAttribute("data-pf-camera"), null,
+      "fitting an already-fitted camera left the moving state set");
+  });
+
+  it("animates a move, and hands it to the reader where it had reached", () => {
+    const dom = fakeDocument();
+    /* Mid-flight: what the browser is painting part-way through the move,
+       which is neither where the camera started nor where it was going. */
+    const painting = { value: "none" };
+    run(script, dom, { computedTransform: () => painting.value });
+
+    dom.clickNode("cli");
+    assert.equal(dom.canvas.getAttribute("data-pf-camera"), "move",
+      "an automatic camera move was not animated, so there is nothing for a " +
+      "reader to interrupt");
+
+    painting.value = "matrix(1.7, 0, 0, 1.7, -120.5, -240.25)";
+    dom.press();
+
+    assert.equal(dom.canvas.getAttribute("data-pf-camera"), null,
+      "the move carried on after the reader took hold of the map");
+    assert.equal(dom.svg.style.transform,
+      "translate(-120.5px, -240.25px) scale(1.7)",
+      "the camera snapped to the target or back to the start instead of " +
+      "continuing from where the reader could see it");
   });
 
   it("ignores a node it does not have", () => {
@@ -674,12 +846,25 @@ describe("the script that ships runs, and computes the right state", () => {
       "the script invented a selection for an id the model does not carry");
   });
 
-  /** Run the emitted script against a stub document. */
-  function run(source, dom) {
+  /**
+   * Run the emitted script against a stub document.
+   *
+   * The two options are the browser facts the camera legitimately asks for:
+   * whether the reader prefers reduced motion, and what transform is being
+   * painted right now. Both are defaulted to the plain case, so every test
+   * that does not care about motion reads as though neither existed.
+   */
+  function run(source, dom, { reduceMotion = false, computedTransform } = {}) {
     new Function("document", "window", source)(dom.document, {
       localStorage: null,
       addEventListener() {},
-      matchMedia: () => ({ matches: false, addEventListener() {} }),
+      matchMedia: (query) => ({
+        matches: reduceMotion && query.includes("reduce"),
+        addEventListener() {},
+      }),
+      getComputedStyle: computedTransform
+        ? () => ({ transform: computedTransform() })
+        : undefined,
     });
   }
 
@@ -734,6 +919,19 @@ describe("the script that ships runs, and computes the right state", () => {
       removeAttribute(name) { delete this.attrs[name]; },
       addEventListener() {},
       closest() { return null; },
+      hasAttribute(name) {
+        return Object.prototype.hasOwnProperty.call(this.attrs, name);
+      },
+      /* The camera asks a drawn node for its box, which is a child element
+         carrying the integers the layout wrote. A stub that could not answer
+         that would force the camera to reach for something else, and the
+         something else would be the rendered picture. */
+      querySelector(selector) {
+        for (const child of this.children) {
+          if (child.tag === selector) return child;
+        }
+        return null;
+      },
       scrollIntoView() {},
       getBoundingClientRect() {
         return { x: 0, y: 0, top: 0, left: 0, right: 800, bottom: 600,
@@ -747,7 +945,13 @@ describe("the script that ships runs, and computes the right state", () => {
       clientHeight: 600,
     });
 
-    const svg = element({ viewBox: "0 0 1000 800", role: "img" });
+    /* The real canvas, from the real layout. The camera reads its dimensions
+       off the viewBox and each node's box off the drawn rect, so a stub with
+       invented geometry would be testing arithmetic against numbers no
+       artifact will ever carry. */
+    const svg = element({
+      viewBox: `0 0 ${LAYOUT.width} ${LAYOUT.height}`, role: "img",
+    });
     const canvas = element({ "data-pf-canvas": "" });
     canvas.querySelector = () => svg;
     // The explorer's map carries the id the one skip link is aimed at.
@@ -755,6 +959,13 @@ describe("the script that ships runs, and computes the right state", () => {
 
     const nodes = INSTALLER.diagram.nodes.map((node) => {
       const drawn = element({ "data-pf-node": node.id });
+      /* The box `draw.mjs` emits, with the integers `layout.mjs` computed. */
+      const box = LAYOUT.nodes.find((placed) => placed.id === node.id).box;
+      const rect = element({
+        x: box.x, y: box.y, width: box.w, height: box.h,
+      });
+      rect.tag = "rect";
+      drawn.appendChild(rect);
       // A drawn node is the control now, so the stub has to answer the same
       // question the script asks of a key event's target.
       drawn.closest = (selector) =>
@@ -919,8 +1130,334 @@ describe("the script that ships runs, and computes the right state", () => {
       },
       // The pointer route, for comparing the two against each other.
       clickNode: (id) => clickTarget("data-pf-node", id),
+      /* A reader putting a hand on the map. Delivered where the browser
+         delivers it, on the map itself, which is where an automatic move
+         finds out it has been overruled. */
+      press: () => fire("svg", "pointerdown", {
+        button: 0, clientX: 0, clientY: 0, target: svg,
+      }),
+      /* A drag on the background: the press, then travel past the slop. The
+         target answers for the map and for nothing else, which is what makes
+         it a pan surface rather than a component. */
+      drag: (dx, dy) => {
+        const target = element({ "data-pf-graph": "" });
+        target.closest = (selector) =>
+          selector === "[data-pf-graph]" ? target : null;
+        fire("svg", "pointerdown",
+          { button: 0, clientX: 0, clientY: 0, target });
+        fire("svg", "pointermove",
+          { clientX: dx, clientY: dy, target, pointerId: 1 });
+      },
     };
   }
+});
+
+/**
+ * The semantic camera, proved over every component of the acceptance specimen.
+ *
+ * This is the ticket's guarantee and the one thing a browser walkthrough can
+ * only sample: a person can judge four or five focuses in a sitting, and the
+ * claim is about all twenty, at more than one window shape. So the shipped
+ * camera source is evaluated here the way the traversal is — verbatim, the
+ * same text the artifact runs — and driven over every node against the real
+ * layout.
+ *
+ * **What is asserted is the observable outcome, not the arithmetic.** Each case
+ * projects the camera's answer back through the coordinate chain the browser
+ * will apply — the viewBox fit, its letterbox, then the camera transform — and
+ * asks where the focused node actually lands. A test that re-derived the
+ * camera's own reasoning would agree with it whatever it decided.
+ */
+describe("the semantic camera frames the focused component", () => {
+  const model = interactionModel(INSTALLER.diagram);
+  const BOXES = Object.fromEntries(
+    LAYOUT.nodes.map((placed) => [placed.id, placed.box]));
+  const CANVAS_BOX = { w: LAYOUT.width, h: LAYOUT.height };
+
+  /* Map cells a reader really gets, each with the band the toolbar floats
+     over. The first is the panel-open desktop case this ticket inherits: the
+     panel is a grid sibling, so it has already taken its width out of the
+     canvas by the time the camera reads the rectangle. The rest are the
+     shapes that break a camera tuned on one window -- a tall one, a short
+     one, and a narrow one where the controls wrap to three rows and take
+     nearly half the map. */
+  const FRAMES = [
+    ["desktop, panel open", { w: 1060, h: 640 }, 72],
+    ["desktop, panel closed", { w: 1440, h: 640 }, 72],
+    ["tall window", { w: 1060, h: 900 }, 72],
+    ["short window", { w: 1300, h: 420 }, 72],
+    ["narrow, controls wrapped", { w: 700, h: 620 }, 220],
+  ];
+
+  /** Every id the focus mode calls related: the direct neighbours, both ways. */
+  function neighbours(id) {
+    const near = [];
+    for (const [, target] of model.out[id]) {
+      if (target !== id && !near.includes(target)) near.push(target);
+    }
+    for (const [, source] of model.in[id]) {
+      if (source !== id && !near.includes(source)) near.push(source);
+    }
+    return near;
+  }
+
+  function aim(id, frame, free) {
+    return pfCameraTarget({
+      canvas: CANVAS_BOX, frame, free, boxes: BOXES,
+      focus: id, near: neighbours(id),
+    });
+  }
+
+  /**
+   * Where a user-space box lands on screen once the camera is applied.
+   *
+   * The chain, spelled out rather than borrowed: the browser fits the viewBox
+   * into the element at one uniform scale and centres it, and the camera's
+   * transform applies on top of that from the top-left corner.
+   */
+  function projected(box, frame, target) {
+    const s0 = Math.min(frame.w / CANVAS_BOX.w, frame.h / CANVAS_BOX.h);
+    const ox = (frame.w - CANVAS_BOX.w * s0) / 2;
+    const oy = (frame.h - CANVAS_BOX.h * s0) / 2;
+    return {
+      left: target.x + ox * target.scale + target.painted * box.x,
+      right: target.x + ox * target.scale + target.painted * (box.x + box.w),
+      top: target.y + oy * target.scale + target.painted * box.y,
+      bottom: target.y + oy * target.scale + target.painted * (box.y + box.h),
+    };
+  }
+
+  for (const [name, frame, band] of FRAMES) {
+    const free = { x: 0, y: 0, width: frame.w, height: frame.h - band };
+
+    describe(name, () => {
+      it("renders every focused label at no less than its authored size", () => {
+        /* The layout's user units are CSS pixels at the authored size -- a node
+           box is 208x76 user units and its label is 13px in that same space --
+           so one painted pixel per user unit *is* the authored size, with
+           nothing measured to find out. */
+        for (const id of model.nodes) {
+          const target = aim(id, frame, free);
+          assert.ok(target, `no camera answer for ${id}`);
+          assert.ok(target.painted >= 1,
+            `focusing ${id} paints ${target.painted.toFixed(3)} pixels per ` +
+            `user unit, so its 13px label renders at ` +
+            `${(13 * target.painted).toFixed(1)}px -- below the size it was ` +
+            `authored at, which is the overview scale this Feature exists to ` +
+            `escape`);
+        }
+      });
+
+      it("leaves every focused component inside the rectangle the chrome left free", () => {
+        for (const id of model.nodes) {
+          const target = aim(id, frame, free);
+          const at = projected(BOXES[id], frame, target);
+
+          assert.ok(target.inside, `the camera reports ${id} outside the frame`);
+          assert.ok(at.left >= free.x - 0.5 && at.right <= free.x + free.width + 0.5,
+            `focusing ${id} puts it at ${at.left.toFixed(1)}..` +
+            `${at.right.toFixed(1)}, outside the free rectangle's ` +
+            `0..${free.width}`);
+          assert.ok(at.top >= free.y - 0.5 && at.bottom <= free.y + free.height + 0.5,
+            `focusing ${id} puts it at ${at.top.toFixed(1)}..` +
+            `${at.bottom.toFixed(1)}; the free rectangle ends at ` +
+            `${free.height}, so the component the camera just framed is under ` +
+            `the chrome`);
+        }
+      });
+
+      it("puts the focused component near the middle of the frame", () => {
+        /* Dominance the camera can actually deliver. The scale is uniform, so
+           the camera cannot make the focused component bigger than its
+           neighbours -- what it can do is put it where the eye goes first.
+
+           Two things legitimately outrank that, and both are checked rather
+           than excused. A neighbourhood that fits whole is centred as a group,
+           which is the composition that shows a component *in* its context.
+           And a component at the edge of the canvas cannot be brought to the
+           middle without sliding the map off its own bounds, so the clamp
+           wins and the test proves the clamp really was the reason. */
+        const half = { x: free.x + free.width / 2, y: free.y + free.height / 2 };
+
+        for (const id of model.nodes) {
+          const target = aim(id, frame, free);
+          const at = projected(BOXES[id], frame, target);
+          const dx = (at.left + at.right) / 2 - half.x;
+          const dy = (at.top + at.bottom) / 2 - half.y;
+
+          /* The whole neighbourhood on screen, observed rather than inferred:
+             every neighbour's box entirely inside the free rectangle. */
+          const framedWhole = neighbours(id).every((other) => {
+            const box = projected(BOXES[other], frame, target);
+            return box.left >= free.x - 0.5
+              && box.right <= free.x + free.width + 0.5
+              && box.top >= free.y - 0.5
+              && box.bottom <= free.y + free.height + 0.5;
+          });
+          if (framedWhole) continue;
+
+          /* Where the map's own edge has come into the frame on the side the
+             camera would have had to travel toward. */
+          const map = projected(
+            { x: 0, y: 0, w: CANVAS_BOX.w, h: CANVAS_BOX.h }, frame, target);
+          const heldX = dx < 0
+            ? map.left >= free.x - 0.5
+            : map.right <= free.x + free.width + 0.5;
+          const heldY = dy < 0
+            ? map.top >= free.y - 0.5
+            : map.bottom <= free.y + free.height + 0.5;
+
+          assert.ok(Math.abs(dx) <= free.width / 4 || heldX,
+            `focusing ${id} leaves it ${Math.round(dx)}px off the horizontal ` +
+            `centre of a ${free.width}px rectangle, and the map's own edge is ` +
+            `not what stopped the camera -- so the reader's eye lands ` +
+            `somewhere other than the component they selected`);
+          assert.ok(Math.abs(dy) <= free.height / 4 || heldY,
+            `focusing ${id} leaves it ${Math.round(dy)}px off the vertical ` +
+            `centre of a ${free.height}px rectangle, with the map's own edge ` +
+            `nowhere near the frame`);
+        }
+      });
+
+      it("reports exactly the neighbours a reader cannot see", () => {
+        for (const id of model.nodes) {
+          const target = aim(id, frame, free);
+          const near = neighbours(id);
+
+          for (const other of target.offFrame) {
+            assert.ok(near.includes(other),
+              `${id}'s camera reported ${other} off-frame, but ${other} is ` +
+              `not one of its direct neighbours -- the camera is deciding ` +
+              `what is related instead of consuming it`);
+          }
+
+          /* And the other direction, which is the half that would rot quietly:
+             a neighbour left out of the report has to genuinely be on screen. */
+          for (const other of near) {
+            if (target.offFrame.includes(other)) continue;
+            const at = projected(BOXES[other], frame, target);
+            assert.ok(
+              at.right > free.x && at.left < free.x + free.width
+              && at.bottom > free.y && at.top < free.y + free.height,
+              `${id}'s camera did not report ${other} as off-frame, but no ` +
+              `part of it is inside the free rectangle`);
+          }
+        }
+      });
+    });
+  }
+
+  it("frames the worst neighbourhoods on the specimen without giving up readability", () => {
+    /* The four the Feature names, whose direct neighbours sit at opposite
+       corners of the canvas. A plain bounding-box fit would frame each of them
+       whole at around 0.39 to 0.48 painted pixels per unit -- the overview
+       scale, with 5px labels. Readability wins and the remainder is reported. */
+    const frame = { w: 1060, h: 640 };
+    const free = { x: 0, y: 0, width: frame.w, height: frame.h - 72 };
+
+    for (const id of ["copylist", "stage", "nevership", "registry"]) {
+      const target = aim(id, frame, free);
+      assert.ok(target.painted >= 1,
+        `${id} fell back to a whole-neighbourhood fit at ` +
+        `${target.painted.toFixed(3)}`);
+      assert.ok(target.offFrame.length > 0,
+        `${id}'s neighbourhood spans nearly the whole canvas, so something ` +
+        `has to be outside a readable frame; the camera reported nothing, ` +
+        `which would leave a reader believing they can see all of it`);
+      assert.ok(target.inside, `${id} is not inside the free rectangle`);
+    }
+  });
+
+  it("frames the neighbourhood whole when it fits, without magnifying it", () => {
+    const frame = { w: 1060, h: 640 };
+    const free = { x: 0, y: 0, width: frame.w, height: frame.h - 72 };
+
+    /* One relationship, and both boxes comfortably inside one screen. The
+       camera should frame both and stop climbing: a component with a small
+       neighbourhood magnified to fill the map is not reading a diagram.
+
+       `theme` is the only component of the specimen whose neighbourhood fits
+       at a readable scale in every frame these tests use, which is itself the
+       measurement behind the aim rule below: on this map, framing the whole
+       neighbourhood is the rare case and not the common one. */
+    const target = aim("theme", frame, free);
+    assert.deepEqual(target.offFrame, [],
+      "a neighbourhood that fits was reported as partly off-frame");
+    assert.ok(target.painted <= 1.5 + 1e-9,
+      `framed at ${target.painted.toFixed(3)} pixels per unit, above the ` +
+      `comfort ceiling -- the camera is magnifying rather than framing`);
+  });
+
+  it("consumes the published rectangle rather than centring on the viewport", () => {
+    /* The inherited contract from 52.3, and the one an implementation can most
+       easily fake: framing into the middle of the map looks correct until a
+       panel takes 380 pixels of it, and then the camera parks the component it
+       just framed underneath the panel.
+
+       Two rectangles inside one identical frame. If the camera were centring
+       on the viewport, both answers would be the same. */
+    const frame = { w: 1440, h: 640 };
+    const whole = { x: 0, y: 0, width: 1440, height: 568 };
+    const beside = { x: 0, y: 0, width: 1060, height: 568 };
+
+    const open = aim("cli", frame, beside);
+    const closed = aim("cli", frame, whole);
+
+    assert.notDeepEqual(
+      { x: open.x, y: open.y }, { x: closed.x, y: closed.y },
+      "the camera answered identically for a 1440-wide and a 1060-wide free " +
+      "rectangle, so it is framing into the viewport and not into what the " +
+      "panel left free");
+
+    const at = projected(BOXES.cli, frame, open);
+    assert.ok(at.right <= beside.width + 0.5,
+      `with the panel open the focused component reaches ${at.right.toFixed(1)}, ` +
+      `past the ${beside.width} the panel left free -- it is under the panel`);
+  });
+
+  it("never counts a component as a neighbour of itself", () => {
+    /* A self-edge makes a component its own neighbour in the adjacency index.
+       Reported off-frame it would tell a reader that the thing filling the
+       middle of their screen is somewhere they cannot see. */
+    const frame = { w: 1060, h: 640 };
+    const free = { x: 0, y: 0, width: frame.w, height: frame.h - 72 };
+    const target = pfCameraTarget({
+      canvas: CANVAS_BOX, frame, free, boxes: BOXES,
+      focus: "cli", near: ["cli"],
+    });
+
+    assert.deepEqual(target.offFrame, [],
+      "the focused component was reported as outside its own frame");
+  });
+
+  it("refuses to aim at a component it has no box for", () => {
+    const frame = { w: 1060, h: 640 };
+    const free = { x: 0, y: 0, width: frame.w, height: frame.h - 72 };
+
+    assert.equal(
+      pfCameraTarget({
+        canvas: CANVAS_BOX, frame, free, boxes: BOXES,
+        focus: "no-such-node", near: [],
+      }),
+      null,
+      "the camera invented a target for a component that is not drawn");
+  });
+
+  it("measures nothing but the window", () => {
+    /* The Feature's rule, as a property of the module rather than a promise in
+       a comment: the only runtime numbers the camera is given are the frame
+       and the free rectangle. Everything else it reads is build-time integer
+       geometry. A camera that had reached for a rendered box would need an API
+       that is not in this source. */
+    for (const forbidden of [
+      "getBBox", "getBoundingClientRect", "getComputedStyle", "offsetWidth",
+      "clientWidth", "measureText", "document", "window",
+    ]) {
+      assert.ok(!CAMERA_JS.includes(forbidden),
+        `the camera source reaches for ${forbidden}, so it is reading the ` +
+        `picture rather than the graph`);
+    }
+  });
 });
 
 describe("the delivered artifact carries its content before any script runs", () => {
