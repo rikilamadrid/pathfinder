@@ -544,6 +544,127 @@ describe("the script that ships runs, and computes the right state", () => {
     assert.equal(dom.skip.getAttribute("href"), "#pf-map");
   });
 
+  it("docks the selected component's own card, and no copy of it", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+    const before = dom.readingOrder();
+    const card = dom.entry("node", "cli");
+
+    dom.clickNode("cli");
+
+    assert.deepEqual(dom.docked(), ["cli"],
+      "the panel shows the selected component and nothing else");
+    assert.equal(dom.panel.hidden, false, "the panel is still closed");
+    // The element in the panel is the element that was in the reading. Not an
+    // element carrying the same id -- the same object. A clone would satisfy
+    // every other assertion here and is exactly what must not happen.
+    assert.equal(dom.panelSlot.children[0], card,
+      "the panel holds a different element than the one the reading had");
+    assert.ok(!dom.readingOrder().includes("cli"),
+      "the card is in two places at once, so a reader meets it twice");
+    assert.equal(before.filter((id) => id === "cli").length, 1,
+      "the reading carried more than one card for this component to begin with");
+  });
+
+  it("puts every moved element back exactly where it came from", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+    const before = dom.readingOrder();
+
+    // A sequence, not a single round trip: the restore that breaks is the one
+    // after a selection has already moved rows out of the middle of a list.
+    dom.clickNode("cli");
+    dom.clickNode("installer");
+    dom.clickNode("cli");
+    dom.clickAct("clear");
+
+    assert.deepEqual(dom.readingOrder(), before,
+      "a card or an evidence row came back in the wrong place");
+    assert.deepEqual(dom.docked(), [], "the panel still holds a card");
+    assert.deepEqual(dom.dockedEdges(), [], "the panel still holds evidence rows");
+    assert.equal(dom.panel.hidden, true, "an empty panel is left on screen");
+  });
+
+  it("shows what runs in and what runs out, as the document's own rows", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+    dom.clickNode("cli");
+
+    const incident = INSTALLER.diagram.edges
+      .filter((edge) => edge.from === "cli" || edge.to === "cli")
+      .map((edge) => edge.id);
+
+    assert.deepEqual([...dom.dockedEdges()].sort(), [...incident].sort(),
+      "the panel names a different set of relationships than the graph does");
+    assert.equal(dom.panelRelations.hidden, false);
+  });
+
+  it("gives the reading back its rows before the full reading opens", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+    const before = dom.readingOrder();
+
+    dom.clickNode("cli");
+    dom.clickAct("reading");
+
+    assert.deepEqual(dom.readingOrder(), before,
+      "the full reading is missing the rows the panel borrowed");
+    assert.equal(dom.panel.hidden, true,
+      "the panel competes with the reading it just handed everything back to");
+
+    // ...and closing it re-docks, so the two never disagree about selection.
+    dom.clickAct("reading");
+    assert.deepEqual(dom.docked(), ["cli"],
+      "returning to the map lost the selection the map still shows");
+  });
+
+  it("disables every control that carries an action, not the first one", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+
+    assert.equal(dom.tool("clear").disabled, true);
+    assert.equal(dom.tool("details").disabled, true);
+    dom.clickNode("cli");
+    assert.equal(dom.tool("clear").disabled, false);
+    assert.equal(dom.tool("details").disabled, false);
+  });
+
+  it("publishes a free rectangle for the camera that comes next", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+
+    const free = dom.canvas.getAttribute("data-pf-free");
+    assert.ok(free, "52.2 has no rectangle to frame into");
+    assert.match(free, /^\d+ \d+ \d+ \d+$/,
+      "the contract is four integers in canvas-local pixels");
+
+    const [x, y, width, height] = free.split(" ").map(Number);
+    const box = dom.canvas.getBoundingClientRect();
+    const bar = dom.controls[0].getBoundingClientRect();
+    assert.ok(width > 0 && height > 0, "an empty rectangle frames nothing");
+    assert.ok(x + width <= box.width && y + height <= box.height,
+      "the free rectangle reaches outside the canvas it describes");
+    assert.ok(dom.document.querySelectorAll("[data-pf-chrome]").length === 1,
+      "the camera rectangle is computed from a hook that matches more than " +
+      "one element, so which one it means is document order and not intent");
+    assert.equal(height, bar.top - box.top,
+      "the rectangle includes the band the controls float over, so a camera " +
+      "framing into it would park a node under them");
+  });
+
+  it("moves no camera of its own", () => {
+    const dom = fakeDocument();
+    run(script, dom);
+    const before = dom.canvas.getAttribute("data-pf-zoom");
+    const transform = dom.svg.style.transform;
+
+    dom.clickNode("cli");
+
+    assert.equal(dom.svg.style.transform, transform,
+      "selecting a node moved the camera; framing is 52.2, not this ticket");
+    assert.equal(dom.canvas.getAttribute("data-pf-zoom"), before);
+  });
+
   it("ignores a node it does not have", () => {
     const dom = fakeDocument();
     run(script, dom);
@@ -568,11 +689,43 @@ describe("the script that ships runs, and computes the right state", () => {
    * nothing, which is the point — the script is not allowed to depend on that.
    */
   function fakeDocument() {
+    /* The panel moves real elements between real containers, so the stub
+       carries a parent/child model. Without one, "the card was moved and put
+       back exactly where it was" is not a claim this file could make — and it
+       is the claim most worth making, because a restore that misfiles an
+       evidence row corrupts the reading silently. */
     const element = (attrs = {}) => ({
       attrs: { ...attrs },
       hidden: true,
       disabled: false,
       textContent: "",
+      children: [],
+      parentNode: null,
+      get nextSibling() {
+        if (!this.parentNode) return null;
+        const at = this.parentNode.children.indexOf(this);
+        return at === -1 ? null : (this.parentNode.children[at + 1] ?? null);
+      },
+      appendChild(child) {
+        if (child.parentNode) child.parentNode.removeChild(child);
+        child.parentNode = this;
+        this.children.push(child);
+        return child;
+      },
+      insertBefore(child, before) {
+        if (child.parentNode) child.parentNode.removeChild(child);
+        child.parentNode = this;
+        const at = before ? this.children.indexOf(before) : -1;
+        if (at === -1) this.children.push(child);
+        else this.children.splice(at, 0, child);
+        return child;
+      },
+      removeChild(child) {
+        const at = this.children.indexOf(child);
+        if (at !== -1) this.children.splice(at, 1);
+        child.parentNode = null;
+        return child;
+      },
       getAttribute(name) {
         return Object.prototype.hasOwnProperty.call(this.attrs, name)
           ? this.attrs[name] : null;
@@ -582,7 +735,10 @@ describe("the script that ships runs, and computes the right state", () => {
       addEventListener() {},
       closest() { return null; },
       scrollIntoView() {},
-      getBoundingClientRect() { return { width: 800, height: 600 }; },
+      getBoundingClientRect() {
+        return { x: 0, y: 0, top: 0, left: 0, right: 800, bottom: 600,
+          width: 800, height: 600 };
+      },
       // A screen-space camera writes one style property and reads the box the
       // browser is painting. Both are legitimate for the script to touch, so
       // the stub carries them; it still lays nothing out and draws nothing.
@@ -615,7 +771,30 @@ describe("the script that ships runs, and computes the right state", () => {
       ...INSTALLER.diagram.paths.map((path) =>
         element({ "data-pf-entry": "path", "data-pf-for": path.id })),
     ];
+    /* The written reading's own containers, so a docked card has somewhere to
+       come back to and the order it comes back in is observable. */
+    const reading = element();
+    const edgeList = element();
+    for (const entry of entries) {
+      const home = entry.getAttribute("data-pf-entry") === "edge" ? edgeList : reading;
+      home.appendChild(entry);
+    }
+
+    const panel = element({ "data-pf-panel": "" });
+    const panelSlot = element({ "data-pf-panel-slot": "" });
+    const panelEdges = element({ "data-pf-panel-edges": "" });
+    const panelRelations = element({ "data-pf-panel-relations": "" });
+
     const controls = [element(), element()];
+    controls[0].attrs["data-pf-controls"] = "";
+    controls[0].attrs["data-pf-chrome"] = "";
+    /* The controls float over the map's bottom edge, and the free rectangle is
+       the map above them. The stub says where they are, so the arithmetic has
+       something real to subtract rather than the canvas's own box. */
+    controls[0].getBoundingClientRect = () => ({
+      x: 24, y: 500, top: 500, left: 24, right: 500, bottom: 580,
+      width: 476, height: 80,
+    });
     const status = element();
 
     const tools = {};
@@ -643,6 +822,12 @@ describe("the script that ships runs, and computes the right state", () => {
         if (selector.includes("data-pf-canvas")) return canvas;
         if (selector.includes("data-pf-status")) return status;
         if (selector.includes("data-pf-skip")) return skip;
+        if (selector.includes("data-pf-panel-slot")) return panelSlot;
+        if (selector.includes("data-pf-panel-edges")) return panelEdges;
+        if (selector.includes("data-pf-panel-relations")) return panelRelations;
+        if (selector.includes("data-pf-panel")) return panel;
+        if (selector.includes("data-pf-chrome")) return controls[0];
+        if (selector.includes("data-pf-controls")) return controls[0];
         const act = selector.match(/data-pf-act="([a-z-]+)"/);
         if (act) return tools[act[1]] ?? null;
         const entry = selector.match(/data-pf-for="([^"]*)"/);
@@ -653,7 +838,12 @@ describe("the script that ships runs, and computes the right state", () => {
         return null;
       },
       querySelectorAll(selector) {
+        if (selector.includes("data-pf-chrome")) return [controls[0]];
         if (selector.includes("data-pf-controls")) return controls;
+        // Two surfaces now carry "clear" and "details", so the script asks for
+        // every control with an action rather than the first one.
+        const act = selector.match(/data-pf-act="([a-z-]+)"/);
+        if (act) return tools[act[1]] ? [tools[act[1]]] : [];
         if (selector.includes("data-pf-node")) return nodes;
         if (selector.includes("data-pf-edge")) return edges;
         if (selector.includes("data-pf-entry")) return entries;
@@ -673,8 +863,23 @@ describe("the script that ships runs, and computes the right state", () => {
       fire("document", "click", { target });
     };
 
+    /* What the reading looks like right now, as ids in order. Comparing this
+       before and after an interaction is how "the card went back exactly where
+       it came from" becomes a check rather than a hope. */
+    const readingOrder = () => [
+      ...reading.children.map((el) => el.getAttribute("data-pf-for")),
+      "|",
+      ...edgeList.children.map((el) => el.getAttribute("data-pf-for")),
+    ];
+
     return {
       document, canvas, svg, status, controls, skip,
+      panel, panelSlot, panelEdges, panelRelations, readingOrder,
+      entry: (kind, id) => entries.find((el) =>
+        el.getAttribute("data-pf-entry") === kind
+        && el.getAttribute("data-pf-for") === id),
+      docked: () => panelSlot.children.map((el) => el.getAttribute("data-pf-for")),
+      dockedEdges: () => panelEdges.children.map((el) => el.getAttribute("data-pf-for")),
       node: (id) => nodes.find((n) => n.getAttribute("data-pf-node") === id),
       tool: (name) => tools[name],
       state: (kind, value) => (kind === "node" ? nodes : edges)
@@ -803,10 +1008,15 @@ describe("the delivered artifact carries its content before any script runs", ()
         // `hidden` and is revealed by the script — the same bargain the
         // shell's theme toggle strikes. A reader with scripting off meets no
         // dead buttons, and loses nothing they could have read.
-        const groups = [...noScript.matchAll(/data-pf-controls(\s+hidden)?/g)];
+        // Matched on the whole tag rather than on `hidden` following
+        // `data-pf-controls` directly: attribute order is not a promise the
+        // renderer makes, and a test that reads it as one reports a hidden
+        // group as exposed the first time another attribute lands between the
+        // two. What is being asserted is that the element is hidden.
+        const groups = [...noScript.matchAll(/<[a-z]+\b[^>]*\bdata-pf-controls\b[^>]*>/g)];
         assert.ok(groups.length > 0, "no control group in the document at all");
 
-        const exposed = groups.filter(([, isHidden]) => !isHidden);
+        const exposed = groups.filter(([tag]) => !/\shidden(\s|>|=)/.test(tag));
         assert.equal(exposed.length, 0,
           `${exposed.length} control group(s) ship visible without scripting`);
 

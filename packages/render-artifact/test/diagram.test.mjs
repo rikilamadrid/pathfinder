@@ -170,7 +170,7 @@ describe("diagram — the pipeline, end to end", () => {
     const closed = tools.indexOf("data-pf-status");
     assert.ok(tools.indexOf("data-pf-scale") < closed, "scale readout is inside the controls");
     assert.ok(tools.indexOf('data-pf-act="reading"') < closed, "reading control is inside the controls");
-    assert.match(markup, /<div class="pf-graph-tools" data-pf-controls hidden>/,
+    assert.match(markup, /<div class="pf-graph-tools" data-pf-controls data-pf-chrome hidden>/,
       "a control that cannot work without scripting is not shipped visible");
   });
 

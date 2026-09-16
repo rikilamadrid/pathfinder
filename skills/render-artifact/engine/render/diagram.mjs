@@ -63,6 +63,14 @@ const UI = Object.freeze({
   clear: "Clear",
   focusOne: "Focus",
   highlight: "Highlight",
+  // The docked surface's own chrome. Every one of these names a part of the
+  // page or an act the reader can take; not one of them describes a component,
+  // because the renderer never gets to say what a component is -- the card the
+  // panel shows was written from the specification and is moved here whole.
+  panelLabel: "Selected component",
+  panelRelations: "Relationships",
+  panelDetails: "Open full details",
+  panelClose: "Close",
   relations: {
     calls: "calls",
     reads: "reads",
@@ -107,6 +115,7 @@ export function renderDiagram(spec, verification) {
     `<div class="pf-canvas" id="${esc(MAP_ID)}" data-pf-canvas tabindex="0" ` +
     `role="group" aria-label="${esc(UI.canvasLabel)}">` +
     `${drawGraph(diagram, layout)}</div>`,
+    renderPanel(),
   ].join("\n");
 
   const body = [
@@ -155,7 +164,13 @@ function renderTools() {
     `${esc(text)}</button>`;
 
   return [
-    '<div class="pf-graph-tools" data-pf-controls hidden>',
+    // `data-pf-controls` reveals it; `data-pf-chrome` says which group is the
+    // chrome that floats over the map. Twenty-four elements carry the first —
+    // every written entry's focus button does — so a lookup for "the toolbar"
+    // through it resolves by document order and nothing else. The camera
+    // rectangle is computed from this element, and 52.2 frames into that
+    // rectangle, so it is addressed by a hook that means it.
+    '<div class="pf-graph-tools" data-pf-controls data-pf-chrome hidden>',
     `<div class="pf-toolbar" role="toolbar" aria-label="${esc(UI.toolbar)}">`,
     button("zoom-out", UI.zoomOut),
     button("zoom-in", UI.zoomIn),
@@ -182,6 +197,53 @@ function renderTools() {
     `<p class="pf-graph-status" data-pf-status aria-live="polite">` +
     `${esc(UI.nothing)}</p>`,
     "</div>",
+  ].join("\n");
+}
+
+/**
+ * The docked detail surface: a frame, and nothing in it.
+ *
+ * This is the whole of what the renderer writes for the panel — a heading, two
+ * controls, and two empty containers. Not one word about any component appears
+ * here, and there is no template into which one could be poured. When a reader
+ * selects a component the script *moves* that component's own card — the same
+ * `pf-card` written by `renderNode`, carrying the label, role, summary, detail
+ * paragraphs and citations the specification supplied — out of the written
+ * reading and into the slot below, and moves it back when the selection
+ * clears. One card, in one place at a time.
+ *
+ * That is why the panel can show authoritative evidence without being a second
+ * renderer. A copy would be a second thing to keep true, and a screen reader
+ * would meet the same citation twice; a move is the same element, still the
+ * only one, reachable in exactly one place in the accessibility tree.
+ *
+ * `hidden` in the delivered document, like every other control group here. With
+ * no scripting there is nothing to dock and nothing that could dock it, so the
+ * reader meets no empty frame — and loses nothing, because the cards the panel
+ * would have borrowed are all still exactly where the document put them.
+ */
+function renderPanel() {
+  const titleId = domId("pf", "panel", "title");
+  return [
+    `<aside class="pf-panel" data-pf-panel hidden ` +
+    `aria-labelledby="${esc(titleId)}">`,
+    '<div class="pf-panel-head">',
+    `<h2 class="pf-panel-title" id="${esc(titleId)}">${esc(UI.panelLabel)}</h2>`,
+    `<button type="button" class="pf-tool" data-pf-act="details">` +
+    `${esc(UI.panelDetails)}</button>`,
+    `<button type="button" class="pf-tool pf-panel-close" data-pf-act="clear">` +
+    `${esc(UI.panelClose)}</button>`,
+    "</div>",
+    // Where the selected component's own card lands. Empty in the delivered
+    // bytes and empty again the moment the selection clears.
+    '<div class="pf-panel-body" data-pf-panel-slot></div>',
+    // And where its relationship rows land — the same `<li>` elements the
+    // Relationships section already carries, moved, not restated.
+    '<div class="pf-panel-relations" data-pf-panel-relations hidden>',
+    `<div class="pf-kicker">${esc(UI.panelRelations)}</div>`,
+    '<ul class="pf-legend" data-pf-panel-edges></ul>',
+    "</div>",
+    "</aside>",
   ].join("\n");
 }
 
