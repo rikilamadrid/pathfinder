@@ -73,6 +73,19 @@ export const DIAGRAM_SURFACES = [
   { what: "boundary border", fg: "--pf-line-strong", bg: "--pf-surface-2", kind: "non-text" },
   { what: "boundary label", fg: "--pf-muted", bg: "--pf-surface-2", kind: "text" },
   { what: "boundary fill against the page", fg: "--pf-surface-2", bg: "--pf-page", kind: "decorative" },
+  // The focused component, which the explorer fills with the accent so it is
+  // findable in one glance. Both words sitting on that fill are held to the
+  // text bar rather than waved through as emphasis: the label and the role
+  // caption are the same words they are anywhere else, and a reader who has
+  // just selected the component is the likeliest person to be reading them.
+  // The fill itself is held to the boundary bar against both grounds it can
+  // land on -- the page, and a boundary's own fill -- because unlike an
+  // ordinary node's quiet ground this one *is* the visual information that
+  // identifies which component is selected.
+  { what: "focused node label", fg: "--pf-accent-ink", bg: "--pf-accent", kind: "text" },
+  { what: "focused node role caption", fg: "--pf-accent-ink", bg: "--pf-accent", kind: "text" },
+  { what: "focused node fill against the page", fg: "--pf-accent", bg: "--pf-page", kind: "non-text" },
+  { what: "focused node fill against a boundary", fg: "--pf-accent", bg: "--pf-surface-2", kind: "non-text" },
 ];
 
 /**

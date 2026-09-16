@@ -850,7 +850,14 @@ export function graphBehavior(modelJson) {
            to three rows and take nearly half the map -- reported the whole
            canvas as free, and that is precisely where a camera would park a
            node under them. A small honest rectangle beats a large wrong one. */
-        free.height = Math.max(0, bar.top - box.top);
+        /* Clamped to the box as well as to zero, because the toolbar is a
+           grid sibling below the map rather than an overlay on it: its top
+           is then past the canvas's bottom and the subtraction would report
+           a rectangle taller than the thing it describes. Bounded both ways,
+           the one rule covers both arrangements -- it subtracts a real
+           overlap and subtracts nothing when the chrome takes its own space,
+           which is what the contract has always meant. */
+        free.height = Math.min(box.height, Math.max(0, bar.top - box.top));
       }
     }
 

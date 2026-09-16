@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How create-pathfinder installs the kit</title>
 <meta name="description" content="One npx invocation, from the registry to a destination project&#39;s working tree">
-<meta name="generator" content="Pathfinder render-artifact 0.8.0">
+<meta name="generator" content="Pathfinder render-artifact 0.10.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
 <style>:root {
   color-scheme: light;
@@ -888,7 +888,11 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 [data-pf-layout="explorer"] .pf-stage {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto minmax(0, 1fr);
+  /* Lead, map, controls. The controls' row is auto so it takes exactly the
+     height the buttons need at this width and no more — it grows on its own
+     when they wrap, which is the width where guessing a reserved band would
+     have been wrong. */
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 [data-pf-layout="explorer"] .pf-lead { grid-column: 1 / -1; }
 [data-pf-layout="explorer"] .pf-canvas { grid-column: 1; grid-row: 2; }
@@ -947,45 +951,91 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 [data-pf-layout="explorer"] .pf-canvas[data-pf-camera] .pf-graph {
   transition: transform .34s cubic-bezier(.22, .61, .36, 1);
 }
-/* The controls float over the map at its bottom-left corner — out of the way
-   of the title, and in the corner a map's controls are looked for. They keep
-   the toolbar markup and the button styling they have in the article layout;
-   only the placement changes.
+/* The controls sit in a row of their own beneath the map, and that is a
+   correction the integrated acceptance run forced.
 
-   Placed in the map's own grid cell rather than positioned against the stage.
-   The stage also holds the panel now, so a toolbar anchored to the stage's
-   bottom edge tracks the panel instead of the map — which is invisible while
-   the panel is a column beside the map and obvious the moment it becomes a row
-   beneath it, where the controls end up floating over the reading. Sharing the
-   cell keeps them over the map at every width, and grid stacks same-cell items
-   without either one taking space from the other. */
+   They used to float in the map's bottom-left corner, sharing the canvas's
+   grid cell so that neither took space from the other. The reasoning was
+   sound and the result was not: an opaque card with a shadow, stacked over
+   the map, hides whatever the map has drawn underneath it. Measured on the
+   acceptance specimen at 1440x900, that was two of the twenty components --
+   stage-kit.mjs and publish-guard.mjs, both present and both readable with
+   scripting off, and both invisible the moment the explorer enhanced the
+   page. A reader cannot look for what they cannot see, and the overview state
+   is the one that has to show them where to explore next.
+
+   The fix is the smallest one that makes the defect impossible rather than
+   unlikely: give the controls a row, and the grid stops overlapping them with
+   anything. It is the same contract 52.3 wrote for the panel, applied to the
+   other piece of chrome -- the panel takes width from the map by being a grid
+   sibling, and the toolbar now takes height from it the same way. What the
+   free rectangle reports and what the browser paints cannot disagree, because
+   there is no longer an overlay for them to disagree about.
+
+   The alternatives were measured and rejected. Making the card translucent
+   only makes the collision prettier. Reserving the band under a still-floating
+   toolbar costs exactly the same height while keeping the overlay that caused
+   the defect. Tucking the controls beside the title fails on arithmetic: the
+   bar is about 890px wide, so it fits next to a short title at 1440 and
+   collides with a longer one, at a narrower window, or in a language whose
+   words are longer.
+
+   Full stage width rather than the map's column, so the controls do not jump
+   sideways when the panel opens and takes the map's width away. */
 [data-pf-layout="explorer"] .pf-graph-tools {
-  grid-column: 1;
-  grid-row: 2;
-  align-self: end;
-  justify-self: start;
-  position: relative;
-  z-index: 2;
-  max-width: calc(100% - var(--pf-space-5) * 2);
-  margin: var(--pf-space-5);
-  padding: var(--pf-space-3);
+  grid-column: 1 / -1;
+  grid-row: 3;
+  margin: 0;
+  padding: var(--pf-space-3) var(--pf-space-5);
   background: var(--pf-surface);
-  border: 1px solid var(--pf-line);
-  border-radius: var(--pf-radius);
-  box-shadow: var(--pf-shadow);
+  border-top: 1px solid var(--pf-line);
 }
 [data-pf-layout="explorer"] .pf-graph-status { margin-top: var(--pf-space-2); }
 
 /* Selection. Keyed off attributes the script sets and nothing else, so the
-   delivered document is identical whether or not a browser ever runs it. */
+   delivered document is identical whether or not a browser ever runs it.
+
+   The focused component is a filled slab rather than a differently-bordered
+   box, and that is a correction rather than a decoration. Until the integrated
+   acceptance run the three states differed on two channels: a border colour,
+   and opacity. Measured on the acceptance specimen, that is not enough at the
+   scale a focus actually lands at. The focus camera reaches 2.34, and at that
+   scale most of the graph is off-frame -- eight of the twenty components leave
+   two or more direct neighbours inside the frame, and run() leaves six. The
+   competition is therefore almost entirely focused-against-near, and those two
+   were separated by one thin border and 25% opacity while sharing a fill, a
+   size, and a typeface. Opacity is also the weakest of the channels available
+   here: a white box on a near-white page barely moves when it is faded, so the
+   25% bought far less separation than the number suggests.
+
+   Filling the focused component with the accent changes what kind of object it
+   is rather than how strongly the same object is drawn, which is what makes it
+   findable in one glance instead of by comparison. No colour is invented to do
+   it: --pf-accent over --pf-accent-ink is the pairing .pf-skip already
+   ships in the shared theme, it is measured in both themes by the contrast
+   suite, and theme.mjs's own note -- the accent may take a rule or a fill but
+   never a word -- is the rule being followed rather than bent.
+
+   The role stroke this overrides is not lost. A focused component states its
+   role twice in words: in the caption inside the box, and in the panel docked
+   beside it. A dash pattern is the weakest of those three and the only one the
+   fill costs.
+
+   "near" drops further than it did for the same reason the fill exists: the
+   neighbours have to recede, and opacity is doing that work alone. It stays
+   well clear of "off", because a component whose neighbours are unreadable
+   tells the reader less than one whose neighbours are merely quieter. */
 .pf-node[data-pf-state="off"],
 .pf-edge[data-pf-state="off"] { opacity: .22; }
 .pf-node[data-pf-state="near"],
-.pf-edge[data-pf-state="near"] { opacity: .75; }
+.pf-edge[data-pf-state="near"] { opacity: .62; }
 .pf-node[data-pf-state="on"] .pf-node-box {
+  fill: var(--pf-accent);
   stroke: var(--pf-accent);
   stroke-width: 4;
 }
+.pf-node[data-pf-state="on"] .pf-node-label,
+.pf-node[data-pf-state="on"] .pf-node-role { fill: var(--pf-accent-ink); }
 .pf-edge[data-pf-state="on"] .pf-edge-line {
   stroke: var(--pf-accent);
   stroke-width: 3;
@@ -1120,6 +1170,35 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
   }
   [data-pf-layout="explorer"] .pf-canvas { grid-column: 1; grid-row: 2; }
   [data-pf-layout="explorer"] .pf-panel { grid-column: 1; grid-row: 3; }
+  /* The controls go back over the map here, and only here. Three rows is what
+     this stage can hold: the map's 42svh floor and the panel's 34svh ceiling
+     are the accepted geometry, the lead takes what a title takes, and at this
+     width the controls wrap to three rows of buttons about 169px tall. A
+     fourth row for them does not fit, and the row that loses is the map's --
+     measured at 430x880 with a component selected, it fell from 369px to
+     119px and took the focused label down to 0.85 of its authored size, which
+     is the one thing the camera is not allowed to do.
+
+     So narrow keeps the overlay and the occlusion that comes with it. That is
+     a real limitation rather than a tidy resolution, and it is bounded: the
+     focus camera frames into the rectangle publishFreeRect() publishes, which
+     already subtracts this bar, so a selected component is never parked under
+     it. What narrow does not get is the clean overview desktop now has. */
+  [data-pf-layout="explorer"] .pf-graph-tools {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: end;
+    justify-self: start;
+    position: relative;
+    z-index: 2;
+    max-width: calc(100% - var(--pf-space-4) * 2);
+    margin: var(--pf-space-4);
+    padding: var(--pf-space-3);
+    border-top: 0;
+    border: 1px solid var(--pf-line);
+    border-radius: var(--pf-radius);
+    box-shadow: var(--pf-shadow);
+  }
   .pf-panel {
     width: auto;
     max-height: 34svh;
@@ -1162,7 +1241,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div>
 <p class="pf-graph-status" data-pf-status aria-live="polite">Nothing selected. Choose a component to focus it.</p>
 </div>
-<div class="pf-canvas" id="pf-map" data-pf-canvas tabindex="0" role="group" aria-label="Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits."><svg class="pf-graph" data-pf-graph viewBox="0 0 2148 1612" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
+<div class="pf-canvas" id="pf-map" data-pf-canvas tabindex="0" role="group" aria-label="Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits."><svg class="pf-graph" data-pf-graph viewBox="0 0 3228 1612" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
 <title id="pf--diagram--title">Diagram</title>
 <defs>
 <marker id="pf-arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" markerUnits="userSpaceOnUse" orient="auto">
@@ -1170,140 +1249,140 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </marker>
 </defs>
 <g class="pf-group" data-pf-group="entry" data-pf-depth="0">
-<rect class="pf-group-box" id="g--entry" x="648" y="452" width="580" height="124" rx="14"/>
-<text class="pf-group-label" x="672" y="472">Entry</text>
+<rect class="pf-group-box" id="g--entry" x="1008" y="452" width="760" height="124" rx="14"/>
+<text class="pf-group-label" x="1032" y="472">Entry</text>
 </g>
 <g class="pf-group" data-pf-group="conversation" data-pf-depth="0">
-<rect class="pf-group-box" id="g--conversation" x="944" y="592" width="876" height="264" rx="14"/>
-<text class="pf-group-label" x="968" y="612">What it asks the human</text>
+<rect class="pf-group-box" id="g--conversation" x="1484" y="592" width="1236" height="264" rx="14"/>
+<text class="pf-group-label" x="1508" y="612">What it asks the human</text>
 </g>
 <g class="pf-group" data-pf-group="planning" data-pf-depth="0">
-<rect class="pf-group-box" id="g--planning" x="1240" y="872" width="580" height="404" rx="14"/>
-<text class="pf-group-label" x="1264" y="892">Plan, then apply</text>
+<rect class="pf-group-box" id="g--planning" x="1960" y="872" width="760" height="404" rx="14"/>
+<text class="pf-group-label" x="1984" y="892">Plan, then apply</text>
 </g>
 <g class="pf-group" data-pf-group="publishing" data-pf-depth="0">
 <rect class="pf-group-box" id="g--publishing" x="56" y="1292" width="284" height="264" rx="14"/>
 <text class="pf-group-label" x="80" y="1312">Getting the kit into the package</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-invoke" data-pf-relation="triggers" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-invoke" points="316,234 404,234" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="360" y="228">npx</text>
+<polyline class="pf-edge-line" id="e--e-invoke" points="316,234 584,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="450" y="228">npx</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-serve" data-pf-relation="triggers" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-serve" points="612,234 656,234 656,514 700,514" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="656" y="368">runs the bin</text>
+<polyline class="pf-edge-line" id="e--e-serve" points="792,234 926,234 926,514 1060,514" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="926" y="368">runs the bin</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-handoff" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-handoff" points="908,514 996,514" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="952" y="508">run(argv)</text>
+<polyline class="pf-edge-line" id="e--e-handoff" points="1268,514 1536,514" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1402" y="508">run(argv)</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-prompter" data-pf-relation="depends_on" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-prompter" points="908,514 1100,514 1100,794 1292,794" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1100" y="648">builds</text>
+<polyline class="pf-edge-line" id="e--e-prompter" points="1268,514 1640,514 1640,794 2012,794" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1454" y="508">builds</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-theme" data-pf-relation="depends_on" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-theme" points="908,514 952,514 952,724 996,724" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="952" y="613">builds</text>
+<polyline class="pf-edge-line" id="e--e-theme" points="1268,514 1402,514 1402,724 1536,724" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1402" y="613">builds</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-ask" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-ask" points="1204,514 1248,514 1248,794 1292,794" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1248" y="648">asks</text>
+<polyline class="pf-edge-line" id="e--e-ask" points="1744,514 1878,514 1878,794 2012,794" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1878" y="648">asks</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-answer" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-answer" points="1292,794 804,794 804,234 316,234" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="804" y="508">questions</text>
+<polyline class="pf-edge-line" id="e--e-answer" points="2012,794 1164,794 1164,234 316,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1588" y="788">questions</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-detect" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-detect" points="1204,514 1248,514 1248,654 1292,654" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1248" y="578">finds tools</text>
+<polyline class="pf-edge-line" id="e--e-detect" points="1744,514 1878,514 1878,654 2012,654" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1878" y="578">finds tools</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-harnesses" data-pf-relation="reads" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-harnesses" points="1500,654 1544,654 1544,724 1588,724" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1544" y="683">known harnesses</text>
+<polyline class="pf-edge-line" id="e--e-harnesses" points="2220,654 2354,654 2354,724 2488,724" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="2287" y="648">known harnesses</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-kit" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-kit" points="1204,514 1396,514 1396,234 1588,234" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1396" y="368">locates the kit</text>
+<polyline class="pf-edge-line" id="e--e-kit" points="1744,514 2116,514 2116,234 2488,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1930" y="508">locates the kit</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-copylist" data-pf-relation="reads" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-copylist" points="1796,234 1840,234 1840,94 1884,94" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1840" y="158">at runtime</text>
+<polyline class="pf-edge-line" id="e--e-copylist" points="2696,234 2830,234 2830,94 2964,94" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="2830" y="158">at runtime</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-guarded" data-pf-relation="depends_on" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-guarded" points="1796,234 1884,234" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1840" y="228">exclusion</text>
+<polyline class="pf-edge-line" id="e--e-guarded" points="2696,234 2964,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="2830" y="228">exclusion</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-plan" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-plan" points="1204,514 1248,514 1248,934 1292,934" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1248" y="718">plans the copy</text>
+<polyline class="pf-edge-line" id="e--e-plan" points="1744,514 1878,514 1878,934 2012,934" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1878" y="718">plans the copy</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-planreads" data-pf-relation="reads" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-planreads" points="1500,934 1544,934 1544,234 1588,234" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1544" y="578">copy list</text>
+<polyline class="pf-edge-line" id="e--e-planreads" points="2220,934 2354,934 2354,234 2488,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="2354" y="578">copy list</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-planfilters" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-planfilters" points="1500,934 1692,934 1692,234 1884,234" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1692" y="578">excludes</text>
+<polyline class="pf-edge-line" id="e--e-planfilters" points="2220,934 2592,934 2592,234 2964,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="2592" y="578">excludes</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-apply" data-pf-relation="transitions_to" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-apply" points="1500,934 1544,934 1544,1074 1588,1074" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1544" y="998">once accepted</text>
+<polyline class="pf-edge-line" id="e--e-apply" points="2220,934 2354,934 2354,1074 2488,1074" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="2354" y="998">once accepted</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-write" data-pf-relation="writes" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-write" points="1796,1074 1840,1074 1840,374 1884,374" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1840" y="718">the kit</text>
+<polyline class="pf-edge-line" id="e--e-write" points="2696,1074 2830,1074 2830,374 2964,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="2830" y="718">the kit</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-adapters" data-pf-relation="triggers" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-adapters" points="1204,514 1248,514 1248,1074 1292,1074" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1248" y="788">if opted in</text>
+<polyline class="pf-edge-line" id="e--e-adapters" points="1744,514 1878,514 1878,1074 2012,1074" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1878" y="788">if opted in</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-adapterswrite" data-pf-relation="writes" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-adapterswrite" points="1500,1074 1692,1074 1692,374 1884,374" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1692" y="718">adapters</text>
+<polyline class="pf-edge-line" id="e--e-adapterswrite" points="2220,1074 2592,1074 2592,374 2964,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="2592" y="718">adapters</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-adapterharness" data-pf-relation="reads" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-adapterharness" points="1500,1074 1544,1074 1544,724 1588,724" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1544" y="893">skills dir</text>
+<polyline class="pf-edge-line" id="e--e-adapterharness" points="2220,1074 2354,1074 2354,724 2488,724" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="2354" y="893">skills dir</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-hooks" data-pf-relation="triggers" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-hooks" points="1204,514 1248,514 1248,1214 1292,1214" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1248" y="858">if opted in</text>
+<polyline class="pf-edge-line" id="e--e-hooks" points="1744,514 1878,514 1878,1214 2012,1214" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1878" y="858">if opted in</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-hookswrite" data-pf-relation="writes" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-hookswrite" points="1500,1214 1692,1214 1692,374 1884,374" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1692" y="788">hook config</text>
+<polyline class="pf-edge-line" id="e--e-hookswrite" points="2220,1214 2592,1214 2592,374 2964,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="2592" y="788">hook config</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-gitinit" data-pf-relation="triggers" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-gitinit" points="1204,514 1248,514 1248,304 1292,304" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1248" y="403">if offered</text>
+<polyline class="pf-edge-line" id="e--e-gitinit" points="1744,514 1878,514 1878,304 2012,304" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1878" y="403">if offered</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-gitwrite" data-pf-relation="writes" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-gitwrite" points="1500,304 1692,304 1692,374 1884,374" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1596" y="298">git init</text>
+<polyline class="pf-edge-line" id="e--e-gitwrite" points="2220,304 2592,304 2592,374 2964,374" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="2406" y="298">git init</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-report" data-pf-relation="transitions_to" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-report" points="1204,514 1248,514 1248,164 1292,164" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1248" y="333">summarises</text>
+<polyline class="pf-edge-line" id="e--e-report" points="1744,514 1878,514 1878,164 2012,164" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1878" y="333">summarises</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-told" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-told" points="1292,164 804,164 804,234 316,234" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1048" y="158">what happened</text>
+<polyline class="pf-edge-line" id="e--e-told" points="2012,164 1164,164 1164,234 316,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1588" y="158">what happened</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-stage" data-pf-relation="reads" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-stage" points="316,1494 1100,1494 1100,94 1884,94" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1100" y="788">what to stage</text>
+<polyline class="pf-edge-line" id="e--e-stage" points="316,1494 1640,1494 1640,94 2964,94" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1640" y="788">what to stage</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-stagenevership" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-stagenevership" points="316,1494 1100,1494 1100,234 1884,234" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="1100" y="858">excludes</text>
+<polyline class="pf-edge-line" id="e--e-stagenevership" points="316,1494 1640,1494 1640,234 2964,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="978" y="1488">excludes</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-prepack" data-pf-relation="publishes" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-prepack" points="316,1494 360,1494 360,234 404,234" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="360" y="858">package contents</text>
+<polyline class="pf-edge-line" id="e--e-prepack" points="316,1494 450,1494 450,234 584,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="450" y="858">package contents</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-guard" data-pf-relation="triggers" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-guard" points="316,1354 360,1354 360,234 404,234" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="360" y="788">prepublishOnly</text>
+<polyline class="pf-edge-line" id="e--e-guard" points="316,1354 450,1354 450,234 584,234" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="450" y="788">prepublishOnly</text>
 </g>
 <g class="pf-node" data-pf-node="developer" data-pf-role="actor">
 <rect class="pf-node-box" id="n--developer" x="108" y="196" width="208" height="76" rx="38"/>
@@ -1311,89 +1390,89 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <text class="pf-node-role" text-anchor="middle" x="212" y="260">actor</text>
 </g>
 <g class="pf-node" data-pf-node="registry" data-pf-role="external">
-<rect class="pf-node-box" id="n--registry" x="404" y="196" width="208" height="76" rx="38"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="508" y="227">The npm registry</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="508" y="260">external</text>
+<rect class="pf-node-box" id="n--registry" x="584" y="196" width="208" height="76" rx="38"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="688" y="227">The npm registry</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="688" y="260">external</text>
 </g>
 <g class="pf-node" data-pf-node="bin" data-pf-role="interface">
-<rect class="pf-node-box" id="n--bin" x="700" y="476" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="804" y="498">create-pathfinde</tspan><tspan x="804" y="516">r</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="804" y="540">interface</text>
+<rect class="pf-node-box" id="n--bin" x="1060" y="476" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1164" y="498">create-pathfinde</tspan><tspan x="1164" y="516">r</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1164" y="540">interface</text>
 </g>
 <g class="pf-node" data-pf-node="cli" data-pf-role="service">
-<rect class="pf-node-box" id="n--cli" x="996" y="476" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1100" y="507">run()</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1100" y="540">service</text>
+<rect class="pf-node-box" id="n--cli" x="1536" y="476" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1640" y="507">run()</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1640" y="540">service</text>
 </g>
 <g class="pf-node" data-pf-node="prompter" data-pf-role="interface">
-<rect class="pf-node-box" id="n--prompter" x="1292" y="756" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="787">Prompter</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1396" y="820">interface</text>
+<rect class="pf-node-box" id="n--prompter" x="2012" y="756" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="2116" y="787">Prompter</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="2116" y="820">interface</text>
 </g>
 <g class="pf-node" data-pf-node="theme" data-pf-role="service">
-<rect class="pf-node-box" id="n--theme" x="996" y="686" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1100" y="717">Theme</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1100" y="750">service</text>
+<rect class="pf-node-box" id="n--theme" x="1536" y="686" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1640" y="717">Theme</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1640" y="750">service</text>
 </g>
 <g class="pf-node" data-pf-node="detect" data-pf-role="service">
-<rect class="pf-node-box" id="n--detect" x="1292" y="616" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="647">Tool detection</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1396" y="680">service</text>
+<rect class="pf-node-box" id="n--detect" x="2012" y="616" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="2116" y="647">Tool detection</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="2116" y="680">service</text>
 </g>
 <g class="pf-node" data-pf-node="harnesses" data-pf-role="store">
-<rect class="pf-node-box" id="n--harnesses" x="1588" y="686" width="208" height="76" rx="6"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1692" y="717">Harness registry</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1692" y="750">store</text>
+<rect class="pf-node-box" id="n--harnesses" x="2488" y="686" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="2592" y="717">Harness registry</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="2592" y="750">store</text>
 </g>
 <g class="pf-node" data-pf-node="copylist" data-pf-role="store">
-<rect class="pf-node-box" id="n--copylist" x="1884" y="56" width="208" height="76" rx="6"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1988" y="87">copy-list.json</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1988" y="120">store</text>
+<rect class="pf-node-box" id="n--copylist" x="2964" y="56" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="3068" y="87">copy-list.json</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="3068" y="120">store</text>
 </g>
 <g class="pf-node" data-pf-node="kit" data-pf-role="service">
-<rect class="pf-node-box" id="n--kit" x="1588" y="196" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1692" y="227">kit.mjs</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1692" y="260">service</text>
+<rect class="pf-node-box" id="n--kit" x="2488" y="196" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="2592" y="227">kit.mjs</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="2592" y="260">service</text>
 </g>
 <g class="pf-node" data-pf-node="nevership" data-pf-role="decision">
-<rect class="pf-node-box" id="n--nevership" x="1884" y="196" width="208" height="76" rx="20"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1988" y="227">neverShips()</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1988" y="260">decision</text>
+<rect class="pf-node-box" id="n--nevership" x="2964" y="196" width="208" height="76" rx="20"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="3068" y="227">neverShips()</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="3068" y="260">decision</text>
 </g>
 <g class="pf-node" data-pf-node="plan" data-pf-role="step">
-<rect class="pf-node-box" id="n--plan" x="1292" y="896" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="927">planInstall()</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1396" y="960">step</text>
+<rect class="pf-node-box" id="n--plan" x="2012" y="896" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="2116" y="927">planInstall()</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="2116" y="960">step</text>
 </g>
 <g class="pf-node" data-pf-node="apply" data-pf-role="step">
-<rect class="pf-node-box" id="n--apply" x="1588" y="1036" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1692" y="1067">applyPlan()</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1692" y="1100">step</text>
+<rect class="pf-node-box" id="n--apply" x="2488" y="1036" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="2592" y="1067">applyPlan()</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="2592" y="1100">step</text>
 </g>
 <g class="pf-node" data-pf-node="adapters" data-pf-role="job">
-<rect class="pf-node-box" id="n--adapters" x="1292" y="1036" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="1058">Adapter</tspan><tspan x="1396" y="1076">generation</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1396" y="1100">job</text>
+<rect class="pf-node-box" id="n--adapters" x="2012" y="1036" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="2116" y="1058">Adapter</tspan><tspan x="2116" y="1076">generation</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="2116" y="1100">job</text>
 </g>
 <g class="pf-node" data-pf-node="hooks" data-pf-role="job">
-<rect class="pf-node-box" id="n--hooks" x="1292" y="1176" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="1198">Hook</tspan><tspan x="1396" y="1216">installation</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1396" y="1240">job</text>
+<rect class="pf-node-box" id="n--hooks" x="2012" y="1176" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="2116" y="1198">Hook</tspan><tspan x="2116" y="1216">installation</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="2116" y="1240">job</text>
 </g>
 <g class="pf-node" data-pf-node="gitinit" data-pf-role="job">
-<rect class="pf-node-box" id="n--gitinit" x="1292" y="266" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="297">Repository init</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1396" y="330">job</text>
+<rect class="pf-node-box" id="n--gitinit" x="2012" y="266" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="2116" y="297">Repository init</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="2116" y="330">job</text>
 </g>
 <g class="pf-node" data-pf-node="target" data-pf-role="store">
-<rect class="pf-node-box" id="n--target" x="1884" y="336" width="208" height="76" rx="6"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1988" y="367">The project</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1988" y="400">store</text>
+<rect class="pf-node-box" id="n--target" x="2964" y="336" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="3068" y="367">The project</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="3068" y="400">store</text>
 </g>
 <g class="pf-node" data-pf-node="outcome" data-pf-role="terminal">
-<rect class="pf-node-box" id="n--outcome" x="1292" y="126" width="208" height="76" rx="38"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="1396" y="157">The report</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="1396" y="190">terminal</text>
+<rect class="pf-node-box" id="n--outcome" x="2012" y="126" width="208" height="76" rx="38"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="2116" y="157">The report</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="2116" y="190">terminal</text>
 </g>
 <g class="pf-node" data-pf-node="stage" data-pf-role="job">
 <rect class="pf-node-box" id="n--stage" x="108" y="1456" width="208" height="76" rx="10"/>
@@ -1947,7 +2026,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <dt>Commit</dt>
 <dd>3d083a9</dd>
 <dt>Renderer</dt>
-<dd>Pathfinder render-artifact 0.8.0</dd>
+<dd>Pathfinder render-artifact 0.10.0</dd>
 </dl>
 <p class="pf-caveat">This diagram was checked deterministically against the commit named here: its specification satisfied the schema, its identifiers, references and graphs resolved, and every component, relationship and claim in it carried a citation that was verified at that commit. What that establishes is that the cited material is there to be read. It is not a finding that the architecture drawn here is correct, complete, or the best reading of that material, and it is not a judgement that the page reads well — a person has to open it to know either.</p>
 </footer>
@@ -2965,7 +3044,14 @@ function pfCameraTarget(input) {
            to three rows and take nearly half the map -- reported the whole
            canvas as free, and that is precisely where a camera would park a
            node under them. A small honest rectangle beats a large wrong one. */
-        free.height = Math.max(0, bar.top - box.top);
+        /* Clamped to the box as well as to zero, because the toolbar is a
+           grid sibling below the map rather than an overlay on it: its top
+           is then past the canvas's bottom and the subtraction would report
+           a rectangle taller than the thing it describes. Bounded both ways,
+           the one rule covers both arrangements -- it subtracts a real
+           overlap and subtracts nothing when the chrome takes its own space,
+           which is what the contract has always meant. */
+        free.height = Math.min(box.height, Math.max(0, bar.top - box.top));
       }
     }
 

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Typography probe — every script the cap admits</title>
 <meta name="description" content="A fixture, not an example. Each label is chosen to sit at or near the 32-column cap so the probe exercises the boundary rather than the comfortable middle.">
-<meta name="generator" content="Pathfinder render-artifact 0.8.0">
+<meta name="generator" content="Pathfinder render-artifact 0.10.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
 <style>:root {
   color-scheme: light;
@@ -888,7 +888,11 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 [data-pf-layout="explorer"] .pf-stage {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto minmax(0, 1fr);
+  /* Lead, map, controls. The controls' row is auto so it takes exactly the
+     height the buttons need at this width and no more — it grows on its own
+     when they wrap, which is the width where guessing a reserved band would
+     have been wrong. */
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 [data-pf-layout="explorer"] .pf-lead { grid-column: 1 / -1; }
 [data-pf-layout="explorer"] .pf-canvas { grid-column: 1; grid-row: 2; }
@@ -947,45 +951,91 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 [data-pf-layout="explorer"] .pf-canvas[data-pf-camera] .pf-graph {
   transition: transform .34s cubic-bezier(.22, .61, .36, 1);
 }
-/* The controls float over the map at its bottom-left corner — out of the way
-   of the title, and in the corner a map's controls are looked for. They keep
-   the toolbar markup and the button styling they have in the article layout;
-   only the placement changes.
+/* The controls sit in a row of their own beneath the map, and that is a
+   correction the integrated acceptance run forced.
 
-   Placed in the map's own grid cell rather than positioned against the stage.
-   The stage also holds the panel now, so a toolbar anchored to the stage's
-   bottom edge tracks the panel instead of the map — which is invisible while
-   the panel is a column beside the map and obvious the moment it becomes a row
-   beneath it, where the controls end up floating over the reading. Sharing the
-   cell keeps them over the map at every width, and grid stacks same-cell items
-   without either one taking space from the other. */
+   They used to float in the map's bottom-left corner, sharing the canvas's
+   grid cell so that neither took space from the other. The reasoning was
+   sound and the result was not: an opaque card with a shadow, stacked over
+   the map, hides whatever the map has drawn underneath it. Measured on the
+   acceptance specimen at 1440x900, that was two of the twenty components --
+   stage-kit.mjs and publish-guard.mjs, both present and both readable with
+   scripting off, and both invisible the moment the explorer enhanced the
+   page. A reader cannot look for what they cannot see, and the overview state
+   is the one that has to show them where to explore next.
+
+   The fix is the smallest one that makes the defect impossible rather than
+   unlikely: give the controls a row, and the grid stops overlapping them with
+   anything. It is the same contract 52.3 wrote for the panel, applied to the
+   other piece of chrome -- the panel takes width from the map by being a grid
+   sibling, and the toolbar now takes height from it the same way. What the
+   free rectangle reports and what the browser paints cannot disagree, because
+   there is no longer an overlay for them to disagree about.
+
+   The alternatives were measured and rejected. Making the card translucent
+   only makes the collision prettier. Reserving the band under a still-floating
+   toolbar costs exactly the same height while keeping the overlay that caused
+   the defect. Tucking the controls beside the title fails on arithmetic: the
+   bar is about 890px wide, so it fits next to a short title at 1440 and
+   collides with a longer one, at a narrower window, or in a language whose
+   words are longer.
+
+   Full stage width rather than the map's column, so the controls do not jump
+   sideways when the panel opens and takes the map's width away. */
 [data-pf-layout="explorer"] .pf-graph-tools {
-  grid-column: 1;
-  grid-row: 2;
-  align-self: end;
-  justify-self: start;
-  position: relative;
-  z-index: 2;
-  max-width: calc(100% - var(--pf-space-5) * 2);
-  margin: var(--pf-space-5);
-  padding: var(--pf-space-3);
+  grid-column: 1 / -1;
+  grid-row: 3;
+  margin: 0;
+  padding: var(--pf-space-3) var(--pf-space-5);
   background: var(--pf-surface);
-  border: 1px solid var(--pf-line);
-  border-radius: var(--pf-radius);
-  box-shadow: var(--pf-shadow);
+  border-top: 1px solid var(--pf-line);
 }
 [data-pf-layout="explorer"] .pf-graph-status { margin-top: var(--pf-space-2); }
 
 /* Selection. Keyed off attributes the script sets and nothing else, so the
-   delivered document is identical whether or not a browser ever runs it. */
+   delivered document is identical whether or not a browser ever runs it.
+
+   The focused component is a filled slab rather than a differently-bordered
+   box, and that is a correction rather than a decoration. Until the integrated
+   acceptance run the three states differed on two channels: a border colour,
+   and opacity. Measured on the acceptance specimen, that is not enough at the
+   scale a focus actually lands at. The focus camera reaches 2.34, and at that
+   scale most of the graph is off-frame -- eight of the twenty components leave
+   two or more direct neighbours inside the frame, and run() leaves six. The
+   competition is therefore almost entirely focused-against-near, and those two
+   were separated by one thin border and 25% opacity while sharing a fill, a
+   size, and a typeface. Opacity is also the weakest of the channels available
+   here: a white box on a near-white page barely moves when it is faded, so the
+   25% bought far less separation than the number suggests.
+
+   Filling the focused component with the accent changes what kind of object it
+   is rather than how strongly the same object is drawn, which is what makes it
+   findable in one glance instead of by comparison. No colour is invented to do
+   it: --pf-accent over --pf-accent-ink is the pairing .pf-skip already
+   ships in the shared theme, it is measured in both themes by the contrast
+   suite, and theme.mjs's own note -- the accent may take a rule or a fill but
+   never a word -- is the rule being followed rather than bent.
+
+   The role stroke this overrides is not lost. A focused component states its
+   role twice in words: in the caption inside the box, and in the panel docked
+   beside it. A dash pattern is the weakest of those three and the only one the
+   fill costs.
+
+   "near" drops further than it did for the same reason the fill exists: the
+   neighbours have to recede, and opacity is doing that work alone. It stays
+   well clear of "off", because a component whose neighbours are unreadable
+   tells the reader less than one whose neighbours are merely quieter. */
 .pf-node[data-pf-state="off"],
 .pf-edge[data-pf-state="off"] { opacity: .22; }
 .pf-node[data-pf-state="near"],
-.pf-edge[data-pf-state="near"] { opacity: .75; }
+.pf-edge[data-pf-state="near"] { opacity: .62; }
 .pf-node[data-pf-state="on"] .pf-node-box {
+  fill: var(--pf-accent);
   stroke: var(--pf-accent);
   stroke-width: 4;
 }
+.pf-node[data-pf-state="on"] .pf-node-label,
+.pf-node[data-pf-state="on"] .pf-node-role { fill: var(--pf-accent-ink); }
 .pf-edge[data-pf-state="on"] .pf-edge-line {
   stroke: var(--pf-accent);
   stroke-width: 3;
@@ -1120,6 +1170,35 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
   }
   [data-pf-layout="explorer"] .pf-canvas { grid-column: 1; grid-row: 2; }
   [data-pf-layout="explorer"] .pf-panel { grid-column: 1; grid-row: 3; }
+  /* The controls go back over the map here, and only here. Three rows is what
+     this stage can hold: the map's 42svh floor and the panel's 34svh ceiling
+     are the accepted geometry, the lead takes what a title takes, and at this
+     width the controls wrap to three rows of buttons about 169px tall. A
+     fourth row for them does not fit, and the row that loses is the map's --
+     measured at 430x880 with a component selected, it fell from 369px to
+     119px and took the focused label down to 0.85 of its authored size, which
+     is the one thing the camera is not allowed to do.
+
+     So narrow keeps the overlay and the occlusion that comes with it. That is
+     a real limitation rather than a tidy resolution, and it is bounded: the
+     focus camera frames into the rectangle publishFreeRect() publishes, which
+     already subtracts this bar, so a selected component is never parked under
+     it. What narrow does not get is the clean overview desktop now has. */
+  [data-pf-layout="explorer"] .pf-graph-tools {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: end;
+    justify-self: start;
+    position: relative;
+    z-index: 2;
+    max-width: calc(100% - var(--pf-space-4) * 2);
+    margin: var(--pf-space-4);
+    padding: var(--pf-space-3);
+    border-top: 0;
+    border: 1px solid var(--pf-line);
+    border-radius: var(--pf-radius);
+    box-shadow: var(--pf-shadow);
+  }
   .pf-panel {
     width: auto;
     max-height: 34svh;
@@ -1163,7 +1242,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </div>
 <p class="pf-graph-status" data-pf-status aria-live="polite">Nothing selected. Choose a component to focus it.</p>
 </div>
-<div class="pf-canvas" id="pf-map" data-pf-canvas tabindex="0" role="group" aria-label="Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits."><svg class="pf-graph" data-pf-graph viewBox="0 0 888 1880" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
+<div class="pf-canvas" id="pf-map" data-pf-canvas tabindex="0" role="group" aria-label="Diagram canvas. Arrow keys pan, plus and minus zoom, 0 fits."><svg class="pf-graph" data-pf-graph viewBox="0 0 1944 1880" role="img" aria-labelledby="pf--diagram--title" xmlns="http://www.w3.org/2000/svg">
 <title id="pf--diagram--title">Diagram</title>
 <defs>
 <marker id="pf-arrow" markerWidth="10" markerHeight="10" refX="9" refY="4" markerUnits="userSpaceOnUse" orient="auto">
@@ -1171,40 +1250,40 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 </marker>
 </defs>
 <g class="pf-group" data-pf-group="scripts" data-pf-depth="0">
-<rect class="pf-group-box" id="g--scripts" x="304" y="56" width="256" height="808" rx="14"/>
-<text class="pf-group-label" x="328" y="76">Scripts</text>
+<rect class="pf-group-box" id="g--scripts" x="656" y="56" width="608" height="808" rx="14"/>
+<text class="pf-group-label" x="680" y="76">Scripts</text>
 </g>
 <g class="pf-group" data-pf-group="boundary" data-pf-depth="0">
-<rect class="pf-group-box" id="g--boundary" x="576" y="876" width="256" height="316" rx="14"/>
-<text class="pf-group-label" x="600" y="896">الحدود</text>
+<rect class="pf-group-box" id="g--boundary" x="1280" y="876" width="608" height="316" rx="14"/>
+<text class="pf-group-label" x="1304" y="896">الحدود</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-latin" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-latin" points="432,184 432,272" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="432" y="222">short edge label</text>
+<polyline class="pf-edge-line" id="e--e-latin" points="784,184 784,272" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="784" y="222">short edge label</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-cap" data-pf-relation="writes" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-cap" points="432,348 432,436" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="432" y="386">twenty four columns ex</text>
+<polyline class="pf-edge-line" id="e--e-cap" points="784,348 784,436" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="784" y="386">twenty four columns ex</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-cjk" data-pf-relation="reads" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-cjk" points="432,512 432,600" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="432" y="550">读取数据库连接</text>
+<polyline class="pf-edge-line" id="e--e-cjk" points="784,512 784,600" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="784" y="550">读取数据库连接</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-cjk2" data-pf-relation="publishes" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-cjk2" points="432,676 432,764" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="432" y="714">キューに送信</text>
+<polyline class="pf-edge-line" id="e--e-cjk2" points="784,676 784,764" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="784" y="714">キューに送信</text>
 </g>
 <g class="pf-edge pf-edge-on-path" data-pf-edge="e-ar" data-pf-relation="triggers" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-ar" points="432,840 432,884 704,884 704,928" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="568" y="878">يستدعي الخدمة</text>
+<polyline class="pf-edge-line" id="e--e-ar" points="784,840 784,884 1408,884 1408,928" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1096" y="878">يستدعي الخدمة</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-dev" data-pf-relation="calls" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-dev" points="704,1004 704,1092" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="704" y="1042">सेवा कॉल</text>
+<polyline class="pf-edge-line" id="e--e-dev" points="1408,1004 1408,1092" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="1408" y="1042">सेवा कॉल</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-emoji" data-pf-relation="consumes" data-pf-shape="forward">
-<polyline class="pf-edge-line" id="e--e-emoji" points="704,1168 704,1212 160,1212 160,1256" marker-end="url(#pf-arrow)"/>
-<text class="pf-edge-label" text-anchor="middle" x="432" y="1206">📥📤</text>
+<polyline class="pf-edge-line" id="e--e-emoji" points="1408,1168 1408,1212 160,1212 160,1256" marker-end="url(#pf-arrow)"/>
+<text class="pf-edge-label" text-anchor="middle" x="784" y="1206">📥📤</text>
 </g>
 <g class="pf-edge" data-pf-edge="e-zwj" data-pf-relation="triggers" data-pf-shape="forward">
 <polyline class="pf-edge-line" id="e--e-zwj" points="160,1332 160,1420" marker-end="url(#pf-arrow)"/>
@@ -1219,39 +1298,39 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <text class="pf-edge-label" text-anchor="middle" x="160" y="1698">café</text>
 </g>
 <g class="pf-node" data-pf-node="latin-short" data-pf-role="service">
-<rect class="pf-node-box" id="n--latin-short" x="328" y="108" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="432" y="139">Checkout API</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="432" y="172">service</text>
+<rect class="pf-node-box" id="n--latin-short" x="680" y="108" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="784" y="139">Checkout API</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="784" y="172">service</text>
 </g>
 <g class="pf-node" data-pf-node="latin-cap" data-pf-role="service">
-<rect class="pf-node-box" id="n--latin-cap" x="328" y="272" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="432" y="294">Reserve inventor</tspan><tspan x="432" y="312">y then charge</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="432" y="336">service</text>
+<rect class="pf-node-box" id="n--latin-cap" x="680" y="272" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="784" y="294">Reserve inventor</tspan><tspan x="784" y="312">y then charge</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="784" y="336">service</text>
 </g>
 <g class="pf-node" data-pf-node="latin-exact" data-pf-role="store">
-<rect class="pf-node-box" id="n--latin-exact" x="328" y="436" width="208" height="76" rx="6"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="432" y="458">xxxxxxxxxxxxxxxx</tspan><tspan x="432" y="476">xxxxxxxxxxxxxxxx</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="432" y="500">store</text>
+<rect class="pf-node-box" id="n--latin-exact" x="680" y="436" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="784" y="458">xxxxxxxxxxxxxxxx</tspan><tspan x="784" y="476">xxxxxxxxxxxxxxxx</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="784" y="500">store</text>
 </g>
 <g class="pf-node" data-pf-node="cjk" data-pf-role="store">
-<rect class="pf-node-box" id="n--cjk" x="328" y="600" width="208" height="76" rx="6"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="432" y="622">数据库服务器集群</tspan><tspan x="432" y="640">主节点</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="432" y="664">store</text>
+<rect class="pf-node-box" id="n--cjk" x="680" y="600" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="784" y="622">数据库服务器集群</tspan><tspan x="784" y="640">主节点</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="784" y="664">store</text>
 </g>
 <g class="pf-node" data-pf-node="cjk-cap" data-pf-role="queue">
-<rect class="pf-node-box" id="n--cjk-cap" x="328" y="764" width="208" height="76" rx="6"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="432" y="786">記録保存処理キュ</tspan><tspan x="432" y="804">ー監視器設定値変</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="432" y="828">queue</text>
+<rect class="pf-node-box" id="n--cjk-cap" x="680" y="764" width="208" height="76" rx="6"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="784" y="786">記録保存処理キュ</tspan><tspan x="784" y="804">ー監視器設定値変</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="784" y="828">queue</text>
 </g>
 <g class="pf-node" data-pf-node="arabic" data-pf-role="interface">
-<rect class="pf-node-box" id="n--arabic" x="600" y="928" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="704" y="950">بوابة الدفع</tspan><tspan x="704" y="968">الآمن</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="704" y="992">interface</text>
+<rect class="pf-node-box" id="n--arabic" x="1304" y="928" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1408" y="950">بوابة الدفع</tspan><tspan x="1408" y="968">الآمن</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1408" y="992">interface</text>
 </g>
 <g class="pf-node" data-pf-node="devanagari" data-pf-role="job">
-<rect class="pf-node-box" id="n--devanagari" x="600" y="1092" width="208" height="76" rx="10"/>
-<text class="pf-node-label" text-anchor="middle"><tspan x="704" y="1123">नमस्ते सेवा नोड</tspan></text>
-<text class="pf-node-role" text-anchor="middle" x="704" y="1156">job</text>
+<rect class="pf-node-box" id="n--devanagari" x="1304" y="1092" width="208" height="76" rx="10"/>
+<text class="pf-node-label" text-anchor="middle"><tspan x="1408" y="1123">नमस्ते सेवा नोड</tspan></text>
+<text class="pf-node-role" text-anchor="middle" x="1408" y="1156">job</text>
 </g>
 <g class="pf-node" data-pf-node="emoji" data-pf-role="external">
 <rect class="pf-node-box" id="n--emoji" x="56" y="1256" width="208" height="76" rx="38"/>
@@ -1400,7 +1479,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <dt>Commit</dt>
 <dd>1faaf37</dd>
 <dt>Renderer</dt>
-<dd>Pathfinder render-artifact 0.8.0</dd>
+<dd>Pathfinder render-artifact 0.10.0</dd>
 </dl>
 </footer>
 <script>(function () {
@@ -2417,7 +2496,14 @@ function pfCameraTarget(input) {
            to three rows and take nearly half the map -- reported the whole
            canvas as free, and that is precisely where a camera would park a
            node under them. A small honest rectangle beats a large wrong one. */
-        free.height = Math.max(0, bar.top - box.top);
+        /* Clamped to the box as well as to zero, because the toolbar is a
+           grid sibling below the map rather than an overlay on it: its top
+           is then past the canvas's bottom and the subtraction would report
+           a rectangle taller than the thing it describes. Bounded both ways,
+           the one rule covers both arrangements -- it subtracts a real
+           overlap and subtracts nothing when the chrome takes its own space,
+           which is what the contract has always meant. */
+        free.height = Math.min(box.height, Math.max(0, bar.top - box.top));
       }
     }
 

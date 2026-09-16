@@ -237,7 +237,11 @@ export const GRAPH_CSS = `
 [data-pf-layout="explorer"] .pf-stage {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-rows: auto minmax(0, 1fr);
+  /* Lead, map, controls. The controls' row is auto so it takes exactly the
+     height the buttons need at this width and no more — it grows on its own
+     when they wrap, which is the width where guessing a reserved band would
+     have been wrong. */
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 [data-pf-layout="explorer"] .pf-lead { grid-column: 1 / -1; }
 [data-pf-layout="explorer"] .pf-canvas { grid-column: 1; grid-row: 2; }
@@ -296,45 +300,91 @@ export const GRAPH_CSS = `
 [data-pf-layout="explorer"] .pf-canvas[data-pf-camera] .pf-graph {
   transition: transform .34s cubic-bezier(.22, .61, .36, 1);
 }
-/* The controls float over the map at its bottom-left corner — out of the way
-   of the title, and in the corner a map's controls are looked for. They keep
-   the toolbar markup and the button styling they have in the article layout;
-   only the placement changes.
+/* The controls sit in a row of their own beneath the map, and that is a
+   correction the integrated acceptance run forced.
 
-   Placed in the map's own grid cell rather than positioned against the stage.
-   The stage also holds the panel now, so a toolbar anchored to the stage's
-   bottom edge tracks the panel instead of the map — which is invisible while
-   the panel is a column beside the map and obvious the moment it becomes a row
-   beneath it, where the controls end up floating over the reading. Sharing the
-   cell keeps them over the map at every width, and grid stacks same-cell items
-   without either one taking space from the other. */
+   They used to float in the map's bottom-left corner, sharing the canvas's
+   grid cell so that neither took space from the other. The reasoning was
+   sound and the result was not: an opaque card with a shadow, stacked over
+   the map, hides whatever the map has drawn underneath it. Measured on the
+   acceptance specimen at 1440x900, that was two of the twenty components --
+   stage-kit.mjs and publish-guard.mjs, both present and both readable with
+   scripting off, and both invisible the moment the explorer enhanced the
+   page. A reader cannot look for what they cannot see, and the overview state
+   is the one that has to show them where to explore next.
+
+   The fix is the smallest one that makes the defect impossible rather than
+   unlikely: give the controls a row, and the grid stops overlapping them with
+   anything. It is the same contract 52.3 wrote for the panel, applied to the
+   other piece of chrome -- the panel takes width from the map by being a grid
+   sibling, and the toolbar now takes height from it the same way. What the
+   free rectangle reports and what the browser paints cannot disagree, because
+   there is no longer an overlay for them to disagree about.
+
+   The alternatives were measured and rejected. Making the card translucent
+   only makes the collision prettier. Reserving the band under a still-floating
+   toolbar costs exactly the same height while keeping the overlay that caused
+   the defect. Tucking the controls beside the title fails on arithmetic: the
+   bar is about 890px wide, so it fits next to a short title at 1440 and
+   collides with a longer one, at a narrower window, or in a language whose
+   words are longer.
+
+   Full stage width rather than the map's column, so the controls do not jump
+   sideways when the panel opens and takes the map's width away. */
 [data-pf-layout="explorer"] .pf-graph-tools {
-  grid-column: 1;
-  grid-row: 2;
-  align-self: end;
-  justify-self: start;
-  position: relative;
-  z-index: 2;
-  max-width: calc(100% - var(--pf-space-5) * 2);
-  margin: var(--pf-space-5);
-  padding: var(--pf-space-3);
+  grid-column: 1 / -1;
+  grid-row: 3;
+  margin: 0;
+  padding: var(--pf-space-3) var(--pf-space-5);
   background: var(--pf-surface);
-  border: 1px solid var(--pf-line);
-  border-radius: var(--pf-radius);
-  box-shadow: var(--pf-shadow);
+  border-top: 1px solid var(--pf-line);
 }
 [data-pf-layout="explorer"] .pf-graph-status { margin-top: var(--pf-space-2); }
 
 /* Selection. Keyed off attributes the script sets and nothing else, so the
-   delivered document is identical whether or not a browser ever runs it. */
+   delivered document is identical whether or not a browser ever runs it.
+
+   The focused component is a filled slab rather than a differently-bordered
+   box, and that is a correction rather than a decoration. Until the integrated
+   acceptance run the three states differed on two channels: a border colour,
+   and opacity. Measured on the acceptance specimen, that is not enough at the
+   scale a focus actually lands at. The focus camera reaches 2.34, and at that
+   scale most of the graph is off-frame -- eight of the twenty components leave
+   two or more direct neighbours inside the frame, and run() leaves six. The
+   competition is therefore almost entirely focused-against-near, and those two
+   were separated by one thin border and 25% opacity while sharing a fill, a
+   size, and a typeface. Opacity is also the weakest of the channels available
+   here: a white box on a near-white page barely moves when it is faded, so the
+   25% bought far less separation than the number suggests.
+
+   Filling the focused component with the accent changes what kind of object it
+   is rather than how strongly the same object is drawn, which is what makes it
+   findable in one glance instead of by comparison. No colour is invented to do
+   it: --pf-accent over --pf-accent-ink is the pairing .pf-skip already
+   ships in the shared theme, it is measured in both themes by the contrast
+   suite, and theme.mjs's own note -- the accent may take a rule or a fill but
+   never a word -- is the rule being followed rather than bent.
+
+   The role stroke this overrides is not lost. A focused component states its
+   role twice in words: in the caption inside the box, and in the panel docked
+   beside it. A dash pattern is the weakest of those three and the only one the
+   fill costs.
+
+   "near" drops further than it did for the same reason the fill exists: the
+   neighbours have to recede, and opacity is doing that work alone. It stays
+   well clear of "off", because a component whose neighbours are unreadable
+   tells the reader less than one whose neighbours are merely quieter. */
 .pf-node[data-pf-state="off"],
 .pf-edge[data-pf-state="off"] { opacity: .22; }
 .pf-node[data-pf-state="near"],
-.pf-edge[data-pf-state="near"] { opacity: .75; }
+.pf-edge[data-pf-state="near"] { opacity: .62; }
 .pf-node[data-pf-state="on"] .pf-node-box {
+  fill: var(--pf-accent);
   stroke: var(--pf-accent);
   stroke-width: 4;
 }
+.pf-node[data-pf-state="on"] .pf-node-label,
+.pf-node[data-pf-state="on"] .pf-node-role { fill: var(--pf-accent-ink); }
 .pf-edge[data-pf-state="on"] .pf-edge-line {
   stroke: var(--pf-accent);
   stroke-width: 3;
@@ -469,6 +519,35 @@ export const GRAPH_CSS = `
   }
   [data-pf-layout="explorer"] .pf-canvas { grid-column: 1; grid-row: 2; }
   [data-pf-layout="explorer"] .pf-panel { grid-column: 1; grid-row: 3; }
+  /* The controls go back over the map here, and only here. Three rows is what
+     this stage can hold: the map's 42svh floor and the panel's 34svh ceiling
+     are the accepted geometry, the lead takes what a title takes, and at this
+     width the controls wrap to three rows of buttons about 169px tall. A
+     fourth row for them does not fit, and the row that loses is the map's --
+     measured at 430x880 with a component selected, it fell from 369px to
+     119px and took the focused label down to 0.85 of its authored size, which
+     is the one thing the camera is not allowed to do.
+
+     So narrow keeps the overlay and the occlusion that comes with it. That is
+     a real limitation rather than a tidy resolution, and it is bounded: the
+     focus camera frames into the rectangle publishFreeRect() publishes, which
+     already subtracts this bar, so a selected component is never parked under
+     it. What narrow does not get is the clean overview desktop now has. */
+  [data-pf-layout="explorer"] .pf-graph-tools {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: end;
+    justify-self: start;
+    position: relative;
+    z-index: 2;
+    max-width: calc(100% - var(--pf-space-4) * 2);
+    margin: var(--pf-space-4);
+    padding: var(--pf-space-3);
+    border-top: 0;
+    border: 1px solid var(--pf-line);
+    border-radius: var(--pf-radius);
+    box-shadow: var(--pf-shadow);
+  }
   .pf-panel {
     width: auto;
     max-height: 34svh;

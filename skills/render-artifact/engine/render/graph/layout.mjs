@@ -101,7 +101,9 @@ export function layoutGraph(diagram) {
   // downward.
   const axis = rankCount > columns.total ? "vertical" : "horizontal";
 
-  const placement = placeNodes(nodes, ranks, order, rankCount, allocation, columns, axis);
+  const spread = explorerSpread(rankCount, columns.total, axis);
+
+  const placement = placeNodes(nodes, ranks, order, rankCount, allocation, columns, axis, spread);
   const boxes = placement.boxes;
   const groupBoxes = placeGroups(groups, allocation, columns, placement, axis);
   const extent = canvasExtent(boxes, groupBoxes);
@@ -129,6 +131,97 @@ export function layoutGraph(diagram) {
     groups: groupBoxes,
     edges: routeEdges(edges, indexOf, boxes, ranks, axis),
   };
+}
+
+/**
+ * The explorer layout profile: how far apart the horizontal steps stand.
+ *
+ * A graph is laid out into a canvas whose shape falls out of the node counts,
+ * and that shape is reliably too tall. Measured across the six diagram
+ * fixtures, every one of them fits its stage on height and leaves width empty
+ * — the acceptance specimen worst of all, at 2148x1612 against a stage nearer
+ * 2.17 wide, which is the 62% the Feature named and 38% of the width standing
+ * empty before the camera has done anything.
+ *
+ * The cause is that `axis` is chosen by comparing *counts* while the canvas is
+ * measured in *extents*, and a node box is 208 wide against 76 tall. Seven
+ * ranks of a 208-wide box is a different distance from eleven rows of a
+ * 76-tall one, so "more columns than ranks" decides the reading direction
+ * correctly and says nothing at all about the proportion that comes out.
+ *
+ * This closes that gap the cheapest honest way: it widens the step that
+ * advances along x until the canvas is about as wide as it is meant to be, and
+ * touches nothing else. What it is *not* is worth stating, because each was
+ * available and each was rejected:
+ *
+ * - Not a retune of GEOMETRY. A bigger RANK_GAP widens a horizontal graph and
+ *   makes a vertical one taller; measured, it takes `multilingual` from 22% of
+ *   the stage to 11%. The lever has to know which axis it is pushing on, and a
+ *   constant cannot.
+ * - Not a runtime measurement. TARGET is a constant of the profile, not a
+ *   reading of anyone's window. The same specification and renderer still give
+ *   byte-identical output on any screen, including no screen at all.
+ * - Not a change of shape. Rank, order, band, grouping and routing are decided
+ *   before this runs and are not consulted again; this moves the steps apart
+ *   and cannot reorder, regroup or reroute anything.
+ *
+ * The arithmetic stays inside the module's rules: integers throughout, one
+ * floored division, no convergence test, and a result quantised to the grid's
+ * multiple of 4 so every derived coordinate stays whole.
+ *
+ * Both bounds are load-bearing. The floor is the documented minimum — a step
+ * narrower than the base gap puts neighbouring boundaries back within
+ * GROUP_PAD of each other, which is the collision the base gaps exist to
+ * prevent — so the profile may only ever spread, never tighten. The cap is
+ * what keeps a deep narrow graph from being stretched into a dotted line:
+ * three columns asked to reach a 2.1 canvas want a 1606px step, which is not a
+ * diagram, so the spread stops at SPREAD_MAX and the graph stays honestly tall.
+ *
+ * TARGET is 2.0 because the overview and the focus state pull against each
+ * other, and 2.0 is where the curve turns. The focus camera holds the focused
+ * label at its authored size, so its window is a fixed number of *user units*
+ * — about 1060 by 607 with the panel open. Spreading x moves rank-neighbours
+ * further apart in exactly those units, so every point of overview width is
+ * paid for out of the context a focus can frame. Measured on the specimen, at
+ * 1440x900:
+ *
+ *     target   overview width   neighbourhoods framed whole
+ *     none              51.9%   theme, detect
+ *     2.0               80.2%   theme, detect
+ *     2.2               88.3%   theme
+ *     2.4               95.7%   none
+ *
+ * 2.4 reads better as a number and is the worse artifact: with nothing framed
+ * whole, every selection ends "N related components outside the frame", and an
+ * affordance that fires on all twenty components is one a reader learns to
+ * skip. 2.0 buys two thirds of the empty width back and costs none of it —
+ * the same neighbourhoods fit whole as before any of this ran.
+ */
+const TARGET_NUM = 20;
+const TARGET_DEN = 10;
+const SPREAD_MAX = GEOMETRY.NODE_W * 2;
+
+function explorerSpread(rankCount, columnTotal, axis) {
+  const vertical = axis === "vertical";
+  // x advances by rank on a horizontal graph and by column on a vertical one;
+  // y takes whichever is left. Both use NODE_W across and NODE_H down, because
+  // the box does not turn when the reading direction does.
+  const xSteps = vertical ? columnTotal : rankCount;
+  const ySteps = vertical ? rankCount : columnTotal;
+  const xGapBase = vertical ? GEOMETRY.ORDER_GAP : GEOMETRY.RANK_GAP;
+  const yGap = vertical ? GEOMETRY.RANK_GAP : GEOMETRY.ORDER_GAP;
+
+  // One step has no gap to widen, so there is nothing to steer.
+  if (xSteps < 2) return xGapBase;
+
+  const height = ySteps * GEOMETRY.NODE_H + (ySteps - 1) * yGap + GEOMETRY.MARGIN * 2;
+  const wanted = Math.floor((height * TARGET_NUM) / TARGET_DEN);
+  const room = wanted - xSteps * GEOMETRY.NODE_W - GEOMETRY.MARGIN * 2;
+  const step = Math.floor(room / (xSteps - 1));
+
+  const capped = step > SPREAD_MAX ? SPREAD_MAX : step;
+  const floored = capped < xGapBase ? xGapBase : capped;
+  return floored - (floored % 4);
 }
 
 /**
@@ -388,12 +481,15 @@ function measureBands(nodes, ranks, rankCount, allocation) {
  * the middle of it rather than jammed to one side. The halving is a floor, so
  * an odd remainder lands the same way on every machine.
  */
-function placeNodes(nodes, ranks, order, rankCount, allocation, columns, axis) {
+function placeNodes(nodes, ranks, order, rankCount, allocation, columns, axis, spread) {
   const vertical = axis === "vertical";
   const alongExtent = vertical ? GEOMETRY.NODE_H : GEOMETRY.NODE_W;
   const acrossExtent = vertical ? GEOMETRY.NODE_W : GEOMETRY.NODE_H;
-  const alongStep = alongExtent + GEOMETRY.RANK_GAP;
-  const acrossStep = acrossExtent + GEOMETRY.ORDER_GAP;
+  // The profile widens whichever step runs along x, and leaves the other at
+  // the base gap. On a vertical graph that is the order step; on a horizontal
+  // one, the rank step.
+  const alongStep = alongExtent + (vertical ? GEOMETRY.RANK_GAP : spread);
+  const acrossStep = acrossExtent + (vertical ? spread : GEOMETRY.ORDER_GAP);
 
   // Position within the band, for this rank, in the order the ordering pass
   // settled on.
