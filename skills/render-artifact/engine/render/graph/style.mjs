@@ -224,10 +224,24 @@ export const GRAPH_CSS = `
    Native touch scrolling is deliberately left alone. The explorer takes no
    touch gesture of its own, so suppressing the browser's would cost a touch
    reader the page and buy nothing. */
+/* The stage is a grid so the panel can take real width from the map rather
+   than cover part of it. Two columns: the map, and whatever the panel needs.
+   A hidden panel is display:none, so the auto column measures nothing and
+   the map has the whole stage — the same rule describes both states, and there
+   is no "panel open" class for them to disagree about.
+
+   This is what makes 52.2's contract cheap. Because the panel is a sibling
+   that shrinks the canvas, the canvas's own box is already the rectangle left
+   free of it, measured by the browser rather than predicted by arithmetic that
+   could drift from the stylesheet. */
 [data-pf-layout="explorer"] .pf-stage {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
 }
+[data-pf-layout="explorer"] .pf-lead { grid-column: 1 / -1; }
+[data-pf-layout="explorer"] .pf-canvas { grid-column: 1; grid-row: 2; }
+[data-pf-layout="explorer"] .pf-panel { grid-column: 2; grid-row: 2; }
 [data-pf-layout="explorer"] .pf-lead {
   flex: 0 0 auto;
   margin: 0;
@@ -268,14 +282,24 @@ export const GRAPH_CSS = `
 /* The controls float over the map at its bottom-left corner — out of the way
    of the title, and in the corner a map's controls are looked for. They keep
    the toolbar markup and the button styling they have in the article layout;
-   only the placement changes. */
+   only the placement changes.
+
+   Placed in the map's own grid cell rather than positioned against the stage.
+   The stage also holds the panel now, so a toolbar anchored to the stage's
+   bottom edge tracks the panel instead of the map — which is invisible while
+   the panel is a column beside the map and obvious the moment it becomes a row
+   beneath it, where the controls end up floating over the reading. Sharing the
+   cell keeps them over the map at every width, and grid stacks same-cell items
+   without either one taking space from the other. */
 [data-pf-layout="explorer"] .pf-graph-tools {
-  position: absolute;
-  left: var(--pf-space-5);
-  bottom: var(--pf-space-5);
+  grid-column: 1;
+  grid-row: 2;
+  align-self: end;
+  justify-self: start;
+  position: relative;
   z-index: 2;
   max-width: calc(100% - var(--pf-space-5) * 2);
-  margin: 0;
+  margin: var(--pf-space-5);
   padding: var(--pf-space-3);
   background: var(--pf-surface);
   border: 1px solid var(--pf-line);
@@ -335,4 +359,104 @@ export const GRAPH_CSS = `
 }
 .pf-walk { margin: 0; padding-left: var(--pf-space-5); }
 .pf-walk li { margin-bottom: var(--pf-space-1); }
+
+/* ---------- the docked detail surface ----------
+
+   Part of the explorer, not an article beside it: it shares the map's edge,
+   carries the same surface and line tokens as every other panel in the kit,
+   and scrolls on its own so reading a long component never scrolls the map
+   out from under the reader. The map keeps its full height beside it, which
+   is the requirement that rules out docking below.
+
+   Nothing here styles a component. What lands in .pf-panel-body is a
+   pf-card written by the renderer and moved, so it arrives with the styling
+   it already had in the reading — one presentation of a citation, not a second
+   one that could drift from it. The rules below only undo the card's own outer
+   spacing, which belonged to a list it is no longer in. */
+/* display:flex would otherwise beat the user agent's [hidden] rule, and an
+   author declaration outranks it. Without this the closed panel keeps its
+   column: an empty bordered frame taking a third of the stage before anything
+   is selected, and dead chrome on a page with no scripting at all. */
+.pf-panel[hidden] { display: none; }
+.pf-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(380px, 38vw);
+  min-height: 0;
+  overflow: hidden;
+  background: var(--pf-surface);
+  border-left: 1px solid var(--pf-line);
+}
+.pf-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--pf-space-2);
+  flex: 0 0 auto;
+  padding: var(--pf-space-3) var(--pf-space-4);
+  border-bottom: 1px solid var(--pf-line);
+}
+/* The title takes its own row so the two controls stay on one line together.
+   Sharing a row with them wrapped "Close" onto a line of its own at the panel's
+   real width, which reads as a third thing rather than the pair it is. */
+.pf-panel-title {
+  flex: 1 0 100%;
+  margin: 0;
+  font-size: .72rem;
+  font-family: var(--pf-mono);
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--pf-muted);
+}
+.pf-panel-body,
+.pf-panel-relations {
+  padding: var(--pf-space-4);
+  overflow-y: auto;
+}
+.pf-panel-body { flex: 0 1 auto; }
+.pf-panel-relations {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-top: 1px solid var(--pf-line);
+}
+/* The moved card sheds the frame it wore in the reading. It is the panel's
+   only occupant now, so a second border inside a bordered panel would be a
+   box in a box saying nothing. */
+.pf-panel-body .pf-card {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+/* The card's own focus button is how the written reading selects a component.
+   Inside the panel it would offer to select what is already selected. */
+.pf-panel-body .pf-pick { display: none; }
+.pf-panel-relations .pf-legend { gap: var(--pf-space-3); }
+
+/* Narrow: there is no width to give a column, so the panel takes height
+   instead and the map keeps the rest. Still reserved space and still the same
+   panel — the smallest adaptation that keeps both things on screen, not a
+   second design. */
+@media (max-width: 900px) {
+  [data-pf-layout="explorer"] .pf-stage {
+    grid-template-columns: minmax(0, 1fr);
+    /* The map's row carries a floor, and the panel's a ceiling. Without the
+       floor the panel's content decides how much map is left, and a component
+       with four detail paragraphs crushes the map to a strip -- which loses
+       the one thing docking beside the map was for: seeing what you selected
+       while you read about it. The map keeps the larger share by construction,
+       not by hoping the content is short. */
+    grid-template-rows: auto minmax(42svh, 1fr) auto;
+  }
+  [data-pf-layout="explorer"] .pf-canvas { grid-column: 1; grid-row: 2; }
+  [data-pf-layout="explorer"] .pf-panel { grid-column: 1; grid-row: 3; }
+  .pf-panel {
+    width: auto;
+    max-height: 34svh;
+    border-left: 0;
+    border-top: 1px solid var(--pf-line);
+  }
+}
 `.trim();

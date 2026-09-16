@@ -407,6 +407,11 @@ export function graphBehavior(modelJson) {
     act("downstream", !state.focus);
     act("details", !state.focus);
     act("clear", picked.mode === "");
+
+    /* The panel follows the selection rather than being driven beside it, so
+       there is one place selection is decided and the docked surface cannot
+       disagree with the map about what is selected. */
+    showPanel();
   }
 
   /* A control at its limit is disabled rather than left to do nothing when
@@ -424,9 +429,145 @@ export function graphBehavior(modelJson) {
     if (readout) readout.textContent = Math.round(view.scale * 100) + "%";
   }
 
+  /* Every control carrying the action, not the first one found. Two surfaces
+     now offer "open full details" and "clear" -- the toolbar and the docked
+     panel -- and a disable that reached only one of them would leave the other
+     pressable and doing nothing, which is the exact defect the disabling
+     exists to prevent. */
   function act(name, isDisabled) {
-    var button = document.querySelector('[data-pf-act="' + name + '"]');
-    if (button) button.disabled = Boolean(isDisabled);
+    var buttons = all('[data-pf-act="' + name + '"]');
+    for (var i = 0; i < buttons.length; i += 1) {
+      buttons[i].disabled = Boolean(isDisabled);
+    }
+  }
+
+  /* ---- the docked detail surface ----
+
+     The panel shows a component's own card. Not a rendering of it, not a
+     summary of it, not a template filled from the index: the element the
+     renderer wrote, moved.
+
+     That distinction is the whole design. interaction.mjs carries labels and
+     adjacency and deliberately carries no summary, detail or citation, so
+     there is nothing here to render a component *from* even if this code
+     wanted to. What there is instead is a card already in the document, with
+     the producer's words and the producer's evidence in the presentation the
+     lesson renderer established, and moving it costs nothing and can restate
+     nothing. A reader using a screen reader meets that citation once, because
+     there is one of it.
+
+     A move has to be undoable, so each moved element records where it came
+     from -- its parent and the sibling it sat before -- and undocking replays
+     those in reverse. Reverse matters: two rows removed from one list store
+     each other as neighbours, and putting the later one back first is what
+     makes every stored sibling still present when it is needed. */
+  var panel = document.querySelector("[data-pf-panel]");
+  var panelSlot = document.querySelector("[data-pf-panel-slot]");
+  var panelEdges = document.querySelector("[data-pf-panel-edges]");
+  var panelRelations = document.querySelector("[data-pf-panel-relations]");
+  var docked = [];
+
+  function dock(element, into) {
+    if (!element || !into || element.parentNode === into) return;
+    docked.push({
+      element: element,
+      parent: element.parentNode,
+      next: element.nextSibling,
+    });
+    into.appendChild(element);
+  }
+
+  function undock() {
+    for (var i = docked.length - 1; i >= 0; i -= 1) {
+      var moved = docked[i];
+      if (!moved.parent) continue;
+      moved.parent.insertBefore(moved.element, moved.next);
+    }
+    docked = [];
+  }
+
+  /* Open with the selected component's card, or closed with nothing in it.
+     There is no third state: the panel is either showing one component or it
+     is not there, and "there but empty" is a frame a reader has to wonder
+     about. */
+  function showPanel() {
+    if (!panel) return;
+    undock();
+
+    var id = state.focus;
+    if (!id || readingOpen) {
+      panel.hidden = true;
+      if (panelRelations) panelRelations.hidden = true;
+      publishFreeRect();
+      return;
+    }
+
+    var card = document.querySelector(
+      '[data-pf-entry="node"][data-pf-for="' + id + '"]');
+    if (card) dock(card, panelSlot);
+
+    /* What runs in and what runs out, as the rows the document already has.
+       Outgoing first, then incoming: the order the written reading uses, kept
+       so a reader who has read one meets the other in the same shape. */
+    var rows = 0;
+    if (panelEdges) {
+      var sides = [model.out[id] || [], model["in"][id] || []];
+      for (var s = 0; s < sides.length; s += 1) {
+        for (var k = 0; k < sides[s].length; k += 1) {
+          var row = document.querySelector(
+            '[data-pf-entry="edge"][data-pf-for="' + sides[s][k][0] + '"]');
+          if (row) { dock(row, panelEdges); rows += 1; }
+        }
+      }
+    }
+    if (panelRelations) panelRelations.hidden = rows === 0;
+
+    panel.hidden = false;
+    publishFreeRect();
+  }
+
+  /* ---- the rectangle 52.2 frames into ----
+
+     The panel is a grid sibling of the canvas rather than a layer over it, so
+     opening it genuinely takes width away from the map instead of covering
+     part of one. That is what makes this contract cheap: the canvas's own box
+     is already the panel's subtraction, measured by the browser rather than
+     predicted here.
+
+     What is left to subtract is the chrome that really does float over the
+     map -- the toolbar in its corner. A camera that framed a node into the
+     full canvas box could still park it under those controls, which is the
+     same defect as parking it under the panel and is worth no less care.
+
+     Published on the canvas as x y width height in canvas-local CSS pixels,
+     so it is inspectable from outside and provable against what the browser
+     actually painted. 52.2 reads this rectangle and frames into it; this
+     ticket writes it and moves no camera. */
+  function publishFreeRect() {
+    if (!canvas.getBoundingClientRect) return;
+    var box = canvas.getBoundingClientRect();
+    var free = { x: 0, y: 0, width: box.width, height: box.height };
+
+    var chrome = document.querySelector("[data-pf-chrome]");
+    if (chrome && !chrome.hidden && chrome.getBoundingClientRect) {
+      var bar = chrome.getBoundingClientRect();
+      if (bar.width && bar.height) {
+        /* The toolbar is pinned to the map's bottom edge, so the band it
+           occupies is a band across the bottom and the map above it is what
+           is free. Stated as the one rule rather than guessed at per shape:
+           an earlier version only subtracted when the bar took less than half
+           the height, which meant the narrow layout -- where the controls wrap
+           to three rows and take nearly half the map -- reported the whole
+           canvas as free, and that is precisely where a camera would park a
+           node under them. A small honest rectangle beats a large wrong one. */
+        free.height = Math.max(0, bar.top - box.top);
+      }
+    }
+
+    canvas.setAttribute("data-pf-free",
+      Math.round(free.x) + " " + Math.round(free.y) + " " +
+      Math.round(free.width) + " " + Math.round(free.height));
+    return free;
   }
 
   function focusNode(id, options) {
@@ -697,6 +838,13 @@ export function graphBehavior(modelJson) {
   function reading(open) {
     readingOpen = Boolean(open);
     document.body.setAttribute("data-pf-reading", readingOpen ? "open" : "closed");
+    /* The full reading is the complete document, so everything the panel
+       borrowed goes back before it is shown -- a Relationships list missing
+       the rows of whatever happened to be selected is not the complete
+       document, it is a document with a hole in it. Closing the reading
+       re-docks the current selection, so the two presentations agree without
+       either one keeping a copy. */
+    showPanel();
     var control = document.querySelector('[data-pf-act="reading"]');
     if (control) {
       control.setAttribute("aria-expanded", readingOpen ? "true" : "false");
@@ -740,7 +888,13 @@ export function graphBehavior(modelJson) {
 
   /* The camera's frame changes with the window, and a clamp computed against
      the old one would leave the content parked off-centre. */
-  window.addEventListener("resize", function () { paint(); });
+  window.addEventListener("resize", function () {
+    paint();
+    /* The free rectangle is a fact about the reader's window, so it is stale
+       the moment the window changes. Republished here rather than recomputed
+       on demand, so 52.2's camera reads a value that is already right. */
+    publishFreeRect();
+  });
 
   reading(false);
   paint();
