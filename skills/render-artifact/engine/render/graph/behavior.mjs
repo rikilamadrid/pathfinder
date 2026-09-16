@@ -1,5 +1,6 @@
 /**
- * The diagram's inline behaviour: focus, traversal, path highlight, zoom, pan.
+ * The diagram's inline behaviour: focus, traversal, path highlight, zoom, pan,
+ * and the camera that moves to whatever the reader selected.
  *
  * **Per kind, not shared.** The shell's own script carries the theme toggle,
  * navigation position and quiz feedback, and every artifact gets it. This one
@@ -55,6 +56,33 @@
  * repaired — the interaction reference installs no wheel handler at all and
  * still reads unmistakably as a spatial explorer.
  *
+ * **Selection and camera are two things, and they stay two things.** Selection
+ * decides what is related -- out of the adjacency index, never out of the
+ * picture. The camera decides where to stand to look at it, out of the integer
+ * coordinates the build-time layout wrote. Focusing a component runs both, in
+ * that order, and the camera consumes the selection's answer without
+ * contributing to it: there is one definition of what is related to what, and
+ * the thing that moves the viewpoint is not it.
+ *
+ * The camera's guarantee is deliberately narrow, because the wider one is
+ * unreachable. It frames the focused component so its label renders at no less
+ * than its authored size, inside the rectangle the docked panel and the
+ * toolbar leave free, and frames as much of the neighbourhood as that scale
+ * admits. Framing the *whole* neighbourhood is not promised: on the acceptance
+ * specimen seventeen of twenty neighbourhoods span more canvas than a readable
+ * scale can show, so a camera that promised it would be promising the overview
+ * scale back. What it does instead is say how much it left outside.
+ *
+ * **An automatic move is a transaction the reader can end.** It is a CSS
+ * transition on the one transform the camera writes, which is what makes it
+ * interruptible at all: the browser is interpolating a value the script can
+ * read back at any instant. Every reader gesture samples that value first,
+ * adopts it, and carries on from there -- so a drag during a move continues
+ * from where the movement had visibly reached rather than snapping to its
+ * start or its target. Under `prefers-reduced-motion: reduce` the transition
+ * is never turned on and the camera change applies immediately; every state
+ * reachable with animation stays reachable without it.
+ *
  * **Activating a node does not navigate.** It selects, and nothing else moves:
  * no scroll position changes, no document section is scrolled into view, and
  * no location is written. The full written reading stays available behind an
@@ -71,6 +99,7 @@
  */
 
 import { TRAVERSAL_JS } from "./interaction.mjs";
+import { CAMERA_JS } from "./camera.mjs";
 
 /**
  * Renderer-owned interface language. The producer supplies none of it, and
@@ -116,6 +145,8 @@ export function graphBehavior(modelJson) {
 
   ${TRAVERSAL_JS}
 
+  ${CAMERA_JS}
+
   var canvas = document.querySelector("[data-pf-canvas]");
   var svg = canvas ? canvas.querySelector("[data-pf-graph]") : null;
   if (!canvas || !svg) return;
@@ -132,7 +163,19 @@ export function graphBehavior(modelJson) {
      every fact these navigate to is already written out below the canvas. */
   all("[data-pf-controls]").forEach(function (group) { group.hidden = false; });
 
-  var MAX_ZOOM = 4;
+  /* The ceiling a reader can reach with the controls, and the floor under it.
+
+     The ceiling is not a constant, because the one thing it must never do is
+     sit below the scale a focus needs. Reading a node's label at its authored
+     size costs "1 / s0" -- around 2.5 on a desktop map cell, and over 4.3 on a
+     short laptop one, where the map is painted smaller and the camera has
+     further to climb. A fixed 4 is comfortably above the first number and
+     silently below the second, which would make the readability guarantee hold
+     on the machine it was written on and fail on a smaller screen without
+     saying so. Derived from the camera's own comfort ceiling instead, so it is
+     always exactly enough: no focus target can exceed PF_COMFORT / s0, and
+     neither can a reader pressing the zoom control. */
+  var ZOOM_CEILING = 4;
   var ZOOM_STEP = 0.25;
 
   /* The camera is screen-space state applied as one transform on the SVG, and
@@ -159,6 +202,13 @@ export function graphBehavior(modelJson) {
      window -- and never a node, a label or a rendered glyph. */
   var view = { scale: 1, x: 0, y: 0 };
   var state = { focus: null, trace: null, path: null };
+
+  /* How many of the focused component's direct neighbours the camera could not
+     get into the frame. Camera state, not selection state: the same selection
+     leaves a different number outside a wide window and a narrow one, and the
+     status line says so rather than letting a reader conclude the relationship
+     is not there. */
+  var offFrame = 0;
 
   var nodeGroups = all("[data-pf-node]");
   var edgeGroups = all("[data-pf-edge]");
@@ -217,19 +267,132 @@ export function graphBehavior(modelJson) {
     return { w: svg.clientWidth || 1, h: svg.clientHeight || 1 };
   }
 
-  /* Keep the content covering the frame. At scale 1 both bounds collapse to
-     zero, which is the honest statement that there is nowhere to pan at
-     overview -- the same fact the pan gate below reads. */
+  /* The canvas the build-time layout wrote, read back off the viewBox. This is
+     the deterministic integer geometry -- the same numbers layout.mjs
+     computed and draw.mjs emitted -- and not a measurement of anything. */
+  function canvasBox() {
+    var viewBox = (svg.getAttribute("viewBox") || "").split(/[\\s,]+/);
+    return { w: Number(viewBox[2]) || 0, h: Number(viewBox[3]) || 0 };
+  }
+
+  /* The scale the browser is already painting the map at, before the camera
+     applies anything: one uniform factor, because the viewBox is fitted with
+     the default preserveAspectRatio. */
+  function baseScale() {
+    var box = frame();
+    var art = canvasBox();
+    if (!art.w || !art.h) return 0;
+    return Math.min(box.w / art.w, box.h / art.h);
+  }
+
+  function maxZoom() {
+    var s0 = baseScale();
+    if (!(s0 > 0)) return ZOOM_CEILING;
+    return Math.max(ZOOM_CEILING, PF_COMFORT / s0);
+  }
+
+  /* Every drawn node's box, in user units, taken from the integer attributes
+     the layout wrote. Cached because they are build-time output and cannot
+     change: a second read would be a second chance to get the same answer.
+
+     "rect" rather than a class selector, for the reason every hook in this
+     artifact is a data attribute: a stylesheet may rename ".pf-node-box", and
+     the camera would then aim at nothing. The first rect inside a node group
+     is its box, which is how draw.mjs writes it. */
+  var boxCache = null;
+  function nodeBoxes() {
+    if (boxCache) return boxCache;
+    boxCache = Object.create(null);
+    for (var i = 0; i < nodeGroups.length; i += 1) {
+      var group = nodeGroups[i];
+      var rect = group.querySelector("rect");
+      if (!rect) continue;
+      boxCache[group.getAttribute("data-pf-node")] = {
+        x: Number(rect.getAttribute("x")),
+        y: Number(rect.getAttribute("y")),
+        w: Number(rect.getAttribute("width")),
+        h: Number(rect.getAttribute("height")),
+      };
+    }
+    return boxCache;
+  }
+
+  /* The rectangle the explorer's own chrome leaves free, as the panel and the
+     toolbar published it. Read rather than recomputed: this is the seam the
+     docked surface owns, and a camera that derived its own version of it would
+     be free to disagree with the thing actually covering the map.
+
+     The whole frame is the honest fallback for an artifact where nothing has
+     published one yet -- a rectangle nobody wrote is not a reason to refuse to
+     move the camera. */
+  function freeRect() {
+    var box = frame();
+    var published = (canvas.getAttribute("data-pf-free") || "").split(/[\\s,]+/);
+    var free = {
+      x: Number(published[0]),
+      y: Number(published[1]),
+      width: Number(published[2]),
+      height: Number(published[3]),
+    };
+    if (!(free.width > 0) || !(free.height > 0)) {
+      return { x: 0, y: 0, width: box.w, height: box.h };
+    }
+    return free;
+  }
+
+  /* Keep the content covering the rectangle the reader can actually see. At
+     scale 1, with nothing overlaying the map, both bounds collapse to zero --
+     the honest statement that there is nowhere to pan at overview, and the
+     same fact the pan gate below reads.
+
+     Against the free rectangle rather than the whole frame, because the
+     difference is exactly the travel the focus camera needs. The toolbar is
+     pinned to the foot of the map, so a clamp that kept the content covering
+     the *frame* would make the lowest reachable position the one that parks
+     the bottom row of the graph under the controls -- and no amount of care in
+     the camera arithmetic could lift it clear, because the clamp would put it
+     straight back. Widening the bound by the obstructed band gives back
+     precisely that band and nothing else, and when nothing overlays the map
+     the free rectangle *is* the frame and these are the two comparisons they
+     have always been. */
   function clamp() {
     var box = frame();
-    view.x = Math.min(0, Math.max(box.w - box.w * view.scale, view.x));
-    view.y = Math.min(0, Math.max(box.h - box.h * view.scale, view.y));
+    var free = freeRect();
+    view.x = Math.min(free.x,
+      Math.max(free.x + free.width - box.w * view.scale, view.x));
+    view.y = Math.min(free.y,
+      Math.max(free.y + free.height - box.h * view.scale, view.y));
+  }
+
+  /* The transform this script last wrote, remembered rather than read back.
+
+     style.transform does not return what was set: the CSSOM reserialises the
+     value, so a browser hands back rounded numbers in its own formatting and a
+     comparison against the string just written would never match. Keeping the
+     value here makes "did the camera actually move" answerable without asking
+     the document, and answerable identically in every engine. */
+  var written = "";
+
+  function writeTransform(value) {
+    written = value;
+    svg.style.transform = value;
   }
 
   function paint() {
     clamp();
-    svg.style.transform =
+    var next =
       "translate(" + view.x + "px, " + view.y + "px) scale(" + view.scale + ")";
+
+    /* A move that does not change the transform starts no transition, so no
+       transitionend can arrive to end it -- and the moving state would outlive
+       a move that never happened, leaving the next camera write to animate
+       when it should track. Ending it here is the one place that covers every
+       way of asking for a move that turns out to be a move to where the camera
+       already is: focusing the focused component again, an arrow key against
+       the pan limit, or fit while already fitted. */
+    if (next === written) canvas.removeAttribute("data-pf-camera");
+    writeTransform(next);
+
     canvas.setAttribute("data-pf-zoom", view.scale <= 1 ? "fit" : "in");
     canvas.setAttribute("data-pf-pannable", view.scale > 1 ? "true" : "false");
     limits();
@@ -242,34 +405,151 @@ export function graphBehavior(modelJson) {
      an explorer, and because a wheel handler on a page that also scrolls gives
      one physical gesture two meanings. */
   function zoomTo(next) {
-    next = Math.round(Math.min(Math.max(next, 1), MAX_ZOOM) * 100) / 100;
+    takeOver();
+    next = Math.round(Math.min(Math.max(next, 1), maxZoom()) * 100) / 100;
     if (next === view.scale) return;
     var box = frame();
     var cx = box.w / 2;
     var cy = box.h / 2;
     var atX = (cx - view.x) / view.scale;
     var atY = (cy - view.y) / view.scale;
-    view.scale = next;
-    view.x = cx - atX * next;
-    view.y = cy - atY * next;
-    paint();
+    glide(function () {
+      view.scale = next;
+      view.x = cx - atX * next;
+      view.y = cy - atY * next;
+      paint();
+    });
   }
 
   function zoomBy(step) { zoomTo(view.scale + step); }
 
   function fit() {
+    takeOver();
+    /* Animated like any other camera change: fit is a move back to the whole
+       map, and a reader who watched the camera travel in should be able to
+       watch it travel out. */
+    beginMove();
     view.scale = 1;
     view.x = 0;
     view.y = 0;
     paint();
+    settleMove();
   }
 
-  /* Screen pixels in, screen pixels out. */
+  /* Screen pixels in, screen pixels out.
+
+     No sampling of its own. During a drag the pointerdown has already taken
+     the camera over, and every other caller goes through glide, which does it
+     once before the movement starts -- doing it here as well would cancel the
+     animation glide had just turned on, one line after turning it on. */
   function panBy(dx, dy) {
     view.x += dx;
     view.y += dy;
     paint();
   }
+
+  /* ---- an automatic move is a transaction the reader can end ----
+
+     The move itself is a CSS transition on the one transform the camera
+     writes, which is why it can be interrupted at all: the browser is
+     interpolating a value this code can read back at any instant. The
+     attribute is what turns that transition on, so a drag -- which must be the
+     pointer's own pixel delta and nothing else -- never runs through an easing
+     curve, and the 1:1 pan this Feature requires stays 1:1.
+
+     takeOver is the whole of the interruption contract. It samples the
+     transform the reader can currently see, adopts it as camera state, and
+     pins it there before the gesture applies. Without the sample the camera
+     would carry on to a target the reader has already overruled, or jump back
+     to where the move began; with it, a drag continues from exactly where the
+     movement had visibly reached. Every reader-initiated camera change goes
+     through it -- drag, zoom control, keyboard, fit -- so there is one place
+     that decides what interrupting means. */
+  function reducedMotion() {
+    return Boolean(window.matchMedia
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+
+  /* Honoured here rather than only in the stylesheet. The theme's reduce block
+     collapses every transition, so motion would already be gone -- but a
+     camera whose animation is removed underneath it while it still believes it
+     is animating is a camera that cannot report when a move has finished. The
+     script asks the question directly, and a reader who prefers no motion gets
+     a camera that applies immediately and reaches every state the animated one
+     reaches. Asked on each move rather than cached: the preference can change
+     while the page is open, and a cached answer would strand the reader on
+     whichever setting happened to be true at load. */
+  function beginMove() {
+    if (reducedMotion()) return false;
+    canvas.setAttribute("data-pf-camera", "move");
+    return true;
+  }
+
+  function settleMove() {
+    if (reducedMotion()) canvas.removeAttribute("data-pf-camera");
+  }
+
+  /* A camera change the reader asked for in one step: a zoom control, an arrow
+     key, the nudge that brings a tabbed-to component into view. Each is a jump
+     between two positions of a fixed map, which is exactly what this Feature
+     says motion is for, so each gets the same movement an automatic focus
+     gets.
+
+     Dragging is the one camera change that does not go through here, and
+     deliberately. A drag is already continuous -- it is the pointer's own
+     travel -- so easing it would only put the map behind the hand moving it. */
+  function glide(change) {
+    takeOver();
+    beginMove();
+    change();
+    settleMove();
+  }
+
+  /** The transform as the browser is painting it this instant, mid-move. */
+  function paintedTransform() {
+    if (!window.getComputedStyle) return null;
+    var value = window.getComputedStyle(svg).transform;
+    if (!value || value === "none" || value.indexOf("(") < 0) return null;
+    var parts = value.slice(value.indexOf("(") + 1, value.lastIndexOf(")"))
+      .split(",");
+    /* A 2D matrix carries the scale first and the translation last; a 3D one
+       spells the same three numbers out at 0, 12 and 13. Both are answers a
+       browser legitimately gives for this property. */
+    var scale, x, y;
+    if (parts.length === 16) {
+      scale = Number(parts[0]); x = Number(parts[12]); y = Number(parts[13]);
+    } else if (parts.length === 6) {
+      scale = Number(parts[0]); x = Number(parts[4]); y = Number(parts[5]);
+    } else {
+      return null;
+    }
+    if (!(scale > 0)) return null;
+    return { scale: scale, x: x, y: y };
+  }
+
+  function takeOver() {
+    if (!canvas.hasAttribute("data-pf-camera")) return;
+    var current = paintedTransform();
+    canvas.removeAttribute("data-pf-camera");
+    if (!current) return;
+    view.scale = current.scale;
+    view.x = current.x;
+    view.y = current.y;
+    /* Pinned where the eye last saw it, before the gesture moves it on. The
+       attribute is already off, so this write does not animate -- which is
+       what stops the camera drifting on to the abandoned target between this
+       instant and the reader's next pixel of movement. */
+    writeTransform(
+      "translate(" + view.x + "px, " + view.y + "px) scale(" + view.scale + ")");
+  }
+
+  /* The move is over when the transform stops interpolating. Read from the
+     event rather than timed against the stylesheet's duration, so the two can
+     never disagree about when the camera arrived. */
+  svg.addEventListener("transitionend", function (event) {
+    if (event.propertyName && event.propertyName !== "transform") return;
+    canvas.removeAttribute("data-pf-camera");
+  });
 
   /* ---- the selection: focus, traversal, path ---- */
 
@@ -325,8 +605,18 @@ export function graphBehavior(modelJson) {
         count(countOf(picked.edges), "relationship") + " crossed.";
     }
     if (picked.mode === "focus") {
+      /* Structure, and then what is off the edge of it. The second sentence is
+         the affordance this Feature owes a reader whose neighbourhood does not
+         fit: a focus that framed four of a component's nine relationships and
+         said nothing would be quietly claiming the other five do not exist.
+         Still a statement about the map and never about trust -- it counts
+         what the frame left out, and says nothing about how well anything in
+         it is supported. */
       return "Focused: " + label(state.focus) + ". " +
-        count(countOf(picked.edges), "direct relationship") + ".";
+        count(countOf(picked.edges), "direct relationship") + "." +
+        (offFrame > 0
+          ? " " + count(offFrame, "related component") + " outside the frame."
+          : "");
     }
     return ${JSON.stringify(UI.nothing)};
   }
@@ -419,7 +709,7 @@ export function graphBehavior(modelJson) {
      would only add empty space, and "fit" is then always the way back. */
   function limits() {
     act("zoom-out", view.scale <= 1);
-    act("zoom-in", view.scale >= MAX_ZOOM);
+    act("zoom-in", view.scale >= maxZoom());
     act("fit", view.scale === 1 && view.x === 0 && view.y === 0);
 
     /* The camera says where it is, on the control that takes you back. A
@@ -575,8 +865,67 @@ export function graphBehavior(modelJson) {
     state.focus = id;
     state.trace = null;
     state.path = null;
+    offFrame = 0;
     apply();
+    aimCamera(id);
     if (options && options.reveal) reveal(id);
+  }
+
+  /* ---- the semantic camera ----
+
+     Selection decides what is related; this decides where to stand to look at
+     it. Keeping them apart is why the neighbourhood below is read straight out
+     of selection() rather than gathered again from the adjacency index: the
+     focus mode already computes exactly the set the dimming uses, and a camera
+     that walked the index a second time would be a second definition of what
+     is related to what, free to drift from the first. The camera consumes that
+     answer and contributes nothing to it.
+
+     Run after apply(), and that order is load-bearing. apply() docks the
+     selected component's card, which is what gives the panel its width, which
+     is what makes the free rectangle the panel publishes true. Aiming first
+     would frame the node into the rectangle that existed before the panel
+     opened, and park it under the panel -- the exact defect the seam exists to
+     prevent. */
+  function aimCamera(id) {
+    var boxes = nodeBoxes();
+    if (!boxes[id]) return;
+
+    var picked = selection();
+    var near = [];
+    for (var other in picked.near) {
+      /* A self-edge makes a component its own neighbour. It is already the
+         thing being framed, so counting it again would let the camera report
+         a component as outside the frame it is in the middle of. */
+      if (other !== id && boxes[other]) near.push(other);
+    }
+
+    var target = pfCameraTarget({
+      canvas: canvasBox(),
+      frame: frame(),
+      free: freeRect(),
+      boxes: boxes,
+      focus: id,
+      near: near,
+    });
+    if (!target) return;
+
+    offFrame = target.offFrame.length;
+
+    beginMove();
+    view.scale = target.scale;
+    view.x = target.x;
+    view.y = target.y;
+    paint();
+    settleMove();
+
+    /* Said once the camera knows what it framed. apply() has already written
+       the structural half of this sentence; rewriting it here rather than
+       having the camera reach into the selection's wording keeps one function
+       composing it. The live region collapses the two writes of one task into
+       a single announcement, so a screen reader hears the finished sentence
+       rather than both halves of it. */
+    if (status) status.textContent = describe(picked);
   }
 
   function reveal(id) {
@@ -689,6 +1038,12 @@ export function graphBehavior(modelJson) {
   svg.addEventListener("pointerdown", function (event) {
     swallowClick = false;
     if (event.button !== 0) return;
+    /* The instant the reader presses, before anything is decided about what
+       the press means. An automatic move that carried on for one more frame
+       after the hand landed on it would be the camera arguing with the reader,
+       and the pan below needs camera state that matches what is on screen
+       rather than where the move was headed. */
+    takeOver();
     if (view.scale <= 1) return;
     if (!panSurface(event.target)) return;
 
@@ -788,6 +1143,13 @@ export function graphBehavior(modelJson) {
     canvas.scrollLeft = 0;
     canvas.scrollTop = 0;
 
+    /* Tab is a reader gesture like any other, and this handler is about to
+       read painted boxes. Sampling first is what keeps the measurement and the
+       camera state describing the same instant: mid-move they would otherwise
+       be one frame apart, and the nudge would correct for a position the
+       camera had already left. */
+    takeOver();
+
     var target = event && event.target;
     if (!target || !target.closest || !target.getBoundingClientRect) return;
     var drawn = target.closest("[data-pf-node]");
@@ -801,17 +1163,17 @@ export function graphBehavior(modelJson) {
       frameBox.left + FOCUS_MARGIN, frameBox.right - FOCUS_MARGIN);
     var dy = nudge(node.top, node.bottom,
       frameBox.top + FOCUS_MARGIN, frameBox.bottom - FOCUS_MARGIN);
-    if (dx || dy) panBy(dx, dy);
+    if (dx || dy) glide(function () { panBy(dx, dy); });
   });
 
   canvas.addEventListener("keydown", function (event) {
     /* A step in screen pixels, like the drag it stands in for. */
     var step = Math.max(24, Math.round(frame().w / 8));
     var moved = true;
-    if (event.key === "ArrowLeft") panBy(step, 0);
-    else if (event.key === "ArrowRight") panBy(-step, 0);
-    else if (event.key === "ArrowUp") panBy(0, step);
-    else if (event.key === "ArrowDown") panBy(0, -step);
+    if (event.key === "ArrowLeft") glide(function () { panBy(step, 0); });
+    else if (event.key === "ArrowRight") glide(function () { panBy(-step, 0); });
+    else if (event.key === "ArrowUp") glide(function () { panBy(0, step); });
+    else if (event.key === "ArrowDown") glide(function () { panBy(0, -step); });
     else if (event.key === "+" || event.key === "=") zoomBy(ZOOM_STEP);
     else if (event.key === "-") zoomBy(-ZOOM_STEP);
     else if (event.key === "0") fit();
