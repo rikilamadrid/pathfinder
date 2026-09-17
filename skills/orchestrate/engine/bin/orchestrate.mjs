@@ -442,16 +442,18 @@ function gate({ root, store: storeOverride, gh, key, action, question: rawQuesti
     return fail(1, `${key} has no open human gate to resolve (state: ${found.state ?? "none"})`);
   }
   const recordedQuestion = found.gate;
+  // Keep the local gate until both tracker writes succeed. If either fails,
+  // the recorded question lets the same command retry the idempotent writes.
+  const label = setGateLabel({ store, ticket, present: false, gh });
+  if (!label.ok) return fail(1, label.message);
+  const posted = postNote({ root, store, ticket, note: gateResolvedNote({ key, question: recordedQuestion, answer, now }), gh, worktree });
+  if (!posted.ok) return fail(1, posted.message);
   {
     const set = { State: "working", Updated: now };
     if (answer) set.Last = `gate resolved: ${oneLine(answer)}`;
     const updated = updateStateFile(worktree, { set, unset: ["Gate"] });
     if (!updated.ok) return fail(updated.usage ? 2 : 1, updated.message);
   }
-  const label = setGateLabel({ store, ticket, present: false, gh });
-  if (!label.ok) return fail(1, label.message);
-  const posted = postNote({ root, store, ticket, note: gateResolvedNote({ key, question: recordedQuestion, answer, now }), gh, worktree });
-  if (!posted.ok) return fail(1, posted.message);
   process.stdout.write(`gate resolved on ${key}\n`);
   return 0;
 }

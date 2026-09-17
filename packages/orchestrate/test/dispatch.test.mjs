@@ -355,6 +355,38 @@ describe("repairs from the 53.3 review", () => {
     assert.equal(json(orchestrate(["status", "--json", "--gh", gh.path], { root })).rows[0].state, "done", "a finished worker stays done");
   });
 
+  for (const failedCommand of ["edit", "comment"]) {
+    it(`keeps a gate retryable when its resolution ${failedCommand} fails`, () => {
+      const gh = statefulGh([issue({ number: 11, key: "1.1", title: "A", labels: ["status: ready"] })]);
+      const root = makeProject({ tracker: TRACKER });
+      const run = (args, executable = gh.path) => orchestrate([...args, "--gh", executable], { root });
+      assert.equal(run(["claim", "1.1"]).status, 0);
+      assert.equal(run(["gate", "1.1", "open", "--question", "Proceed?"]).status, 0);
+
+      const broken = join(gh.path, "..", "gh-resolution-failure");
+      writeFileSync(broken, readFileSync(gh.path, "utf8").replace(
+        "const args = process.argv.slice(2);",
+        `const args = process.argv.slice(2); if (args[1] === ${JSON.stringify(failedCommand)}) { process.stderr.write('temporary API failure'); process.exit(1); }`,
+      ));
+      chmodSync(broken, 0o755);
+      const failed = run(["gate", "1.1", "resolve", "--answer", "Yes."], broken);
+      assert.equal(failed.status, 1);
+      assert.match(failed.stderr, /temporary API failure/);
+      const pending = json(run(["owner", "1.1", "--json"])).claim;
+      assert.equal(pending.state, "human-gate");
+      assert.equal(pending.gate, "Proceed?");
+
+      const retried = run(["gate", "1.1", "resolve", "--answer", "Yes."]);
+      assert.equal(retried.status, 0, retried.stderr);
+      assert.equal(json(run(["owner", "1.1", "--json"])).claim.state, "working");
+      const ticket = gh.read()[0];
+      assert.deepEqual(ticket.labels.map((label) => label.name), ["status: ready"]);
+      assert.equal(ticket.comments.length, 2, "one opening and one resolution note");
+      assert.match(ticket.comments[1].body, /Human gate resolved/);
+      assert.match(ticket.comments[1].body, /Yes\./);
+    });
+  }
+
   it("treats a question differing only in whitespace as the same gate", () => {
     const gh = statefulGh([issue({ number: 11, key: "1.1", title: "A", labels: ["status: proposed"] })]);
     const root = makeProject({ tracker: TRACKER });
