@@ -32,11 +32,12 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
 4. Build the resume brief:
 
    ```sh
-   orchestrate brief <key> --harness <harness> --session resume --approval "<approved scope>"
+   orchestrate brief <key> --harness <harness> --session resume --approval "<approved scope>" --json
    ```
 
    Add the human's gate decision or guidance, when there is one, beneath the
-   brief.
+   brief text: `translation.invocation.prompt` for Claude Code and manual
+   sessions, `translation.invocation.arguments.message` for Codex.
 5. Start the worker session exactly as `start` step 3 does for the active
    harness, and record the key as live.
 6. Handle its reports exactly as `start` step 4 does.
@@ -46,3 +47,9 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
 - Resume is the only way back to a stale claim. Never claim that ticket again,
   and never delete its worktree or branch.
 - One session per claim.
+- A replacement session may use a different supported harness. First establish
+  that the old session has ended or has been stopped; never overlap writers.
+  Translate the same persisted claim and profile for the replacement harness.
+  If that harness refuses the recorded model or effort, report it without
+  changing the profile. No new claim, worktree, branch, or automatic failover
+  is implied by harness substitution.

@@ -14,6 +14,7 @@
  * policy chose, and say nothing.
  */
 
+import { isAbsolute } from "node:path";
 import { TOKEN } from "./profile.mjs";
 
 export const BRIEF_FIELDS = Object.freeze([
@@ -133,6 +134,61 @@ export function formatBrief(brief) {
   ].join("\n");
 }
 
+// Accepted overrides of Codex's collaboration.spawn_agent tool: the
+// list-visible models of the Codex CLI 0.154.0 model catalog, each with the
+// reasoning levels that catalog says it supports. These are adapter input
+// limits, not routing choices: the policy still selects values. Codex validates
+// model and effort again at call time and names what it refuses, so a catalog
+// change fails loudly rather than dispatching a different session. An inherited
+// model accepts only the intersection, since the parent's model is not known
+// to this pure translation boundary.
+const CODEX_EFFORTS = Object.freeze({
+  "gpt-6-astra": Object.freeze(["low", "medium", "high", "xhigh", "max", "ultra"]),
+  "gpt-5.6-sol": Object.freeze(["low", "medium", "high", "xhigh", "max", "ultra"]),
+  "gpt-5.6-terra": Object.freeze(["low", "medium", "high", "xhigh", "max", "ultra"]),
+  "gpt-5.6-luna": Object.freeze(["low", "medium", "high", "xhigh", "max"]),
+  "gpt-5.5": Object.freeze(["low", "medium", "high", "xhigh"]),
+  "gpt-5.2": Object.freeze(["low", "medium", "high", "xhigh"]),
+});
+
+function codexInvocation(brief) {
+  if (!isAbsolute(brief.worktree)) {
+    return { ok: false, message: "Codex subagent needs an absolute worktree path; its spawn tool has no working-directory argument." };
+  }
+  if (brief.model !== "inherited" && brief.effort === "inherited") {
+    return {
+      ok: false,
+      message: `Codex subagent cannot honour model \`${brief.model}\` with effort \`inherited\`: an omitted reasoning_effort inherits the parent's effort, which \`${brief.model}\` may not support, so the session could not be guaranteed to run at the effort the policy meant. Name an explicit supported effort or inherit both.`,
+    };
+  }
+  if (brief.effort !== "inherited") {
+    const allowed = brief.model === "inherited"
+      ? Object.values(CODEX_EFFORTS)[0].filter((effort) => Object.values(CODEX_EFFORTS).every((values) => values.includes(effort)))
+      : CODEX_EFFORTS[brief.model];
+    if (!allowed.includes(brief.effort)) {
+      return {
+        ok: false,
+        message: `Codex subagent cannot honour effort \`${brief.effort}\` with model \`${brief.model}\`: supported efforts are ${allowed.join(", ")}. Refusing rather than dispatching at a different effort.`,
+      };
+    }
+  }
+
+  const inherited = brief.model === "inherited" && brief.effort === "inherited";
+  const args = {
+    task_name: `pathfinder_${brief.ticket.replaceAll(".", "_")}_${brief.session}`,
+    fork_turns: inherited ? "all" : "none",
+    message: [
+      `Your assigned worktree is ${JSON.stringify(brief.worktree)}. The spawn tool does not change directory. Set workdir to this absolute path on EVERY shell call; use absolute paths inside it for file edits. Never assume your inherited working directory is this worktree.`,
+      `Assume the ${brief.role} role: read roles/${brief.role}.md in that worktree before acting. The brief's approval and ticket scope govern this session, including when prior conversation is inherited.`,
+      "",
+      formatBrief(brief),
+    ].join("\n"),
+  };
+  if (brief.model !== "inherited") args.model = brief.model;
+  if (brief.effort !== "inherited") args.reasoning_effort = brief.effort;
+  return { ok: true, harness: "codex", invocation: { tool: "collaboration.spawn_agent", arguments: args } };
+}
+
 /**
  * How each harness honours a brief. One row per harness; a new harness is a
  * new row. `models` is the set of values the harness's session primitive
@@ -145,6 +201,13 @@ export const HARNESS_TRANSLATIONS = Object.freeze({
     modelHint: "a family alias (opus, sonnet, haiku, fable), not a pinned model ID",
     effort: false,
     effortHint: "the subagent call takes no reasoning-effort setting",
+  }),
+  codex: Object.freeze({
+    label: "Codex subagent",
+    models: Object.freeze(Object.keys(CODEX_EFFORTS)),
+    modelHint: `one of ${Object.keys(CODEX_EFFORTS).join(", ")}`,
+    effort: true,
+    translate: codexInvocation,
   }),
   manual: Object.freeze({
     label: "a session the human starts from the printed brief",
@@ -188,5 +251,5 @@ export function translateBrief(brief, harness) {
     invocation.effort = brief.effort;
   }
 
-  return { ok: true, harness, invocation };
+  return row.translate ? row.translate(brief) : { ok: true, harness, invocation };
 }

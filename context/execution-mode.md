@@ -1,10 +1,11 @@
 # Execution Mode
 
-<!-- pathfinder:execution-mode human-in-the-loop -->
+<!-- pathfinder:execution-mode orchestrator -->
 
-Pathfinder runs this project **human-in-the-loop**: one active ticket at a
-time, one session, and the human drives every transition and answers every
-gate. This is the default, and what a project with no file at all runs.
+Pathfinder runs this project in **orchestrator** mode: an orchestrator
+coordinates several dependency-safe ticket workers at once, each in its own
+Git worktree on its own branch, and surfaces only the human gates that need
+a person. Approval, acceptance, merge, and release stay the human's.
 
 The marker line above is the value Pathfinder reads; the rest of this file is
 for people. The two valid values are `human-in-the-loop` and `orchestrator`.
