@@ -20,7 +20,7 @@ missing: a brief that lacks one is refused.
 | `model` | the model the session runs on, from the routing policy |
 | `effort` | the reasoning effort the session runs at, from the routing policy |
 | `approval` | the scope of the human approval the orchestration run was granted |
-| `protocol` | the ordered steps: load, start, and how to report a gate, done, or failure |
+| `protocol` | the ordered steps for the session. Implementation loads, starts, and reports a gate, done, or failure. Review runs `/ticket review`, changes nothing, and reports PASS or findings |
 
 `role`, `model`, and `effort` are first-class fields whatever their values.
 `inherited` is a value, not an absence. A later routing policy changes what
@@ -40,7 +40,7 @@ nothing would say so.
 
 | Harness | Starts the session as | model | effort |
 | --- | --- | --- | --- |
-| `claude-code` | a background subagent | `inherited`: no override. A family alias (`opus`, `sonnet`, `haiku`, `fable`): passed as the override. A pinned model ID such as `claude-opus-5`: **refused** | `inherited`: nothing. Anything else: **refused**, because the subagent takes no effort setting |
+| `claude-code` | a background subagent | `inherited`: no override. A family alias (`opus`, `sonnet`, `haiku`, `fable`): passed as the override. A pinned model ID such as `claude-opus-5`: **refused** | `inherited`: nothing. Anything else: **refused**, because the subagent call takes no effort setting. A subagent definition file can set one, and that would be a new translation row |
 | `manual` | a session the human starts from the printed brief | passed as written | passed as written |
 
 A new harness is a new row in `HARNESS_TRANSLATIONS` in `engine/brief.mjs`.

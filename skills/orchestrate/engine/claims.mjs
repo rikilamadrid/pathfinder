@@ -151,8 +151,15 @@ export function readStateFile(path) {
     return match ? match[1].trim() || null : null;
   };
   const state = field("State");
-  const execution = /^## Execution\s*\r?\n[\s\S]*?```yaml\r?\n([\s\S]*?)```/m.exec(text);
-  const parsed = execution ? parseProfile(execution[1]) : null;
+  // The fence immediately under the heading, with only blank lines between —
+  // never a later yaml block elsewhere in the file.
+  const hasHeading = /^## Execution[ \t]*$/m.test(text);
+  const execution = /^## Execution[ \t]*\r?\n(?:[ \t]*\r?\n)*```yaml\r?\n([\s\S]*?)^```/m.exec(text);
+  const parsed = execution
+    ? parseProfile(execution[1])
+    : hasHeading
+      ? { ok: false, errors: ["## Execution carries no yaml block directly beneath it"] }
+      : null;
   return {
     present: true,
     profile: parsed?.ok ? parsed.profile : null,

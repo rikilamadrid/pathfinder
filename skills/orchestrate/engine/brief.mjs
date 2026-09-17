@@ -30,20 +30,38 @@ export const BRIEF_FIELDS = Object.freeze([
   "protocol",
 ]);
 
-export const DEFAULT_PROTOCOL = Object.freeze([
-  "Work only inside the worktree named above.",
-  "Run /ticket load <ticket>, then /ticket start, as the role named above.",
-  "On a human decision: set State: human-gate and Gate: <question> in context/current-ticket.md, then stop and report GATE.",
-  "When verified, committed, and pushed with a draft pull request open: set State: done and report DONE.",
-  "When the work cannot be completed inside the ticket: set State: failed and report FAILED with the reason.",
-]);
+/**
+ * The ordered steps, per session. Implementation builds the ticket; review
+ * verifies it and changes nothing. 53.3's worker and resume briefs start from
+ * these; a caller may pass its own `protocol`, but never one session's steps
+ * for the other.
+ */
+export const PROTOCOLS = Object.freeze({
+  implementation: Object.freeze([
+    "Work only inside the worktree named above.",
+    "Run /ticket load <ticket>, then /ticket start, as the role named above.",
+    "On a human decision: set State: human-gate and Gate: <question> in context/current-ticket.md, then stop and report GATE.",
+    "When verified, committed, and pushed with a draft pull request open: set State: done and report DONE.",
+    "When the work cannot be completed inside the ticket: set State: failed and report FAILED with the reason.",
+  ]),
+  review: Object.freeze([
+    "Work only inside the worktree named above. Change no implementation, commit nothing, and push nothing.",
+    "Set State: review in context/current-ticket.md, then run /ticket review as the role named above.",
+    "Report PASS, or the findings by severity with file and line, and what was and was not verified.",
+    "On a question only a human can answer: set Gate: <question>, then stop and report GATE.",
+  ]),
+});
 
 /**
  * Build a brief. Pure: same inputs, same object, same bytes.
  *
  * @returns {{ok: true, brief: object} | {ok: false, message: string}}
  */
-export function buildBrief({ ticket, title, ref, session = "implementation", worktree, branch, selection, approval, protocol = DEFAULT_PROTOCOL }) {
+export function buildBrief({ ticket, title, ref, session = "implementation", worktree, branch, selection, approval, protocol = null }) {
+  if (!Object.hasOwn(PROTOCOLS, session)) {
+    return { ok: false, message: `session must be ${Object.keys(PROTOCOLS).join(" or ")}, not \`${session}\`` };
+  }
+  const steps = protocol ?? PROTOCOLS[session];
   const missing = [];
   for (const [name, value] of Object.entries({ ticket, title, ref, worktree, branch, approval })) {
     if (typeof value !== "string" || value.trim() === "") missing.push(name);
@@ -66,7 +84,7 @@ export function buildBrief({ ticket, title, ref, session = "implementation", wor
       model: selection.model,
       effort: selection.effort,
       approval,
-      protocol: [...protocol],
+      protocol: [...steps],
     },
   };
 }
@@ -100,6 +118,7 @@ export const HARNESS_TRANSLATIONS = Object.freeze({
     models: Object.freeze(["opus", "sonnet", "haiku", "fable"]),
     modelHint: "a family alias (opus, sonnet, haiku, fable), not a pinned model ID",
     effort: false,
+    effortHint: "the subagent call takes no reasoning-effort setting",
   }),
   manual: Object.freeze({
     label: "a session the human starts from the printed brief",
@@ -137,7 +156,7 @@ export function translateBrief(brief, harness) {
     if (!row.effort) {
       return {
         ok: false,
-        message: `${row.label} cannot honour effort \`${brief.effort}\`: it takes no reasoning-effort setting. Refusing rather than dispatching at a different effort.`,
+        message: `${row.label} cannot honour effort \`${brief.effort}\`: ${row.effortHint}. Refusing rather than dispatching at a different effort.`,
       };
     }
     invocation.effort = brief.effort;

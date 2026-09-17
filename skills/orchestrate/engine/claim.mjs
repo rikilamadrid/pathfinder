@@ -109,7 +109,7 @@ export async function claim({
   // The profile before any write. A policy that cannot be loaded or makes a
   // choice nothing could act on refuses the claim with nothing to undo.
   const routed = await profileFor({ root, ticket: row, tickets: read.tickets, assessment });
-  if (!routed.ok) return { ok: false, message: `refusing to claim ${key}: ${routed.message}` };
+  if (!routed.ok) return { ok: false, usage: routed.usage, message: `refusing to claim ${key}: ${routed.message}` };
 
   const base = defaultBranch(root);
   if (!base) return { ok: false, message: "refusing to claim: no default branch (main or master) to start from" };

@@ -260,6 +260,21 @@ describe("planning the write", () => {
     assert.equal(planExecutionMode({ targetRoot: cwd, mode: "orchestrator" }).action, "replace");
   });
 
+  it("keeps a routing-policy marker when it rewrites the mode", () => {
+    const cwd = scratch();
+    writeModeFile(cwd, renderExecutionMode("human-in-the-loop", { routingPolicy: "static" }));
+
+    const item = planExecutionMode({ targetRoot: cwd, mode: "orchestrator" });
+
+    assert.equal(item.action, "replace");
+    assert.match(item.contents, /^<!-- pathfinder:execution-mode orchestrator -->\n<!-- pathfinder:routing-policy static -->$/m);
+    assert.equal(
+      planExecutionMode({ targetRoot: cwd, mode: "human-in-the-loop" }).action,
+      "up-to-date",
+      "the same mode with the same marker is up to date",
+    );
+  });
+
   it("leaves a stranger's file alone without --force, and replaces it with", () => {
     const cwd = scratch();
     writeModeFile(cwd, "# Execution Mode\n\nsomebody's own file, no marker\n");

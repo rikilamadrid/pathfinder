@@ -432,7 +432,7 @@ describe("the seam: adding a policy changes nothing else", () => {
 
     const claude = run(engine, ["brief", "1.1", "--harness", "claude-code"], root);
     assert.equal(claude.status, 1, "Claude Code subagents take no effort, so effort: high is refused");
-    assert.match(claude.stderr, /cannot honour effort `high`: it takes no reasoning-effort setting/);
+    assert.match(claude.stderr, /cannot honour effort `high`: the subagent call takes no reasoning-effort setting/);
 
     const review = JSON.parse(run(engine, ["brief", "1.1", "--harness", "manual", "--session", "review", "--json"], root).stdout);
     assert.deepEqual(
@@ -441,6 +441,15 @@ describe("the seam: adding a policy changes nothing else", () => {
     );
   });
 });
+
+const BRIEF_BASE = {
+  ticket: "1.1",
+  title: "Alpha",
+  ref: "#11",
+  worktree: ".pathfinder/worktrees/1.1",
+  branch: "ticket/1.1-alpha",
+  approval: "execution of Feature 1's tickets; no merges",
+};
 
 describe("the brief and its translation", () => {
   const base = {
@@ -500,5 +509,126 @@ describe("the brief and its translation", () => {
     assert.equal(manual.ok, true);
     assert.deepEqual([manual.invocation.model, manual.invocation.effort], ["claude-opus-5", "high"]);
     assert.match(translateBrief(brief({ role: "developer", model: "inherited", effort: "inherited" }), "cursor").message, /no translation for harness `cursor`/);
+  });
+});
+
+describe("repairs from the 53.7 review", () => {
+  it("gives a policy a deep-frozen copy, so it cannot rewrite the estimate or fake an assessment", async () => {
+    const { mkdtempSync, writeFileSync: write, cpSync: copy } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const engine = join(mkdtempSync(join(tmpdir(), "orchestrate-mutating-")), "engine");
+    copy(ENGINE_ROOT, engine, { recursive: true });
+    write(
+      join(engine, "policies", "forger.mjs"),
+      [
+        "export function select(estimate) {",
+        '  estimate.risk.value = "high"; estimate.risk.source = "assessed"; estimate.risk.reason = "policy says";',
+        '  return { role: "developer", model: "inherited", effort: "inherited" };',
+        "}",
+        "",
+      ].join("\n"),
+    );
+    const { loadPolicy: load, runPolicy: runIt } = await import(join(engine, "policies", "registry.mjs"));
+    const estimate = estimateTicket({ key: "1.1", body: body({ changes: 5 }).text }).estimate;
+    const before = JSON.stringify(estimate);
+
+    const result = runIt(await load("forger"), estimate, { session: "implementation" });
+
+    assert.equal(result.ok, false, "a policy that writes to the estimate is refused");
+    assert.match(result.message, /routing policy `forger` failed: Cannot assign to read only property/);
+    assert.equal(JSON.stringify(estimate), before, "the engine's estimate is untouched");
+  });
+
+  it("refuses a policy whose select is asynchronous, and does not list helpers or tests as policies", async () => {
+    const { mkdtempSync, writeFileSync: write, cpSync: copy } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const engine = join(mkdtempSync(join(tmpdir(), "orchestrate-async-")), "engine");
+    copy(ENGINE_ROOT, engine, { recursive: true });
+    write(join(engine, "policies", "later.mjs"), 'export async function select() { return { role: "developer", model: "inherited", effort: "inherited" }; }\n');
+    write(join(engine, "policies", "_shared.mjs"), "export const x = 1;\n");
+    write(join(engine, "policies", "later.test.mjs"), "export const y = 1;\n");
+    const registry = await import(join(engine, "policies", "registry.mjs"));
+
+    assert.deepEqual(registry.shippedPolicies(), ["later", "static"]);
+    const result = registry.runPolicy(await registry.loadPolicy("later"), validProfile().estimate, { session: "implementation" });
+    assert.match(result.message, /returned a promise; select must return its choice synchronously/);
+  });
+
+  it("gives a review brief review steps, never implementation ones", () => {
+    const review = buildBrief({ ...BRIEF_BASE, session: "review", selection: { role: "tester", model: "inherited", effort: "inherited" } }).brief;
+    const text = formatBrief(review);
+    assert.match(text, /run \/ticket review as the role named above/);
+    assert.match(text, /Change no implementation, commit nothing, and push nothing/);
+    assert.doesNotMatch(text, /\/ticket start/);
+    assert.doesNotMatch(text, /draft pull request/);
+
+    const implementation = formatBrief(buildBrief({ ...BRIEF_BASE, selection: { role: "developer", model: "inherited", effort: "inherited" } }).brief);
+    assert.match(implementation, /\/ticket load 1\.1, then \/ticket start/);
+    assert.match(buildBrief({ ...BRIEF_BASE, session: "deploy", selection: { role: "developer", model: "inherited", effort: "inherited" } }).message, /session must be implementation or review/);
+  });
+
+  it("reads the ticket shapes the estimate previously missed", () => {
+    const text = [
+      "## Context",
+      "",
+      "- Read: `./src/app.mjs`, `src/{a,b}.mjs`, `packages/*/test/`, `**/*.md`",
+      "- Not paths: `53.2`, `v1.2.3`, `pathfinder.execution-profile/1`, `https://example.com/x`",
+      "- Also a dot-directory: `.github/workflows/validate.yml`",
+      "- Relevant area:",
+      "  - `src/app.mjs`",
+      "  - `lib/`",
+      "",
+      "## Changes",
+      "",
+      "1. numbered",
+      "2) numbered too",
+      "+ plus",
+      "   - nested, not counted",
+      "",
+    ].join("\n");
+    assert.equal(countChanges(text), 3);
+    assert.deepEqual(contextPaths(text), [".github/workflows/validate.yml", "lib", "packages", "src/a.mjs", "src/app.mjs", "src/b.mjs"]);
+    assert.deepEqual(relevantAreas(text), ["lib", "src/app.mjs"]);
+
+    const other = { key: "1.2", body: "## Context\n\n- Relevant area: `src/app.mjs`\n" };
+    assert.equal(parallelSafety({ key: "1.1", body: text }, [other]).value, "serialize", "./src/app.mjs and src/app.mjs are one file");
+  });
+
+  it("parses only the exact form it writes", () => {
+    const yaml = renderProfile(validProfile());
+    assert.equal(parseProfile(yaml).ok, true);
+    assert.equal(parseProfile(yaml.replace(/\n$/, "")).ok, true, "a missing final newline is the same text");
+    assert.equal(parseProfile(yaml.replace('ticket: "1.1"', "ticket: 1.1")).ok, false, "unquoted ticket");
+    assert.equal(parseProfile(yaml.replace('reason: "1 bullet under ## Changes"', "reason: 1 bullet under ## Changes")).ok, false, "unquoted reason");
+    assert.equal(parseProfile(yaml.replace("  role: developer\n", "  role: developer\n  role: tester\n")).ok, false, "duplicated role");
+  });
+});
+
+describe("a corrupted Execution block", () => {
+  it("is named in status, and never read from a later yaml fence", () => {
+    const root = makeProject({ tickets: { "1.1": { title: "Alpha" } } });
+    orchestrate(["claim", "1.1", "--now", NOW], { root });
+    const path = join(root, ".pathfinder", "worktrees", "1.1", "context", "current-ticket.md");
+    const original = readFileSync(path, "utf8");
+
+    writeFileSync(path, original.replace("  role: developer", "  role: Developer"));
+    let row = json(orchestrate(["status", "--json", "--live", "1.1"], { root })).rows[0];
+    assert.equal(row.worker, "1.1");
+    assert.equal(row.role, null);
+    assert.match(row.gate, /^execution profile unreadable:/);
+
+    const withoutFence = original.replace(/## Execution\n\n```yaml\n[\s\S]*?```\n/, "## Execution\n\nlost\n\n## Notes\n\n```yaml\nfoo: bar\n```\n");
+    writeFileSync(path, withoutFence);
+    row = json(orchestrate(["status", "--json", "--live", "1.1"], { root })).rows[0];
+    assert.match(row.gate, /## Execution carries no yaml block directly beneath it/);
+  });
+});
+
+describe("usage errors", () => {
+  it("exit 2 for a malformed assessment", () => {
+    const root = makeProject({ tickets: { "1.1": { title: "Alpha" } } });
+    assert.equal(orchestrate(["estimate", "1.1", "--risk", "high"], { root }).status, 2);
+    assert.equal(orchestrate(["estimate", "1.1", "--risk", "extreme", "--reason", "x"], { root }).status, 2);
+    assert.equal(orchestrate(["claim", "1.1", "--risk", "high"], { root }).status, 2);
   });
 });

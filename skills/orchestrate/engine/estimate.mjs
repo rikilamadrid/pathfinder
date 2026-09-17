@@ -13,6 +13,7 @@
  * v1's `static` policy ignores them entirely.
  */
 
+import { compareKeys } from "./keys.mjs";
 import { section } from "./store.mjs";
 
 export const THRESHOLDS = Object.freeze({
@@ -47,10 +48,10 @@ export function estimateTicket(ticket, inFlight = [], { risk = null, reason = nu
   let riskEntry;
   if (risk !== null || reason !== null) {
     if (risk === null || reason === null || String(reason).trim() === "") {
-      return { ok: false, message: "an assessed risk needs both --risk and a non-empty --reason" };
+      return { ok: false, usage: true, message: "an assessed risk needs both --risk and a non-empty --reason" };
     }
     if (!["low", "medium", "high"].includes(risk)) {
-      return { ok: false, message: `risk \`${risk}\` must be low, medium, or high when assessed` };
+      return { ok: false, usage: true, message: `risk \`${risk}\` must be low, medium, or high when assessed` };
     }
     riskEntry = { value: risk, source: "assessed", reason: String(reason).trim() };
   } else {
@@ -81,11 +82,14 @@ export function deriveRisk(complexity, context, parallel) {
   return { value: "unassessed", source: "derived", reason: "no risk rule applies" };
 }
 
-/** Top-level list items under `## Changes`. Indented sub-bullets are part of their parent. */
+/**
+ * Top-level list items under `## Changes`: `-`, `*`, `+`, or `1.` / `1)` at
+ * the start of the line. Indented sub-points are part of their parent.
+ */
 export function countChanges(body) {
   const text = section(body, "Changes");
   if (text === null) return 0;
-  return text.split(/\r?\n/).filter((line) => /^[-*]\s+\S/.test(line)).length;
+  return text.split(/\r?\n/).filter((line) => /^(?:[-*+]|\d+[.)])\s+\S/.test(line)).length;
 }
 
 /**
@@ -106,8 +110,21 @@ export function contextPaths(body) {
 export function relevantAreas(body) {
   const text = section(body, "Context");
   if (text === null) return [];
-  const lines = text.split(/\r?\n/).filter((line) => /^\s*[-*]\s+Relevant area\s*:/i.test(line));
-  return uniquePaths(lines.flatMap((line) => backticked(line)));
+  const lines = text.split(/\r?\n/);
+  const picked = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const match = /^(\s*)[-*+]\s+Relevant area\s*:/i.exec(lines[index]);
+    if (!match) continue;
+    picked.push(lines[index]);
+    // Paths listed as nested bullets beneath the Relevant area line belong to it.
+    const indent = match[1].length;
+    for (let next = index + 1; next < lines.length; next += 1) {
+      const nested = /^(\s*)[-*+]\s+/.exec(lines[next]);
+      if (!nested || nested[1].length <= indent) break;
+      picked.push(lines[next]);
+    }
+  }
+  return uniquePaths(picked.flatMap((line) => backticked(line)));
 }
 
 /**
@@ -130,7 +147,7 @@ export function parallelSafety(ticket, inFlight) {
   if (mine.length === 0) return { value: "isolated", source: "derived", reason: "the ticket names no Relevant area" };
 
   let shared = null;
-  for (const other of [...others].sort((a, b) => a.key.localeCompare(b.key, "en"))) {
+  for (const other of [...others].sort((a, b) => compareKeys(a.key, b.key))) {
     for (const theirs of relevantAreas(other.body)) {
       for (const path of mine) {
         if (path === theirs && isFile(path)) {
@@ -153,21 +170,50 @@ function uniquePaths(tokens) {
   const paths = new Set();
   for (const token of tokens) {
     if (!looksLikePath(token)) continue;
-    paths.add(normalise(token));
+    for (const expanded of expandBraces(token)) {
+      const path = normalise(expanded);
+      if (path !== "") paths.add(path);
+    }
   }
   return [...paths].sort();
 }
 
+/**
+ * A backticked token that names a repository path. Not a URL, not a version
+ * or ticket key (`53.2`, `v1.2.3`), and not an identifier with a slash in it
+ * such as `pathfinder.execution-profile/1`: a path's first segment carries no
+ * dot unless it is a dot-directory like `.github`.
+ */
 function looksLikePath(token) {
-  return token.includes("/") || /\.[a-z0-9]+$/i.test(token);
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(token)) return false;
+  if (/^v?\d+(?:\.\d+)+$/.test(token)) return false;
+  const first = token.replace(/^\.\//, "").split("/")[0];
+  if (token.includes("/")) return !/^[^.][^/]*\.[^/]*$/.test(first) || first === "";
+  return /\.[a-z][a-z0-9]*$/i.test(token);
 }
 
+/** `src/{a,b}.mjs` → `src/a.mjs`, `src/b.mjs`. One brace group at a time. */
+function expandBraces(token) {
+  const match = /\{([^{}]*)\}/.exec(token);
+  if (!match) return [token];
+  return match[1]
+    .split(",")
+    .flatMap((part) => expandBraces(token.slice(0, match.index) + part + token.slice(match.index + match[0].length)));
+}
+
+/**
+ * A comparable path: no leading `./`, no trailing `/`, and a glob cut back to
+ * the directory it ranges over — `packages/*\/test/` is `packages`, and a
+ * pattern with no literal directory (`**\/*.md`) names nothing.
+ */
 function normalise(token) {
-  return token
-    .replace(/\{[^}]*\}/g, "")
-    .replace(/\/\*\*?$/, "")
-    .replace(/\*.*$/, "")
-    .replace(/\/+$/, "");
+  const segments = token.replace(/^(?:\.\/)+/, "").split("/");
+  const literal = [];
+  for (const segment of segments) {
+    if (/[*?[\]]/.test(segment)) break;
+    literal.push(segment);
+  }
+  return literal.join("/").replace(/\/+$/, "");
 }
 
 function isFile(path) {

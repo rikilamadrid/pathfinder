@@ -148,7 +148,16 @@ export function parseProfile(text) {
   }
 
   const checked = validateProfile(profile);
-  return checked.ok ? { ok: true, profile } : checked;
+  if (!checked.ok) return checked;
+
+  // Exactly what the writer writes, and nothing it would not: a duplicated
+  // key, an unquoted reason, or reordered fields re-renders differently and is
+  // refused, so a hand edit cannot quietly change what a claim recorded.
+  const canonical = renderProfile(profile);
+  if (String(text).replace(/\r\n/g, "\n").replace(/\n*$/, "\n") !== canonical) {
+    return { ok: false, errors: ["the profile is not in the exact form the engine writes"] };
+  }
+  return { ok: true, profile };
 }
 
 function unquote(value) {

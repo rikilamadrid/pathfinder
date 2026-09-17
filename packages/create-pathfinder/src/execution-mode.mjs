@@ -47,6 +47,18 @@ export const EXECUTION_MODE_MARKER = "pathfinder:execution-mode";
  */
 const MARKER_PATTERN = new RegExp(`^<!--\\s*${EXECUTION_MODE_MARKER}\\s+(\\S+)\\s*-->$`);
 
+/** The optional routing-policy marker orchestration reads beside the mode. */
+const ROUTING_POLICY_PATTERN = /^<!--\s*pathfinder:routing-policy\s+([a-z0-9][a-z0-9._-]*)\s*-->$/;
+
+/** The routing policy a file names on its own marker line, or null. */
+export function readRoutingPolicyMarker(content) {
+  for (const line of String(content ?? "").split(/\r?\n/)) {
+    const match = ROUTING_POLICY_PATTERN.exec(line.trim());
+    if (match) return match[1];
+  }
+  return null;
+}
+
 /** The question, as the user reads it. Exported so tests assert on it rather than paraphrase it. */
 export const EXECUTION_MODE_QUESTION = "How should Pathfinder run this project?";
 
@@ -138,7 +150,7 @@ export function effectiveExecutionMode(reading) {
  * @param {string} mode one of EXECUTION_MODES
  * @returns {string}
  */
-export function renderExecutionMode(mode) {
+export function renderExecutionMode(mode, { routingPolicy = null } = {}) {
   if (!isExecutionMode(mode)) {
     throw new Error(`renderExecutionMode: unknown execution mode \`${mode}\``);
   }
@@ -161,6 +173,7 @@ export function renderExecutionMode(mode) {
     "# Execution Mode",
     "",
     `<!-- ${EXECUTION_MODE_MARKER} ${mode} -->`,
+    ...(routingPolicy ? [`<!-- pathfinder:routing-policy ${routingPolicy} -->`] : []),
     "",
     ...meaning,
     "",
@@ -197,8 +210,11 @@ export function renderExecutionMode(mode) {
 export function planExecutionMode({ targetRoot, mode, force = false }) {
   const relativePath = EXECUTION_MODE_PATH;
   const destination = join(targetRoot, ...relativePath.split("/"));
-  const contents = renderExecutionMode(mode);
   const existing = readExisting(destination);
+  // A routing policy the project chose survives a mode change: rewriting the
+  // mode is not a decision about routing.
+  const routingPolicy = isPathfinderExecutionMode(existing.content) ? readRoutingPolicyMarker(existing.content) : null;
+  const contents = renderExecutionMode(mode, { routingPolicy });
 
   if (existing.unreadable) {
     return {

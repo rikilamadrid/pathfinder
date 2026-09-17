@@ -160,7 +160,7 @@ async function estimate({ root, store: storeOverride, gh, key, assessment, json 
   const ticket = read.tickets.find((entry) => entry.key === key);
   if (!ticket) return fail(1, `no ticket ${key} in ${describeStore(store)}`);
   const routed = await profileFor({ root, ticket, tickets: read.tickets, assessment });
-  if (!routed.ok) return fail(1, routed.message);
+  if (!routed.ok) return fail(routed.usage ? 2 : 1, routed.message);
   process.stdout.write(json ? JSON.stringify(routed.profile, null, 2) + "\n" : renderProfile(routed.profile));
   return 0;
 }
