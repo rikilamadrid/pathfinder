@@ -13,3 +13,8 @@ once and proceeds human-in-the-loop, and orchestration refuses to run.
 
 To change mode, run `npx create-pathfinder --mode <value>` again, or edit the
 marker line by hand. Nothing else needs to change.
+
+In orchestrator mode an optional second line,
+`<!-- pathfinder:routing-policy <name> -->`, names the routing policy that
+chooses each worker's role, model, and effort. Without it the policy is
+`static`.

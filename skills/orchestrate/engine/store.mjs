@@ -100,8 +100,8 @@ export function describeStore(store) {
  * Every ticket in the store.
  *
  * @returns {{ok: true, tickets: Ticket[]} | {ok: false, message: string}}
- * @typedef {{key: string, title: string, status: string, blockers: string[],
- *            ref: string, number: number|null}} Ticket
+ * @typedef {{key: string, title: string, status: string, problem: string|null,
+ *            blockers: string[], ref: string, number: number|null, body: string}} Ticket
  */
 export function readTickets(root, store, { gh = "gh" } = {}) {
   if (store.kind === "local") return readLocalTickets(root);
@@ -128,6 +128,7 @@ function readLocalTickets(root) {
       blockers: blockersOf(text),
       ref: `${LOCAL_TICKETS_DIR}/${name}`,
       number: null,
+      body: text,
     });
   }
   return { ok: true, tickets: sortTickets(tickets) };
@@ -176,6 +177,7 @@ function readGitHubTickets(repo, { gh }) {
       blockers: blockersOf(body),
       ref: `#${issue.number}`,
       number: issue.number,
+      body,
     });
   }
   return { ok: true, tickets: sortTickets(tickets) };
@@ -244,8 +246,8 @@ function firstHeading(text) {
   return match ? match[1].trim() : null;
 }
 
-/** The body of a `## Heading` section, up to the next `## `. */
-function section(text, heading) {
+/** The body of a `## Heading` section, up to the next `## `, or null. */
+export function section(text, heading) {
   // JavaScript has no `\\Z`; `(?![\\s\\S])` is end of input.
   // Headings match ignoring case: `## Blocked By` is the same section, and
   // missing it would silently drop every edge.

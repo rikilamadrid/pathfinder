@@ -6,6 +6,8 @@
  *   node bin/orchestrate.mjs claim  <key> [--slug <slug>] [--now <iso>] [--json]
  *   node bin/orchestrate.mjs owner  <key> [--json]
  *   node bin/orchestrate.mjs status [--feature NN] [--live a,b] [--json]
+ *   node bin/orchestrate.mjs estimate <key> [--risk <v> --reason <text>] [--json]
+ *   node bin/orchestrate.mjs brief <key> --harness <id> [--session <s>] [--approval <text>] [--json]
  *
  * Every command takes `--root <dir>` (default: the repository containing the
  * working directory), `--store <spec>` to override `context/tracker.md`
@@ -27,6 +29,10 @@ import { realpathSync } from "node:fs";
 import { join } from "node:path";
 
 import { computeBoard, formatBoard } from "../board.mjs";
+import { buildBrief, formatBrief, translateBrief } from "../brief.mjs";
+import { renderProfile } from "../profile.mjs";
+import { loadPolicy, runPolicy } from "../policies/registry.mjs";
+import { profileFor } from "../route.mjs";
 import { claim } from "../claim.mjs";
 import { claimFor } from "../claims.mjs";
 import { canonical, checkoutRoot, repositoryRoot } from "../git.mjs";
@@ -56,10 +62,22 @@ const USAGE = `orchestrate
       The operator's view: one row per ticket. Claims not named in --live are
       stale unless their state file says done or failed.
 
+  estimate <key> [--risk low|medium|high --reason <text>] [--json]
+      The ticket's execution profile: derived complexity, context and
+      parallel safety against the tickets other workers hold, risk derived or
+      assessed with its reason, and the selection the routing policy makes.
+      Reads only.
+
+  brief <key> --harness claude-code|manual [--session implementation|review]
+        [--approval <text>] [--json]
+      The worker brief for a claimed ticket, from the profile its claim
+      recorded, and how that harness would honour it. Refuses a model or
+      effort the harness cannot honour, by name. Reads only.
+
   Common: --root <dir>  --store local|github-issues:owner/repo  --gh <path>
 `;
 
-function main(argv) {
+async function main(argv) {
   const { command, positional, flags, error } = parse(argv);
   if (error) return fail(2, `${error}\n\n${USAGE}`);
   if (!command || flags.help) {
@@ -79,7 +97,33 @@ function main(argv) {
       return board({ ...common, feature: flags.feature ?? null, json: Boolean(flags.json) });
     case "claim":
       if (!isKey(positional[0])) return fail(2, `claim needs a ticket key such as 53.2\n\n${USAGE}`);
-      return doClaim({ ...common, key: positional[0], slug: flags.slug ?? null, now: flags.now, json: Boolean(flags.json) });
+      return doClaim({
+        ...common,
+        key: positional[0],
+        slug: flags.slug ?? null,
+        now: flags.now,
+        assessment: { risk: flags.risk ?? null, reason: flags.reason ?? null },
+        json: Boolean(flags.json),
+      });
+    case "estimate":
+      if (!isKey(positional[0])) return fail(2, `estimate needs a ticket key such as 53.2\n\n${USAGE}`);
+      return estimate({
+        ...common,
+        key: positional[0],
+        assessment: { risk: flags.risk ?? null, reason: flags.reason ?? null },
+        json: Boolean(flags.json),
+      });
+    case "brief":
+      if (!isKey(positional[0])) return fail(2, `brief needs a ticket key such as 53.2\n\n${USAGE}`);
+      if (!flags.harness) return fail(2, `brief needs --harness\n\n${USAGE}`);
+      return brief({
+        root,
+        key: positional[0],
+        harness: flags.harness,
+        session: flags.session ?? "implementation",
+        approval: flags.approval ?? "as granted by the orchestration run that dispatches this worker",
+        json: Boolean(flags.json),
+      });
     case "owner":
       if (!isKey(positional[0])) return fail(2, `owner needs a ticket key such as 53.2\n\n${USAGE}`);
       return owner({ root, key: positional[0], json: Boolean(flags.json) });
@@ -101,15 +145,68 @@ function board({ root, store: storeOverride, gh, feature, json }) {
   if (!read.ok) return fail(1, read.message);
   const rows = computeBoard(read.tickets, { feature });
   if (json) {
-    process.stdout.write(JSON.stringify({ store: describeStore(store), tickets: rows }, null, 2) + "\n");
+    const tickets = rows.map(({ body, ...row }) => row);
+    process.stdout.write(JSON.stringify({ store: describeStore(store), tickets }, null, 2) + "\n");
   } else {
     process.stdout.write(`Store: ${describeStore(store)}\n\n${formatBoard(rows)}`);
   }
   return 0;
 }
 
-function doClaim({ root, store, gh, key, slug, now, json }) {
-  const result = claim({ root, key, slug, store, gh, ...(now ? { now } : {}) });
+async function estimate({ root, store: storeOverride, gh, key, assessment, json }) {
+  const store = resolveStore(root, { override: storeOverride });
+  const read = readTickets(root, store, { gh });
+  if (!read.ok) return fail(1, read.message);
+  const ticket = read.tickets.find((entry) => entry.key === key);
+  if (!ticket) return fail(1, `no ticket ${key} in ${describeStore(store)}`);
+  const routed = await profileFor({ root, ticket, tickets: read.tickets, assessment });
+  if (!routed.ok) return fail(1, routed.message);
+  process.stdout.write(json ? JSON.stringify(routed.profile, null, 2) + "\n" : renderProfile(routed.profile));
+  return 0;
+}
+
+async function brief({ root, key, harness, session, approval, json }) {
+  const found = claimFor(root, key);
+  if (!found || found.orphan) return fail(1, `${key} has no registered claim to brief`);
+  if (!found.profile) {
+    return fail(1, `${key}'s state file carries no valid execution profile${found.profileError ? `: ${found.profileError}` : ""}`);
+  }
+
+  // The implementation selection is the one the claim recorded. A review
+  // session asks the same policy again, from the same recorded estimate, so a
+  // brief never depends on anything the claim did not write down.
+  let selection = found.profile.selection;
+  if (session !== "implementation") {
+    const policy = await loadPolicy(selection.policy);
+    if (!policy.ok) return fail(1, policy.message);
+    const selected = runPolicy(policy, found.profile.estimate, { session, root });
+    if (!selected.ok) return fail(selected.message.startsWith("session must") ? 2 : 1, selected.message);
+    selection = selected.selection;
+  }
+
+  const built = buildBrief({
+    ticket: key,
+    title: found.title ?? key,
+    ref: found.ref ?? key,
+    session,
+    worktree: found.worktree,
+    branch: found.branch,
+    selection,
+    approval,
+  });
+  if (!built.ok) return fail(1, built.message);
+
+  const translated = translateBrief(built.brief, harness);
+  if (!translated.ok) return fail(1, translated.message);
+
+  process.stdout.write(
+    json ? JSON.stringify({ brief: built.brief, translation: translated }, null, 2) + "\n" : formatBrief(built.brief),
+  );
+  return 0;
+}
+
+async function doClaim({ root, store, gh, key, slug, now, assessment, json }) {
+  const result = await claim({ root, key, slug, store, gh, assessment, ...(now ? { now } : {}) });
   if (!result.ok) return fail(result.usage ? 2 : 1, result.message);
   if (json) {
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
@@ -169,7 +266,9 @@ function parse(argv) {
   const flags = {};
   const positional = [];
   let command = null;
-  const valued = new Set(["root", "store", "gh", "feature", "slug", "now", "live"]);
+  const valued = new Set([
+    "root", "store", "gh", "feature", "slug", "now", "live", "risk", "reason", "harness", "session", "approval",
+  ]);
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -195,4 +294,4 @@ function parse(argv) {
   return { command, positional, flags, error: null };
 }
 
-process.exitCode = main(process.argv.slice(2));
+process.exitCode = await main(process.argv.slice(2));

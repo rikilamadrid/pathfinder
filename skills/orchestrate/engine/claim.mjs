@@ -30,6 +30,8 @@ import { computeBoard } from "./board.mjs";
 import { BRANCH_PREFIX, WORKTREES_DIR, claimFor } from "./claims.mjs";
 import { createClaimRef, defaultBranch, deleteClaimRef, git, isIgnored, resolveRef } from "./git.mjs";
 import { orchestratorRefusal } from "./mode.mjs";
+import { renderProfile } from "./profile.mjs";
+import { profileFor } from "./route.mjs";
 import { slugify } from "./keys.mjs";
 import { describeStore, readTickets, resolveStore } from "./store.mjs";
 
@@ -47,7 +49,15 @@ import { describeStore, readTickets, resolveStore } from "./store.mjs";
  */
 export const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/;
 
-export function claim({ root, key, slug = null, now = new Date().toISOString(), store: storeOverride = null, gh = "gh" }) {
+export async function claim({
+  root,
+  key,
+  slug = null,
+  now = new Date().toISOString(),
+  store: storeOverride = null,
+  gh = "gh",
+  assessment = {},
+}) {
   if (slug !== null && !SLUG_PATTERN.test(slug)) {
     return {
       ok: false,
@@ -96,6 +106,11 @@ export function claim({ root, key, slug = null, now = new Date().toISOString(), 
 
   if (!row.eligible) return { ok: false, message: `refusing to claim ${key}: ${row.reason}` };
 
+  // The profile before any write. A policy that cannot be loaded or makes a
+  // choice nothing could act on refuses the claim with nothing to undo.
+  const routed = await profileFor({ root, ticket: row, tickets: read.tickets, assessment });
+  if (!routed.ok) return { ok: false, message: `refusing to claim ${key}: ${routed.message}` };
+
   const base = defaultBranch(root);
   if (!base) return { ok: false, message: "refusing to claim: no default branch (main or master) to start from" };
 
@@ -141,11 +156,20 @@ export function claim({ root, key, slug = null, now = new Date().toISOString(), 
     return { ok: false, message: `refusing to claim ${key}: git worktree add failed: ${added.message}` };
   }
 
-  const state = seedStateFile({ key, title: row.title, ref: row.ref, store: describeStore(store), worktree, branch, now });
+  const state = seedStateFile({
+    key,
+    title: row.title,
+    ref: row.ref,
+    store: describeStore(store),
+    worktree,
+    branch,
+    now,
+    profile: routed.profile,
+  });
   mkdirSync(join(path, "context"), { recursive: true });
   writeFileSync(join(path, "context", "current-ticket.md"), state, "utf8");
 
-  return { ok: true, key, worktree, branch, path, base };
+  return { ok: true, key, worktree, branch, path, base, profile: routed.profile };
 }
 
 /** One sentence naming who or what already holds a ticket. */
@@ -170,7 +194,7 @@ export function describeOwner(existing) {
  * is the one timestamp, and it is data the claim writes, not something a
  * later `status` run reads from the clock.
  */
-export function seedStateFile({ key, title, ref, store, worktree, branch, now }) {
+export function seedStateFile({ key, title, ref, store, worktree, branch, now, profile }) {
   return [
     "# Current Ticket",
     "",
@@ -186,6 +210,12 @@ export function seedStateFile({ key, title, ref, store, worktree, branch, now })
     `- Git: branch ${branch}, clean`,
     "- Blocker: none",
     `- Next: /ticket load ${key}, then /ticket start`,
+    "",
+    "## Execution",
+    "",
+    "```yaml",
+    renderProfile(profile).trimEnd(),
+    "```",
     "",
   ].join("\n");
 }

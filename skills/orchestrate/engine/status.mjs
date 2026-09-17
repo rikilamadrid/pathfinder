@@ -103,7 +103,10 @@ function toRow(ticket, claim, liveSet) {
   };
 
   if (claim) {
-    row.worker = claim.orphan ? "—" : claim.worker ?? claim.key;
+    // The worker column names the worker and the role its profile chose, so the
+    // view says who is doing a ticket in the same breath as how.
+    const role = claim.profile?.selection.role;
+    row.worker = claim.orphan ? "—" : `${claim.worker ?? claim.key}${role ? ` ${role}` : ""}`;
     row.where = claim.orphan ? "—" : `${claim.branch ?? "?"} @ ${claim.worktree}`;
     row.last = claim.updated ? `${claim.updated}${claim.next ? " · " + claim.next : ""}` : claim.next ?? "—";
     if (claim.gate) row.gate = claim.gate;

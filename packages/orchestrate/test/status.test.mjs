@@ -70,7 +70,7 @@ describe("the state vocabulary", () => {
     const rows = rowsOf(root, ["--live", "1.1,1.2"]);
 
     assert.equal(rows["1.1"].state, "working");
-    assert.equal(rows["1.1"].worker, "1.1");
+    assert.equal(rows["1.1"].worker, "1.1 developer", "the worker and the role its profile chose");
     assert.equal(rows["1.1"].where, "ticket/1.1-alpha @ .pathfinder/worktrees/1.1");
     assert.match(rows["1.1"].last, new RegExp(NOW.replaceAll(".", "\\.")));
     assert.equal(rows["1.2"].state, "working");
@@ -189,7 +189,7 @@ describe("the table", () => {
     assert.equal(lines[0], "Pathfinder orchestration — mode: orchestrator — store: local Markdown (context/tickets/)");
     assert.equal(lines[1], "");
     assert.match(lines[2], /^WORKER +TICKET +LIFECYCLE +STATE +BRANCH \/ WORKTREE +GATE \/ BLOCKER +LAST$/);
-    assert.match(lines[3], /^1\.1 +1\.1 +Proposed +working +ticket\/1\.1-alpha @ \.pathfinder\/worktrees\/1\.1 /);
+    assert.match(lines[3], /^1\.1 developer +1\.1 +Proposed +working +ticket\/1\.1-alpha @ \.pathfinder\/worktrees\/1\.1 /);
     assert.match(lines[5], /^— +1\.3 +Proposed +blocked +— +blocked by 1\.1/);
     const stateColumn = lines[2].indexOf("STATE");
     for (const line of lines.slice(3, 8)) assert.notEqual(line[stateColumn - 1], undefined);
