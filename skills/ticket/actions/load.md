@@ -8,7 +8,10 @@ Unless the human explicitly activated a role, assume `developer` for this
 invocation: read `roles/developer.md` and follow it. An explicit role overrides
 this default. A role narrows responsibility and never grants human authority.
 
-1. Resolve the ticket store. Read `skills/ticket/store.md` and follow it.
+1. Resolve the ticket store. Read `skills/ticket/store.md` and follow it. Then
+   read the execution mode as `skills/ticket/SKILL.md` §Execution mode says.
+   An invalid file is reported here, once, and the load proceeds as
+   `human-in-the-loop`.
 2. Select the ticket the human named, by key. If none was named, list the ready
    tickets — see Readiness below — and stop.
 3. Read the ticket.
@@ -40,6 +43,7 @@ this default. A role narrows responsibility and never grants human authority.
     first load writes it — with:
     - ticket key, title, and where it is in the store
     - parent Feature number, name, and spec path
+    - execution mode, as read in step 1
     - Git state
     - blocker, if any
     - next action

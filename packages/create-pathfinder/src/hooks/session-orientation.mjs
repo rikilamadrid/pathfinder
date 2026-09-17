@@ -83,6 +83,7 @@ function availability(root) {
   file("project-overview.md");
   file("history.md");
   file("tracker.md");
+  file("execution-mode.md");
   file("handoff.md");
   for (const directory of ["features", "tickets"]) {
     const path = join(root, "context", directory);
@@ -99,7 +100,7 @@ function availability(root) {
   return marks.join(" · ");
 }
 
-/** The one file whereami reads, quoted verbatim and bounded. */
+/** The file whereami quotes for Feature, ticket, and next action, verbatim and bounded. */
 function currentTicketExcerpt(root) {
   const path = join(root, "context", "current-ticket.md");
   if (!existsSync(path)) return { present: false, text: null, truncated: false };

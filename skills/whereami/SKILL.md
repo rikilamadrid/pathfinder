@@ -17,15 +17,19 @@ action. It reports state. It never changes it.
    so a previous `ticket` or planning action does not persist a role for
    `whereami`. Roles are never written to disk. Do not infer one from the
    current ticket or search `roles/`.
-2. Read `context/current-ticket.md` if it exists.
+2. Mode: read `context/execution-mode.md` if it exists and take the value from
+   its marker line, as `skills/ticket/SKILL.md` §Execution mode defines it.
+   Report `human-in-the-loop` when the file is missing, and `invalid` when the
+   file exists without a valid marker. Do not infer a mode from anything else.
+3. Read `context/current-ticket.md` if it exists.
    Take Ticket, Feature, and Next from it verbatim. The ticket key and the
    Feature number are the ones recorded there, from their filenames.
    If the file is missing or still holds template placeholders, report `none`.
-3. Run `git status --short --branch` once.
+4. Run `git status --short --branch` once.
    Report the branch/ref, and `clean` or the count of changed paths.
-4. Compare the Git section of `context/current-ticket.md` with step 3.
+5. Compare the Git section of `context/current-ticket.md` with step 4.
    Report a drift line only if the recorded branch differs from the real one.
-5. Context telemetry: report it only if this harness exposes it.
+6. Context telemetry: report it only if this harness exposes it.
    Otherwise `unavailable`. Do not estimate.
 
 ## Output
@@ -34,6 +38,7 @@ Exactly this shape, one line each:
 
 ```
 Role:    <role | none>
+Mode:    <human-in-the-loop | orchestrator | invalid>
 Feature: <## — name | none>
 Ticket:  <key and name | none>
 Git:     <branch/ref> — <clean | N changed>
@@ -41,7 +46,7 @@ Context: <telemetry | unavailable>
 Next:    <single next action | none>
 ```
 
-Add at most one line after it, and only when step 4 found drift:
+Add at most one line after it, and only when step 5 found drift:
 
 ```
 Drift:   current-ticket.md records <branch>, working tree is on <branch>
@@ -52,9 +57,11 @@ Then stop.
 ## Rules
 
 - Read only. No writes, no commits, no `git` command that mutates anything.
-- Read at most one file: `context/current-ticket.md`.
+- Read at most two files: `context/execution-mode.md` and
+  `context/current-ticket.md`.
 - Do not open the ticket, the feature spec, history, roadmap, or source.
-- Report `none` or `unavailable` instead of inferring a missing value.
+- Report `none`, `unavailable`, or `invalid` instead of inferring a missing
+  value.
 - Do not offer to fix drift, update state, or start the next action.
   The human decides what happens after the snapshot.
 
@@ -64,6 +71,7 @@ Then stop.
 
 ```
 Role:    developer
+Mode:    human-in-the-loop
 Feature: 12 — export saved searches
 Ticket:  12.2 — CSV writer
 Git:     feature/12-export-saved-searches — 3 changed
@@ -77,6 +85,7 @@ Do not do this:
 
 ```
 Role:    developer (inferred from recent commits)
+Mode:    orchestrator (the project has several branches)
 Feature: 12 — export saved searches
 Ticket:  12.3 — probably the download endpoint
 Git:     feature/12-export-saved-searches — 3 changed
@@ -84,6 +93,6 @@ Context: ~60% used
 Next:    I can update current-ticket.md and start ticket 12.3 — want me to?
 ```
 
-It guesses the role from history, invents a ticket that was never written,
-estimates telemetry it cannot see, and turns a status report into a proposal
-to write state.
+It guesses the role from history, guesses the mode from the branch list,
+invents a ticket that was never written, estimates telemetry it cannot see, and
+turns a status report into a proposal to write state.

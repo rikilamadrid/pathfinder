@@ -42,11 +42,16 @@
  *   the session hook handler plan and result, shaped exactly like `adapters`.
  *   Optional, and absent means "no handler was planned" — a harness with no
  *   lifecycle event has none, which is the ordinary case rather than an error.
+ * @param {{action: string|null, mode: string|null, relativePath: string,
+ *          errors: {relativePath: string, message: string}[]}} [args.mode]
+ *   what this run did to `context/execution-mode.md`. Optional, and absent
+ *   means nothing was asked and nothing was flagged, which is every scripted
+ *   run and every re-run over a project that already recorded its mode.
  * @param {{label: string}[]} args.harnesses the selected harnesses, registry order
  * @param {{dryRun?: boolean}} args.options
  * @returns {Readonly<object>} frozen; rows and lists frozen with it
  */
-export function summarize({ plan, result, adapters, hooks = NO_HOOKS, harnesses, options }) {
+export function summarize({ plan, result, adapters, hooks = NO_HOOKS, mode = NO_MODE, harnesses, options }) {
   // A dry run has no `result.written` to report, because nothing was written.
   // The plan is counted instead, which is the same number the run would have
   // produced had it been allowed to write.
@@ -63,6 +68,7 @@ export function summarize({ plan, result, adapters, hooks = NO_HOOKS, harnesses,
   // printed.
   const failures = Object.freeze([
     ...result.errors,
+    ...mode.errors,
     ...adapters.result.errors,
     ...hooks.result.errors,
   ]);
@@ -85,10 +91,24 @@ export function summarize({ plan, result, adapters, hooks = NO_HOOKS, harnesses,
     // activates it — so adding one to the adapter count would make the closing
     // line state a number that is not true.
     handlers: hooks.result.generated + hooks.result.replaced,
-    attention: attentionCount(adapters) + attentionCount(hooks),
+    // A mode file Pathfinder did not write, sitting where it would record the
+    // answer, wants a human exactly as a conflicted adapter does.
+    attention: attentionCount(adapters) + attentionCount(hooks) + (mode.action === "conflict" ? 1 : 0),
     harnessRows: harnessRows({ adapters, hooks, harnesses }),
+    // Null action means the run had nothing to say about the mode file. The
+    // renderings print nothing for it, which is what keeps a scripted run's
+    // bytes exactly what they were.
+    mode: Object.freeze({ action: mode.action, value: mode.mode, relativePath: mode.relativePath }),
   });
 }
+
+/** What a run that neither asked about nor was told the execution mode looks like. */
+const NO_MODE = Object.freeze({
+  action: null,
+  mode: null,
+  relativePath: "context/execution-mode.md",
+  errors: Object.freeze([]),
+});
 
 /**
  * What a run with no hook plan looks like.

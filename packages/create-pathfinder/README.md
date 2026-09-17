@@ -92,6 +92,9 @@ context/
 └── coding-standards.md
 ```
 
+plus `context/execution-mode.md` when you answered the execution-mode question
+or passed `--mode` — see [Execution mode](#execution-mode) below.
+
 Other context files are created lazily by the workflow that needs them.
 
 Pathfinder does not copy its own repository `README.md`, `CHANGELOG.md`, CI
@@ -301,6 +304,50 @@ Without an interactive terminal, no tool adapters are generated unless
 
 An unknown agent id exits 2 rather than quietly installing nothing.
 
+## Execution mode
+
+Pathfinder runs a project in one of two modes, and records the choice in the
+project rather than on the machine:
+
+| Mode | What it means |
+| --- | --- |
+| `human-in-the-loop` | One ticket at a time, one session, with explicit human control. The default, and what a project with no mode file runs. |
+| `orchestrator` | Several dependency-safe ticket workers at once, each in its own Git worktree, with every human gate kept. |
+
+In an interactive terminal, a project that has not recorded a mode is asked
+once, after the tools question:
+
+```text
+? How should Pathfinder run this project?
+
+❯ Human-in-the-loop  -> one ticket at a time, with explicit human control
+  Orchestrator       -> several dependency-safe ticket workers at once, every human gate kept
+
+  ↑↓ move   enter confirm
+```
+
+Either answer writes `context/execution-mode.md`. Its one marker line is the
+value Pathfinder reads; the rest of the file is for people:
+
+```text
+<!-- pathfinder:execution-mode human-in-the-loop -->
+```
+
+Track that file. A project with no file at all runs human-in-the-loop, so a
+project installed before the question existed needs nothing.
+
+Without a terminal, or to change the mode later:
+
+```bash
+npx create-pathfinder --mode orchestrator
+```
+
+`--mode` rewrites a mode file Pathfinder wrote, and is the way to switch. A
+file at that path that Pathfinder did not write is left alone and reported;
+pass `--force` to replace it. An unknown value exits 2. Without `--mode`, a
+scripted run records nothing, which means human-in-the-loop, and prints exactly
+what it always did.
+
 ## The Kickstart prompt
 
 Every successful install prints the prompt that starts Pathfinder.
@@ -398,6 +445,7 @@ one. Pathfinder reports the project directory so you can open it yourself.
 | `--agents <ids>` | Generate adapters for comma-separated supported tools. Valid ids: `claude-code`, `codex`. Alias: `--agent` |
 | `--dry-run` | Show what would happen without changing anything |
 | `--force` | Overwrite files that already exist, and replace a file you wrote at a path an adapter would occupy. Off by default |
+| `--mode <mode>` | Record how Pathfinder runs the project in `context/execution-mode.md`: `human-in-the-loop` or `orchestrator`. Re-run with it to change the mode |
 | `--git-init` | Initialize Git if the current directory is not already in a repository |
 | `--no-git-init` | Never initialize Git; refuse installation instead |
 | `--no-clipboard` | Never offer to copy the Kickstart prompt |
@@ -452,6 +500,7 @@ In CI, redirected, or piped execution:
 - no interactive questions are shown
 - Git initialization requires `--git-init`
 - adapters require `--agents`
+- the execution mode is recorded only with `--mode`
 - the clipboard is untouched
 - no editor is launched
 

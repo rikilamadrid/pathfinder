@@ -211,6 +211,16 @@ async function invoke(
 /** The question, as the user reads it. Asserted on rather than paraphrased. */
 const CLIPBOARD_QUESTION = "Copy that prompt to your clipboard? This replaces what is on it now.";
 
+/**
+ * Asked before the summary in every interactive run over a project with no
+ * recorded mode. The scripted prompter answers it with nobody-there, so no
+ * mode file is ever written here and a second run asks again — which is why
+ * it appears first in every interactive `asked` list below, and never in a
+ * `--yes` or non-interactive one. `test/execution-mode.test.mjs` owns what the
+ * question does; this file only records that it was asked, in order.
+ */
+const MODE_QUESTION = "How should Pathfinder run this project?";
+
 describe("the clipboard offer — consent", () => {
   it("copies the prompt when the offer is accepted", async () => {
     const cwd = makeRepository();
@@ -302,7 +312,7 @@ describe("the clipboard offer — consent", () => {
     assert.equal(code, 0);
     assert.match(out, /The kit is already installed here\./);
     assert.match(out, /Next step — give your agent this prompt:\n\n {2}\/kickstart-pathfinder\n/);
-    assert.deepEqual(prompter.asked, [CLIPBOARD_QUESTION]);
+    assert.deepEqual(prompter.asked, [MODE_QUESTION, CLIPBOARD_QUESTION]);
     assert.equal(clipboard.contents(), "/kickstart-pathfinder");
   });
 
@@ -347,7 +357,7 @@ describe("the clipboard offer — when it is not made at all", () => {
     });
 
     assert.equal(code, 0);
-    assert.deepEqual(prompter.asked, []);
+    assert.deepEqual(prompter.asked, [MODE_QUESTION]);
     assert.equal(clipboard.contents(), null);
     // The flag suppresses the offer, not the prompt.
     assert.match(out, /Use skills\/kickstart-pathfinder\/SKILL\.md/);
@@ -377,7 +387,7 @@ describe("the clipboard offer — when it is not made at all", () => {
     });
 
     assert.equal(code, 0);
-    assert.deepEqual(prompter.asked, []);
+    assert.deepEqual(prompter.asked, [MODE_QUESTION]);
     assert.equal(clipboard.contents(), null);
     assert.match(out, /Onboarding actions are not offered in a dry run; nothing was copied or opened\./);
   });
@@ -516,7 +526,7 @@ describe("the flags", () => {
     });
 
     assert.equal(code, 0);
-    assert.deepEqual(prompter.asked, [CLIPBOARD_QUESTION]);
+    assert.deepEqual(prompter.asked, [MODE_QUESTION, CLIPBOARD_QUESTION]);
     assert.equal(clipboard.contents(), kickstartPrompt([]));
     assert.equal(editor.arguments(), null);
   });
@@ -534,7 +544,7 @@ describe("the editor offer — what is asked, and of whom", () => {
     const { code } = await invoke([], { cwd, clipboardPath: clipboard.path, prompter });
 
     assert.equal(code, 0);
-    assert.deepEqual(prompter.asked, [CLIPBOARD_QUESTION]);
+    assert.deepEqual(prompter.asked, [MODE_QUESTION, CLIPBOARD_QUESTION]);
   });
 
   it("asks a yes/no naming the one editor it found", async () => {
@@ -551,7 +561,7 @@ describe("the editor offer — what is asked, and of whom", () => {
     });
 
     assert.equal(code, 0);
-    assert.deepEqual(prompter.asked, [CLIPBOARD_QUESTION, OPEN_QUESTION]);
+    assert.deepEqual(prompter.asked, [MODE_QUESTION, CLIPBOARD_QUESTION, OPEN_QUESTION]);
     assert.equal(editor.arguments(), null, "declining launched nothing");
   });
 
@@ -571,10 +581,15 @@ describe("the editor offer — what is asked, and of whom", () => {
     });
 
     assert.equal(code, 0);
-    assert.deepEqual(prompter.asked, [CLIPBOARD_QUESTION, "Open this project in an editor?"]);
+    assert.deepEqual(prompter.asked, [MODE_QUESTION, CLIPBOARD_QUESTION, "Open this project in an editor?"]);
     // Alphabetical, and VS Code is not first. The order is a fact about the
     // alphabet rather than a claim about which editor Pathfinder expects.
-    assert.deepEqual(prompter.offered, [["Cursor", "VS Code", "Don't open"]]);
+    // The mode question is the first single-choice list an interactive run
+    // offers; the editor list follows it.
+    assert.deepEqual(prompter.offered, [
+      ["Human-in-the-loop", "Orchestrator"],
+      ["Cursor", "VS Code", "Don't open"],
+    ]);
   });
 
   it("launches nothing when the numbered list is answered with Don't open", async () => {
@@ -749,7 +764,7 @@ describe("the editor offer — when it is not made at all", () => {
     });
 
     assert.equal(code, 0);
-    assert.deepEqual(prompter.asked, []);
+    assert.deepEqual(prompter.asked, [MODE_QUESTION]);
     assert.equal(editor.arguments(), null);
     assert.equal(clipboard.contents(), null);
     assert.match(out, /nothing was copied or opened\./);

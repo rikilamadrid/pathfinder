@@ -70,6 +70,9 @@ function forbiddenPrompter() {
     chooseMany: async () => {
       throw new Error("a question was asked with no terminal to answer it");
     },
+    chooseOne: async () => {
+      throw new Error("a question was asked with no terminal to answer it");
+    },
     text: async () => {
       throw new Error("a question was asked with no terminal to answer it");
     },
@@ -227,6 +230,40 @@ const MATRIX = [
     untouched: true,
   },
 
+  // --- The execution mode --------------------------------------------------
+  {
+    name: "--mode records the mode where no terminal could have been asked",
+    argv: ["--mode", "orchestrator", "--dry-run"],
+    where: "repository",
+    code: 0,
+    stdout: ["Execution mode to record: orchestrator (context/execution-mode.md)"],
+    untouched: true,
+  },
+  {
+    name: "without --mode a scripted run says nothing about a mode",
+    argv: ["--dry-run"],
+    where: "repository",
+    code: 0,
+    absent: ["Execution mode", "execution-mode.md"],
+    untouched: true,
+  },
+  {
+    name: "an unknown mode exits 2 naming both valid values",
+    argv: ["--mode", "autopilot"],
+    where: "repository",
+    code: 2,
+    stderr: ["unknown execution mode `autopilot`", "human-in-the-loop, orchestrator"],
+    untouched: true,
+  },
+  {
+    name: "--mode with no value exits 2",
+    argv: ["--mode"],
+    where: "repository",
+    code: 2,
+    stderr: ["`--mode` needs a value"],
+    untouched: true,
+  },
+
   // --- Arguments that never reach a decision -------------------------------
   {
     name: "contradicting flags exit 2 before anything is inspected",
@@ -275,6 +312,7 @@ describe("the non-interactive matrix", () => {
       // The two invariants that hold for the whole table. `forbiddenPrompter`
       // covers the first by throwing; this covers the second.
       assert.ok(!out.includes("Initialize a Git repository here?"), "printed a question");
+      assert.ok(!out.includes("How should Pathfinder run this project?"), "printed a question");
       assert.ok(!out.includes("[Y/n]"), "printed a prompt");
     });
   }

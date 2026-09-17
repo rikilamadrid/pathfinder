@@ -96,6 +96,8 @@ Keep durable truth in its appropriate project artifact.
   `context/tickets/`
 - completed outcomes:
   `context/history.md`
+- how Pathfinder runs the project, human-in-the-loop or orchestrator:
+  `context/execution-mode.md`
 - active workspace state:
   `context/current-ticket.md`
 - state handed to the next session:
@@ -120,6 +122,7 @@ context/features/
 context/tickets/ # only when local Markdown is the ticket store
 context/history.md
 context/tracker.md
+context/execution-mode.md
 ```
 
 **Ignore transient workspace state.** It is the answer to "what was I doing",
@@ -146,6 +149,11 @@ Ignore the two transient files by name.
 A team that would rather share workspace state — a single-machine project, or a
 handoff meant to be read by a colleague — can track them instead. Nothing in the
 kit reads Git state to decide how to behave.
+
+`context/execution-mode.md` is durable and tracked: it records, on one marker
+line, whether Pathfinder runs the project human-in-the-loop or as an
+orchestrator, and a project with no file runs human-in-the-loop. The installer
+writes it when asked or told; nothing else creates it.
 
 `context/tracker.md` is durable and tracked when the project selects a store
 other than local Markdown. With local Markdown, `context/tickets/` is durable

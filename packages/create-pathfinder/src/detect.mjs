@@ -24,6 +24,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { findGitRoot } from "./kit.mjs";
+import { readExecutionModeFile } from "./execution-mode.mjs";
 
 /**
  * The tools worth reporting, in the order they are reported.
@@ -78,6 +79,7 @@ const TOOLS = [
  * @returns {{
  *   git: {repositoryRoot: string|null, insideRepository: boolean, binary: boolean},
  *   pathfinder: {installed: boolean, skillCount: number},
+ *   executionMode: {present: boolean, mode: string|null, valid: boolean},
  *   tools: {id: string, label: string, detected: boolean}[],
  * }}
  */
@@ -92,6 +94,11 @@ export function detect({ cwd, env = {}, platform = process.platform } = {}) {
       binary: safe(() => onPath("git", env, platform), false),
     },
     pathfinder: safe(() => detectPathfinder(cwd), { installed: false, skillCount: 0 }),
+    // Read, never interpreted into a default here: the finding says what the
+    // file declares, and `cli.mjs` decides whether that means asking or not.
+    // An unreadable file reads as present-and-invalid rather than absent, so a
+    // permissions error can never look like a project with no mode recorded.
+    executionMode: safe(() => readExecutionModeFile(cwd), { present: false, mode: null, valid: false }),
     tools: TOOLS.map((tool) => ({
       id: tool.id,
       label: tool.label,
