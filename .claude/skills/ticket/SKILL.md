@@ -1,7 +1,7 @@
 ---
 name: ticket
 description: Run one action of the ticket delivery loop — load, start, review, or complete.
-argument-hint: load|start|review|complete
+argument-hint: load|start|review|complete [key]
 ---
 
 <!-- pathfinder:adapter v1 source=skills/ticket/SKILL.md -->

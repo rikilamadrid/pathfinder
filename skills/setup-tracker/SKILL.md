@@ -28,7 +28,9 @@ somewhere else instead.
    - where tickets are within it, when that is a choice the store offers
    - how a ticket carries its key, so a later run finds the ticket it created
    - for GitHub Issues, the store marker line `skills/ticket/store.md`
-     describes, so orchestration can read the store
+     describes, so orchestration can read the store, and the `gate: human`
+     label its orchestration notes use, when the project runs or may run in
+     orchestrator mode
 5. Show it to the human.
 6. Write it only after approval.
 

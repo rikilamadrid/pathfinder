@@ -564,7 +564,7 @@ describe("repairs from the 53.7 review", () => {
 
     const implementation = formatBrief(buildBrief({ ...BRIEF_BASE, selection: { role: "developer", model: "inherited", effort: "inherited" } }).brief);
     assert.match(implementation, /\/ticket load 1\.1, then \/ticket start/);
-    assert.match(buildBrief({ ...BRIEF_BASE, session: "deploy", selection: { role: "developer", model: "inherited", effort: "inherited" } }).message, /session must be implementation or review/);
+    assert.match(buildBrief({ ...BRIEF_BASE, session: "deploy", selection: { role: "developer", model: "inherited", effort: "inherited" } }).message, /session must be implementation, resume, review/);
   });
 
   it("reads the ticket shapes the estimate previously missed", () => {

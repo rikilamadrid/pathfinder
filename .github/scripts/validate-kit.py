@@ -107,6 +107,8 @@ LIFECYCLE_ROLE_ASSUMPTIONS = {
     "skills/ticket/actions/review.md": "tester",
     "skills/ticket/actions/complete.md": "developer",
     "skills/orchestrate/actions/status.md": "orchestrator",
+    "skills/orchestrate/actions/start.md": "orchestrator",
+    "skills/orchestrate/actions/resume.md": "orchestrator",
 }
 
 # The one statement of what a destination project receives. Everything else

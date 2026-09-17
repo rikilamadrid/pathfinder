@@ -1,7 +1,7 @@
 ---
 name: ticket
 description: Run one action of the ticket delivery loop — load, start, review, or complete.
-argument-hint: load|start|review|complete
+argument-hint: load|start|review|complete [key]
 ---
 
 # Ticket
@@ -11,7 +11,7 @@ The delivery loop, as one skill. The human names the action:
 `/ticket load <ticket>`
 `/ticket start`
 `/ticket review`
-`/ticket complete`
+`/ticket complete [<ticket>]`
 
 ## Process
 

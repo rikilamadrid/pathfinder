@@ -21,10 +21,13 @@ import { loadPolicy, runPolicy } from "./policies/registry.mjs";
  * @param {import("./store.mjs").Ticket[]} args.tickets every ticket in the store
  * @param {"implementation"|"review"} [args.session]
  * @param {{risk?: string|null, reason?: string|null}} [args.assessment]
+ * @param {object[]} [args.alsoInFlight] tickets selected earlier in the same plan
  * @returns {Promise<{ok: true, profile: object} | {ok: false, message: string}>}
  */
-export async function profileFor({ root, ticket, tickets, session = "implementation", assessment = {} }) {
-  const inFlight = inFlightTickets(root, tickets, ticket.key);
+export async function profileFor({ root, ticket, tickets, session = "implementation", assessment = {}, alsoInFlight = [] }) {
+  // Tickets a plan has already selected in this round count as in flight: two
+  // tickets dispatched together run together.
+  const inFlight = [...inFlightTickets(root, tickets, ticket.key), ...alsoInFlight.filter((other) => other && other.key !== ticket.key)];
 
   const estimated = estimateTicket(ticket, inFlight, assessment);
   if (!estimated.ok) return estimated;
