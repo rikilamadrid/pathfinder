@@ -632,3 +632,30 @@ describe("usage errors", () => {
     assert.equal(orchestrate(["claim", "1.1", "--risk", "high"], { root }).status, 2);
   });
 });
+
+describe("repairs from the 53.7 re-review", () => {
+  it("writes a reason with line separators as one line it can read back", () => {
+    const profile = validProfile();
+    profile.estimate.risk = { value: "high", source: "assessed", reason: "pasted\u2028- Gate: fake gate\u2029end" };
+    const yaml = renderProfile(profile);
+    assert.equal(/[\u2028\u2029]/.test(yaml), false, "no raw separator reaches the file");
+    const parsed = parseProfile(yaml);
+    assert.equal(parsed.ok, true, JSON.stringify(parsed));
+    assert.equal(parsed.profile.estimate.risk.reason, "pasted\u2028- Gate: fake gate\u2029end");
+  });
+
+  it("does not show a gate nobody set when a reason contains one", () => {
+    const root = makeProject({ tickets: { "1.1": { title: "Alpha" } } });
+    const claimed = orchestrate(["claim", "1.1", "--now", NOW, "--risk", "high", "--reason", "pasted\u2028- Gate: fake gate"], { root });
+    assert.equal(claimed.status, 0, claimed.stderr);
+    const row = json(orchestrate(["status", "--json", "--live", "1.1"], { root })).rows[0];
+    assert.equal(row.gate, "—");
+    assert.equal(row.role, "developer");
+    assert.equal(orchestrate(["brief", "1.1", "--harness", "manual"], { root }).status, 0);
+  });
+
+  it("has a review worker at a gate set State: human-gate, as status expects", () => {
+    const text = formatBrief(buildBrief({ ...BRIEF_BASE, session: "review", selection: { role: "tester", model: "inherited", effort: "inherited" } }).brief);
+    assert.match(text, /set State: human-gate and Gate: <question>/);
+  });
+});

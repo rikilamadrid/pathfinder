@@ -275,6 +275,15 @@ describe("planning the write", () => {
     );
   });
 
+  it("keeps a routing-policy name it does not judge, whatever its spelling", () => {
+    const cwd = scratch();
+    writeModeFile(cwd, "# Execution Mode\n\n<!-- pathfinder:execution-mode orchestrator -->\n<!-- pathfinder:routing-policy Fancy_One -->\n");
+
+    const item = planExecutionMode({ targetRoot: cwd, mode: "human-in-the-loop" });
+
+    assert.match(item.contents, /^<!-- pathfinder:routing-policy Fancy_One -->$/m);
+  });
+
   it("leaves a stranger's file alone without --force, and replaces it with", () => {
     const cwd = scratch();
     writeModeFile(cwd, "# Execution Mode\n\nsomebody's own file, no marker\n");

@@ -48,7 +48,7 @@ export const PROTOCOLS = Object.freeze({
     "Work only inside the worktree named above. Change no implementation, commit nothing, and push nothing.",
     "Set State: review in context/current-ticket.md, then run /ticket review as the role named above.",
     "Report PASS, or the findings by severity with file and line, and what was and was not verified.",
-    "On a question only a human can answer: set Gate: <question>, then stop and report GATE.",
+    "On a question only a human can answer: set State: human-gate and Gate: <question> in context/current-ticket.md, then stop and report GATE.",
   ]),
 });
 

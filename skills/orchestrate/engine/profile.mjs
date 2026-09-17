@@ -105,7 +105,11 @@ export function renderProfile(profile) {
   for (const field of ESTIMATE_FIELDS) {
     const entry = profile.estimate[field];
     lines.push(`  ${field}:`, `    value: ${entry.value}`, `    source: ${entry.source}`);
-    if (entry.reason !== undefined) lines.push(`    reason: ${JSON.stringify(entry.reason)}`);
+    // JSON.stringify leaves U+2028 and U+2029 raw, and both end a line to a
+    // line-anchored reader. Escaped, a reason is always one physical line.
+    if (entry.reason !== undefined) {
+      lines.push(`    reason: ${JSON.stringify(entry.reason).replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029")}`);
+    }
   }
   lines.push("selection:");
   for (const field of SELECTION_FIELDS) lines.push(`  ${field}: ${profile.selection[field]}`);

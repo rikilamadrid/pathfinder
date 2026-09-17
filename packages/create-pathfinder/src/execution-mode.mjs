@@ -48,7 +48,10 @@ export const EXECUTION_MODE_MARKER = "pathfinder:execution-mode";
 const MARKER_PATTERN = new RegExp(`^<!--\\s*${EXECUTION_MODE_MARKER}\\s+(\\S+)\\s*-->$`);
 
 /** The optional routing-policy marker orchestration reads beside the mode. */
-const ROUTING_POLICY_PATTERN = /^<!--\s*pathfinder:routing-policy\s+([a-z0-9][a-z0-9._-]*)\s*-->$/;
+// Any name the orchestration engine would read, valid or not. The installer
+// preserves a project's choice; judging it is the engine's, which refuses a
+// policy it does not ship rather than silently falling back to `static`.
+const ROUTING_POLICY_PATTERN = /^<!--\s*pathfinder:routing-policy\s+(\S+)\s*-->$/;
 
 /** The routing policy a file names on its own marker line, or null. */
 export function readRoutingPolicyMarker(content) {
