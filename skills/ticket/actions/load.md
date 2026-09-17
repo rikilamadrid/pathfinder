@@ -28,7 +28,16 @@ this default. A role narrows responsibility and never grants human authority.
    - A named blocker that does not exist blocks the load. Report it by key.
    Stop before writing anything. A blocked load must leave no trace.
 6. Read only the files or context the ticket's `## Context` names.
-7. Inspect the current Git state.
+7. Inspect the current Git state. In `orchestrator` mode only, also ask who
+   owns the ticket:
+
+   ```sh
+   node skills/orchestrate/engine/bin/orchestrate.mjs owner <key> --json
+   ```
+
+   If `claim` names a worktree and `here` is `false`, another worker owns this
+   ticket: name its worktree and branch, and stop before writing anything. In
+   `human-in-the-loop` mode this step asks nothing of the engine.
 8. Stop if a required human decision blocks the work.
 9. Record the approval in the ticket's `## Status`:
    - `Proposed` becomes `Ready`. That is the only value this action writes.
@@ -44,6 +53,8 @@ this default. A role narrows responsibility and never grants human authority.
     - ticket key, title, and where it is in the store
     - parent Feature number, name, and spec path
     - execution mode, as read in step 1
+    - in `orchestrator` mode, keep the `Worker`, `Worktree`, `Branch`, `State`,
+      and `Updated` lines the claim wrote, updating `Updated`
     - Git state
     - blocker, if any
     - next action

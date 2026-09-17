@@ -90,6 +90,7 @@ An adapter carries the canonical skill's frontmatter and a pointer to it, and no
 - `to-specs` — generate context-sized feature specs
 - `to-tickets` — decompose one approved Feature into blocker-linked tickets
 - `ticket` — run one action of the ticket delivery loop: `load`, `start`, `review`, `complete`
+- `orchestrate` — coordinate several dependency-safe ticket workers at once in orchestrator mode
 - `debug-issue` — diagnose an observed failure to its root cause, apply the smallest justified fix, and verify it
 - `render-artifact` — compile a typed specification into a deterministic, self-contained visual artifact
 - `map-system` — turn a plain request about a system into a semantic diagram artifact

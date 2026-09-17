@@ -55,6 +55,14 @@ jobs:
         working-directory: packages/render-artifact
         run: npm test
 
+      - name: Test the orchestrate engine
+        # Like render-artifact, the engine ships under skills/ and its tests
+        # live here so an installed project never receives them. The suite
+        # builds real Git repositories and runs the real CLI, because the claim
+        # guarantee is Git's refusal to check a branch out twice.
+        working-directory: packages/orchestrate
+        run: npm test
+
       - name: Assert no root manifest
         # NOT_A_FRAMEWORK.md promises the kit has no runtime and no package
         # manager. Nested tooling may carry its own manifest; the root may not.

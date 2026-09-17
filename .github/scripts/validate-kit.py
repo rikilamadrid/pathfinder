@@ -106,6 +106,7 @@ LIFECYCLE_ROLE_ASSUMPTIONS = {
     "skills/ticket/actions/start.md": "developer",
     "skills/ticket/actions/review.md": "tester",
     "skills/ticket/actions/complete.md": "developer",
+    "skills/orchestrate/actions/status.md": "orchestrator",
 }
 
 # The one statement of what a destination project receives. Everything else
@@ -1496,7 +1497,7 @@ def check_lifecycle_role_assumptions() -> None:
             text, re.MULTILINE | re.DOTALL,
         )
         body = section.group(1) if section else ""
-        named_roles = re.findall(r"`roles/(planner|developer|tester)\.md`", body)
+        named_roles = re.findall(r"`roles/([a-z][a-z-]*)\.md`", body)
         if named_roles != [expected_role]:
             fail(path, "lifecycle-role-assumption",
                  f"expected only `roles/{expected_role}.md`, found {named_roles}")

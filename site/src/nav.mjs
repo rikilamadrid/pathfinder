@@ -58,6 +58,7 @@ export const WORKFLOW_LOOPS = [
       'to-specs',
       'to-tickets',
       'ticket',
+      'orchestrate',
       'debug-issue',
     ],
     boundary: [
