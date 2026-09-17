@@ -3,6 +3,12 @@
 Invoking this action is the human's acceptance of the ticket. Do not ask for
 acceptance again.
 
+The ticket is the one named in the invocation, `/ticket complete <key>`, or,
+when none is named, the one `context/current-ticket.md` records. In
+`orchestrator` mode a named ticket's worktree is its claim, which
+`node skills/orchestrate/engine/bin/orchestrate.mjs owner <key> --json`
+reports. That worktree's `context/current-ticket.md` is the file step 6 clears.
+
 ## Assumed role
 
 Unless the human explicitly activated a role, assume `developer` for this

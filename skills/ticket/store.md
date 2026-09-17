@@ -33,6 +33,30 @@ orchestration engine can read it without interpreting prose:
 runs in orchestrator mode loses nothing without the line; the engine refuses a
 `tracker.md` that lacks it and names the line to add.
 
+## What orchestration writes
+
+In orchestrator mode the engine writes two more things to the store, and never
+a status:
+
+- **Notes.** A claim's ownership, a human gate opened or resolved, why a ticket
+  waits, and which completion made it eligible. Each note opens with a marker
+  line, `<!-- pathfinder:orchestrate <event> <key> ... -->`, and a note whose
+  marker is already present is not written again. On GitHub Issues a note is
+  an issue comment. On local Markdown it is appended under
+  `## Notes / Decisions` in the ticket file inside the claim's worktree, so it
+  travels with the ticket's branch and never leaves the main checkout dirty. An
+  unclaimed local ticket gets no note, and the dispatch plan carries its
+  reasons. The wording lives in
+  `skills/orchestrate/engine/comments.mjs` and nowhere else.
+- **The `gate: human` label**, on GitHub Issues only, while a worker on that
+  ticket waits for a human decision. A gate opens only on a claimed worker that
+  is working or in review, and resolves only a gate that is open. It is a flag, not a lifecycle status: an
+  open ticket still carries exactly one status label. A local store has no
+  labels, so its gate is the worker's state file plus its note.
+
+The label must exist in the store before the first gate opens. `setup-tracker`
+creates it with the store's other labels.
+
 ## Identity
 
 A ticket's key is `NN.TT` — its parent Feature's number, and the ticket number

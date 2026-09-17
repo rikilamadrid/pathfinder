@@ -11,7 +11,12 @@ this default. A role narrows responsibility and never grants human authority.
 1. Resolve the ticket store. Read `skills/ticket/store.md` and follow it. Then
    read the execution mode as `skills/ticket/SKILL.md` §Execution mode says.
    An invalid file is reported here, once, and the load proceeds as
-   `human-in-the-loop`.
+   `human-in-the-loop`. In `orchestrator` mode, running inside a claim's
+   worktree, read `context/tracker.md` and the Feature spec source from the
+   main checkout whenever the worktree has no copy. They may be untracked, and
+   the main checkout is where they live. The worker brief names it, and
+   `node skills/orchestrate/engine/bin/orchestrate.mjs owner <key> --json`
+   reports it as `root`.
 2. Select the ticket the human named, by key. If none was named, list the ready
    tickets — see Readiness below — and stop.
 3. Read the ticket.

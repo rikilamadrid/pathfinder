@@ -28,7 +28,8 @@ this default. A role narrows responsibility and never grants human authority.
 5. Derive the parent Feature's status from that transition: a Feature whose
    status is `Proposed` or `Ready` becomes `In Progress` when its first ticket
    does. A Feature already `In Progress` is left alone. Write nothing else to
-   the Feature spec.
+   the Feature spec. In `orchestrator` mode the Feature spec is the one `load`
+   read, in the main checkout when the worktree has no copy.
 6. Implement the ticket's `## Changes`, and only those.
 7. Make the smallest complete change.
 8. Verify it as the ticket's `## Verification` says.

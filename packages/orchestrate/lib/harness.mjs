@@ -14,7 +14,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -214,5 +214,58 @@ export function issue({ number, key, title, state = "OPEN", labels = [], blocker
     state,
     labels: labels.map((name) => ({ name })),
     body: `<!-- pathfinder:ticket ${key} -->\n\n## Blocked by\n\n${blockedBy}\n\n## Goal\n\nSomething.\n`,
+  };
+}
+
+/**
+ * A stateful fake `gh`: `issue list` returns the issues, `issue view N --json
+ * comments` returns that issue's comments, `issue comment N --body B` appends
+ * one, and `issue edit N --add-label L` / `--remove-label L` changes labels.
+ * State lives in one JSON file the test can read back, so a label a gate added
+ * is visible to the next `board` exactly as it would be on GitHub.
+ *
+ * @returns {{path: string, read: () => object[], calls: () => string[][]}}
+ */
+export function statefulGh(issues) {
+  const directory = temporaryDirectory("orchestrate-gh-state-");
+  const stateFile = join(directory, "issues.json");
+  const callsFile = join(directory, "calls.log");
+  writeFileSync(stateFile, JSON.stringify(issues.map((entry) => ({ comments: [], ...entry }))));
+  const script = join(directory, "gh");
+  writeFileSync(
+    script,
+    [
+      `#!${process.execPath}`,
+      'const fs = require("node:fs");',
+      `const stateFile = ${JSON.stringify(stateFile)};`,
+      `fs.appendFileSync(${JSON.stringify(callsFile)}, JSON.stringify(process.argv.slice(2)) + "\\n");`,
+      "const args = process.argv.slice(2);",
+      "const issues = JSON.parse(fs.readFileSync(stateFile, 'utf8'));",
+      "const flag = (name) => { const i = args.indexOf(name); return i === -1 ? undefined : args[i + 1]; };",
+      "const find = (n) => issues.find((issue) => String(issue.number) === String(n));",
+      "if (args[0] !== 'issue') { process.stderr.write('unsupported'); process.exit(2); }",
+      "if (args[1] === 'list') { process.stdout.write(JSON.stringify(issues.map(({ comments, ...rest }) => rest))); process.exit(0); }",
+      "const issue = find(args[2]);",
+      "if (!issue) { process.stderr.write('issue not found'); process.exit(1); }",
+      "if (args[1] === 'view') { process.stdout.write(JSON.stringify({ comments: issue.comments })); process.exit(0); }",
+      "if (args[1] === 'comment') { issue.comments.push({ body: flag('--body') }); }",
+      "else if (args[1] === 'edit') {",
+      "  const add = flag('--add-label'); const remove = flag('--remove-label');",
+      "  if (add && !issue.labels.some((l) => l.name === add)) issue.labels.push({ name: add });",
+      "  if (remove) issue.labels = issue.labels.filter((l) => l.name !== remove);",
+      "} else { process.stderr.write('unsupported'); process.exit(2); }",
+      "fs.writeFileSync(stateFile, JSON.stringify(issues));",
+      "",
+    ].join("\n"),
+  );
+  chmodSync(script, 0o755);
+  return {
+    path: script,
+    read: () => JSON.parse(readFileSync(stateFile, "utf8")),
+    calls: () =>
+      readFileSync(callsFile, "utf8")
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line)),
   };
 }

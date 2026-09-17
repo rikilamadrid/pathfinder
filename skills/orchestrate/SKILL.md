@@ -1,7 +1,7 @@
 ---
 name: orchestrate
 description: Coordinate several dependency-safe ticket workers at once in a project that runs in orchestrator mode.
-argument-hint: status
+argument-hint: status|start|resume
 ---
 
 # Orchestrate
@@ -9,6 +9,8 @@ argument-hint: status
 The coordinator for orchestrator mode. The human names the action:
 
 `/orchestrate status`
+`/orchestrate start [feature NN | all] [--workers N]`
+`/orchestrate resume <key>`
 
 It decides what approved work can execute now and how. It never implements a
 ticket, reviews one, accepts work, or merges: every lifecycle transition is the
@@ -34,6 +36,10 @@ names the file and the two values, and changes nothing.
 - `status` — the operator's view: every ticket in scope with its worker,
   execution state, branch and worktree, gate or blocker, and last recorded
   result. Reads only.
+- `start` — plan the scope, ask the human once, then claim, dispatch, review,
+  surface gates, and refresh eligibility until nothing more can run.
+- `resume` — continue one existing claim deliberately: a stale worker, or one
+  whose human gate was resolved.
 
 ## The model
 
@@ -81,10 +87,15 @@ engine/profile.mjs           the pathfinder.execution-profile/1 schema
 engine/policies/             routing policies; select: role, model, effort
 engine/route.mjs             estimate, then select, into one profile
 engine/brief.mjs             the worker brief and each harness's translation
+engine/plan.mjs              the dispatch plan: claim now, wait, blocked, stale
+engine/comments.mjs          every note the orchestrator writes, one spelling each
+engine/tracker.mjs           notes and the gate label, idempotent by marker
+engine/statefile.mjs         updates to a worker's state file lines
 ```
 
 `profile.md` documents the profile, its thresholds, and routing policies.
 `brief.md` documents the brief and the harness translation table.
+`worker-brief.md` and `resume-brief.md` state what each brief asks a worker to do.
 
 A store other than local Markdown needs one machine-readable line in
 `context/tracker.md`, described in `skills/ticket/store.md`.
