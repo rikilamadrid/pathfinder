@@ -272,6 +272,19 @@ describe("the claim is atomic, and a failed claim leaves nothing behind", () => 
     assert.equal(retry.status, 0, retry.stderr);
   });
 
+  it("refuses without a stack trace or a claim ref when .pathfinder cannot be created", async () => {
+    const root = threeTickets();
+    writeFileSync(join(root, ".pathfinder"), "a file where a directory should be\n");
+
+    const result = orchestrate(["claim", "1.1"], { root });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /^orchestrate: refusing to claim 1\.1: cannot create \.pathfinder\/worktrees/);
+    assert.doesNotMatch(result.stderr, /    at /, "no stack trace");
+    assert.equal(runGit(["for-each-ref", "refs/pathfinder/"], root), "", "no claim ref left behind");
+    assert.equal(runGit(["branch", "--list", "ticket/*"], root), "");
+  });
+
   it("refuses an unregistered directory at the worktree path without creating anything", async () => {
     const { mkdirSync } = await import("node:fs");
     const root = threeTickets();

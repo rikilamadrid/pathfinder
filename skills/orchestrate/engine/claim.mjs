@@ -104,6 +104,17 @@ export function claim({ root, key, slug = null, now = new Date().toISOString(), 
 
   const branch = `${BRANCH_PREFIX}${key}-${slug ?? slugify(row.title)}`;
 
+  // The parent directory first, before anything in Git is written: a path
+  // that cannot be created — `.pathfinder` is a file, or not writable — must
+  // refuse with nothing to undo, not throw with a claim ref already made.
+  const parent = join(root, ...WORKTREES_DIR.split("/"));
+  const parentExisted = existsSync(parent);
+  try {
+    mkdirSync(parent, { recursive: true });
+  } catch (error) {
+    return { ok: false, message: `refusing to claim ${key}: cannot create ${WORKTREES_DIR}: ${error.message}` };
+  }
+
   const locked = createClaimRef(root, key, baseOid);
   if (!locked.ok) {
     const now = claimFor(root, key);
@@ -113,16 +124,11 @@ export function claim({ root, key, slug = null, now = new Date().toISOString(), 
     };
   }
 
-  const parent = join(root, ...WORKTREES_DIR.split("/"));
-  const parentExisted = existsSync(parent);
-  mkdirSync(parent, { recursive: true });
-
   const added = git(["worktree", "add", "--quiet", path, "-b", branch, baseOid], { cwd: root });
   if (!added.ok) {
-    // Undo exactly what this call created, and only while it is untouched.
-    if (resolveRef(root, `refs/heads/${branch}`) === baseOid) {
-      git(["branch", "--quiet", "-D", branch], { cwd: root });
-    }
+    // Undo exactly what this call created. Both deletes carry the expected old
+    // value, so Git refuses either one if anything moved the ref since.
+    git(["update-ref", "-d", `refs/heads/${branch}`, baseOid], { cwd: root });
     deleteClaimRef(root, key, baseOid);
     if (!parentExisted) {
       try {
