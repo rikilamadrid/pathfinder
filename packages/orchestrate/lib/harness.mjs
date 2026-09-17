@@ -114,6 +114,13 @@ export function makeProject({
   mkdirSync(join(root, "context", "tickets"), { recursive: true });
   writeFileSync(join(root, "README.md"), "# project\n");
 
+  // Every installed Pathfinder project carries its role contracts, and the
+  // routing registry refuses a selection naming a role that has none.
+  mkdirSync(join(root, "roles"), { recursive: true });
+  for (const role of ["planner", "orchestrator", "developer", "tester"]) {
+    writeFileSync(join(root, "roles", `${role}.md`), `---\nname: ${role}\ndescription: ${role}\n---\n`);
+  }
+
   const ignore = ["/context/current-ticket.md"];
   if (ignorePathfinder) ignore.push("/.pathfinder/");
   writeFileSync(join(root, ".gitignore"), ignore.join("\n") + "\n");

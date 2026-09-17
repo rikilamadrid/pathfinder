@@ -20,6 +20,7 @@ import { basename, join } from "node:path";
 
 import { listBranches, listClaimRefs, listWorktrees, relativeTo } from "./git.mjs";
 import { compareKeys, isKey } from "./keys.mjs";
+import { parseProfile } from "./profile.mjs";
 
 export const WORKTREES_DIR = ".pathfinder/worktrees";
 export const BRANCH_PREFIX = "ticket/";
@@ -60,6 +61,10 @@ export function readClaims(root) {
       last: state.last,
       stateFile: state.present,
       elsewhere: null,
+      profile: state.profile,
+      profileError: state.profileError,
+      title: state.title,
+      ref: state.ref,
     });
   }
 
@@ -123,7 +128,17 @@ export function keyOfBranch(branch) {
  * loaded rather than as an error.
  */
 export function readStateFile(path) {
-  const empty = { present: false, worker: null, state: null, gate: null, updated: null, next: null, last: null };
+  const empty = {
+    present: false,
+    worker: null,
+    state: null,
+    gate: null,
+    updated: null,
+    next: null,
+    last: null,
+    profile: null,
+    profileError: null,
+  };
   if (!existsSync(path)) return empty;
   let text;
   try {
@@ -136,8 +151,21 @@ export function readStateFile(path) {
     return match ? match[1].trim() || null : null;
   };
   const state = field("State");
+  // The fence immediately under the heading, with only blank lines between —
+  // never a later yaml block elsewhere in the file.
+  const hasHeading = /^## Execution[ \t]*$/m.test(text);
+  const execution = /^## Execution[ \t]*\r?\n(?:[ \t]*\r?\n)*```yaml\r?\n([\s\S]*?)^```/m.exec(text);
+  const parsed = execution
+    ? parseProfile(execution[1])
+    : hasHeading
+      ? { ok: false, errors: ["## Execution carries no yaml block directly beneath it"] }
+      : null;
   return {
     present: true,
+    profile: parsed?.ok ? parsed.profile : null,
+    profileError: parsed && !parsed.ok ? parsed.errors.join("; ") : null,
+    title: (/^- Ticket:\s*\d+\.\d+\s*—\s*(.+)$/m.exec(text) ?? [])[1]?.trim() ?? null,
+    ref: (/^- Store:.*,\s*(\S+)\s*$/m.exec(text) ?? [])[1] ?? null,
     worker: field("Worker"),
     state: state && CLAIM_STATES.includes(state) ? state : state ? `invalid:${state}` : null,
     gate: field("Gate"),

@@ -24,6 +24,10 @@ export const DEFAULT_EXECUTION_MODE = "human-in-the-loop";
 export const EXECUTION_MODE_PATH = "context/execution-mode.md";
 
 const MARKER = /^<!--\s*pathfinder:execution-mode\s+(\S+)\s*-->$/;
+const POLICY_MARKER = /^<!--\s*pathfinder:routing-policy\s+(\S+)\s*-->$/;
+
+/** The routing policy a project runs when its mode file names none. */
+export const DEFAULT_ROUTING_POLICY = "static";
 
 /**
  * @param {string|null} content the file's contents, or null for no file
@@ -47,6 +51,31 @@ export function readExecutionModeFile(root) {
   } catch {
     return { present: true, mode: null, valid: false };
   }
+}
+
+/**
+ * The routing policy the mode file names, on its own optional marker line:
+ *
+ *     <!-- pathfinder:routing-policy <name> -->
+ *
+ * No file, or no such line, is `static`. Whether the name is a policy this
+ * engine ships is the registry's question, not this reader's.
+ *
+ * @returns {{name: string, explicit: boolean}}
+ */
+export function readRoutingPolicy(root) {
+  const path = join(root, ...EXECUTION_MODE_PATH.split("/"));
+  let content = null;
+  try {
+    if (existsSync(path)) content = readFileSync(path, "utf8");
+  } catch {
+    content = null;
+  }
+  for (const line of String(content ?? "").split(/\r?\n/)) {
+    const match = POLICY_MARKER.exec(line.trim());
+    if (match) return { name: match[1], explicit: true };
+  }
+  return { name: DEFAULT_ROUTING_POLICY, explicit: false };
 }
 
 /**
