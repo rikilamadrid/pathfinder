@@ -46,6 +46,7 @@ export const STATES = Object.freeze([
 ]);
 
 const STALE_WHEN_UNATTENDED = new Set(["working", "review", "human-gate"]);
+const ABANDONED = new Set(["Cancelled", "Superseded"]);
 
 /**
  * @param {{root: string, live?: string[], feature?: string|null, store?: string|null, gh?: string}} args
@@ -63,10 +64,12 @@ export function computeStatus({ root, live = [], feature = null, store: storeOve
   const claims = new Map(readClaims(root).map((claim) => [claim.key, claim]));
   const liveSet = new Set(live);
 
-  const rows = board.map((ticket) => {
-    const claim = claims.get(ticket.key) ?? null;
-    return toRow(ticket, claim, liveSet);
-  });
+  // Cancelled and Superseded tickets are not work, so they have no row and no
+  // state — unless a claim still exists for one, which is a trace a person
+  // must see, and shows as stale.
+  const rows = board
+    .filter((ticket) => !ABANDONED.has(ticket.status) || claims.has(ticket.key))
+    .map((ticket) => toRow(ticket, claims.get(ticket.key) ?? null, liveSet));
 
   // A claim whose ticket is not on the board — a key the store does not know,
   // or one outside the requested Feature — is still a fact about the
@@ -101,19 +104,25 @@ function toRow(ticket, claim, liveSet) {
 
   if (claim) {
     row.worker = claim.orphan ? "—" : claim.worker ?? claim.key;
-    row.where = claim.orphan ? `${claim.branch} (branch only)` : `${claim.branch ?? "?"} @ ${claim.worktree}`;
+    row.where = claim.orphan ? "—" : `${claim.branch ?? "?"} @ ${claim.worktree}`;
     row.last = claim.updated ? `${claim.updated}${claim.next ? " · " + claim.next : ""}` : claim.next ?? "—";
     if (claim.gate) row.gate = claim.gate;
   }
 
   if (ticket.status === "Complete") {
     row.state = "integrated";
-  } else if (ticket.status === "Cancelled" || ticket.status === "Superseded") {
-    row.state = "—";
   } else if (claim) {
-    if (claim.orphan) {
+    if (ABANDONED.has(ticket.status)) {
       row.state = "stale";
-      row.gate = row.gate === "—" ? "worktree missing; resume or release" : row.gate;
+      row.gate = `ticket is ${ticket.status} but still claimed; release it`;
+    } else if (claim.orphan) {
+      row.state = "stale";
+      row.where = claim.elsewhere
+        ? `${claim.branch} @ ${claim.elsewhere} (outside .pathfinder)`
+        : claim.branch
+          ? `${claim.branch} (branch only)`
+          : `refs/pathfinder/claims/${claim.key} (claim ref only)`;
+      row.gate = claim.elsewhere ? "checked out outside .pathfinder; a person decides" : "worktree missing; resume or release";
     } else if (!claim.stateFile || claim.state === null) {
       row.state = liveSet.has(claim.key) ? "working" : "stale";
       row.last = row.last === "—" ? "claimed, not yet loaded" : row.last;

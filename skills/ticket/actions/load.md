@@ -35,9 +35,13 @@ this default. A role narrows responsibility and never grants human authority.
    node skills/orchestrate/engine/bin/orchestrate.mjs owner <key> --json
    ```
 
-   If `claim` names a worktree and `here` is `false`, another worker owns this
-   ticket: name its worktree and branch, and stop before writing anything. In
-   `human-in-the-loop` mode this step asks nothing of the engine.
+   If `claim` is not `null` and `here` is `false`, stop before writing
+   anything. When `claim.worktree` is set, another worker owns this ticket:
+   name its worktree and branch. When it is `null`, the ticket carries a trace
+   of earlier work with no live worktree — an orphan branch, a branch checked
+   out elsewhere, or an interrupted claim: name `claim.branch` or the claim
+   ref, and leave the decision to the human. In `human-in-the-loop` mode this
+   step asks nothing of the engine.
 8. Stop if a required human decision blocks the work.
 9. Record the approval in the ticket's `## Status`:
    - `Proposed` becomes `Ready`. That is the only value this action writes.

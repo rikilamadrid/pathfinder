@@ -10,7 +10,7 @@
  */
 
 import { compareKeys, featureOf } from "./keys.mjs";
-import { TERMINAL } from "./store.mjs";
+import { TERMINAL, UNRECOGNISED } from "./store.mjs";
 
 /**
  * @param {import("./store.mjs").Ticket[]} tickets
@@ -29,7 +29,9 @@ export function computeBoard(tickets, { feature = null } = {}) {
 
     const row = { ...ticket, eligible: false, waiting: [], reason: null };
 
-    if (TERMINAL.includes(ticket.status)) {
+    if (ticket.status === UNRECOGNISED) {
+      row.reason = `status unrecognised: ticket ${ticket.problem ?? "cannot be read"}`;
+    } else if (TERMINAL.includes(ticket.status)) {
       row.reason = ticket.status.toLowerCase();
     } else if (ticket.status === "In Progress") {
       row.reason = "in progress";
@@ -41,6 +43,8 @@ export function computeBoard(tickets, { feature = null } = {}) {
           problems.push(`blocker ${key} does not exist`);
         } else if (blocker.status === "Complete") {
           continue;
+        } else if (blocker.status === UNRECOGNISED) {
+          problems.push(`blocker ${key} has an unrecognised status`);
         } else if (blocker.status === "Cancelled" || blocker.status === "Superseded") {
           problems.push(`blocker ${key} is ${blocker.status} — a planning question`);
         } else {

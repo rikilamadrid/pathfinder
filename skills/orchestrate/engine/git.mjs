@@ -9,6 +9,7 @@
  */
 
 import { spawnSync } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
 
 /** Run git in `cwd`. Never throws. */
@@ -108,14 +109,69 @@ export function listBranches(root, prefix) {
   return result.stdout.split("\n").map((line) => line.trim()).filter(Boolean).sort();
 }
 
+export const CLAIM_REF_PREFIX = "refs/pathfinder/claims/";
+const ZERO_OID = "0000000000000000000000000000000000000000";
+
+/**
+ * Create the claim ref for a key, atomically, or report that it exists.
+ *
+ * `git update-ref <ref> <new> <zero>` succeeds only when the ref does not
+ * exist, under Git's own ref lock, so of any number of concurrent callers
+ * exactly one wins. That is the claim. The ref lives under `refs/pathfinder/`,
+ * which a normal push does not send: like the worktree it guards, it is
+ * machine-local.
+ */
+export function createClaimRef(root, key, oid) {
+  return git(["update-ref", `${CLAIM_REF_PREFIX}${key}`, oid, ZERO_OID], { cwd: root });
+}
+
+/** Delete a claim ref, but only if it still points where this claim left it. */
+export function deleteClaimRef(root, key, oid) {
+  return git(["update-ref", "-d", `${CLAIM_REF_PREFIX}${key}`, oid], { cwd: root });
+}
+
+/** Keys that hold a claim ref. */
+export function listClaimRefs(root) {
+  const result = git(["for-each-ref", "--format=%(refname)", CLAIM_REF_PREFIX], { cwd: root });
+  if (!result.ok) return [];
+  return result.stdout
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith(CLAIM_REF_PREFIX))
+    .map((line) => line.slice(CLAIM_REF_PREFIX.length))
+    .sort();
+}
+
+/** The commit a ref names, or null. */
+export function resolveRef(root, ref) {
+  const result = git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { cwd: root });
+  return result.ok ? result.stdout.trim() : null;
+}
+
 /** Is this path ignored by the repository's ignore rules? */
 export function isIgnored(root, relativePath) {
   return git(["check-ignore", "-q", "--", relativePath], { cwd: root }).ok;
 }
 
-/** A path relative to the root, forward-slashed, or the path itself when outside. */
+/** The canonical spelling of a path: symlinks resolved when it exists. */
+export function canonical(path) {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+}
+
+/**
+ * A path relative to the root, forward-slashed, or the path itself when outside.
+ *
+ * Both sides are canonicalised first. Git reports worktree paths with symlinks
+ * resolved, so a root given through one — macOS `/tmp` is `/private/tmp` —
+ * would otherwise place every worktree outside the root and every claim would
+ * read as an orphan.
+ */
 export function relativeTo(root, path) {
-  const rel = relative(resolve(root), resolve(path));
+  const rel = relative(canonical(root), canonical(path));
   if (rel === "" || rel.startsWith("..")) return rel === "" ? "." : path;
   return rel.split(sep).join("/");
 }

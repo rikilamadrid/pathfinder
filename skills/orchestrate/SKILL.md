@@ -42,9 +42,13 @@ names the file and the two values, and changes nothing.
   `ticket/<key>-<slug>`. The worktree path is the worker's identity and the
   claim. The worktree's own `context/current-ticket.md` is that worker's
   transient state, so two workers never share one.
-- **Git is the lock.** Git refuses to check a branch out in two worktrees, and
-  the engine refuses a ticket that already has a worktree or a `ticket/<key>-*`
-  branch. There is no lock file, database, daemon, or server.
+- **Git is the lock.** A claim first creates `refs/pathfinder/claims/<key>`,
+  which Git creates only if it does not exist, under its own ref lock, so of
+  any number of concurrent claims exactly one proceeds. A claim that then fails
+  removes the branch and ref it created. The engine also refuses a ticket that
+  already has a worktree, a `ticket/<key>-*` branch, a claim ref, or an
+  unregistered directory at its worktree path. There is no lock file, database,
+  daemon, or server, and the claim ref is not sent by a normal push.
 - **Claims outlive sessions.** A session that dies leaves its worktree, branch,
   and state file behind. Any claim the current run did not start is `stale`
   until it is resumed deliberately, and a stale claim is never dispatched a
@@ -53,7 +57,10 @@ names the file and the two values, and changes nothing.
   must carry `/.pathfinder/`; the engine refuses to claim until it does and
   never edits the file itself.
 - **The store is the board.** Eligibility is `skills/ticket/actions/load.md`
-  §Readiness, computed from the configured store and nothing else.
+  §Readiness, computed from the configured store and nothing else. A status the
+  engine cannot read — an unknown word, a GitHub issue closed while still
+  labelled in progress, two status labels — is never eligible and never
+  unblocks a dependent.
 
 ## Engine
 
@@ -66,7 +73,7 @@ engine/bin/orchestrate.mjs   board | claim | owner | status
 engine/store.mjs             reads the configured ticket store
 engine/board.mjs             eligibility
 engine/claims.mjs            claims, from git worktrees and state files
-engine/claim.mjs             the one write: a worktree on a new branch
+engine/claim.mjs             the one write: a claim ref, then a worktree on a new branch
 engine/status.mjs            the operator's view and its state vocabulary
 engine/mode.mjs              the execution-mode reader
 ```

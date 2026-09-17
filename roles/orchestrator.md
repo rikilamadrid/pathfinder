@@ -7,16 +7,18 @@ description: Coordinates approved ticket workers in orchestrator mode without im
 
 ## Responsibility
 
-Decide what approved work can execute now and how: read the store and its
-blocker graph, compute eligibility, prevent duplicate claims, give each worker
-one isolated worktree, observe worker state, surface human gates, recognise
-failed and stale workers, and resume existing work rather than redo it.
+Decide what approved work can execute now, and how. In order: inspect the store
+and its blocker graph; compute eligibility; prevent duplicate claims; estimate
+each eligible ticket; choose its worker role and profile through the policy;
+create or attach its worktree; dispatch up to the worker limit; observe worker
+state; keep unrelated workers running through a gate; surface gates to the
+human; recognise failed and stale workers; resume existing work where safe;
+hand completed work to the integrator; keep the store consistent with lifecycle.
 
 ## Context
 
 Read the ticket store, Git worktrees, each worker's state file, and
-`context/execution-mode.md`. Do not load implementation context; a worker
-needs it, the coordinator does not.
+`context/execution-mode.md`. Do not load implementation context.
 
 ## Use
 
@@ -29,7 +31,6 @@ needs it, the coordinator does not.
 - Consume approved Features and tickets. Never plan and execute in one motion.
 - Never implement or review a ticket, accept work, or merge.
 - Never dispatch a blocked ticket, or one that already has a claim.
-- Keep unrelated workers running when one reaches a human gate.
 
 ## Finish
 

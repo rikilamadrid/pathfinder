@@ -31,6 +31,16 @@ const STORE_MARKER = /^<!--\s*pathfinder:ticket-store\s+(\S+)(?:\s+(\S+))?\s*-->
 const TICKET_MARKER = /^<!--\s*pathfinder:ticket\s+(\d+\.\d+)\s*-->$/;
 
 export const STATUSES = Object.freeze(["Proposed", "Ready", "In Progress", "Complete", "Cancelled", "Superseded"]);
+
+/**
+ * A status the engine cannot read. Never eligible, never complete: a ticket
+ * whose state is unknown is not offered for work and does not unblock anyone.
+ * The row's `problem` says what was found.
+ */
+export const UNRECOGNISED = "Unrecognised";
+
+/** The most issues one `gh issue list` call asks for. Reaching it is a refusal, not a truncation. */
+export const ISSUE_LIMIT = 1000;
 export const TERMINAL = Object.freeze(["Complete", "Cancelled", "Superseded"]);
 
 /**
@@ -109,10 +119,12 @@ function readLocalTickets(root) {
     if (!match) continue;
     const key = match[1];
     const text = readFileSync(join(directory, name), "utf8");
+    const read = localStatus(text);
     tickets.push({
       key,
       title: firstHeading(text) ?? name,
-      status: normaliseStatus(section(text, "Status")?.trim() ?? "Proposed"),
+      status: read.status,
+      problem: read.problem,
       blockers: blockersOf(text),
       ref: `${LOCAL_TICKETS_DIR}/${name}`,
       number: null,
@@ -124,7 +136,7 @@ function readLocalTickets(root) {
 function readGitHubTickets(repo, { gh }) {
   const result = spawnSync(
     gh,
-    ["issue", "list", "--repo", repo, "--state", "all", "--limit", "500", "--json", "number,title,state,labels,body"],
+    ["issue", "list", "--repo", repo, "--state", "all", "--limit", String(ISSUE_LIMIT), "--json", "number,title,state,labels,body"],
     { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], windowsHide: true, maxBuffer: 64 * 1024 * 1024 },
   );
   if (result.error) return { ok: false, message: `could not run \`${gh}\`: ${result.error.message}` };
@@ -139,6 +151,14 @@ function readGitHubTickets(repo, { gh }) {
     return { ok: false, message: `\`${gh} issue list\` did not return JSON: ${error.message}` };
   }
 
+  if (!Array.isArray(issues)) return { ok: false, message: `\`${gh} issue list\` did not return a list` };
+  if (issues.length >= ISSUE_LIMIT) {
+    return {
+      ok: false,
+      message: `the store returned ${issues.length} issues, the most one read asks for; refusing rather than judging eligibility from a partial board`,
+    };
+  }
+
   const tickets = [];
   for (const issue of issues) {
     const body = String(issue.body ?? "");
@@ -147,10 +167,12 @@ function readGitHubTickets(repo, { gh }) {
     if (!marker) continue;
     const key = marker[1];
     const labels = (issue.labels ?? []).map((label) => (typeof label === "string" ? label : label.name));
+    const read = githubStatus(issue.state, labels);
     tickets.push({
       key,
       title: titleOf(issue.title, key),
-      status: statusFromGitHub(issue.state, labels),
+      status: read.status,
+      problem: read.problem,
       blockers: blockersOf(body),
       ref: `#${issue.number}`,
       number: issue.number,
@@ -161,29 +183,53 @@ function readGitHubTickets(repo, { gh }) {
 
 /**
  * Pathfinder's status from GitHub's representation, as `context/tracker.md`
- * defines it: a `status:` label while open, the closed state when done, and a
- * closed issue with no status label is `Complete`.
+ * defines it: exactly one `status:` label while open; closed with no status
+ * label is `Complete`; closed with `cancelled` or `superseded` is that.
+ *
+ * Anything else is inconsistent — two status labels, an open issue with none,
+ * a closed issue still labelled `ready` or `in-progress`, a label word the
+ * config does not define — and reads as unrecognised rather than as the
+ * nearest guess. A guess of `Complete` would unblock dependents of work that
+ * may not be done.
  */
+export function githubStatus(state, labels) {
+  const words = labels.filter((label) => label.startsWith("status: ")).map((label) => label.slice("status: ".length));
+  const closed = String(state).toUpperCase() === "CLOSED";
+  const unrecognised = (problem) => ({ status: UNRECOGNISED, problem });
+
+  if (words.length > 1) return unrecognised(`carries ${words.length} status labels: ${words.join(", ")}`);
+  const word = words[0] ?? null;
+
+  if (closed) {
+    if (word === null) return { status: "Complete", problem: null };
+    if (word === "cancelled") return { status: "Cancelled", problem: null };
+    if (word === "superseded") return { status: "Superseded", problem: null };
+    return unrecognised(`is closed but still labelled status: ${word}`);
+  }
+
+  const open = { proposed: "Proposed", ready: "Ready", "in-progress": "In Progress" };
+  if (word === null) return unrecognised("is open with no status label");
+  if (word in open) return { status: open[word], problem: null };
+  if (word === "cancelled" || word === "superseded") return unrecognised(`is open but labelled status: ${word}`);
+  return unrecognised(`has an unknown label status: ${word}`);
+}
+
+/** The status alone, for callers that only need the word. */
 export function statusFromGitHub(state, labels) {
-  const status = labels.find((label) => label.startsWith("status: "));
-  const word = status ? status.slice("status: ".length) : null;
-  if (String(state).toUpperCase() === "CLOSED") {
-    if (word === "cancelled") return "Cancelled";
-    if (word === "superseded") return "Superseded";
-    return "Complete";
-  }
-  switch (word) {
-    case "ready":
-      return "Ready";
-    case "in-progress":
-      return "In Progress";
-    case "cancelled":
-      return "Cancelled";
-    case "superseded":
-      return "Superseded";
-    default:
-      return "Proposed";
-  }
+  return githubStatus(state, labels).status;
+}
+
+/**
+ * A local ticket's `## Status`: its first non-blank line, which must be one of
+ * the six statuses exactly, ignoring case. A missing section or any other
+ * value is unrecognised, and named.
+ */
+export function localStatus(text) {
+  const body = section(text, "Status");
+  if (body === null) return { status: UNRECOGNISED, problem: "has no ## Status section" };
+  const line = body.split(/\r?\n/).map((value) => value.trim()).find((value) => value !== "") ?? "";
+  const found = STATUSES.find((status) => status.toLowerCase() === line.toLowerCase());
+  return found ? { status: found, problem: null } : { status: UNRECOGNISED, problem: `has an unrecognised status \`${line}\`` };
 }
 
 /** `NN.TT — Title` is written for humans; the key comes from the marker, never from here. */
@@ -201,7 +247,9 @@ function firstHeading(text) {
 /** The body of a `## Heading` section, up to the next `## `. */
 function section(text, heading) {
   // JavaScript has no `\\Z`; `(?![\\s\\S])` is end of input.
-  const pattern = new RegExp(`^## ${heading}[ \\t]*\\r?\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "m");
+  // Headings match ignoring case: `## Blocked By` is the same section, and
+  // missing it would silently drop every edge.
+  const pattern = new RegExp(`^## ${heading}[ \\t]*\\r?\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "mi");
   const match = pattern.exec(text);
   return match ? match[1] : null;
 }
@@ -222,11 +270,6 @@ export function blockersOf(text) {
     if (item && isKey(item[1]) && !keys.includes(item[1])) keys.push(item[1]);
   }
   return keys;
-}
-
-function normaliseStatus(value) {
-  const found = STATUSES.find((status) => status.toLowerCase() === String(value).trim().toLowerCase());
-  return found ?? "Proposed";
 }
 
 function sortTickets(tickets) {

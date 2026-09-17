@@ -7,15 +7,18 @@
  * Nothing about a worker lives anywhere else, so this module reads exactly
  * those two things and writes nothing.
  *
- * A branch `ticket/<key>-*` with no worktree is an orphan: a claim whose
- * worktree was removed but whose work was never integrated. It is reported as
- * a claim too, so `start` can refuse to claim over it and a human can decide.
+ * A branch `ticket/<key>-*` with no worktree under `.pathfinder/worktrees` is
+ * an orphan: a claim whose worktree was removed, a claim that failed half way,
+ * or a branch a person checked out somewhere else. So is a claim ref
+ * (`refs/pathfinder/claims/<key>`) with neither. Each is reported as a claim,
+ * so a ticket with any trace of earlier work is refused rather than redone,
+ * and the human decides what the trace is.
  */
 
 import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
-import { listBranches, listWorktrees, relativeTo } from "./git.mjs";
+import { listBranches, listClaimRefs, listWorktrees, relativeTo } from "./git.mjs";
 import { compareKeys, isKey } from "./keys.mjs";
 
 export const WORKTREES_DIR = ".pathfinder/worktrees";
@@ -34,7 +37,10 @@ export const CLAIM_STATES = Object.freeze(["working", "review", "human-gate", "d
 export function readClaims(root) {
   const claims = new Map();
 
-  for (const worktree of listWorktrees(root)) {
+  const worktrees = listWorktrees(root);
+  const checkedOut = new Map(worktrees.filter((w) => w.branch).map((w) => [w.branch, w.path]));
+
+  for (const worktree of worktrees) {
     const rel = relativeTo(root, worktree.path);
     if (!rel.startsWith(`${WORKTREES_DIR}/`)) continue;
     const key = basename(worktree.path);
@@ -53,6 +59,7 @@ export function readClaims(root) {
       next: state.next,
       last: state.last,
       stateFile: state.present,
+      elsewhere: null,
     });
   }
 
@@ -64,6 +71,25 @@ export function readClaims(root) {
       worktree: null,
       branch,
       orphan: true,
+      elsewhere: checkedOut.get(branch) ?? null,
+      worker: null,
+      state: null,
+      gate: null,
+      updated: null,
+      next: null,
+      last: null,
+      stateFile: false,
+    });
+  }
+
+  for (const key of listClaimRefs(root)) {
+    if (!isKey(key) || claims.has(key)) continue;
+    claims.set(key, {
+      key,
+      worktree: null,
+      branch: null,
+      orphan: true,
+      elsewhere: null,
       worker: null,
       state: null,
       gate: null,

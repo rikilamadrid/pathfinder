@@ -216,3 +216,128 @@ describe("owner", () => {
     assert.equal(fromOther.claim.worktree, ".pathfinder/worktrees/1.1", "found from inside another worktree");
   });
 });
+
+describe("the claim is atomic, and a failed claim leaves nothing behind", () => {
+  it("lets exactly one of several concurrent claims of one ticket win", async () => {
+    const { spawn } = await import("node:child_process");
+    const { ENGINE_BIN, gitEnv } = await import("../lib/harness.mjs");
+
+    for (let trial = 0; trial < 5; trial += 1) {
+      const root = threeTickets();
+      const racers = ["a", "b", "c", "d"].map(
+        (slug) =>
+          new Promise((resolve) => {
+            const child = spawn(process.execPath, [ENGINE_BIN, "claim", "1.1", "--slug", slug], {
+              cwd: root,
+              env: gitEnv(),
+            });
+            child.on("close", (code) => resolve(code));
+          }),
+      );
+      const codes = await Promise.all(racers);
+
+      assert.equal(codes.filter((code) => code === 0).length, 1, `trial ${trial}: exactly one winner`);
+      const branches = runGit(["for-each-ref", "--format=%(refname:short)", "refs/heads/ticket/"], root)
+        .split("\n")
+        .filter(Boolean);
+      assert.equal(branches.length, 1, `trial ${trial}: one branch, not ${branches.join(", ")}`);
+      const worktrees = runGit(["worktree", "list", "--porcelain"], root)
+        .split("\n")
+        .filter((line) => line.startsWith("worktree ") && line.includes(".pathfinder"));
+      assert.equal(worktrees.length, 1, `trial ${trial}: one worktree`);
+      assert.match(json(orchestrate(["owner", "1.1", "--json"], { root })).claim.branch, /^ticket\/1\.1-[abcd]$/);
+    }
+  });
+
+  it("removes the branch and claim ref it created when git cannot add the worktree", async () => {
+    const { chmodSync, mkdirSync } = await import("node:fs");
+    const root = threeTickets();
+    const parent = join(root, ".pathfinder", "worktrees");
+    mkdirSync(parent, { recursive: true });
+    chmodSync(parent, 0o555);
+
+    let failed;
+    try {
+      failed = orchestrate(["claim", "1.1", "--slug", "first"], { root });
+    } finally {
+      chmodSync(parent, 0o755);
+    }
+
+    assert.equal(failed.status, 1);
+    assert.match(failed.stderr, /git worktree add failed/);
+    assert.equal(runGit(["branch", "--list", "ticket/*"], root), "", "no branch left behind");
+    assert.equal(runGit(["for-each-ref", "refs/pathfinder/"], root), "", "no claim ref left behind");
+
+    const retry = orchestrate(["claim", "1.1", "--slug", "second"], { root });
+    assert.equal(retry.status, 0, retry.stderr);
+  });
+
+  it("refuses an unregistered directory at the worktree path without creating anything", async () => {
+    const { mkdirSync } = await import("node:fs");
+    const root = threeTickets();
+    mkdirSync(join(root, ".pathfinder", "worktrees", "1.2", "leftover"), { recursive: true });
+    writeFileSync(join(root, ".pathfinder", "worktrees", "1.2", "leftover", "file"), "x");
+
+    const result = orchestrate(["claim", "1.2", "--slug", "a"], { root });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /\.pathfinder\/worktrees\/1\.2 already exists and is not a registered worktree/);
+    assert.equal(runGit(["branch", "--list", "ticket/*"], root), "");
+    assert.equal(runGit(["for-each-ref", "refs/pathfinder/"], root), "");
+  });
+
+  it("refuses a ticket with only a claim ref, as an interrupted claim", () => {
+    const root = threeTickets();
+    const head = runGit(["rev-parse", "main"], root).trim();
+    runGit(["update-ref", "refs/pathfinder/claims/1.1", head], root);
+
+    const result = orchestrate(["claim", "1.1"], { root });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /claim ref refs\/pathfinder\/claims\/1\.1 exists with no branch or worktree/);
+  });
+
+  it("names a ticket branch checked out outside .pathfinder for what it is", () => {
+    const root = threeTickets();
+    const elsewhere = join(root, "..", `${root.split("/").pop()}-elsewhere`);
+    runGit(["worktree", "add", "--quiet", "-b", "ticket/1.1-by-hand", elsewhere, "main"], root);
+
+    const result = orchestrate(["claim", "1.1"], { root });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /branch ticket\/1\.1-by-hand is checked out at .*outside \.pathfinder\/worktrees/);
+    runGit(["worktree", "remove", "--force", elsewhere], root);
+  });
+
+  it("validates the slug before touching anything, and exits 2", () => {
+    const root = threeTickets();
+    for (const slug of ["../../x", "a b", "-lead", "trail-", "UPPER", "x".repeat(41)]) {
+      const result = orchestrate(["claim", "1.1", "--slug", slug], { root });
+      assert.equal(result.status, 2, slug);
+      assert.match(result.stderr, /must be lower-case letters, digits, and inner hyphens/, slug);
+    }
+    assert.equal(existsSync(join(root, ".pathfinder")), false, "no directory created");
+  });
+});
+
+describe("a root spelled through a symlink", () => {
+  it("still recognises every claim", async () => {
+    const { symlinkSync } = await import("node:fs");
+    const { temporaryDirectory } = await import("../lib/harness.mjs");
+    const root = threeTickets();
+    orchestrate(["claim", "1.1", "--now", NOW], { root });
+    const link = join(temporaryDirectory("orchestrate-link-"), "project");
+    symlinkSync(root, link);
+
+    const owner = json(orchestrate(["owner", "1.1", "--json", "--root", link], { root }));
+    assert.equal(owner.claim.orphan, false);
+    assert.equal(owner.claim.worktree, ".pathfinder/worktrees/1.1");
+
+    const status = json(orchestrate(["status", "--json", "--live", "1.1", "--root", link], { root }));
+    const row = status.rows.find((entry) => entry.key === "1.1");
+    assert.equal(row.state, "working");
+    assert.equal(row.where, "ticket/1.1-alpha-work @ .pathfinder/worktrees/1.1");
+
+    assert.equal(orchestrate(["claim", "1.1", "--root", link], { root }).status, 1, "and refuses to claim it again");
+  });
+});

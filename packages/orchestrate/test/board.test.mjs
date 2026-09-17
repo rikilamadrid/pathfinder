@@ -11,7 +11,13 @@ import { strict as assert } from "node:assert";
 import { after, describe, it } from "node:test";
 
 import { computeBoard } from "../../../skills/orchestrate/engine/board.mjs";
-import { blockersOf, statusFromGitHub } from "../../../skills/orchestrate/engine/store.mjs";
+import {
+  ISSUE_LIMIT,
+  blockersOf,
+  githubStatus,
+  localStatus,
+  statusFromGitHub,
+} from "../../../skills/orchestrate/engine/store.mjs";
 import { compareKeys, slugify } from "../../../skills/orchestrate/engine/keys.mjs";
 import {
   cleanUpTemporaryDirectories,
@@ -126,7 +132,7 @@ describe("reading a ticket body", () => {
     assert.equal(statusFromGitHub("OPEN", ["feature: 53", "status: proposed"]), "Proposed");
     assert.equal(statusFromGitHub("OPEN", ["status: ready"]), "Ready");
     assert.equal(statusFromGitHub("OPEN", ["status: in-progress", "gate: human"]), "In Progress");
-    assert.equal(statusFromGitHub("OPEN", []), "Proposed");
+    assert.equal(statusFromGitHub("OPEN", []), "Unrecognised", "an open issue with no status label is not guessed");
     assert.equal(statusFromGitHub("CLOSED", ["feature: 53"]), "Complete");
     assert.equal(statusFromGitHub("CLOSED", ["status: cancelled"]), "Cancelled");
     assert.equal(statusFromGitHub("CLOSED", ["status: superseded"]), "Superseded");
@@ -136,6 +142,50 @@ describe("reading a ticket body", () => {
     assert.equal(slugify("Worker isolation and claiming through Git worktrees"), "worker-isolation-and-claiming-through-gi");
     assert.equal(slugify("  !!  "), "ticket");
     assert.equal(slugify("Émoji ✨ and — dashes"), "moji-and-dashes");
+  });
+});
+
+describe("reading a status fails closed", () => {
+  it("never makes a ticket eligible from a status it cannot read", () => {
+    for (const [status, problem] of [
+      ["In Progress — started by Riki", "unrecognised status `In Progress — started by Riki`"],
+      ["**Complete**", "unrecognised status `**Complete**`"],
+      ["Done", "unrecognised status `Done`"],
+    ]) {
+      const text = `# T\n\n## Status\n\n${status}\n\n## Blocked by\n\nNone\n`;
+      const read = localStatus(text);
+      assert.equal(read.status, "Unrecognised", status);
+      assert.match(read.problem, new RegExp(problem.replace(/[*`]/g, "\\$&")), status);
+    }
+    assert.deepEqual(localStatus("# T\n\n## Goal\n\nno status\n"), { status: "Unrecognised", problem: "has no ## Status section" });
+    assert.deepEqual(localStatus("# T\n\n## status\n\n  ready  \n"), { status: "Ready", problem: null });
+  });
+
+  it("does not let an unreadable ticket run, or unblock anyone", () => {
+    const rows = byKey(
+      computeBoard([
+        { ...ticket("1.1", "Unrecognised"), problem: "has an unrecognised status `Done`" },
+        ticket("1.2", "Proposed", ["1.1"]),
+      ]),
+    );
+    assert.equal(rows["1.1"].eligible, false);
+    assert.match(rows["1.1"].reason, /status unrecognised: ticket has an unrecognised status `Done`/);
+    assert.equal(rows["1.2"].eligible, false);
+    assert.match(rows["1.2"].reason, /blocker 1\.1 has an unrecognised status/);
+  });
+
+  it("reads Blocked by whatever its capitalisation", () => {
+    assert.deepEqual(blockersOf("## Blocked By\n\n- `1.1` — x\n"), ["1.1"]);
+    assert.deepEqual(blockersOf("## BLOCKED BY\n\n- `1.2` — x\n"), ["1.2"]);
+  });
+
+  it("treats an inconsistent GitHub representation as unrecognised, never as Complete", () => {
+    assert.match(githubStatus("CLOSED", ["status: in-progress"]).problem, /closed but still labelled status: in-progress/);
+    assert.match(githubStatus("CLOSED", ["status: ready"]).problem, /closed but still labelled status: ready/);
+    assert.match(githubStatus("OPEN", ["status: ready", "status: in-progress"]).problem, /2 status labels/);
+    assert.match(githubStatus("OPEN", ["status: done"]).problem, /unknown label status: done/);
+    assert.match(githubStatus("OPEN", ["status: cancelled"]).problem, /open but labelled status: cancelled/);
+    assert.match(githubStatus("OPEN", []).problem, /open with no status label/);
   });
 });
 
@@ -191,6 +241,33 @@ describe("the board command", () => {
     assert.equal(result.status, 1);
     assert.match(result.stderr, /carries no machine-readable marker/);
     assert.match(result.stderr, /<!-- pathfinder:ticket-store github-issues owner\/repo -->/);
+  });
+
+  it("refuses a store it could only have read part of", () => {
+    const issues = Array.from({ length: ISSUE_LIMIT }, (_, index) =>
+      issue({ number: index + 1, key: `9.${index + 1}`, title: "t", labels: ["status: proposed"] }),
+    );
+    const gh = fakeGh(issues);
+    const root = makeProject({ tracker: "<!-- pathfinder:ticket-store github-issues acme/widgets -->\n" });
+
+    const result = orchestrate(["board", "--gh", gh.path], { root });
+
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /refusing rather than judging eligibility from a partial board/);
+  });
+
+  it("does not unblock dependents of a closed issue still labelled in progress", () => {
+    const gh = fakeGh([
+      issue({ number: 1, key: "7.1", title: "Closed early", state: "CLOSED", labels: ["status: in-progress"] }),
+      issue({ number: 2, key: "7.2", title: "Next", labels: ["status: proposed"], blockers: ["7.1"] }),
+    ]);
+    const root = makeProject({ tracker: "<!-- pathfinder:ticket-store github-issues acme/widgets -->\n" });
+
+    const rows = byKey(json(orchestrate(["board", "--json", "--gh", gh.path], { root })).tickets);
+
+    assert.equal(rows["7.1"].status, "Unrecognised");
+    assert.equal(rows["7.2"].eligible, false);
+    assert.match(rows["7.2"].reason, /blocker 7\.1 has an unrecognised status/);
   });
 
   it("reports a failing gh rather than an empty board", () => {

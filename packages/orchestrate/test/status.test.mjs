@@ -202,3 +202,31 @@ describe("the table", () => {
     assert.match(result.stderr, /refusing to show orchestration status: this project runs human-in-the-loop/);
   });
 });
+
+describe("abandoned tickets", () => {
+  it("have no row, so no state outside the vocabulary", () => {
+    const root = makeProject({
+      tickets: { "1.1": { title: "Dropped", status: "Cancelled" }, "1.2": { title: "Replaced", status: "Superseded" }, "1.3": { title: "Live" } },
+    });
+    const rows = rowsOf(root);
+    assert.deepEqual(Object.keys(rows), ["1.3"]);
+    for (const row of Object.values(rows)) assert.ok(STATES.includes(row.state));
+  });
+
+  it("show as stale when a claim still exists for one", () => {
+    const root = makeProject({ tickets: { "1.1": { title: "Dropped" } } });
+    orchestrate(["claim", "1.1"], { root });
+    setTicketStatus(root, "1.1", { title: "Dropped", status: "Cancelled" });
+
+    const row = rowsOf(root)["1.1"];
+    assert.equal(row.state, "stale");
+    assert.equal(row.gate, "ticket is Cancelled but still claimed; release it");
+  });
+
+  it("an unreadable status is blocked, with the problem named", () => {
+    const root = makeProject({ tickets: { "1.1": { title: "Odd", status: "Done" } } });
+    const row = rowsOf(root)["1.1"];
+    assert.equal(row.state, "blocked");
+    assert.match(row.gate, /unrecognised status `Done`/);
+  });
+});

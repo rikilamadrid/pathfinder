@@ -29,7 +29,7 @@ import { join } from "node:path";
 import { computeBoard, formatBoard } from "../board.mjs";
 import { claim } from "../claim.mjs";
 import { claimFor } from "../claims.mjs";
-import { checkoutRoot, repositoryRoot } from "../git.mjs";
+import { canonical, checkoutRoot, repositoryRoot } from "../git.mjs";
 import { isKey } from "../keys.mjs";
 import { orchestratorRefusal } from "../mode.mjs";
 import { computeStatus, formatStatus } from "../status.mjs";
@@ -67,7 +67,10 @@ function main(argv) {
     return command ? 0 : 2;
   }
 
-  const root = flags.root ?? repositoryRoot(process.cwd());
+  // Canonical: a root spelled through a symlink must name the same directory
+  // Git reports worktrees in, or every claim reads as an orphan.
+  const found = flags.root ?? repositoryRoot(process.cwd());
+  const root = found ? canonical(found) : null;
   if (!root) return fail(1, "not inside a Git repository, and no --root given");
   const common = { root, store: flags.store ?? null, gh: flags.gh ?? "gh" };
 
@@ -107,7 +110,7 @@ function board({ root, store: storeOverride, gh, feature, json }) {
 
 function doClaim({ root, store, gh, key, slug, now, json }) {
   const result = claim({ root, key, slug, store, gh, ...(now ? { now } : {}) });
-  if (!result.ok) return fail(1, result.message);
+  if (!result.ok) return fail(result.usage ? 2 : 1, result.message);
   if (json) {
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
   } else {
@@ -119,6 +122,9 @@ function doClaim({ root, store, gh, key, slug, now, json }) {
 function owner({ root, key, json }) {
   const found = claimFor(root, key);
   const here = checkoutRoot(process.cwd());
+  // Owned here only by a registered worktree under .pathfinder that is this
+  // checkout. An orphan — a branch or claim ref with no such worktree — is
+  // owned by nobody here, and the lifecycle stops on it too.
   const ownedHere =
     found !== null && !found.orphan && here !== null && samePath(join(root, ...found.worktree.split("/")), here);
   if (json) {
