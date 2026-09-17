@@ -446,7 +446,8 @@ const BRIEF_BASE = {
   ticket: "1.1",
   title: "Alpha",
   ref: "#11",
-  worktree: ".pathfinder/worktrees/1.1",
+  worktree: "/work/project/.pathfinder/worktrees/1.1",
+  main: "/work/project",
   branch: "ticket/1.1-alpha",
   approval: "execution of Feature 1's tickets; no merges",
 };
@@ -456,7 +457,8 @@ describe("the brief and its translation", () => {
     ticket: "1.1",
     title: "Alpha",
     ref: "#11",
-    worktree: ".pathfinder/worktrees/1.1",
+    worktree: "/work/project/.pathfinder/worktrees/1.1",
+    main: "/work/project",
     branch: "ticket/1.1-alpha",
     approval: "execution of Feature 1's tickets; no merges",
   };

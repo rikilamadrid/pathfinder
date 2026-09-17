@@ -227,7 +227,7 @@ function board({ root, store: storeOverride, gh, feature, json, commentBlocked, 
     const note = blockedNote({ key: row.key, waiting: row.waiting, reason: row.reason ?? "not eligible" });
     const posted = postNote({ root, store, ticket: row, note, gh });
     if (!posted.ok) return fail(1, posted.message);
-    process.stderr.write(`orchestrate: ${posted.posted ? "posted" : "already posted"} the blocked note on ${row.key}\n`);
+    process.stderr.write(`orchestrate: ${posted.posted ? "posted the blocked note on" : posted.skipped ? "wrote no blocked note for" : "already posted the blocked note on"} ${row.key}\n`);
   }
 
   if (commentUnblocked) {
@@ -242,7 +242,7 @@ function board({ root, store: storeOverride, gh, feature, json, commentBlocked, 
     }
     const posted = postNote({ root, store, ticket: row, note: unblockedNote({ key: row.key, by, now }), gh });
     if (!posted.ok) return fail(1, posted.message);
-    process.stderr.write(`orchestrate: ${posted.posted ? "posted" : "already posted"} the unblocked note on ${row.key}\n`);
+    process.stderr.write(`orchestrate: ${posted.posted ? "posted the unblocked note on" : posted.skipped ? "wrote no unblocked note for" : "already posted the unblocked note on"} ${row.key}\n`);
   }
   if (json) {
     const tickets = rows.map(({ body, ...row }) => row);
@@ -292,6 +292,7 @@ async function brief({ root, key, harness, session, approval, json }) {
     // Absolute: a worker session starts wherever its harness starts it, and
     // the brief is the only thing telling it where the work is.
     worktree: join(root, ...found.worktree.split("/")),
+    main: root,
     branch: found.branch,
     selection,
     approval,
@@ -311,8 +312,10 @@ async function doClaim({ root, store, gh, key, slug, now, assessment, announce: 
   const result = await claim({ root, key, slug, store, gh, assessment, ...(now ? { now } : {}) });
   if (!result.ok) return fail(result.usage ? 2 : 1, result.message);
   if (shouldAnnounce) {
+    // The claim stands whether or not the note lands. A failed announcement is
+    // reported and retried with `announce`, never read as a failed claim.
     const code = announceClaim({ root, store, gh, key, now: now ?? new Date().toISOString(), profile: result.profile, branch: result.branch, worktree: result.worktree });
-    if (code !== 0) return code;
+    result.announced = code === 0;
   }
   if (json) {
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
@@ -331,7 +334,7 @@ function owner({ root, key, json }) {
   const ownedHere =
     found !== null && !found.orphan && here !== null && samePath(join(root, ...found.worktree.split("/")), here);
   if (json) {
-    process.stdout.write(JSON.stringify({ key, claim: found, here: ownedHere }, null, 2) + "\n");
+    process.stdout.write(JSON.stringify({ key, claim: found, here: ownedHere, root }, null, 2) + "\n");
     return 0;
   }
   if (!found) {
@@ -394,36 +397,52 @@ function announceClaim({ root, store: storeOverride, gh, key, now, profile, bran
   const ticket = read.tickets.find((entry) => entry.key === key);
   if (!ticket) return fail(1, `no ticket ${key} in ${describeStore(store)}`);
   const note = claimedNote({ key, worker: key, branch, worktree, now, profile });
-  const posted = postNote({ root, store, ticket, note, gh });
-  if (!posted.ok) return fail(1, `claimed ${key}, but the ownership note failed: ${posted.message}`);
+  const posted = postNote({ root, store, ticket, note, gh, worktree: join(root, ...worktree.split("/")) });
+  if (!posted.ok) return fail(1, `claimed ${key}, but the ownership note failed: ${posted.message}. Retry with: orchestrate announce ${key}`);
   process.stderr.write(`orchestrate: ${posted.posted ? "posted" : "already posted"} the ownership note on ${key}\n`);
   return 0;
 }
 
-function gate({ root, store: storeOverride, gh, key, action, question, answer, now }) {
+function gate({ root, store: storeOverride, gh, key, action, question: rawQuestion, answer, now }) {
+  let question = rawQuestion;
   const store = resolveStore(root, { override: storeOverride });
   const read = readTickets(root, store, { gh });
   if (!read.ok) return fail(1, read.message);
   const ticket = read.tickets.find((entry) => entry.key === key);
   if (!ticket) return fail(1, `no ticket ${key} in ${describeStore(store)}`);
   const found = claimFor(root, key);
-  const worktree = found && !found.orphan ? join(root, ...found.worktree.split("/")) : null;
+  if (!found || found.orphan) {
+    return fail(1, `${key} has no registered claim; a gate belongs to a worker, and there is none to stop or resume`);
+  }
+  const worktree = join(root, ...found.worktree.split("/"));
 
   if (action === "open") {
-    if (worktree) {
-      const updated = updateStateFile(worktree, { set: { State: "human-gate", Gate: oneLine(question), Updated: now } });
-      if (!updated.ok) return fail(updated.usage ? 2 : 1, updated.message);
+    question = oneLine(question);
+    if (question === "") return fail(2, "gate open needs a non-empty --question");
+    if (found.state === "human-gate" && found.gate && found.gate !== question) {
+      return fail(1, `${key} is already at a human gate: ${found.gate}. Resolve it before opening another.`);
     }
+    if (found.state === "done" || found.state === "failed") {
+      return fail(1, `${key} is ${found.state}; a gate stops a worker that is working or in review, and this one is not`);
+    }
+    const updated = updateStateFile(worktree, { set: { State: "human-gate", Gate: question, Updated: now } });
+    if (!updated.ok) return fail(updated.usage ? 2 : 1, updated.message);
     const label = setGateLabel({ store, ticket, present: true, gh });
     if (!label.ok) return fail(1, label.message);
-    const posted = postNote({ root, store, ticket, note: gateOpenedNote({ key, question, now }), gh });
+    const posted = postNote({ root, store, ticket, note: gateOpenedNote({ key, question, now }), gh, worktree });
     if (!posted.ok) return fail(1, posted.message);
     process.stdout.write(`gate opened on ${key}: ${oneLine(question)}\n`);
     return 0;
   }
 
-  const recordedQuestion = found?.gate ?? null;
-  if (worktree) {
+  // Resolve only an open gate. Its question, recorded when it opened, is what
+  // the resolution note's marker names, so resolving twice cannot post twice:
+  // the second call finds no open gate.
+  if (found.state !== "human-gate" || !found.gate) {
+    return fail(1, `${key} has no open human gate to resolve (state: ${found.state ?? "none"})`);
+  }
+  const recordedQuestion = found.gate;
+  {
     const set = { State: "working", Updated: now };
     if (answer) set.Last = `gate resolved: ${oneLine(answer)}`;
     const updated = updateStateFile(worktree, { set, unset: ["Gate"] });
@@ -431,7 +450,7 @@ function gate({ root, store: storeOverride, gh, key, action, question, answer, n
   }
   const label = setGateLabel({ store, ticket, present: false, gh });
   if (!label.ok) return fail(1, label.message);
-  const posted = postNote({ root, store, ticket, note: gateResolvedNote({ key, question: recordedQuestion, answer, now }), gh });
+  const posted = postNote({ root, store, ticket, note: gateResolvedNote({ key, question: recordedQuestion, answer, now }), gh, worktree });
   if (!posted.ok) return fail(1, posted.message);
   process.stdout.write(`gate resolved on ${key}\n`);
   return 0;
@@ -442,7 +461,8 @@ function state({ root, key, set, gate: gateText, last, next, now }) {
   if (!found || found.orphan) return fail(1, `${key} has no registered claim whose state could be set`);
   const fields = { State: set, Updated: now };
   const unset = [];
-  if (gateText) fields.Gate = gateText;
+  if (gateText && set !== "human-gate") return fail(2, "--gate is only for --set human-gate");
+  if (gateText) fields.Gate = oneLine(gateText);
   else if (set !== "human-gate") unset.push("Gate");
   if (last) fields.Last = last;
   if (next) fields.Next = next;

@@ -26,7 +26,7 @@ import { GATE_LABEL } from "./comments.mjs";
  *
  * @returns {{ok: true, posted: boolean} | {ok: false, message: string}}
  */
-export function postNote({ root, store, ticket, note, gh = "gh" }) {
+export function postNote({ root, store, ticket, note, gh = "gh", worktree = null }) {
   if (store.kind === "github-issues") {
     const existing = run(gh, ["issue", "view", String(ticket.number), "--repo", store.repo, "--json", "comments"]);
     if (!existing.ok) return existing;
@@ -44,7 +44,11 @@ export function postNote({ root, store, ticket, note, gh = "gh" }) {
   }
 
   if (store.kind === "local") {
-    const path = join(root, ...ticket.ref.split("/"));
+    // Into the claim's own worktree, so the note travels with the ticket's
+    // branch and pull request and the main checkout is never left dirty. An
+    // unclaimed local ticket gets no note: its reasons are in the plan.
+    if (!worktree) return { ok: true, posted: false, skipped: "a local ticket's notes are written only into its claim's worktree" };
+    const path = join(worktree, ...ticket.ref.split("/"));
     let text;
     try {
       text = readFileSync(path, "utf8");
@@ -77,16 +81,32 @@ export function setGateLabel({ store, ticket, present, gh = "gh" }) {
  * section at the end of the file when the ticket has none.
  */
 export function appendUnderNotes(text, block) {
-  const normalized = text.endsWith("\n") ? text : `${text}\n`;
-  const heading = /^## Notes \/ Decisions[ \t]*$/im.exec(normalized);
-  if (!heading) return `${normalized}\n## Notes / Decisions\n\n${block}\n`;
+  // The file's own line ending, kept. A heading inside a fenced block is text.
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const lines = text.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
+  const blockLines = block.replace(/\r\n/g, "\n").split("\n");
 
-  const after = heading.index + heading[0].length;
-  const next = /^## /m.exec(normalized.slice(after + 1));
-  const end = next ? after + 1 + next.index : normalized.length;
-  const before = normalized.slice(0, end).replace(/\n+$/, "\n");
-  const rest = normalized.slice(end);
-  return `${before}\n${block}\n${rest ? `\n${rest}` : ""}`;
+  let fenced = false;
+  let start = -1;
+  let end = lines.length;
+  for (let index = 0; index < lines.length; index += 1) {
+    if (/^\s*(```|~~~)/.test(lines[index])) fenced = !fenced;
+    if (fenced) continue;
+    if (start === -1 && /^## Notes \/ Decisions[ \t]*$/i.test(lines[index])) {
+      start = index;
+    } else if (start !== -1 && /^## /.test(lines[index])) {
+      end = index;
+      break;
+    }
+  }
+
+  if (start === -1) return [...lines, "", "## Notes / Decisions", "", ...blockLines, ""].join(eol);
+
+  let last = end;
+  while (last > start + 1 && lines[last - 1] === "") last -= 1;
+  const out = [...lines.slice(0, last), "", ...blockLines];
+  if (end < lines.length) out.push("", ...lines.slice(end));
+  return [...out, ""].join(eol);
 }
 
 function run(command, args) {

@@ -22,7 +22,8 @@ export const WRITABLE = Object.freeze(["State", "Gate", "Last", "Next", "Updated
  * Values are single-line; a newline is refused rather than written.
  */
 export function updateStateText(text, { set = {}, unset = [] }) {
-  let lines = text.split("\n");
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  let lines = text.replace(/\r\n/g, "\n").split("\n");
 
   for (const name of unset) {
     lines = lines.filter((line) => !new RegExp(`^-\\s*${name}:`).test(line));
@@ -41,7 +42,7 @@ export function updateStateText(text, { set = {}, unset = [] }) {
     lines.splice(insertAt, 0, line);
   }
 
-  return lines.join("\n");
+  return lines.join(eol);
 }
 
 /**

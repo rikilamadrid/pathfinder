@@ -17,7 +17,7 @@
  *   review       a tester session is verifying it
  *   human-gate   the worker stopped for a human decision
  *   done         work complete: verified, reviewed, pushed, PR open
- *   stale        a working, review, or human-gate claim with no live session
+ *   stale        a working or review claim with no live session
  *   failed       the worker reported failure; a human decides
  *   integrated   Complete in the store
  *
@@ -45,7 +45,10 @@ export const STATES = Object.freeze([
   "integrated",
 ]);
 
-const STALE_WHEN_UNATTENDED = new Set(["working", "review", "human-gate"]);
+// A worker at a human gate stopped on purpose and waits for a person, so it is
+// shown as human-gate whether or not a session is live. Only work that was
+// meant to be running and has no session is stale.
+const STALE_WHEN_UNATTENDED = new Set(["working", "review"]);
 const ABANDONED = new Set(["Cancelled", "Superseded"]);
 
 /**

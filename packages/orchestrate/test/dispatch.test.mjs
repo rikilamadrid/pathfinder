@@ -12,7 +12,7 @@
  */
 
 import { strict as assert } from "node:assert";
-import { readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
@@ -277,17 +277,142 @@ describe("tracker notes and gates on GitHub Issues", () => {
 });
 
 describe("notes on a local Markdown store", () => {
-  it("appends under Notes / Decisions, once, and gates with no label", () => {
+  it("appends under Notes / Decisions in the claim's worktree, once, and never dirties the main checkout", () => {
     const root = abc();
     orchestrate(["claim", "1.1", "--now", NOW, "--announce"], { root });
     orchestrate(["announce", "1.1", "--now", NOW], { root });
     orchestrate(["gate", "1.1", "open", "--question", "Q?", "--now", NOW], { root });
 
-    const ticket = readFileSync(join(root, "context", "tickets", "1.1-1-1.md"), "utf8");
+    const ticket = readFileSync(join(root, ".pathfinder", "worktrees", "1.1", "context", "tickets", "1.1-1-1.md"), "utf8");
     assert.equal(ticket.split(marker("claimed", "1.1", "ticket/1.1-a")).length - 1, 1);
     assert.match(ticket, /## Notes \/ Decisions\n\n<!-- pathfinder:orchestrate claimed 1\.1 ticket\/1\.1-a -->/);
     assert.match(ticket, /\*\*Human gate opened\*\*/);
     assert.match(ticket, /^## Status\n\nProposed$/m, "status untouched");
+
+    assert.equal(runGit(["status", "--porcelain"], root), "", "the main checkout stays clean");
+    assert.doesNotMatch(readFileSync(join(root, "context", "tickets", "1.1-1-1.md"), "utf8"), /pathfinder:orchestrate/);
+  });
+
+  it("writes no note for an unclaimed local ticket, and says so", () => {
+    const root = abc();
+    const result = orchestrate(["board", "--comment-blocked", "1.3"], { root });
+    assert.equal(result.status, 0);
+    assert.match(result.stderr, /wrote no blocked note for 1\.3/);
+    assert.equal(runGit(["status", "--porcelain"], root), "");
+  });
+});
+
+describe("repairs from the 53.3 review", () => {
+  it("names the main checkout in every brief, and tells workers to read untracked context from it", () => {
+    const root = abc();
+    orchestrate(["claim", "1.1", "--now", NOW], { root });
+    for (const session of ["implementation", "resume", "review"]) {
+      const text = orchestrate(["brief", "1.1", "--harness", "manual", "--session", session], { root }).stdout;
+      assert.match(text, /^Main: {6}\/.+$/m, session);
+      assert.equal(/^Main: {6}(.+)$/m.exec(text)[1].endsWith(/^Worktree: {2}(.+)$/m.exec(text)[1].replace(/\/\.pathfinder\/worktrees\/1\.1$/, "")), true, session);
+      assert.match(text, /Read context\/tracker\.md and the Feature spec from the main checkout named above whenever the worktree has no copy/, session);
+    }
+    const owner = json(orchestrate(["owner", "1.1", "--json"], { root }));
+    assert.equal(typeof owner.root, "string");
+  });
+
+  it("opens a gate only on a claimed worker that is working or in review", () => {
+    const root = abc();
+    const unclaimed = orchestrate(["gate", "1.3", "open", "--question", "Q?"], { root });
+    assert.equal(unclaimed.status, 1);
+    assert.match(unclaimed.stderr, /1\.3 has no registered claim/);
+
+    orchestrate(["claim", "1.1", "--now", NOW], { root });
+    orchestrate(["state", "1.1", "--set", "done", "--now", NOW], { root });
+    const done = orchestrate(["gate", "1.1", "open", "--question", "Q?"], { root });
+    assert.equal(done.status, 1);
+    assert.match(done.stderr, /1\.1 is done; a gate stops a worker that is working or in review/);
+
+    orchestrate(["claim", "1.2", "--now", NOW], { root });
+    assert.equal(orchestrate(["gate", "1.2", "open", "--question", "First?"], { root }).status, 0);
+    const second = orchestrate(["gate", "1.2", "open", "--question", "Different?"], { root });
+    assert.equal(second.status, 1);
+    assert.match(second.stderr, /already at a human gate: First\?/);
+  });
+
+  it("resolves only an open gate, so resolving twice posts one note and never reopens finished work", () => {
+    const gh = statefulGh([issue({ number: 11, key: "1.1", title: "A", labels: ["status: proposed"] })]);
+    const root = makeProject({ tracker: TRACKER });
+    orchestrate(["claim", "1.1", "--now", NOW, "--gh", gh.path], { root });
+    orchestrate(["gate", "1.1", "open", "--question", "Ship v2?", "--now", NOW, "--gh", gh.path], { root });
+
+    assert.equal(orchestrate(["gate", "1.1", "resolve", "--answer", "Yes.", "--now", NOW, "--gh", gh.path], { root }).status, 0);
+    const again = orchestrate(["gate", "1.1", "resolve", "--answer", "Yes.", "--now", NOW, "--gh", gh.path], { root });
+    assert.equal(again.status, 1);
+    assert.match(again.stderr, /no open human gate to resolve \(state: working\)/);
+    const notes = gh.read()[0].comments.map((comment) => comment.body.split("\n")[0]);
+    assert.equal(notes.length, 2);
+    assert.equal(notes[0].replace("gate-opened", "gate-resolved"), notes[1], "both markers digest the recorded question");
+
+    orchestrate(["state", "1.1", "--set", "done", "--now", NOW, "--gh", gh.path], { root });
+    const finished = orchestrate(["gate", "1.1", "resolve", "--gh", gh.path], { root });
+    assert.equal(finished.status, 1);
+    assert.equal(json(orchestrate(["status", "--json", "--gh", gh.path], { root })).rows[0].state, "done", "a finished worker stays done");
+  });
+
+  it("treats a question differing only in whitespace as the same gate", () => {
+    const gh = statefulGh([issue({ number: 11, key: "1.1", title: "A", labels: ["status: proposed"] })]);
+    const root = makeProject({ tracker: TRACKER });
+    orchestrate(["claim", "1.1", "--now", NOW, "--gh", gh.path], { root });
+    orchestrate(["gate", "1.1", "open", "--question", "Ship v2?", "--now", NOW, "--gh", gh.path], { root });
+    assert.equal(orchestrate(["gate", "1.1", "open", "--question", "Ship v2?  ", "--now", NOW, "--gh", gh.path], { root }).status, 0);
+    assert.equal(gh.read()[0].comments.length, 1);
+  });
+
+  it("shows a gated worker as human-gate without a live session, holding no slot and never stale", () => {
+    const root = abc();
+    orchestrate(["claim", "1.1", "--now", NOW], { root });
+    orchestrate(["gate", "1.1", "open", "--question", "Q?", "--now", NOW], { root });
+
+    const row = json(orchestrate(["status", "--json"], { root })).rows.find((entry) => entry.key === "1.1");
+    assert.equal(row.state, "human-gate", "no --live, and still human-gate");
+    assert.equal(row.gate, "Q?");
+
+    const plan = planOf(root, ["--workers", "1"]);
+    assert.deepEqual(plan.stale, [], "a gated worker is not stale");
+    assert.deepEqual(plan.dispatch.map((entry) => entry.key), ["1.2"], "and holds no worker slot");
+  });
+
+  it("refuses --gate on any state but human-gate", () => {
+    const root = abc();
+    orchestrate(["claim", "1.1", "--now", NOW], { root });
+    const result = orchestrate(["state", "1.1", "--set", "working", "--gate", "stray"], { root });
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /--gate is only for --set human-gate/);
+  });
+
+  it("keeps a claim whose announcement failed, exiting 0 and saying how to retry", () => {
+    const gh = statefulGh([issue({ number: 11, key: "1.1", title: "A", labels: ["status: proposed"] })]);
+    const root = makeProject({ tracker: TRACKER });
+    // An issue list that works and a comment call that fails: remove the issue
+    // from the fake's state after listing by pointing view at a missing number.
+    const broken = join(gh.path, "..", "gh-broken");
+    writeFileSync(broken, readFileSync(gh.path, "utf8").replace("if (args[1] === 'view')", "if (args[1] === 'view') { process.stderr.write('rate limited'); process.exit(1); } if (false)"));
+    chmodSync(broken, 0o755);
+
+    const result = orchestrate(["claim", "1.1", "--announce", "--json", "--gh", broken], { root });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).announced, false);
+    assert.match(result.stderr, /the ownership note failed: .*rate limited.*Retry with: orchestrate announce 1\.1/);
+    assert.equal(json(orchestrate(["owner", "1.1", "--json"], { root })).claim.orphan, false, "the claim stands");
+  });
+
+  it("keeps CRLF line endings, and never treats a heading inside a fence as the next section", () => {
+    const crlf = "# T\r\n\r\n## Notes / Decisions\r\n\r\n- earlier\r\n";
+    assert.equal(appendUnderNotes(crlf, "<!-- m -->\nnew"), "# T\r\n\r\n## Notes / Decisions\r\n\r\n- earlier\r\n\r\n<!-- m -->\r\nnew\r\n");
+
+    const fenced = "# T\n\n## Notes / Decisions\n\n```md\n## Not a heading\n```\n\n## Appendix\n\nx\n";
+    assert.equal(
+      appendUnderNotes(fenced, "<!-- m -->"),
+      "# T\n\n## Notes / Decisions\n\n```md\n## Not a heading\n```\n\n<!-- m -->\n\n## Appendix\n\nx\n",
+    );
+
+    assert.equal(updateStateText("- State: working\r\n- Next: x\r\n", { set: { State: "review" } }), "- State: review\r\n- Next: x\r\n");
   });
 });
 

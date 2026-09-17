@@ -24,6 +24,11 @@ export function marker(event, ...facts) {
   return `<!-- pathfinder:orchestrate ${[event, ...facts].join(" ")} -->`;
 }
 
+/** A question as the state file records it: one line, trimmed. Markers digest this form. */
+export function normaliseQuestion(text) {
+  return String(text ?? "").replace(/[\r\n\u2028\u2029]+/g, " ").trim();
+}
+
 /** A short, stable digest of free text, so a marker can name it without quoting it. */
 export function digest(text) {
   return createHash("sha256").update(String(text)).digest("hex").slice(0, 12);
@@ -60,9 +65,9 @@ export function claimedNote({ key, worker, branch, worktree, now, profile }) {
 /** A worker stopped for a human decision. */
 export function gateOpenedNote({ key, question, now }) {
   return {
-    marker: marker("gate-opened", key, digest(question)),
+    marker: marker("gate-opened", key, digest(normaliseQuestion(question))),
     body: [
-      marker("gate-opened", key, digest(question)),
+      marker("gate-opened", key, digest(normaliseQuestion(question))),
       `**Human gate opened** on ${day(now)}. Worker \`${key}\` has stopped and is waiting for this decision:`,
       "",
       ...String(question)
@@ -77,9 +82,9 @@ export function gateOpenedNote({ key, question, now }) {
 /** The human answered, and the worker resumes. */
 export function gateResolvedNote({ key, question, answer, now }) {
   return {
-    marker: marker("gate-resolved", key, digest(question ?? answer ?? "")),
+    marker: marker("gate-resolved", key, digest(normaliseQuestion(question))),
     body: [
-      marker("gate-resolved", key, digest(question ?? answer ?? "")),
+      marker("gate-resolved", key, digest(normaliseQuestion(question))),
       `**Human gate resolved** on ${day(now)}. Worker \`${key}\` resumes.`,
       ...(answer ? ["", "Decision:", "", ...String(answer).split(/\r?\n/).map((line) => `> ${line}`)] : []),
     ].join("\n"),

@@ -27,7 +27,9 @@ import { computeBoard } from "./board.mjs";
 import { readClaims } from "./claims.mjs";
 import { profileFor } from "./route.mjs";
 
-const ACTIVE = new Set(["working", "review", "human-gate"]);
+// States whose worker is running. A gated worker's session has ended while it
+// waits for a human, so it holds no slot and is not stale.
+const ACTIVE = new Set(["working", "review"]);
 
 /**
  * @param {{root: string, tickets: object[], feature?: string|null, workers?: number, live?: string[]}} args
