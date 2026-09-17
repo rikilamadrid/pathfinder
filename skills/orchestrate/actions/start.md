@@ -47,8 +47,8 @@ the approval scope. Then ask the human one question: approve this run as scoped?
 
 - An approval covers every ticket in scope as it becomes eligible during this
   run, up to the worker limit, and nothing the scope statement excludes.
-- The approval does not cover merging. Merging is `/orchestrate integrate`'s,
-  under the project's merge policy.
+- The approval does not cover merging. Each merge is presented separately, under
+  the project's merge policy.
 - If the human declines or narrows the scope, stop or re-plan with the narrower
   scope. Never claim before this answer.
 
