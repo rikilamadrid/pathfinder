@@ -24,6 +24,15 @@ second copy to reconcile.
   ticket carries its key. Use what it names. If that store cannot be reached,
   report it and stop; do not write tickets somewhere else.
 
+A `tracker.md` also carries one machine-readable line naming the store, so the
+orchestration engine can read it without interpreting prose:
+
+`<!-- pathfinder:ticket-store github-issues owner/repo -->`
+
+`github-issues` is the one value the engine reads today. A project that never
+runs in orchestrator mode loses nothing without the line; the engine refuses a
+`tracker.md` that lacks it and names the line to add.
+
 ## Identity
 
 A ticket's key is `NN.TT` — its parent Feature's number, and the ticket number

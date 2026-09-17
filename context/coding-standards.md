@@ -141,6 +141,13 @@ context/current-ticket.md
 context/handoff.md
 ```
 
+A project in orchestrator mode adds one more line, for the machine-local
+worktrees each ticket worker runs in:
+
+```text
+/.pathfinder/
+```
+
 **Do not ignore `context/` as a directory.** It is the one mistake worth naming,
 because it looks tidier and quietly untracks the project truth every later
 session depends on — including the file that documents your stack and workflow.

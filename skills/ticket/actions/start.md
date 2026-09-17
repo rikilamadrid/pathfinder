@@ -10,7 +10,8 @@ this default. A role narrows responsibility and never grants human authority.
 
 1. Read `context/current-ticket.md` and, from the store, the ticket it names.
    If neither exists, stop: an unloaded ticket is not approved for execution.
-   Run `/ticket load`.
+   Run `/ticket load`. In `orchestrator` mode, repeat the ownership check from
+   `load` step 7 and stop if another worktree owns the ticket.
 2. Read only the context the ticket names.
 3. Restate the pre-implementation summary the project's agent guide requires,
    and wait for it to be answered where it names a human decision. Do not edit
@@ -34,7 +35,8 @@ this default. A role narrows responsibility and never grants human authority.
 9. Keep the repository stable. The ticket is a slice that leaves the project
    working, so a green build at the end is part of the work, not a later ticket.
 10. Update `context/current-ticket.md` with the current state and next action.
-    Do not record the lifecycle status there; the ticket carries it.
+    Do not record the lifecycle status there; the ticket carries it. In
+    `orchestrator` mode also update `State` and `Updated`.
 
 ## Rules
 

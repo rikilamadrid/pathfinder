@@ -29,6 +29,11 @@ __MACOSX/
 /context/current-feature.md
 /context/handoff.md
 
+# Orchestrator mode's machine-local runtime: one linked Git worktree per claimed
+# ticket under .pathfinder/worktrees/<key>. Never project truth, and never
+# committed. The orchestrate engine refuses to claim until this line exists.
+/.pathfinder/
+
 # Deliberately not listed above: /context/history.md. It is a never-ships file
 # like the three preceding it, and it is *not* ignored, which looks like an
 # oversight and is not. This repository's completed-work record is durable
