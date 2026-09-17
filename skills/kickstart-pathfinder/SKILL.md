@@ -45,7 +45,9 @@ When the user is unsure, provide a small recommendation with reasoning and alter
 1. If the project is missing kit files, and this session loaded this skill from
    the Pathfinder plugin, offer to install the kit before going further. See
    `Kit Bootstrap` below. Otherwise start at the next step.
-2. Read the kit context and inspect relevant repository facts.
+2. Read the kit context — including the execution mode, as
+   `skills/ticket/SKILL.md` §Execution mode defines it — and inspect relevant
+   repository facts.
 3. Ask the minimum unresolved questions in small groups.
 4. Summarize requirements, preferences, constraints, open decisions, and contradictions.
 5. Route uncertain product/technical choices to `debate-me` when useful.
@@ -56,6 +58,10 @@ When the user is unsure, provide a small recommendation with reasoning and alter
    in `context/ai-interaction.md`. Fill the sections the project has and mark
    the rest `TBD` or `None`. Do not add sections the template does not carry,
    and do not leave a field blank.
+   Name the execution mode in the proposed context as a fact read from
+   `context/execution-mode.md`. Do not ask the mode question here: the
+   installer asks it once, and `npx create-pathfinder --mode <value>` changes
+   it.
 8. Recommend `debate-me`, `prototype`, or `to-specs` as the next action.
 
 ## Kit Bootstrap

@@ -26,6 +26,15 @@ import { createProgress } from "./progress.mjs";
 import { summarize } from "./outcome.mjs";
 import { activationLines } from "./activation.mjs";
 import {
+  DEFAULT_EXECUTION_MODE,
+  EXECUTION_MODE_OPTIONS,
+  EXECUTION_MODE_PATH,
+  EXECUTION_MODE_QUESTION,
+  applyExecutionModePlan,
+  parseExecutionModeFlag,
+  planExecutionMode,
+} from "./execution-mode.mjs";
+import {
   HARNESSES,
   HARNESS_IDS,
   detectedHarnesses,
@@ -48,6 +57,12 @@ Options:
                   run first; change nothing and ask nothing.
   --force         Overwrite files that already exist, and replace a file you
                   wrote at a path an adapter would occupy. Off by default.
+  --mode <mode>   Record how Pathfinder runs this project, in
+                  context/execution-mode.md: human-in-the-loop (one ticket at
+                  a time, the default) or orchestrator (several dependency-safe
+                  ticket workers at once). Without it an interactive run asks
+                  once, and a scripted run records nothing, which means
+                  human-in-the-loop. Re-run with it to change the mode.
   --git-init      Run \`git init\` here if this is not a repository yet.
   --no-git-init   Never run \`git init\`; refuse instead.
   --no-clipboard  Never offer to copy the Kickstart prompt. The prompt is
@@ -225,7 +240,22 @@ export async function run(
     theme,
   });
 
+  // The last question, and a question about the project rather than a tool:
+  // how Pathfinder runs it. Asked after the harness question so the two
+  // tool-shaped questions stay adjacent, and before anything is written for
+  // the same reason every other question is.
+  const modeSelection = await selectExecutionMode({ findings, options, prompter, out });
+
   const plan = planInstall(kitRoot, cwd, { force: options.force });
+
+  // Planned here, beside the kit plan, because it is a file in `context/` the
+  // kit copy deliberately does not carry: the mode is this project's answer,
+  // not the kit's. Null when nothing was asked and nothing was flagged, and a
+  // null plan applies to nothing and reports nothing.
+  const modePlan =
+    modeSelection === null
+      ? null
+      : planExecutionMode({ targetRoot: cwd, mode: modeSelection.mode, force: options.force });
 
   // Both plans are computed before anything is written, which is what lets the
   // progress bar state a real denominator instead of discovering its own total
@@ -260,7 +290,7 @@ export async function run(
   // of theatre this treatment was designed to avoid.
   const progress = createProgress({
     theme,
-    total: options.dryRun ? 0 : plan.length + adapterPlan.length + hookPlan.length,
+    total: options.dryRun ? 0 : plan.length + (modePlan ? 1 : 0) + adapterPlan.length + hookPlan.length,
     out,
   });
 
@@ -283,6 +313,15 @@ export async function run(
             : theme.info(`${mark.info} Kit files`) + ` ${mark.dash} already in place`,
         ),
   );
+
+  const mode = recordExecutionMode({
+    plan: modePlan,
+    options,
+    result,
+    onProgress: (unit) => progress.advance(unit),
+    onDone: (line) => progress.milestone(railed(theme, line)),
+    theme,
+  });
 
   const adapters = generateAdapters({
     plan: adapterPlan,
@@ -317,7 +356,7 @@ export async function run(
   // plan or a result: the two renderings disagree about everything except the
   // facts, and this is what makes "except the facts" true rather than a hope
   // about two functions being edited together.
-  const outcome = summarize({ plan, result, adapters, hooks, harnesses, options });
+  const outcome = summarize({ plan, result, adapters, hooks, mode, harnesses, options });
 
   report({ outcome, harnesses, customTools, cwd, gitRoot, options, out, err, theme });
 
@@ -486,6 +525,101 @@ async function askCustomTools({ prompter, out, theme }) {
 
   if (names.length > 0) out("\n");
   return names;
+}
+
+/**
+ * How Pathfinder will run this project, if this run has anything to say.
+ *
+ * Three ways to answer, in precedence order: `--mode` says it outright and
+ * applies to a scripted run too; an interactive terminal is asked, once, and
+ * only while the project has no answer on disk; everything else says nothing.
+ * That last one is what keeps a scripted run byte-identical to what it printed
+ * before the question existed — a CI job that has always piped this command
+ * sees no new file and no new output — and it is also the legacy contract: a
+ * project with no `context/execution-mode.md` is a human-in-the-loop project.
+ *
+ * A project that already recorded its mode is never asked again. The finding
+ * reported it above; re-running the installer is how a project gains newer
+ * kit files, not a second interview. `--mode` is the way to change the answer,
+ * and the file's own prose says so.
+ *
+ * An unanswered question — Escape, a closed stdin — records nothing, the same
+ * conservative reading every other question here gives it.
+ *
+ * @returns {Promise<{mode: string, explicit: boolean} | null>}
+ */
+async function selectExecutionMode({ findings, options, prompter, out }) {
+  if (options.mode !== null) return { mode: options.mode, explicit: true };
+  if (!prompter.interactive || options.yes) return null;
+  if (findings.executionMode?.present) return null;
+
+  // The same three-field option grammar the harness question uses, so both
+  // renderers lay it out their own way: the label is the answer, the hint says
+  // what choosing it means. Human-in-the-loop is highlighted first because it
+  // is what a project with no file already is.
+  const answer = await prompter.chooseOne(EXECUTION_MODE_QUESTION, {
+    options: EXECUTION_MODE_OPTIONS.map((option) => ({
+      value: option.value,
+      label: option.label,
+      hint: option.hint,
+    })),
+    defaultValue: DEFAULT_EXECUTION_MODE,
+  });
+
+  out("\n");
+
+  if (answer === null) return null;
+  return { mode: answer, explicit: false };
+}
+
+/**
+ * Record the execution mode, or explain why not.
+ *
+ * Returns the applied result so the summary can say what happened in either
+ * rendering. Blocked by a failed kit copy for the reason adapters are: a mode
+ * file beside a copy that did not finish would record an answer for a project
+ * that does not yet have the workflow the answer is about.
+ *
+ * One milestone line, because it is one file; the wording says which of the
+ * four outcomes it was rather than celebrating a write that may not have
+ * happened.
+ */
+function recordExecutionMode({ plan, options, result, onProgress, onDone, theme }) {
+  const none = applyExecutionModePlan(null);
+  if (plan === null) return none;
+  if (result.errors.length > 0) return none;
+
+  const applied = applyExecutionModePlan(plan, { dryRun: options.dryRun, onProgress });
+  const mark = theme.glyph;
+  const tense = options.dryRun ? "would be" : "";
+
+  switch (applied.action) {
+    case "write":
+      onDone(
+        theme.ok(`${mark.ok} Execution mode`) +
+          ` ${mark.dash} ${theme.bold(applied.mode)} ${options.dryRun ? "would be recorded" : "recorded"}`,
+      );
+      break;
+    case "replace":
+      onDone(
+        theme.ok(`${mark.ok} Execution mode`) +
+          ` ${mark.dash} ${options.dryRun ? "would change to" : "changed to"} ${theme.bold(applied.mode)}`,
+      );
+      break;
+    case "up-to-date":
+      onDone(theme.info(`${mark.info} Execution mode`) + ` ${mark.dash} already ${theme.bold(applied.mode)}`);
+      break;
+    case "conflict":
+      onDone(
+        theme.warn(`${mark.warn} Execution mode`) +
+          ` ${mark.dash} left alone${tense ? "" : ""} (Pathfinder did not write ${EXECUTION_MODE_PATH})`,
+      );
+      break;
+    default:
+      onDone(theme.warn(`${mark.warn} Execution mode`) + ` ${mark.dash} ${EXECUTION_MODE_PATH} could not be read`);
+  }
+
+  return applied;
 }
 
 /**
@@ -658,6 +792,9 @@ const NO_OPTIONS = {
   // null means "not said", which is not the same as "none". Only the first
   // suppresses the question.
   agents: null,
+  // null means "not said" here too: the question is asked, or nothing is
+  // recorded. A value is both the answer and permission to write it.
+  mode: null,
   error: null,
 };
 
@@ -702,6 +839,21 @@ function parseArguments(argv) {
       continue;
     }
 
+    if (argument === "--mode" || argument.startsWith("--mode=")) {
+      const equals = argument.indexOf("=");
+      const value = equals === -1 ? argv[++index] : argument.slice(equals + 1);
+      const parsed = parseExecutionModeFlag(value);
+
+      if (parsed.error) {
+        options.error = parsed.error;
+        return options;
+      }
+
+      // Last one wins, as a flag repeated on a command line normally does.
+      options.mode = parsed.mode;
+      continue;
+    }
+
     switch (argument) {
       case "--dry-run":
         options.dryRun = true;
@@ -709,6 +861,11 @@ function parseArguments(argv) {
       case "--force":
         options.force = true;
         break;
+      // Consumed above with its value; listed here so the help-text rule that
+      // reads every `case` label sees this flag documented like the others.
+      case "--mode":
+        options.error = parseExecutionModeFlag(undefined).error;
+        return options;
       case "--git-init":
         options.gitInit = true;
         break;
@@ -1060,6 +1217,19 @@ export function formatFindings(findings, { theme = createTheme() } = {}) {
     );
   }
 
+  // The project's own answer to how Pathfinder runs it, when it has one. A
+  // fact about the directory, stated in the same voice as the others: nothing
+  // here decides to ask or not to ask. An invalid file is a warning rather than
+  // a guess, because guessing a mode is the one thing no reader may do.
+  const executionMode = findings.executionMode;
+  if (executionMode?.present) {
+    lines.push(
+      executionMode.valid
+        ? `${rail}${theme.ok(`${mark.ok} Execution mode: ${executionMode.mode}`)}`
+        : `${rail}${theme.warn(`${mark.warn} Execution mode: ${EXECUTION_MODE_PATH} has no valid marker`)}`,
+    );
+  }
+
   // The tool names are emphasised and the caveat is dimmed, which is the
   // hierarchy the sentence always had and the flat rendering threw away. What
   // the reader wants from this line is the list; what they need from it is the
@@ -1127,6 +1297,7 @@ function contractReport({ outcome, harnesses, customTools, cwd, gitRoot, options
   }
 
   lines.push(...contractAdapterLines({ outcome, options, theme }));
+  lines.push(...contractModeLines({ outcome, options }));
   lines.push(...customToolLines(customTools));
 
   if (skipped.length > 0) {
@@ -1159,6 +1330,97 @@ function contractReport({ outcome, harnesses, customTools, cwd, gitRoot, options
     const detail = failures.map((error) => `  ${error.relativePath}: ${error.message}`).join("\n");
     err(`\ncreate-pathfinder: ${failures.length} file${plural(failures.length)} could not be written:\n${detail}\n`);
   }
+}
+
+/**
+ * The execution mode, in the contract rendering.
+ *
+ * Nothing at all when the run neither asked nor was told — which is every
+ * scripted run without `--mode`, and is what keeps those bytes what they were.
+ * Otherwise one plain line naming the outcome and the file, in the same
+ * indent as the counts above it.
+ */
+function contractModeLines({ outcome, options }) {
+  const { action, value } = outcome.mode;
+  if (action === null) return [];
+
+  switch (action) {
+    case "write":
+      return [`  Execution mode ${options.dryRun ? "to record" : "recorded"}: ${value} (${EXECUTION_MODE_PATH})`];
+    case "replace":
+      return [`  Execution mode ${options.dryRun ? "to change" : "changed"} to ${value} (${EXECUTION_MODE_PATH})`];
+    case "up-to-date":
+      return [`  Execution mode already ${value} (${EXECUTION_MODE_PATH})`];
+    case "conflict":
+      return [
+        `  ${EXECUTION_MODE_PATH} was left untouched because Pathfinder did not write it.`,
+        "  Re-run with --force to replace it.",
+      ];
+    default:
+      return [];
+  }
+}
+
+/**
+ * The same four outcomes, on the gutter, for a person.
+ *
+ * A conflict is a warning with the path, because the file it names is the one
+ * thing on this screen the reader may need to go and look at; the rest are
+ * one line each at the severity the outcome earns.
+ */
+function expressiveModeLines({ outcome, options, theme }) {
+  const mark = theme.glyph;
+  const { action, value } = outcome.mode;
+  if (action === null) return [];
+
+  switch (action) {
+    case "write":
+      return [
+        railed(
+          theme,
+          theme.ok(`${mark.ok} Execution mode ${options.dryRun ? "to record" : "recorded"}: ${theme.bold(value)}`) +
+            theme.dim(` (${EXECUTION_MODE_PATH})`),
+        ),
+      ];
+    case "replace":
+      return [
+        railed(
+          theme,
+          theme.ok(`${mark.ok} Execution mode ${options.dryRun ? "to change" : "changed"} to ${theme.bold(value)}`) +
+            theme.dim(` (${EXECUTION_MODE_PATH})`),
+        ),
+      ];
+    case "up-to-date":
+      return [
+        railed(theme, theme.dim(`${mark.info} Execution mode already ${value} (${EXECUTION_MODE_PATH})`)),
+      ];
+    case "conflict":
+      return [
+        railed(
+          theme,
+          theme.warn(`${mark.warn} Execution mode left untouched`) +
+            theme.dim(` (Pathfinder did not write ${EXECUTION_MODE_PATH})`),
+        ),
+      ];
+    default:
+      return [];
+  }
+}
+
+/** The mode conflict as a pasteable block, beside the adapter conflicts. */
+function expressiveModeBlocks({ outcome, theme }) {
+  if (outcome.mode.action !== "conflict") return [];
+
+  return warnBlock({
+    theme,
+    word: "Conflict",
+    summary: "1 file at the path the execution mode is recorded in, which Pathfinder did not write",
+    paths: [EXECUTION_MODE_PATH],
+    advice: [
+      `Re-run with --force to replace it ${theme.glyph.dash} note that --force also`,
+      "overwrites Pathfinder kit files you have edited.",
+    ],
+  });
 }
 
 /**
@@ -1541,6 +1803,7 @@ function expressiveReport({ outcome, harnesses, customTools, cwd, gitRoot, optio
   }
 
   lines.push(...expressiveAdapterLines({ outcome, options, theme }));
+  lines.push(...expressiveModeLines({ outcome, options, theme }));
 
   if (skipped.length > 0) {
     lines.push(
@@ -1574,6 +1837,7 @@ function expressiveReport({ outcome, harnesses, customTools, cwd, gitRoot, optio
   }
 
   lines.push(...expressiveAdapterBlocks({ outcome, theme }));
+  lines.push(...expressiveModeBlocks({ outcome, theme }));
   lines.push(...expressiveActivationBlock({ outcome, options, theme }));
 
   if (customTools.length > 0) lines.push(...customToolLines(customTools));

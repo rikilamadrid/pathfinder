@@ -95,6 +95,14 @@ export function isExcluded(basename) {
  * `git add -f` defeats it, and `stage-kit.mjs` copies from the working tree
  * without consulting it at all.
  *
+ * `context/execution-mode.md` is history's kind, not tracker's. It records how
+ * Pathfinder runs *this* project — human-in-the-loop or orchestrator — on one
+ * marker line, and it is tracked here because it is this repository's durable
+ * project truth. A destination project gets its own from the installer, which
+ * asks the question once or takes `--mode`; a project with no file at all runs
+ * human-in-the-loop, and shipping this repository's answer would silently make
+ * that choice for everyone.
+ *
  * Matched on the kit-relative path, never the basename — a project's own
  * `tracker.md` somewhere else is not this file and must not be caught by it.
  */
@@ -104,6 +112,7 @@ const NEVER_SHIPS = new Set([
   "context/current-feature.md",
   "context/handoff.md",
   "context/history.md",
+  "context/execution-mode.md",
 ]);
 
 /**

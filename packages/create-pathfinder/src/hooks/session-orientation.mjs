@@ -83,6 +83,7 @@ function availability(root) {
   file("project-overview.md");
   file("history.md");
   file("tracker.md");
+  file("execution-mode.md");
   file("handoff.md");
   for (const directory of ["features", "tickets"]) {
     const path = join(root, "context", directory);
