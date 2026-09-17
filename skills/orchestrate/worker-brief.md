@@ -15,12 +15,16 @@ against it.
 ## Fields
 
 `ticket`, `title`, `ref`, `session` (`implementation`), `worktree` (absolute),
-`branch`, `role`, `model`, `effort`, `approval`.
+`main` (the main checkout, absolute), `branch`, `role`, `model`, `effort`,
+`approval`.
 
 ## Steps
 
-1. Work only inside the worktree: run every command there, and read skills and
-   context from there.
+1. Work only inside the worktree: run every command there, and write only
+   there. Read skills, code, and tracked context from the worktree. Read
+   `context/tracker.md` and the Feature spec from the main checkout whenever
+   the worktree has no copy. They may be untracked, and the main checkout is
+   where they live.
 2. Run `/ticket load <key>`, then `/ticket start`, as the named role.
 3. Verify the work as the ticket's `## Verification` says.
 4. Commit on the ticket branch, push it, and open a draft pull request against

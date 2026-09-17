@@ -15,7 +15,8 @@ missing: a brief that lacks one is refused.
 | --- | --- |
 | `ticket`, `title`, `ref` | the ticket's key, title, and where it lives in the store |
 | `session` | `implementation` or `review` |
-| `worktree`, `branch` | the claim the worker runs inside |
+| `worktree`, `branch` | the claim the worker runs inside; the worktree path is absolute |
+| `main` | the main checkout: where untracked project context lives, such as `context/tracker.md` and Feature specs, when the worktree has no copy |
 | `role` | the role contract the session assumes, from the routing policy |
 | `model` | the model the session runs on, from the routing policy |
 | `effort` | the reasoning effort the session runs at, from the routing policy |

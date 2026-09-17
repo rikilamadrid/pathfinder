@@ -62,7 +62,10 @@ For each ticket the plan says to claim now, in order:
    orchestrate claim <key> --announce
    ```
 
-   A refusal means the board moved since the plan. Re-plan rather than retry.
+   A refusal, which exits non-zero, means the board moved since the plan.
+   Re-plan rather than retry. A claim that succeeded but whose announcement
+   failed exits 0 and says so. The claim stands. Dispatch it, and retry the
+   note with `orchestrate announce <key>`.
 
 2. Build the brief:
 
@@ -79,7 +82,9 @@ For each ticket the plan says to claim now, in order:
    - **Claude Code.** Start a background subagent whose prompt is the brief's
      `invocation.prompt`. Pass `invocation.model` as the subagent's model when it
      is present, and pass no model when it is absent. Record the key as live for
-     this conversation.
+     this conversation. A worker that stops at a gate ends its session: remove
+     it from the live set. A gated worker is shown as `human-gate`, never stale,
+     and holds no worker slot.
    - **A harness with no background sessions.** Print each brief, tell the
      human to start one session per brief in its worktree, and treat those keys
      as live once the human confirms. Claims, gates, review, and status work
@@ -106,7 +111,8 @@ throughout.
   2. Build `orchestrate brief <key> --harness <harness> --session review` and start
      a tester session with it.
   3. On **PASS**: `orchestrate state <key> --set done --last "review PASS"`. The
-     ticket is now an integration candidate for `/orchestrate integrate`.
+     ticket is now an integration candidate, landed under the project's merge
+     policy.
   4. On **findings**: resume the developer with the resume brief and the
      findings appended. After **two** rounds of findings, open a gate with the
      question "Review found issues after two repair rounds: <summary>. How
@@ -123,11 +129,13 @@ throughout.
 
 ## 5. Refresh eligibility
 
-When a ticket in scope becomes Complete (integrated through
-`/orchestrate integrate`, or completed by the human):
+Re-plan whenever the running set changes. A worker reaches `done`, `failed`,
+or `human-gate` and frees its slot, or a ticket in scope becomes Complete
+because it was integrated or completed by the human:
 
-1. For each ticket it was the last blocker of, run
-   `orchestrate board --comment-unblocked <key> --by <completed key>`.
+1. For a Complete ticket, run
+   `orchestrate board --comment-unblocked <key> --by <completed key>` for each
+   ticket it was the last blocker of.
 2. Re-run `orchestrate plan` with the current live keys, and claim and dispatch
    what it offers **under the approval already given**, within its scope and
    worker limit.

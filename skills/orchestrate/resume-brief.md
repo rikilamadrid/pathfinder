@@ -12,8 +12,9 @@ role, model, and effort the claim recorded for implementation.
 
 ## Steps
 
-1. Work only inside the worktree: run every command there, and read skills and
-   context from there.
+1. Work only inside the worktree: run every command there, and write only
+   there. Read `context/tracker.md` and the Feature spec from the main checkout
+   whenever the worktree has no copy.
 2. Read `context/current-ticket.md` first. Continue from its `Next` line and
    from the commits already on the branch. Do not restart work that is already
    done.
