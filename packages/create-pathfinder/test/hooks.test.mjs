@@ -553,6 +553,27 @@ describe("the shipped handler, run", () => {
   });
 });
 
+describe("the shipped handler reports the mode file's availability", () => {
+  it("says no when a fresh install has none, yes once one is recorded, and interprets neither", async () => {
+    const cwd = makeRepository();
+    await invoke(["--agents", "claude-code"], { cwd });
+
+    const before = runHandler(handler(cwd), { cwd });
+    assert.equal(before.status, 0);
+    assert.match(before.stdout, /Context: .*execution-mode\.md no/);
+
+    await invoke(["--mode", "orchestrator"], { cwd });
+
+    const after = runHandler(handler(cwd), { cwd });
+    assert.equal(after.status, 0);
+    assert.match(after.stdout, /Context: .*execution-mode\.md yes/);
+    // Availability only. The value is `whereami`'s to read; the handler must
+    // not grow a second reading of it.
+    assert.doesNotMatch(after.stdout, /Mode:/);
+    assert.doesNotMatch(after.stdout, /orchestrator/);
+  });
+});
+
 describe("the excerpt's bound", () => {
   /**
    * The bound is the whole reason this handler can quote a file it refuses to

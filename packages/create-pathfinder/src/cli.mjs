@@ -591,7 +591,6 @@ function recordExecutionMode({ plan, options, result, onProgress, onDone, theme 
 
   const applied = applyExecutionModePlan(plan, { dryRun: options.dryRun, onProgress });
   const mark = theme.glyph;
-  const tense = options.dryRun ? "would be" : "";
 
   switch (applied.action) {
     case "write":
@@ -612,7 +611,7 @@ function recordExecutionMode({ plan, options, result, onProgress, onDone, theme 
     case "conflict":
       onDone(
         theme.warn(`${mark.warn} Execution mode`) +
-          ` ${mark.dash} left alone${tense ? "" : ""} (Pathfinder did not write ${EXECUTION_MODE_PATH})`,
+          ` ${mark.dash} left alone (Pathfinder did not write ${EXECUTION_MODE_PATH})`,
       );
       break;
     default:
@@ -1223,10 +1222,15 @@ export function formatFindings(findings, { theme = createTheme() } = {}) {
   // a guess, because guessing a mode is the one thing no reader may do.
   const executionMode = findings.executionMode;
   if (executionMode?.present) {
+    // Three answers, kept apart: a value, a file with no usable marker, and a
+    // path that could not be read at all — a directory there, or no permission.
+    // The last two are both "not a mode", but only one of them is something the
+    // reader can fix by editing a line.
+    const trouble = executionMode.unreadable ? "could not be read" : "has no valid marker";
     lines.push(
       executionMode.valid
         ? `${rail}${theme.ok(`${mark.ok} Execution mode: ${executionMode.mode}`)}`
-        : `${rail}${theme.warn(`${mark.warn} Execution mode: ${EXECUTION_MODE_PATH} has no valid marker`)}`,
+        : `${rail}${theme.warn(`${mark.warn} Execution mode: ${EXECUTION_MODE_PATH} ${trouble}`)}`,
     );
   }
 

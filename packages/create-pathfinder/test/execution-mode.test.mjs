@@ -508,6 +508,87 @@ describe("the --mode flag", () => {
   });
 });
 
+describe("the terminal rendering", () => {
+  // `NO_COLOR` is set by `invoke`, so every decorated line below is asserted
+  // as plain text; the glyphs are the UTF-8 ones because `LANG` is UTF-8.
+  it("names the recorded mode as a milestone and again in the summary", async () => {
+    const cwd = makeRepository();
+    const { out } = await invoke(["--mode", "orchestrator"], { cwd, stdoutIsTTY: true });
+
+    assert.match(out, /INSTALLING[\s\S]*✓ Execution mode — orchestrator recorded/);
+    assert.match(out, /SUMMARY[\s\S]*✓ Execution mode recorded: orchestrator \(context\/execution-mode\.md\)/);
+    assert.match(out, /YOU'RE ALL SET/);
+    assert.ok(out.indexOf("Execution mode recorded") < out.indexOf("YOU'RE ALL SET"), "the summary line precedes the ending");
+  });
+
+  it("speaks in the future tense on a dry run, in both places", async () => {
+    const cwd = makeRepository();
+    const { out } = await invoke(["--dry-run", "--mode", "orchestrator"], { cwd, stdoutIsTTY: true });
+
+    assert.match(out, /Execution mode — orchestrator would be recorded/);
+    assert.match(out, /Execution mode to record: orchestrator \(context\/execution-mode\.md\)/);
+    assert.equal(existsSync(modeFile(cwd)), false);
+  });
+
+  it("says a change is a change, and an unchanged mode is already recorded", async () => {
+    const cwd = makeRepository();
+    await invoke(["--mode", "human-in-the-loop"], { cwd });
+
+    const changed = await invoke(["--mode", "orchestrator"], { cwd, stdoutIsTTY: true });
+    assert.match(changed.out, /✓ Execution mode — changed to orchestrator/);
+    assert.match(changed.out, /✓ Execution mode changed to orchestrator \(context\/execution-mode\.md\)/);
+
+    const same = await invoke(["--mode", "orchestrator"], { cwd, stdoutIsTTY: true });
+    assert.match(same.out, /· Execution mode — already orchestrator/);
+    assert.match(same.out, /· Execution mode already orchestrator \(context\/execution-mode\.md\)/);
+  });
+
+  it("warns about a stranger's file, lists it pasteably, and tempers the ending", async () => {
+    const cwd = makeRepository();
+    writeModeFile(cwd, "# Execution Mode\n\nmine, no marker\n");
+
+    const { code, out } = await invoke(["--mode", "orchestrator"], { cwd, stdoutIsTTY: true });
+
+    assert.equal(code, 0);
+    assert.match(out, /▲ Execution mode — left alone \(Pathfinder did not write context\/execution-mode\.md\)/);
+    assert.match(out, /▲ Execution mode left untouched \(Pathfinder did not write context\/execution-mode\.md\)/);
+    assert.match(out, /▲ Conflict — 1 file at the path the execution mode is recorded in, which Pathfinder did not write:\n\n {6}context\/execution-mode\.md\n/);
+    assert.match(out, /Re-run with --force to replace it/);
+    assert.match(out, /1 thing to look at above/);
+    assert.doesNotMatch(out, /YOU'RE ALL SET/, "celebrated over a conflict");
+    assert.match(out, /READY/);
+  });
+
+  it("tells a directory at the path apart from a file with no marker", async () => {
+    const cwd = makeRepository();
+    mkdirSync(modeFile(cwd), { recursive: true });
+
+    const { out } = await invoke(["--dry-run", "--yes"], { cwd, stdoutIsTTY: true });
+
+    assert.match(out, /Execution mode: context\/execution-mode\.md could not be read/);
+    assert.doesNotMatch(out, /has no valid marker/);
+  });
+
+  it("keeps every new line in ASCII when the terminal is", async () => {
+    const cwd = makeRepository();
+    writeModeFile(cwd, "# Execution Mode\n\nmine\n");
+    let out = "";
+    await run(["--mode", "orchestrator"], {
+      cwd,
+      out: (text) => (out += text),
+      err: () => {},
+      env: { LANG: "C", NO_COLOR: "1" },
+      platform: "linux",
+      stdoutIsTTY: true,
+      prompter: forbiddenPrompter(),
+    });
+
+    // eslint-disable-next-line no-control-regex
+    assert.match(out, /^[\x00-\x7F]*$/, "a non-ASCII byte reached an ASCII terminal");
+    assert.match(out, /\* Execution mode - left alone/);
+  });
+});
+
 describe("the scripted contract is unchanged", () => {
   it("a run with no terminal and no --mode records nothing and prints nothing about a mode", async () => {
     const cwd = makeRepository();

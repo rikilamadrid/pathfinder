@@ -100,7 +100,7 @@ function availability(root) {
   return marks.join(" · ");
 }
 
-/** The one file whereami reads, quoted verbatim and bounded. */
+/** The file whereami quotes for Feature, ticket, and next action, verbatim and bounded. */
 function currentTicketExcerpt(root) {
   const path = join(root, "context", "current-ticket.md");
   if (!existsSync(path)) return { present: false, text: null, truncated: false };
