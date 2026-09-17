@@ -70,7 +70,7 @@ For each ticket the plan says to claim now, in order:
 2. Build the brief:
 
    ```sh
-   orchestrate brief <key> --harness <harness> --approval "<the scope the human approved>"
+   orchestrate brief <key> --harness <harness> --approval "<the scope the human approved>" --json
    ```
 
    A refusal names a model or effort this harness cannot honour. Do not dispatch
@@ -79,16 +79,28 @@ For each ticket the plan says to claim now, in order:
 3. Start the worker session. **This is the one harness-specific step.** Every
    step before and after it is the same in every harness.
 
-   - **Claude Code.** Start a background subagent whose prompt is the brief's
-     `invocation.prompt`. Pass `invocation.model` as the subagent's model when it
-     is present, and pass no model when it is absent. Record the key as live for
-     this conversation. A worker that stops at a gate ends its session: remove
-     it from the live set. A gated worker is shown as `human-gate`, never stale,
-     and holds no worker slot.
-   - **A harness with no background sessions.** Print each brief, tell the
-     human to start one session per brief in its worktree, and treat those keys
-     as live once the human confirms. Claims, gates, review, and status work
-     exactly the same.
+   - **Claude Code.** Start a background subagent whose prompt is
+     `translation.invocation.prompt`. Pass `translation.invocation.model` as the
+     subagent's model when it is present, and pass no model when it is absent.
+     Record the key as live for this conversation. A worker that stops at a gate
+     ends its session: remove it from the live set. A gated worker is shown as
+     `human-gate`, never stale, and holds no worker slot.
+   - **Codex.** Call the tool named by `translation.invocation.tool`
+     (`collaboration.spawn_agent`) with `translation.invocation.arguments`
+     exactly. The static selection uses `fork_turns: "all"` with no model or
+     effort overrides, inheriting both from this session. The message carries
+     the role and absolute worktree: the tool has no directory argument, so
+     every worker shell call must set `workdir` to that path. Record the
+     returned agent identifier for reports and the ticket key as live; remove
+     the key when its session ends or reaches a gate. If the named tool is
+     unavailable, stop dispatch and report the missing capability; do not
+     substitute a manual session or another harness. Override limits and
+     resume behavior are documented in `skills/orchestrate/brief.md`.
+   - **A harness with no background sessions.** Print each brief's
+     `translation.invocation.prompt`, with its `model` and `effort` when present,
+     tell the human to start one session per brief in its worktree, and treat
+     those keys as live once the human confirms. Claims, gates, review, and
+     status work exactly the same.
 
 After the first round, run `orchestrate status --live <live keys>` and print it.
 
@@ -103,18 +115,22 @@ throughout.
      continue.
   3. When the human answers, run
      `orchestrate gate <key> resolve --answer "<answer>"`, then resume **only
-     that worker** with `orchestrate brief <key> --harness <harness> --session resume`.
-     A gate is never answered for the human.
+     that worker**: build
+     `orchestrate brief <key> --harness <harness> --session resume --approval "<the scope the human approved>" --json`
+     and start it exactly as step 3 does. A gate is never answered for the human.
 
 - **`DONE: <pull request>`**: review it.
   1. `orchestrate state <key> --set review --last "developer reported DONE: <pull request>"`
-  2. Build `orchestrate brief <key> --harness <harness> --session review` and start
-     a tester session with it.
+  2. Build
+     `orchestrate brief <key> --harness <harness> --session review --approval "<the scope the human approved>" --json`
+     and start a tester session with it exactly as step 3 does.
   3. On **PASS**: `orchestrate state <key> --set done --last "review PASS"`. The
      ticket is now an integration candidate, landed under the project's merge
      policy.
-  4. On **findings**: resume the developer with the resume brief and the
-     findings appended. After **two** rounds of findings, open a gate with the
+  4. On **findings**: resume the developer with the resume brief, the findings
+     appended beneath its prompt (`translation.invocation.prompt`, or
+     `translation.invocation.arguments.message` for Codex). After **two** rounds
+     of findings, open a gate with the
      question "Review found issues after two repair rounds: <summary>. How
      should this ticket proceed?"
 
