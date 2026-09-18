@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
-import { HARNESS_TRANSLATIONS, buildBrief, formatBrief, translateBrief } from "../../../skills/orchestrate/engine/brief.mjs";
+import { HARNESS_TRANSLATIONS, PROTOCOLS, buildBrief, formatBrief, translateBrief } from "../../../skills/orchestrate/engine/brief.mjs";
 import { cleanUpTemporaryDirectories, json, makeProject, orchestrate, runGit } from "../lib/harness.mjs";
 
 after(cleanUpTemporaryDirectories);
@@ -42,6 +42,62 @@ describe("Codex harness translation", () => {
     assert.match(args.message, /read roles\/developer\.md/);
     assert.ok(args.message.endsWith(formatBrief(input)), "ticket, worktree, branch, approval and protocol survive intact");
     assert.deepEqual(input, before, "translation does not rewrite the brief");
+  });
+
+  it("emits deterministic valid, distinct names for every supported session", () => {
+    const expected = {
+      implementation: "implementation",
+      resume: "resume",
+      review: "review",
+      "rebase-and-reverify": "rebase_and_reverify",
+      "resolve-conflict": "resolve_conflict",
+    };
+    assert.deepEqual(Object.keys(expected).sort(), Object.keys(PROTOCOLS).sort());
+    const names = new Set();
+    for (const session of Object.keys(PROTOCOLS)) {
+      const input = brief({}, { ticket: "53.6", session });
+      const result = translateBrief(input, "codex");
+      assert.equal(result.ok, true, result.message);
+      const name = result.invocation.arguments.task_name;
+      assert.match(name, /^[a-z0-9_]+$/);
+      assert.equal(name, `pathfinder_53_6_${expected[session]}`);
+      assert.deepEqual(translateBrief(input, "codex"), result);
+      names.add(name);
+      for (const harness of ["claude-code", "manual"]) {
+        assert.deepEqual(translateBrief(input, harness), {
+          ok: true, harness, invocation: { role: "developer", prompt: formatBrief(input) },
+        });
+      }
+    }
+    assert.equal(names.size, Object.keys(PROTOCOLS).length);
+  });
+
+  it("preserves the entire numeric key domain without truncation or collisions", () => {
+    const tickets = ["53.6", "053.6", "53.06", "5.36", "53.60", `${"9".repeat(300)}.6`];
+    const names = tickets.map((ticket) => {
+      const result = translateBrief(brief({}, { ticket }), "codex");
+      assert.equal(result.ok, true, result.message);
+      const name = result.invocation.arguments.task_name;
+      assert.equal(name, `pathfinder_${ticket.replace(".", "_")}_implementation`);
+      assert.match(name, /^[a-z0-9_]+$/);
+      return name;
+    });
+    assert.equal(new Set(names).size, tickets.length);
+  });
+
+  it("refuses identities outside the accepted domain rather than normalizing collisions", () => {
+    for (const ticket of ["53_6", "53-6", "53.6.1", " 53.6", "53.6\n", "53.6\r", "５３.６", "ABC.6", "53/6", "", null]) {
+      const result = translateBrief({ ...brief(), ticket }, "codex");
+      assert.equal(result.ok, false, String(ticket));
+      assert.match(result.message, /ticket key/);
+      assert.equal(Object.hasOwn(result, "invocation"), false);
+    }
+    for (const session of ["rebase_and_reverify", "REBASE-AND-REVERIFY", "resolve_conflict", "resolve/conflict", "réview", "", null]) {
+      const result = translateBrief({ ...brief(), session }, "codex");
+      assert.equal(result.ok, false, String(session));
+      assert.match(result.message, /supported session/);
+      assert.equal(Object.hasOwn(result, "invocation"), false);
+    }
   });
 
   it("passes supported explicit model and effort values exactly without a full-history fork", () => {
@@ -126,6 +182,23 @@ describe("Codex harness translation", () => {
       ok: true, harness: "manual", invocation: { role: "developer", prompt: formatBrief(manual), model: "custom-model", effort: "custom-effort" },
     });
     assert.equal(translateBrief(brief({ effort: "high" }), "claude-code").ok, false);
+  });
+
+  it("emits valid recovery-session names through the real CLI for an existing claim", () => {
+    const root = makeProject({ tickets: { "53.6": { title: "Product and documentation migration" } } });
+    const run = (...args) => orchestrate(args, { root });
+    assert.equal(run("claim", "53.6").status, 0);
+    for (const [session, expected] of [
+      ["rebase-and-reverify", "pathfinder_53_6_rebase_and_reverify"],
+      ["resolve-conflict", "pathfinder_53_6_resolve_conflict"],
+    ]) {
+      const result = run("brief", "53.6", "--harness", "codex", "--session", session, "--json");
+      assert.equal(result.status, 0, result.stderr);
+      const output = json(result);
+      assert.equal(output.brief.session, session);
+      assert.equal(output.translation.invocation.arguments.task_name, expected);
+      assert.match(output.translation.invocation.arguments.task_name, /^[a-z0-9_]+$/);
+    }
   });
 
   it("resumes a stale Claude claim through Codex, preserving identity, work and profile without harness-aware scheduling", () => {
