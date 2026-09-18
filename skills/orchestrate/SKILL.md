@@ -1,7 +1,7 @@
 ---
 name: orchestrate
 description: Coordinate several dependency-safe ticket workers at once in a project that runs in orchestrator mode.
-argument-hint: status|start|resume
+argument-hint: status|start|resume|integrate
 ---
 
 # Orchestrate
@@ -11,10 +11,12 @@ The coordinator for orchestrator mode. The human names the action:
 `/orchestrate status`
 `/orchestrate start [feature NN | all] [--workers N]`
 `/orchestrate resume <key>`
+`/orchestrate integrate [<key>]`
 
-It decides what approved work can execute now and how. It never implements a
-ticket, reviews one, accepts work, or merges: every lifecycle transition is the
-ordinary `ticket` action, run by the worker that owns the ticket.
+The orchestrator decides what approved work can execute now and how; the
+integrator action decides whether completed work can land under human approval.
+Neither implements, reviews for correctness, or accepts work. Every lifecycle
+transition remains the ordinary `ticket` action.
 
 ## When this applies
 
@@ -40,6 +42,9 @@ names the file and the two values, and changes nothing.
   surface gates, and refresh eligibility until nothing more can run.
 - `resume` — continue one existing claim deliberately: a stale worker, or one
   whose human gate was resolved.
+
+- `integrate` — assume the integrator role, check completed work, request any
+  necessary revalidation, present each merge for approval, complete and release.
 
 ## The model
 
@@ -75,11 +80,12 @@ and, for a GitHub Issues store, the `gh` CLI. It holds no state of its own:
 every call re-derives its answer from Git, the worktrees, and the store.
 
 ```
-engine/bin/orchestrate.mjs   board | claim | owner | status | estimate | brief
+engine/bin/orchestrate.mjs   board | claim | owner | status | estimate | brief | check | release
 engine/store.mjs             reads the configured ticket store
 engine/board.mjs             eligibility
 engine/claims.mjs            claims, from git worktrees and state files
 engine/claim.mjs             the one write: a claim ref, then a worktree on a new branch
+engine/integration.mjs       conflict/divergence/overlap evidence and safe release
 engine/status.mjs            the operator's view and its state vocabulary
 engine/mode.mjs              the execution-mode and routing-policy markers
 engine/estimate.mjs          estimate: complexity, context, parallel safety, risk

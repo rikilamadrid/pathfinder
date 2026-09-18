@@ -27,6 +27,7 @@
  * makes recovery a resume rather than a restart.
  */
 
+import { checkIntegration } from "./integration.mjs";
 import { computeBoard } from "./board.mjs";
 import { readClaims } from "./claims.mjs";
 import { compareKeys } from "./keys.mjs";
@@ -87,6 +88,17 @@ export function computeStatus({ root, live = [], feature = null, store: storeOve
         liveSet,
       ),
     );
+  }
+
+  for (const row of rows) {
+    const claim = claims.get(row.key);
+    row.recordedState = claim?.state ?? null;
+    row.updated = claim?.updated ?? null;
+    row.next = claim?.next ?? null;
+    if (row.state === "done") {
+      row.check = checkIntegration({ root, key: row.key });
+      row.last = `${row.check.ok ? row.check.result : `check refused: ${row.check.message}`} · ${row.last}`;
+    }
   }
 
   rows.sort((a, b) => compareKeys(a.key, b.key));

@@ -125,8 +125,9 @@ throughout.
      `orchestrate brief <key> --harness <harness> --session review --approval "<the scope the human approved>" --json`
      and start a tester session with it exactly as step 3 does.
   3. On **PASS**: `orchestrate state <key> --set done --last "review PASS"`. The
-     ticket is now an integration candidate, landed under the project's merge
-     policy.
+     ticket is work-complete, not yet safe to land. Hand it to
+     `/orchestrate integrate <key>` under the integrator role; the orchestrator
+     never merges it.
   4. On **findings**: resume the developer with the resume brief, the findings
      appended beneath its prompt (`translation.invocation.prompt`, or
      `translation.invocation.arguments.message` for Codex). After **two** rounds
@@ -136,7 +137,9 @@ throughout.
 
 - **`FAILED: <reason>`**
   1. `orchestrate state <key> --set failed --last "<reason>"`
-  2. Report it to the human. A failed worker keeps its worktree and branch. The
+  2. Record the failure reason once in the ticket’s Notes / Decisions (an issue
+     comment for GitHub), without changing its lifecycle status. Report it to
+     the human. A failed worker keeps its worktree and branch. The
      human decides whether to resume it with guidance or cancel the ticket.
 
 - **A session that ends with no report.** Read its state file through

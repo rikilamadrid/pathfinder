@@ -13,7 +13,10 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
 
 1. Take the key from the invocation. If none was given, run `orchestrate status`,
    list the `stale` rows, and stop.
-2. Run `orchestrate status` and find the key's row.
+2. Run `orchestrate status --live <keys this conversation already started>`
+   and find the key's row. Keep the live set accurate: a fresh CLI process is
+   not evidence that another session ended. Confirm the old session has stopped
+   before starting its replacement.
    - `human-gate`: the worker stopped for a human and is not stale, even with
      no session running. The gate must be resolved first. If the human has
      answered in this conversation, run
@@ -25,7 +28,9 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
    - `done`, `failed`, `working` in a live session, or no claim at all: report
      the row and stop. Resume never starts a second session on live work, and a
      failed worker resumes only when the human has given guidance in this
-     conversation.
+     conversation; with that guidance, continue at step 3. Cancelling instead
+     is a separate human decision: preserve the worktree, branch, claim, and
+     profile until the human explicitly authorises their release.
 3. Confirm the run's approval. A resume inside a running `/orchestrate start`
    uses that run's approval. A resume on its own asks the human once, stating
    the same scope for this one ticket.

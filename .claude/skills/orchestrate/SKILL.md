@@ -1,7 +1,7 @@
 ---
 name: orchestrate
 description: Coordinate several dependency-safe ticket workers at once in a project that runs in orchestrator mode.
-argument-hint: status|start|resume
+argument-hint: status|start|resume|integrate
 ---
 
 <!-- pathfinder:adapter v1 source=skills/orchestrate/SKILL.md -->
