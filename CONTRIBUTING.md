@@ -69,12 +69,14 @@ That is a direct fix for a failure that happened three releases running — `v1.
    ```sh
    claude plugin marketplace add ./
    claude plugin install pathfinder@lamadrid-labs
-   claude plugin details pathfinder@lamadrid-labs   # 22 skills, 0 of everything else
+   claude plugin details pathfinder@lamadrid-labs
    claude plugin uninstall pathfinder@lamadrid-labs
    claude plugin marketplace remove lamadrid-labs
    ```
 
-   The skill count must equal the number of directories under `skills/`, and agents, hooks, MCP servers, and LSP servers must all be zero. Install explicitly and remove it again — a marketplace pointing at a working copy is not something to leave configured.
+   The skill count must equal the shipped skill count reported by
+   `python3 .github/scripts/validate-kit.py` (derived from `skills/`), and
+   agents, hooks, MCP servers, and LSP servers must all be zero. Install explicitly and remove it again — a marketplace pointing at a working copy is not something to leave configured.
 9. **Verify from outside:** `npm view create-pathfinder version`, `gh release view vX.Y.Z`, and an `npx create-pathfinder@X.Y.Z` install into a scratch repository. Install from the published package, not from a local checkout — the point is to exercise what a user gets. In that scratch repository, confirm that adapters are generated (`npx create-pathfinder@X.Y.Z --agents claude-code`) and that a second identical run is idempotent: it writes the same bytes, reports the adapters as already up to date, and leaves the tree unchanged.
 
 Never force-push, never move or delete a published tag, and never rewrite released history.

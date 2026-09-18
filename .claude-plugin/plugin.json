@@ -1,7 +1,7 @@
 {
   "name": "pathfinder",
   "description": "One disciplined AI delivery workflow with human-in-the-loop and orchestrator modes, isolated ticket workers, and human approval. Commands are namespaced /pathfinder:<skill>.",
-  "version": "4.3.0",
+  "version": "4.4.0",
   "author": {
     "name": "Ricardo Lamadrid",
     "url": "https://github.com/rikilamadrid"

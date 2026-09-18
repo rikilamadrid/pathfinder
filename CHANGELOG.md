@@ -27,12 +27,24 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+## [4.4.0] - 2026-09-18
+
 ### Added
+
+- **Interactive Architecture Explorer.** Diagram artifacts now put the map in
+  an explorer viewport with a pan/zoom camera and focused-node framing.
+  Selecting a component opens its summary, details, and citations in a docked
+  surface while emphasizing the selection and retaining topology context;
+  an off-frame notice identifies context outside the view. The graph and its
+  evidence remain a deterministic build-time artifact. Camera, selection, and
+  detail state are runtime-only and do not change artifact provenance,
+  receipts, or digests.
 
 - **One disciplined workflow, two execution modes.** Human-in-the-loop keeps
   direct control of one ticket session; the new `orchestrate` skill coordinates
-  dependency-safe workers in isolated Git worktrees, with explicit ownership,
-  independent human gates, review, recovery, and controlled integration. The
+  dependency-aware concurrent workers with isolated Git claims and worktrees,
+  independent human gates, recovery/resume, and controlled integration. Separate
+  tester and integrator responsibilities preserve independent review. The
   orchestrator and integrator roles preserve human approval, acceptance, merge,
   and release authority. Execution profiles use static routing with inherited
   model and effort; Claude Code, Codex, and manual harness translations keep
