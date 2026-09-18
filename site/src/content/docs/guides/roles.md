@@ -1,15 +1,12 @@
 ---
 title: Roles
-description: Three declarative responsibility contracts assumed by Pathfinder's lifecycle, with `/role` available as an explicit human override.
+description: Five declarative responsibility contracts assumed by Pathfinder's lifecycle, with `/role` available as an explicit human override.
 ---
 
-Pathfinder already had a role contract before this page existed. It is
-[`context/ai-interaction.md`](/context/ai-interaction/), and it describes exactly
-one: *the AI agent*, undifferentiated. Approval boundaries, the feature
-lifecycle, context discipline, scope control, and review priorities — all written
-for a single worker that plays every part in sequence.
-
-Roles split that one implicit contract into three explicit ones.
+Five declarative roles divide responsibility across one workflow: planner,
+orchestrator, developer, tester, and integrator. Human-in-the-loop mode leaves
+coordination and integration with you. Orchestrator mode uses the additional
+roles to coordinate isolated workers and assess whether their work can land.
 
 ## You do not have to activate one
 
@@ -21,6 +18,8 @@ invocation:
 | `kickstart-pathfinder`, `to-specs`, `to-tickets` | `planner` |
 | `/ticket load`, `/ticket start`, `/ticket complete` | `developer` |
 | `/ticket review` | `tester` |
+| `/orchestrate status`, `start`, `resume` | `orchestrator` |
+| `/orchestrate integrate` | `integrator` |
 
 There is no required `/role` setup step. The [`role`](/skills/role/) skill is an
 explicit human override and debugging tool: `/role developer` reads that role
@@ -30,17 +29,17 @@ session.
 
 ## The lifecycle
 
-Three responsibilities, in the order work moves through them. What each one hands
-over is a finished artifact, shown under its arrow:
+The same delivery lifecycle can run under either coordinator:
 
 ```text
-Planner   →   Developer   →   Tester
-   │             │             │
-   │             │             └─ findings, and the risk that remains
-   │             └─ a verified ticket
-   └─ an approved feature spec
+Planner → approved Features and tickets
+                 ↓
+      human or Orchestrator
+                 ↓
+      Developer → Tester → Integrator
+        one ticket per worker   landing safety
 
-        ── the human decides, at every arrow ──
+      human approval, acceptance, merge, release
 ```
 
 The human is not a role on that line. Approval, acceptance, merge, and release
@@ -49,21 +48,18 @@ there is no file to name for them.
 
 Those arrows are the one thing on this page most likely to be misread.
 
-### Assuming a role is not orchestration
+### Roles and orchestration
 
-This is the part the arrows invite you to get wrong, so it is worth being blunt
-about:
+Roles still do not call one another. A lifecycle skill reads the responsibility
+contract before following its procedure. In human-in-the-loop mode, you choose
+the next invocation. In orchestrator mode, the `orchestrate` skill coordinates
+worker and review sessions; the integrator assesses landing safety under the
+human's merge authority. A role alone neither launches a worker nor grants
+permission to merge.
 
-**Roles do not call one another, and Pathfinder is not an orchestration
-runtime.** There is no dispatcher, queue, scheduler, or agent handing work to
-another agent. The lifecycle skill simply reads one Markdown contract before
-following its own procedure. A handoff still ends where the skill says it ends,
-and the human still decides what invocation comes next.
-
-Nothing enforces a role at runtime. The skill reads it and follows it because it
-is written down, like the rest of Pathfinder. The validator checks that every
-lifecycle entry point names exactly its intended role; it cannot prove that an
-agent obeyed the prose.
+The engine enforces claims and dependency eligibility. Role boundaries remain
+instructions the agent reads and follows; the validator checks the lifecycle's
+role mapping, not whether an agent obeyed every instruction.
 
 ## Role versus skill
 
@@ -86,16 +82,17 @@ needs that boundary to govern several invocations in one session, explicitly
 selecting `/role tester` extends it across those invocations. Reviewing your own
 repair is still not an independent review.
 
-## The three shipped roles
+## The five shipped roles
 
-Each maps to skills that already ship. Nothing here is a new capability — the
-role names an existing responsibility and bounds it.
+Each maps to the skills that own its procedures; the role bounds responsibility.
 
 | Role | Responsible for | Skills it uses today |
 | --- | --- | --- |
 | `planner` | Discovering project direction, writing feature specs, and slicing tickets | [`kickstart-pathfinder`](/skills/kickstart-pathfinder/), [`debate-me`](/skills/debate-me/), [`to-specs`](/skills/to-specs/), [`to-tickets`](/skills/to-tickets/) |
-| `developer` | Implementing and completing approved work, one ticket at a time | [`ticket`](/skills/ticket/) — its load, start, and complete actions, plus your project's build and test commands |
+| `developer` | Implementing and completing approved work, one active ticket per worker | [`ticket`](/skills/ticket/) — its load, start, and complete actions, plus your project's build and test commands |
 | `tester` | Establishing whether delivered work meets its acceptance criteria | [`ticket`](/skills/ticket/) — its review action, plus your test commands and browser automation where a spec calls for it |
+| `orchestrator` | Coordinating approved dependency-safe workers, profiles, gates, and recovery | [`orchestrate`](/skills/orchestrate/) — status, start, and resume |
+| `integrator` | Checking conflicts, divergence, revalidation, and landing order under human merge authority | [`orchestrate`](/skills/orchestrate/) — integrate; [`ticket`](/skills/ticket/) — complete |
 
 Each lifecycle invocation reads the mapped role itself unless the human already
 selected an explicit override with `/role`.
@@ -142,7 +139,7 @@ states responsibility and constraint and leaves behaviour to the tool you happen
 to be using.
 
 That is what keeps the layer vendor-neutral. These are not Claude Code subagents
-and not Codex agent definitions; they are files, and the same three work
+and not Codex agent definitions; they are files, and the same five work
 unchanged in a tool that has no agent concept at all.
 
 It is also why **roles have no adapters.** A skill gets a generated adapter
@@ -157,7 +154,7 @@ portability there is.
 
 Installed role files are starting points, in the same sense as `context/*.md` and
 unlike `skills/*/SKILL.md`. Edit them, tighten what a role may read, add a
-constraint your project learned the hard way. A project that wants a fourth role
+constraint your project learned the hard way. A project that wants another role
 copies an existing file — the directory is the list, and nothing enumerates it,
 so adding one costs no registration anywhere.
 
@@ -167,4 +164,4 @@ so adding one costs no registration anywhere.
 boundary section applies to one responsibility.
 [Human approval](/concepts/human-approval/) is the policy every role points at
 and none of them restates. [The workflow](/guides/workflow/) is the sequence of
-skills these three responsibilities are drawn over.
+skills these five responsibilities are drawn over.

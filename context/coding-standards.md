@@ -14,7 +14,8 @@ Project-specific conventions override them when explicit.
 
 ## Scope
 
-- Work on one coherent change at a time.
+- Work on one coherent change per worker. Orchestrator mode coordinates
+  independent workers; each retains its own ticket and context boundary.
 - Read only the files and dependencies needed for that work.
 - Avoid unrelated refactors, formatting churn, or speculative cleanup.
 - Keep the repository stable and verifiable after each meaningful change.

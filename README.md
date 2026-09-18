@@ -45,14 +45,22 @@ It provides:
 - **context** — durable project truth and temporary workspace state
 - **templates** — minimal shapes for project records created when needed
 
-It is designed for human-in-the-loop development: agents can recommend and
-execute work, but they do not silently make decisions that belong to you.
+Pathfinder gives you one disciplined workflow with two ways to operate it:
+work one ticket at a time with direct human control in **human-in-the-loop**
+mode, or let **orchestrator** mode coordinate several dependency-safe workers
+while surfacing only the human gates that need you.
+
+Agents can recommend and execute work, but they do not silently make decisions
+that belong to you. See [Execution modes](https://pathfinder-kit.vercel.app/guides/execution-modes/).
 
 It is also not an autopilot. Recommendations are proposals, not silent
 decisions — see
 [Human approval](https://pathfinder-kit.vercel.app/concepts/human-approval/).
 
-Pathfinder is **not** a framework or orchestration runtime.
+Pathfinder is **not** an application framework. Orchestration adds isolated
+workers, dependency-aware scheduling, and fewer unnecessary interruptions to
+the same delivery discipline. It has no daemon, broker, queue, database, or
+server; no automatic merging, no bypassing review, and no unlimited agents.
 
 There is no required:
 
@@ -67,11 +75,10 @@ There is no required:
 
 See [`NOT_A_FRAMEWORK.md`](NOT_A_FRAMEWORK.md).
 
-One narrow exception, and it is opt-in: generating a Pathfinder visual artifact
-runs `render-artifact`, which needs Node. Nothing else does. The ordinary
-workflow — discovery, specs, tickets, delivery, review, debugging, reflection —
-stays runtime and package-manager agnostic, and Node is never added to your
-application or its dependencies.
+The human-in-the-loop delivery workflow needs no runtime. The optional
+`render-artifact` engine and orchestrator mode need Node; orchestration also
+uses Git and, with GitHub Issues, `gh`. None adds a runtime dependency to your
+application.
 
 ## Quick start
 
@@ -93,7 +100,9 @@ Pathfinder copies the kit into the repository. It does not install a runtime
 dependency into your application.
 
 If you configure Claude Code or Codex during setup, Pathfinder also generates
-native skill adapters for that tool.
+native skill adapters for that tool. The installer also asks how Pathfinder
+should run the project. Choose human-in-the-loop or orchestrator, or set it
+explicitly with `npx create-pathfinder --mode orchestrator`.
 
 Then start with:
 
@@ -210,17 +219,15 @@ to-specs
   ↓
 to-tickets
   ↓
-/ticket load
+choose the coordinator
+  ├─ human-in-the-loop: you drive one ticket session
+  └─ orchestrator: /orchestrate start coordinates isolated workers
   ↓
-/ticket start
+each worker: /ticket load → /ticket start → review → acceptance
   ↓
-optional /ticket review
+integration safety + human merge authority
   ↓
-human acceptance
-  ↓
-/ticket complete
-  ↓
-the next ready ticket
+/ticket complete → next eligible work
 ```
 
 A prototype is optional. Use one when an important assumption is cheaper to
@@ -249,14 +256,18 @@ The normal lifecycle assumes its responsibility boundary automatically:
 | `kickstart-pathfinder`, `to-specs`, `to-tickets` | `planner` |
 | `/ticket load`, `/ticket start`, `/ticket complete` | `developer` |
 | `/ticket review` | `tester` |
+| `/orchestrate status`, `start`, `resume` | `orchestrator` |
+| `/orchestrate integrate` | `integrator` |
 
-Pathfinder ships three:
+Pathfinder ships five:
 
 | Role | Responsibility |
 | --- | --- |
 | `planner` | Discovers project direction and produces Features and tickets |
+| `orchestrator` | Coordinates dependency-safe workers without implementing their tickets |
 | `developer` | Implements approved work without accepting its own work |
 | `tester` | Independently verifies delivered work and reports findings |
+| `integrator` | Checks whether reviewed work can land, under human merge authority |
 
 Use `/role` only when you want to override that default explicitly or debug a
 workflow under a particular boundary:
@@ -277,7 +288,8 @@ During a working session:
 ```
 
 gives you a compact orientation view such as the active role, current Feature,
-Git state, and next action.
+execution mode, Git state, and next action. In orchestrator mode,
+`/orchestrate status` shows all workers, worktrees, gates, and blockers.
 
 When you need to stop and continue later:
 
@@ -309,7 +321,7 @@ copies these kit entries:
 | `AGENTS.md` | Agent entry point for tools that use it |
 | `CLAUDE.md` | Claude Code project guidance |
 | `context/` | Project standards and interaction rules |
-| `roles/` | Planner, developer, and tester responsibility contracts |
+| `roles/` | Planner, orchestrator, developer, tester, and integrator responsibility contracts |
 | `skills/` | Reusable workflow procedures |
 | `templates/` | Minimal starting shapes created when needed |
 
@@ -444,6 +456,7 @@ Some common entry points:
 | `to-specs` | Turning approved direction into Features |
 | `to-tickets` | Slicing one approved Feature into executable tickets |
 | `ticket` | The delivery loop: `load`, `start`, `review`, `complete` |
+| `orchestrate` | Coordinating isolated workers and controlled integration in orchestrator mode |
 | `debug-issue` | Something is observably broken |
 | `handoff` | Leaving factual state for another session |
 | `whereami` | Getting quick session orientation |
@@ -513,6 +526,7 @@ context/features/
 context/tickets/          # when local Markdown is the ticket store
 context/history.md
 context/tracker.md        # when it is not
+context/execution-mode.md # when explicitly selected
 ```
 
 **Temporary session state is normally ignored.**
@@ -524,6 +538,9 @@ Two paths belong to one session on one machine, and are two lines in
 context/current-ticket.md
 context/handoff.md
 ```
+
+In orchestrator mode, also ignore `/.pathfinder/`, which holds local worker
+worktrees. Each worker has its own ignored `context/current-ticket.md`.
 
 Do not ignore `context/` wholesale. That would also hide the durable project
 truth future sessions need.
@@ -551,6 +568,8 @@ at `skills/`.
 │   ├── ai-interaction.md
 │   └── coding-standards.md
 ├── roles/
+│   ├── integrator.md
+│   ├── orchestrator.md
 │   ├── developer.md
 │   ├── planner.md
 │   └── tester.md
@@ -565,6 +584,7 @@ at `skills/`.
 │   ├── learn-feature/
 │   ├── learning-review/
 │   ├── map-system/
+│   ├── orchestrate/
 │   ├── prototype/
 │   ├── quiz-me/
 │   ├── reflect/

@@ -1,7 +1,7 @@
 {
   "name": "create-pathfinder",
   "version": "4.3.0",
-  "description": "Install Pathfinder's ticket-first, human-in-the-loop workflow kit into a Git repository.",
+  "description": "Install Pathfinder's workflow kit: human-in-the-loop delivery or dependency-safe orchestration, with human authority preserved.",
   "keywords": [
     "pathfinder",
     "ai",
@@ -9,7 +9,10 @@
     "claude",
     "workflow",
     "skills",
-    "scaffold"
+    "scaffold",
+    "human-in-the-loop",
+    "orchestrator",
+    "codex"
   ],
   "license": "MIT",
   "author": "Ricardo Lamadrid (Lamadrid Labs)",

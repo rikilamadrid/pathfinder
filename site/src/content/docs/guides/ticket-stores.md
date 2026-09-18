@@ -47,11 +47,11 @@ internal. It asks where tickets should live, then only for what is needed to
 reach that store, composes a proposed `context/tracker.md`, shows it to you, and
 writes it once you approve.
 
-The result is prose. Not a schema, not a config format, and not a plugin — a
-markdown file written for an agent to read and follow, which is why adding a
-store adds no runtime, no dependency, and no credentials to the kit. A store the
-kit has never heard of is supported by describing it, which is the mechanism
-rather than a gap.
+The result is a Markdown file for an agent to read and follow. In
+human-in-the-loop mode, describing a store is enough for the agent to use it
+with its available tools. Orchestrator mode reads stores through the engine,
+which currently supports local Markdown and GitHub Issues. A description alone
+does not add an engine adapter for another tracker.
 
 Configuring a store creates no tickets. `setup-tracker` describes where tickets
 will live and stops there.
@@ -101,6 +101,43 @@ fast as two copies in two systems.
 Blocker state is read from the store. That is what makes "what can I work on
 now?" answerable by anyone looking at the store, including people who never open
 your repository.
+
+## Orchestration in the store
+
+For GitHub Issues, `context/tracker.md` includes one machine-readable line:
+
+```text
+<!-- pathfinder:ticket-store github-issues owner/repo -->
+```
+
+`setup-tracker` writes it with the store conventions. The engine refuses a
+tracker file without this marker; no tracker file means local Markdown. The
+GitHub reader identifies tickets by `<!-- pathfinder:ticket NN.TT -->` in their
+bodies, never by titles. Blocker edges remain keys under `## Blocked by`.
+
+On GitHub, an open ticket has exactly one lifecycle label: `status: proposed`,
+`status: ready`, or `status: in-progress`. Complete means closed with no status
+label; cancelled and superseded tickets keep their respective terminal labels.
+
+The orchestrator records ownership, human gates, and eligibility through comments
+whose first line carries a `pathfinder:orchestrate` event marker. Retrying a
+marker already present does not post another copy. The ownership note names the
+worker, branch, worktree, and execution profile. Gate notes record the exact
+question and resolution; eligibility notes explain dependencies. These are
+meaningful lifecycle facts, not a log of every action.
+
+`gate: human` is a flag, not a lifecycle status. A gated open issue keeps its
+ordinary status label. `setup-tracker` creates the gate label before it is used;
+the orchestrator adds it while waiting and removes it when the gate resolves.
+The ordinary `ticket` actions alone advance lifecycle state.
+
+With local Markdown, notes append under `## Notes / Decisions` in the claimed
+ticket's worktree and travel with its branch. Gates also live in that worker's
+state file; there is no label. An unclaimed local ticket gets no note, and the
+dispatch plan carries its waiting reason.
+
+[Execution modes](/guides/execution-modes/) explains the plan, worker ownership,
+independent gates, and integration process.
 
 ## Your approval before it leaves the repository
 

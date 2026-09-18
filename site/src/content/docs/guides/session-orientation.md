@@ -117,7 +117,7 @@ branch and context counts while preserving the real output shape:
 
 Session: startup
 Git:     feature/example-activity-filter — 2 changed
-Context: project-overview.md yes · history.md yes · tracker.md no · handoff.md no · features/ 7 specs · tickets/ no
+Context: project-overview.md yes · history.md yes · tracker.md no · execution-mode.md no · handoff.md no · features/ 7 specs · tickets/ no
 Role:    none — no /role override can be active yet; do not assume one
 
 context/current-ticket.md, verbatim:
@@ -125,6 +125,11 @@ context/current-ticket.md, verbatim:
 # Current Ticket
 ...
 ```
+
+The Context line reports whether `execution-mode.md` exists; it does not
+interpret the marker. In a worker worktree, orientation reads that worktree’s
+own current-ticket file. `/whereami` reports the mode, and `/orchestrate status`
+provides the cross-worker view.
 
 It transports; it does not interpret. `context/current-ticket.md` is **quoted,
 never parsed** — that file is written by `/ticket load` with no schema, and

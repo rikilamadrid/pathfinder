@@ -134,6 +134,7 @@ export const WORKFLOW_LOOPS = [
 const GUIDES = [
   { label: 'Getting started', link: '/guides/getting-started/' },
   { label: 'The workflow', link: '/guides/workflow/' },
+  { label: 'Execution modes', link: '/guides/execution-modes/' },
   // After the workflow, because a role only means something once you know the
   // loops it scopes. Before ticket-store selection, because roles ship with
   // every install and the lifecycle reads them automatically rather than only

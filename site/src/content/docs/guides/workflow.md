@@ -126,10 +126,31 @@ prototype        = validate a proposed direction
 to-specs         = convert an approved direction into planned work
 ```
 
+## Two ways to run the loop
+
+Human-in-the-loop mode means you drive one ticket session, one transition at a
+time. Orchestrator mode coordinates several dependency-safe workers, each in an
+isolated worktree, through the same delivery loop:
+
+```text
+approved ticket graph
+→ /orchestrate start → dispatch plan → ◆ scoped human approval
+    ├─ developer A → tester A → integration assessment
+    └─ developer B → human gate (A continues)
+→ /orchestrate integrate → ◆ merge authority → /ticket complete <key>
+→ refresh eligibility from the canonical graph
+```
+
+Orchestration assumes the `orchestrator` role, integration the `integrator`
+role. Neither mode lets an agent accept its own work. Review is optional in a
+human-driven session unless project policy requires it; orchestrated work gets
+an independent tester before integration. [Execution modes](/guides/execution-modes/)
+covers configuration, routing, status, gates, and recovery.
+
 ## Delivery loop
 
-The loop you spend most of your time in. One feature at a time, and inside a
-feature, one ticket at a time.
+The loop you spend most of your time in. Each worker owns one active ticket;
+the project’s execution mode determines who coordinates the workers.
 
 ```text
 project context

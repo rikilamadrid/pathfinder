@@ -1,6 +1,6 @@
 ---
 title: Pathfinder
-description: A human-in-the-loop workflow kit for building software with AI agents.
+description: One disciplined AI delivery workflow, with human-in-the-loop and orchestrator execution modes.
 template: splash
 
 # The landing page is not a step in a reading sequence.
@@ -39,6 +39,13 @@ details for you.
 
 > The kit owns the workflow. The project owns the stack.
 
+Pathfinder gives you one disciplined workflow with two ways to operate it:
+work one ticket at a time with direct human control in **human-in-the-loop**
+mode, or let **orchestrator** mode coordinate several dependency-safe workers
+while surfacing only the human gates that need you.
+
+[Choose an execution mode](/guides/execution-modes/).
+
 ## What Pathfinder gives you
 
 Pathfinder has four small building blocks:
@@ -48,7 +55,10 @@ Pathfinder has four small building blocks:
 - **Context** — project truth and temporary workspace state
 - **Templates** — minimal records created only when needed
 
-It is **not a framework** and **not an orchestration runtime**.
+It is **not an application framework**. Orchestration adds isolated workers,
+dependency-aware scheduling, and fewer unnecessary interruptions to the same
+discipline. There is no daemon, broker, queue, database, or server; no automatic
+merging, no bypassing review, and no unlimited agents.
 
 There is no required application framework, package manager, database,
 programming language, hosting platform, Git model, agent swarm, or background
@@ -58,7 +68,9 @@ It is also **not autopilot**. Agents may recommend and execute work, but the
 human owns approval, acceptance, merge, release, and other consequential
 decisions.
 
-Everything is readable Markdown.
+The workflow contracts are readable Markdown. Orchestrator mode and visual
+artifact generation use optional Node engines; orchestration also uses Git
+and, with GitHub Issues, `gh`. Human-in-the-loop delivery needs no runtime.
 
 ## Start a project
 
@@ -118,17 +130,15 @@ to-specs
   ↓
 to-tickets
   ↓
-/ticket load
+choose the coordinator
+  ├─ human-in-the-loop: you drive one ticket session
+  └─ orchestrator: /orchestrate start coordinates isolated workers
   ↓
-/ticket start
+each worker: /ticket load → /ticket start → review → acceptance
   ↓
-optional /ticket review
+integration safety + human merge authority
   ↓
-human acceptance
-  ↓
-/ticket complete
-  ↓
-the next ready ticket
+/ticket complete → next eligible work
 ```
 
 A prototype is optional.
@@ -152,17 +162,20 @@ debug-issue      = an observed failure needs an explanation
 
 ## Automatic roles
 
-Pathfinder ships three roles:
+Pathfinder ships five roles:
 
 | Role | Responsibility |
 | --- | --- |
 | `planner` | Discovers project direction and produces Features and tickets |
+| `orchestrator` | Coordinates dependency-safe workers without implementing their tickets |
 | `developer` | Implements approved work without accepting its own work |
 | `tester` | Independently verifies delivered work and reports findings |
+| `integrator` | Checks whether reviewed work can land, under human merge authority |
 
 Lifecycle skills read the responsible role automatically: planning assumes
 `planner`, ticket load/start/complete assume `developer`, and ticket review
-assumes `tester`.
+assumes `tester`. Orchestration assumes `orchestrator`; integration assumes
+`integrator`. Roles do not call one another: the skills coordinate the sessions.
 
 Use `/role` only to override that default explicitly or debug a workflow under
 a particular boundary:
@@ -174,7 +187,8 @@ a particular boundary:
 Roles do not grant authority. They only narrow what the current AI session is
 responsible for.
 
-The human remains the conductor.
+The human coordinates in human-in-the-loop mode and keeps approval, acceptance,
+merge, and release authority in both modes.
 
 [Learn about roles](/guides/roles/).
 
@@ -186,8 +200,9 @@ During a session:
 /whereami
 ```
 
-gives you a compact view of the current role, Feature, Git state, and next
-action without loading broad project history.
+gives you a compact view of the current role, execution mode, Feature, Git state,
+and next action without loading broad project history. In orchestrator mode,
+`/orchestrate status` shows workers, worktrees, gates, and blockers.
 
 When you need to stop and continue later:
 
@@ -207,7 +222,8 @@ context/
 └── coding-standards.md
 ```
 
-Other context appears only when a workflow actually needs it.
+Choosing a mode also writes `context/execution-mode.md`. Other context appears
+only when a workflow actually needs it.
 
 Durable project truth is tracked in Git:
 
@@ -217,6 +233,7 @@ context/features/
 context/tickets/          # when local Markdown is the ticket store
 context/history.md
 context/tracker.md        # when it is not
+context/execution-mode.md # when explicitly selected
 ```
 
 Temporary workspace state is normally ignored:
@@ -225,6 +242,9 @@ Temporary workspace state is normally ignored:
 context/current-ticket.md
 context/handoff.md
 ```
+
+In orchestrator mode, also ignore `/.pathfinder/`, which holds local worker
+worktrees. Each worker has its own ignored `context/current-ticket.md`.
 
 Do not ignore `context/` wholesale. That would also hide the project truth
 future sessions need.
@@ -299,7 +319,7 @@ work while you retain control of the important decisions.
 It is probably not a fit if you want:
 
 - an autonomous agent to choose the product and architecture for you
-- a runtime that orchestrates a swarm of agents
+- an always-running service or unlimited autonomous agents
 - a software framework your application builds against
 - a process enforced by infrastructure rather than readable instructions
 
@@ -322,6 +342,7 @@ For the deeper model, continue with:
 
 - [Getting started](/guides/getting-started/)
 - [Workflow](/guides/workflow/)
+- [Execution modes](/guides/execution-modes/)
 - [Roles](/guides/roles/)
 - [Human approval](/concepts/human-approval/)
 - [Ticket stores](/guides/ticket-stores/)

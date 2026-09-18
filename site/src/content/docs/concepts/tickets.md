@@ -45,7 +45,8 @@ were written.
 That is what makes "what can I work on now?" answerable: a ticket is ready when
 its status allows it and every blocker is complete. Preferred order is not a
 blocker, and two tickets that merely touch the same file are not blocked — that
-is a merge, and the human resolves it.
+is integration risk, assessed separately under human merge authority.
+Orchestrator mode checks actual branch overlap and conflicts before landing.
 
 ## Why not just build the feature
 
@@ -60,8 +61,9 @@ restatement is a cheap chance to catch a misunderstanding while it is small.
 
 ## The rules that keep them honest
 
-- **One ticket at a time.** Implement the active ticket, verify it, and move on
-  only when it is genuinely done.
+- **One active ticket per worker.** Human-in-the-loop mode drives one session;
+  orchestrator mode can coordinate independent workers. Each implements and
+  verifies its own ticket before taking another.
 - **A ticket is a slice, not a layer.** "Add the schema", "wire the UI", and
   "write the tests" are three halves of one ticket.
 - **A ticket is not a place to hide a second feature.** If it needs its own
