@@ -1,6 +1,6 @@
 {
   "name": "create-pathfinder",
-  "version": "4.3.0",
+  "version": "4.4.0",
   "description": "Install Pathfinder's workflow kit: human-in-the-loop delivery or dependency-safe orchestration, with human authority preserved.",
   "keywords": [
     "pathfinder",
