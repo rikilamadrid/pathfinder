@@ -63,6 +63,15 @@ jobs:
         working-directory: packages/orchestrate
         run: npm test
 
+      - name: Test the blog-post-redactor engine
+        # Same shape as the two engines above: it ships under skills/ and its
+        # tests live here so an installed project never receives them. The
+        # suite builds real Git repositories and runs the real CLI, because the
+        # guarantee being checked is that collection reads a repository and
+        # changes nothing in it.
+        working-directory: packages/blog-post-redactor
+        run: npm test
+
       - name: Assert no root manifest
         # NOT_A_FRAMEWORK.md promises the kit has no runtime and no package
         # manager. Nested tooling may carry its own manifest; the root may not.

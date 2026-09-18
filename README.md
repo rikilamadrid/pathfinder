@@ -462,6 +462,7 @@ Some common entry points:
 | `whereami` | Getting quick session orientation |
 | `learn-feature` | Learning from completed work |
 | `reflect` | Improving the workflow from actual experience |
+| `blog-post-redactor` | Writing up shipped work from repository evidence |
 | `setup-tracker` | Choosing where tickets live |
 
 The complete list lives in `skills/` and on the
@@ -574,6 +575,7 @@ at `skills/`.
 │   ├── planner.md
 │   └── tester.md
 ├── skills/
+│   ├── blog-post-redactor/
 │   ├── challenge-me/
 │   ├── debate-me/
 │   ├── debug-issue/

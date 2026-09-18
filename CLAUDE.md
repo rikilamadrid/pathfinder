@@ -117,3 +117,4 @@ An adapter carries the canonical skill's frontmatter and a pointer to it, and no
 - `skillsmith` — teach and create small local skills
 - `hooksmith` — turn a described guarantee into one verified hook for the active harness
 - `setup-tracker` — choose the canonical ticket store when it is not local Markdown
+- `blog-post-redactor` — turn shipped work into a technical article built only from repository evidence

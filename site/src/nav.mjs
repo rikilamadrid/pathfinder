@@ -108,6 +108,14 @@ export const WORKFLOW_LOOPS = [
     skills: ['render-artifact', 'map-system'],
   },
   {
+    // Not a loop either, and not a utility. This skill reads work that is
+    // already finished and produces something for people outside the project,
+    // which no loop in the workflow covers — the reflection loop is the
+    // closest and it points inward, at the workflow itself.
+    label: 'Communication',
+    skills: ['blog-post-redactor'],
+  },
+  {
     // Not a sixth loop. These are cross-cutting utilities and the README does
     // not place them in one, so neither does this. Naming the group honestly
     // beats forcing them into a loop they do not belong to.
