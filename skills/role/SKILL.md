@@ -1,7 +1,7 @@
 ---
 name: role
 description: Explicitly override the role Pathfinder's lifecycle would assume.
-argument-hint: planner|orchestrator|developer|tester
+argument-hint: planner|orchestrator|developer|tester|integrator
 ---
 
 # Role
@@ -18,6 +18,7 @@ The human names it, for example:
 `/role orchestrator`
 `/role developer`
 `/role tester`
+`/role integrator`
 
 ## Process
 

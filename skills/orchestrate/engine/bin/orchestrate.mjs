@@ -32,6 +32,7 @@
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 
+import { checkIntegration, formatCheck, releaseClaim } from "../integration.mjs";
 import { computeBoard, formatBoard } from "../board.mjs";
 import { buildBrief, formatBrief, translateBrief } from "../brief.mjs";
 import { approvalScope, blockedNote, claimedNote, gateOpenedNote, gateResolvedNote, unblockedNote } from "../comments.mjs";
@@ -50,6 +51,13 @@ import { computeStatus, formatStatus } from "../status.mjs";
 import { describeStore, readTickets, resolveStore } from "../store.mjs";
 
 const USAGE = `orchestrate
+
+  check <key> [--json]
+      Check a done claim: candidate, behind, or conflict; overlap is advisory.
+
+  release <key> [--force --approval <human permission>] [--json]
+      Remove a merged worktree, branch and claim ref. Unmerged work is refused
+      unless the human explicitly authorises --force. No merge is performed.
 
   board  [--feature NN] [--json]
       Every ticket in the store with its status, blockers, and whether it is
@@ -125,6 +133,20 @@ async function main(argv) {
   const common = { root, store: flags.store ?? null, gh: flags.gh ?? "gh" };
 
   switch (command) {
+    case "check": {
+      if (!isKey(positional[0])) return fail(2, "check needs a ticket key");
+      const result = checkIntegration({ root, key: positional[0] });
+      if (!result.ok) return fail(1, result.message);
+      process.stdout.write(flags.json ? JSON.stringify(result, null, 2) + "\n" : formatCheck(result));
+      return 0;
+    }
+    case "release": {
+      if (!isKey(positional[0])) return fail(2, "release needs a ticket key");
+      const result = releaseClaim({ root, key: positional[0], force: Boolean(flags.force), approval: flags.approval });
+      if (!result.ok) return fail(1, result.message);
+      process.stdout.write(flags.json ? JSON.stringify(result, null, 2) + "\n" : `released ${result.key}\n`);
+      return 0;
+    }
     case "board":
       return board({
         ...common,
@@ -507,7 +529,7 @@ function parse(argv) {
         const value = equals === -1 ? argv[++index] : argument.slice(equals + 1);
         if (value === undefined || value.startsWith("--")) return { error: `--${name} needs a value` };
         flags[name] = value;
-      } else if (name === "json" || name === "help" || name === "announce") {
+      } else if (name === "json" || name === "help" || name === "announce" || name === "force") {
         flags[name] = true;
       } else {
         return { error: `unknown option \`${argument}\`` };
