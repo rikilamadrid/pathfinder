@@ -16,6 +16,7 @@
 
 import { isAbsolute } from "node:path";
 import { TOKEN } from "./profile.mjs";
+import { isKey } from "./keys.mjs";
 
 export const BRIEF_FIELDS = Object.freeze([
   "ticket",
@@ -173,7 +174,35 @@ const CODEX_EFFORTS = Object.freeze({
   "gpt-5.2": Object.freeze(["low", "medium", "high", "xhigh"]),
 });
 
+/**
+ * Canonical native task identity. Codex CLI 0.154.0 validates a spawned
+ * agent's name as non-empty, lowercase letters, digits, and underscores only,
+ * containing no `/`, and not the reserved `root`; it states no length limit.
+ * The `pathfinder_` prefix settles the reserved-name and separator rules for
+ * every name built here. Ticket components stay byte-for-byte intact; session
+ * names come from the finite protocol domain, not arbitrary slugs. Refuse a
+ * future protocol collision instead of silently sharing an identity, and
+ * never truncate a key.
+ */
+function codexTaskName(ticket, session) {
+  if (!isKey(ticket)) {
+    return { ok: false, message: "Codex task name needs a Pathfinder ticket key (digits.digits)." };
+  }
+  if (typeof session !== "string" || !Object.hasOwn(PROTOCOLS, session)) {
+    return { ok: false, message: `Codex task name needs a supported session: ${Object.keys(PROTOCOLS).join(", ")}.` };
+  }
+  const normalize = (value) => value.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+  const normalized = normalize(session);
+  if (!/[a-z0-9]/.test(normalized)
+      || Object.keys(PROTOCOLS).filter((value) => normalize(value) === normalized).length !== 1) {
+    return { ok: false, message: `Codex task name cannot uniquely represent session \`${session}\`; refusing an ambiguous identity.` };
+  }
+  return { ok: true, name: `pathfinder_${ticket.replace(".", "_")}_${normalized}` };
+}
+
 function codexInvocation(brief) {
+  const task = codexTaskName(brief.ticket, brief.session);
+  if (!task.ok) return task;
   if (!isAbsolute(brief.worktree)) {
     return { ok: false, message: "Codex subagent needs an absolute worktree path; its spawn tool has no working-directory argument." };
   }
@@ -197,7 +226,7 @@ function codexInvocation(brief) {
 
   const inherited = brief.model === "inherited" && brief.effort === "inherited";
   const args = {
-    task_name: `pathfinder_${brief.ticket.replaceAll(".", "_")}_${brief.session}`,
+    task_name: task.name,
     fork_turns: inherited ? "all" : "none",
     message: [
       `Your assigned worktree is ${JSON.stringify(brief.worktree)}. The spawn tool does not change directory. Set workdir to this absolute path on EVERY shell call; use absolute paths inside it for file edits. Never assume your inherited working directory is this worktree.`,

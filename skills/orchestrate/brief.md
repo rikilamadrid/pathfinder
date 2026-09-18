@@ -3,7 +3,7 @@
 What the orchestrator hands a worker, and how each harness honours it.
 
 ```sh
-node skills/orchestrate/engine/bin/orchestrate.mjs brief <key> --harness claude-code|codex|manual [--session implementation|resume|review] [--approval <text>] [--json]
+node skills/orchestrate/engine/bin/orchestrate.mjs brief <key> --harness claude-code|codex|manual [--session implementation|resume|review|rebase-and-reverify|resolve-conflict] [--approval <text>] [--json]
 ```
 
 ## Output
@@ -29,14 +29,14 @@ missing: a brief that lacks one is refused.
 | Field | Meaning |
 | --- | --- |
 | `ticket`, `title`, `ref` | the ticket's key, title, and where it lives in the store |
-| `session` | `implementation`, `resume`, or `review` |
+| `session` | `implementation`, `resume`, `review`, `rebase-and-reverify`, or `resolve-conflict`: the keys of `PROTOCOLS` in `engine/brief.mjs` |
 | `worktree`, `branch` | the claim the worker runs inside; the worktree path is absolute |
 | `main` | the main checkout: where untracked project context lives, such as `context/tracker.md` and Feature specs, when the worktree has no copy |
 | `role` | the role contract the session assumes, from the routing policy |
 | `model` | the model the session runs on, from the routing policy |
 | `effort` | the reasoning effort the session runs at, from the routing policy |
 | `approval` | the scope of the human approval the orchestration run was granted |
-| `protocol` | the ordered steps for the session. Implementation loads, starts, and reports a gate, done, or failure. Resume reads the worktree's state file first and continues rather than restarting. Review runs `/ticket review`, changes nothing, and reports PASS or findings |
+| `protocol` | the ordered steps for the session. Implementation loads, starts, and reports a gate, done, or failure. Resume reads the worktree's state file first and continues rather than restarting. Review runs `/ticket review`, changes nothing, and reports PASS or findings. Rebase-and-reverify and resolve-conflict are the integration repair sessions `integration-brief.md` states |
 
 `role`, `model`, and `effort` are first-class fields whatever their values.
 `inherited` is a value, not an absence. A later routing policy changes what
@@ -104,6 +104,20 @@ worker to read `roles/<role>.md`, set `workdir` to the absolute worktree on **ev
 shell call**, and use absolute paths inside it for edits. `task_name` is derived
 from ticket and session; the tool's returned agent identifier is ephemeral. The
 claim's worktree remains the worker identity.
+
+Codex task names use lowercase ASCII letters, digits, and underscores. The
+adapter preserves both numeric ticket components exactly (including leading
+zeros), separates them with an underscore, and canonicalizes the supported
+session name to lowercase with other characters replaced by underscores:
+`pathfinder_53_6_rebase_and_reverify`. It accepts only canonical Pathfinder
+keys and sessions in `PROTOCOLS`, and refuses any session whose canonical name
+would collide with another supported session. Unknown sessions and malformed
+keys fail explicitly rather than becoming lossy slugs. Codex CLI 0.154.0
+validates the name as non-empty, lowercase letters, digits, and underscores
+only, containing no `/`, and not the reserved `root`, and states no length
+limit; the `pathfinder_` prefix settles the reserved-name and separator rules,
+and the adapter imposes no limit of its own and never truncates. This changes
+only the ephemeral task name, never the ticket or claim identity.
 
 A resume can translate a claim first dispatched through Claude Code into a Codex
 invocation without rewriting its ticket, branch, worktree, or execution profile.
