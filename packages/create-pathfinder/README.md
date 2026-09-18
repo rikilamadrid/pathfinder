@@ -3,6 +3,11 @@
 **A reusable workflow kit for directing AI agents through software delivery,
 while keeping judgment and consequential decisions human.**
 
+Pathfinder gives you one disciplined workflow with two ways to operate it:
+work one ticket at a time with direct human control in **human-in-the-loop**
+mode, or let **orchestrator** mode coordinate several dependency-safe workers
+while surfacing only the human gates that need you.
+
 This package copies [Pathfinder](https://pathfinder-kit.vercel.app) into a Git
 repository.
 
@@ -80,7 +85,7 @@ The installer copies six kit entries into your repository:
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell supported agents how to work in the project |
 | `context/` | Project standards and interaction rules; other context is created only when needed |
-| `roles/` | Planner, developer, and tester contracts assumed by lifecycle skills |
+| `roles/` | Planner, orchestrator, developer, tester, and integrator contracts assumed by lifecycle skills |
 | `skills/` | Reusable procedures for discovery, specs, delivery, debugging, review, learning, and ticket-store selection |
 | `templates/` | Minimal starting shapes; records are created from them later, when a workflow needs one |
 
@@ -345,8 +350,13 @@ npx create-pathfinder --mode orchestrator
 `--mode` rewrites a mode file Pathfinder wrote, and is the way to switch. A
 file at that path that Pathfinder did not write is left alone and reported;
 pass `--force` to replace it. An unknown value exits 2. Without `--mode`, a
-scripted run records nothing, which means human-in-the-loop, and prints exactly
-what it always did.
+scripted run preserves any existing mode and creates no new mode file. A project
+with no file remains human-in-the-loop; the scripted output stays unchanged.
+
+Orchestrator mode uses Node and Git, plus `gh` for GitHub Issues. It keeps one
+active ticket per isolated worker and every human gate; it adds no daemon or
+automatic merging. See [Execution modes](https://pathfinder-kit.vercel.app/guides/execution-modes/)
+for worker limits, dispatch, review, and integration.
 
 ## The Kickstart prompt
 

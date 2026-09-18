@@ -46,6 +46,12 @@ Use the workflow skills instead of recreating their procedures in chat:
    the tickets that are now ready.
 6. `learn-feature` — optionally teach what was implemented.
 
+In human-in-the-loop mode, the human coordinates this loop. In orchestrator
+mode, `orchestrate` coordinates the same ticket actions across dependency-safe
+workers in separate worktrees and hands reviewed work to the integrator. One
+worker’s human gate does not stop unrelated workers. The execution-mode rule
+lives in `skills/ticket/SKILL.md`; neither mode changes human authority.
+
 Lifecycle skills assume their responsible role automatically. Explicit
 activation with `/role` is optional and overrides that default for the session.
 
@@ -72,7 +78,8 @@ Ticket status records durable lifecycle state only:
 - Prefer exact files or sections over broad repository scans.
 - Do not load history, roadmap, other tickets, or unrelated context by
   default.
-- Work one ticket at a time.
+- Work one active ticket per worker. Human-in-the-loop mode uses one ticket
+  session; orchestrator mode may coordinate several isolated workers.
 - If the work can no longer be understood safely in a focused session,
   stop and split or hand off.
 - Extra scaffolding must earn its cost by reducing downstream context.

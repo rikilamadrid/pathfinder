@@ -85,6 +85,7 @@ DOWN, UP, SPACE, ENTER = b"\x1b[B", b"\x1b[A", b" ", b"\r"
 ANSWERS = (
     {"question": "Initialize a Git repository here?", "choose": "Yes"},
     {"question": "Configure Pathfinder for which tools?", "checked": ("Claude Code",)},
+    {"question": "How should Pathfinder run this project?", "choose": "Human-in-the-loop"},
     {"question": "Copy that prompt to your clipboard?", "choose": "No"},
     {"question": "Open this project in", "choose": "No"},
 )

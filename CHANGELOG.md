@@ -27,6 +27,20 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Added
+
+- **One disciplined workflow, two execution modes.** Human-in-the-loop keeps
+  direct control of one ticket session; the new `orchestrate` skill coordinates
+  dependency-safe workers in isolated Git worktrees, with explicit ownership,
+  independent human gates, review, recovery, and controlled integration. The
+  orchestrator and integrator roles preserve human approval, acceptance, merge,
+  and release authority. Execution profiles use static routing with inherited
+  model and effort; Claude Code, Codex, and manual harness translations keep
+  the same worker contract. Choose a mode during installation or change it with
+  `--mode`; projects with no mode file retain human-in-the-loop behavior without
+  migration. This is an additive MINOR capability, with no breaking change for
+  existing projects.
+
 ## [4.3.0] - 2026-09-13
 
 ### Added

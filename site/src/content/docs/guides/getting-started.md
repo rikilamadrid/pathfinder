@@ -21,7 +21,8 @@ project needs — and so does the first feature.
   agent you can point at a path.
 
 You do not need a package manager, a framework, or a project that already builds.
-Pathfinder is markdown.
+The human-in-the-loop workflow is Markdown. Orchestrator mode also uses Node
+and Git, plus `gh` for GitHub Issues; neither mode adds an application dependency.
 
 ## Install
 
@@ -36,9 +37,9 @@ npx create-pathfinder
 The installer copies files and exits. It adds no dependency, writes no
 `package.json`, and leaves nothing behind in `node_modules`.
 
-In an empty directory it opens by reporting what it found, then asks two
-questions before writing anything — whether to create the repository, and which
-coding tools to configure:
+In an empty directory it opens by reporting what it found, then asks whether to
+create the repository, which coding tools to configure, and how Pathfinder
+should run this project:
 
 ```text
      ━━━
@@ -69,8 +70,16 @@ and undo it. It will not touch an existing history.
 
   ↑↓ move   space toggle   enter confirm
 
+? How should Pathfinder run this project?
+
+❯ Human-in-the-loop  -> one ticket at a time, with explicit human control
+  Orchestrator       -> several dependency-safe ticket workers at once, every human gate kept
+
+  ↑↓ move   enter confirm
+
   📦  INSTALLING
   │  ✓ Kit files — N copied
+  │  ✓ Execution mode — human-in-the-loop recorded
   │  ✓ Claude Code — N adapters
 
   📋  SUMMARY
@@ -78,6 +87,7 @@ and undo it. It will not touch an existing history.
   │  ✓ N files written
   │  ✓ N Claude Code skill adapters generated
   │  ✓ 1 Claude Code session hook handler generated (inert; nothing runs it yet)
+  │  ✓ Execution mode recorded: human-in-the-loop (context/execution-mode.md)
 
   ·  Claude Code session orientation is optional
 
@@ -163,6 +173,13 @@ Detection sets the defaults and nothing else — the tools line says
 `(noted, not configured)` because that is the whole of it. Nothing is configured
 unless you choose it, and declining the first question writes nothing at all.
 
+The mode question defaults to **Human-in-the-loop**: one active ticket session
+with direct human control. **Orchestrator** coordinates several dependency-safe
+workers. Either answer writes the tracked `context/execution-mode.md`; a
+project with no file defaults to human-in-the-loop. You can change it later
+with `npx create-pathfinder --mode orchestrator`.
+[Execution modes](/guides/execution-modes/) explains the choice.
+
 The last two questions are conveniences: whether to copy that prompt to your
 clipboard, and whether to open the project in an editor already on your `PATH`.
 Say no to either and the install is unaffected.
@@ -172,7 +189,8 @@ what landed.
 
 Questions are asked only when stdin and stdout are both terminals. Piped,
 redirected, or in CI, nothing is asked: pass `--git-init` and
-`--agents claude-code,codex` to get the same result without prompts.
+`--agents claude-code,codex --mode human-in-the-loop` to make those choices
+without prompts.
 
 ## Confirm what landed
 
@@ -186,7 +204,7 @@ In the empty repository you just created, six things:
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — the interaction rules and coding standards; the rest is written when first needed |
-| `roles/` | Three declarative contracts — planner, developer, tester — assumed by lifecycle skills |
+| `roles/` | Five declarative contracts — planner, orchestrator, developer, tester, integrator — assumed by lifecycle skills |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
 | `templates/` | Starting points the project copies when it needs them |
 
@@ -204,13 +222,13 @@ without.
 Pathfinder's own `README.md`, `CHANGELOG.md`, CI configuration, and brand assets are
 never copied. Your repository gets the workflow, not the project that maintains it.
 
-### Two lines for your `.gitignore`
+### Track project truth, ignore session state
 
 `context/` starts with two files and grows as you work. What gets written into it
 divides cleanly, and the division is worth setting up before your first commit.
 
 **Durable project truth is tracked.** `context/project-overview.md`,
-`context/features/`, `context/history.md`, and `context/tracker.md` answer *what is
+`context/features/`, `context/history.md`, `context/execution-mode.md`, and `context/tracker.md` answer *what is
 true about this project*. They outlive any session and a reviewer should see them
 change.
 
@@ -223,7 +241,8 @@ context/current-ticket.md
 context/handoff.md
 ```
 
-That is the whole mechanism — no hook, no filter, no wrapper. **Do not ignore
+Orchestrator mode also requires `/.pathfinder/` in `.gitignore` for worker
+worktrees. The engine checks this before claiming work. **Do not ignore
 `context/` as a directory.** It looks tidier and quietly untracks the file
 documenting your stack and workflow, which every later session reads as true.
 
@@ -270,6 +289,7 @@ Options worth knowing before you run it anywhere real:
 | `--dry-run` | Report the same plan the real install would carry out, and write nothing |
 | `--force` | Overwrite files that already exist, and replace a file you wrote at a path an adapter would occupy. Off by default |
 | `--agents <ids>` | Generate adapters for `claude-code`, `codex`, or both, without being asked |
+| `--mode <mode>` | Record or change `human-in-the-loop` or `orchestrator` in the project’s mode file |
 | `--git-init` | Run `git init` here if this is not a repository yet |
 | `--yes` | Take the defaults and ask nothing. It does not authorize `git init` or configure any tool |
 | `--no-clipboard`, `--no-open` | Skip the clipboard offer and the editor offer |
@@ -392,7 +412,7 @@ single focused session. It will not plan your whole product, and if the MVP boun
 or a critical decision is still unresolved it reports the blockers instead of
 inventing decisions. That refusal is the feature.
 
-From there, one feature at a time:
+From there, human-in-the-loop mode drives one ticket session:
 
 ```text
 → to-tickets        slice that feature into executable tickets
@@ -407,6 +427,11 @@ Run them one at a time and read what comes back —
 touch, the risks, its verification plan, and what it considers out of scope
 *before* it writes anything. That restatement is your cheapest chance to catch a
 misunderstanding.
+
+In orchestrator mode, run `/orchestrate start feature <number> --workers 2`
+after slicing the Feature. Review its plan and approve the scoped run; Pathfinder
+coordinates eligible workers through those same actions. A gate pauses only
+the affected ticket. See [Execution modes](/guides/execution-modes/).
 
 If something breaks along the way, [`debug-issue`](/skills/debug-issue/) interrupts
 the loop. It reproduces the failure before repairing it, which is the part that

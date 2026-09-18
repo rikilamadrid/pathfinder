@@ -2,11 +2,17 @@
 
 Thanks for your interest. Pathfinder is a small, deliberately bounded workflow kit. The most useful contributions sharpen what is already here; the least useful expand its scope.
 
-Read [`NOT_A_FRAMEWORK.md`](NOT_A_FRAMEWORK.md) before proposing anything structural. The kit has no runtime, package manager, or build step, and it is meant to stay that way.
+Read [`NOT_A_FRAMEWORK.md`](NOT_A_FRAMEWORK.md) before proposing anything structural. Human-in-the-loop delivery needs no runtime or package manager. Optional visual
+artifact generation and orchestrator mode use Node engines without adding
+dependencies to the application.
 
 ## What this repository is
 
-**The kit is Markdown only.** `skills/` holds reusable behavior contracts, `context/` holds the templates a destination project fills in, and `templates/` holds scaffolding. A destination project installs nothing and runs nothing — that promise is about what Pathfinder ships, and it is unchanged.
+**The kit is file-based.** `skills/` holds reusable Markdown behavior contracts
+and the optional artifact and orchestration engines, `context/` holds project
+standards, and `templates/` holds scaffolding. Human-in-the-loop delivery needs
+no engine; orchestrator mode uses Node and Git, plus `gh` for GitHub Issues.
+Nothing becomes an application runtime dependency.
 
 **The repository that maintains the kit is not.** It also holds the installer (`packages/create-pathfinder/`, a dependency-free Node package with its own tests), the validation script and adapter generator you are expected to run before opening a PR, the committed Claude Code adapters generated from `skills/`, and the documentation site. These are how Pathfinder is built and published, and none of them is copied into your project. The repository root itself stays manifest-free, and CI asserts it.
 
@@ -157,6 +163,12 @@ Pathfinder has three documentation surfaces, and each one owns a different job. 
 | [`README.md`](README.md) | **The landing page.** What Pathfinder is and is not, the quickstart, an overview of the workflow, and links out. Not the reference manual. |
 | [`site/`](site/) | **The canonical detailed documentation.** Concepts, guides, and the generated skill reference. |
 | [`packages/create-pathfinder/README.md`](packages/create-pathfinder/README.md) | **CLI and package usage.** Invocation, flags, what the installer writes, requirements. Not the workflow tutorial. |
+
+The shared product story is one disciplined workflow with human-in-the-loop
+and orchestrator modes. The [execution-modes guide](site/src/content/docs/guides/execution-modes.md)
+owns the operational explanation. The installer README owns `--mode` and the
+`context/execution-mode.md` file it writes; re-running with `--mode` changes an
+owned mode file. Keep those surfaces consistent when behavior changes.
 
 A fact repeated on two surfaces has two chances to go stale and no way to tell which copy is current. The exceptions are deliberate and few: the install command, the six-entry copy-list table, the Kickstart prompt, and the never-overwrites guarantee appear on more than one surface because each is the first thing a reader of that surface needs. The six-entry table in `README.md` additionally sits between `<!-- copy-list:start -->` and `<!-- copy-list:end -->` markers, and `validate-kit.py` checks that block against `copy-list.json` — moving or unwrapping it makes the check pass vacuously.
 

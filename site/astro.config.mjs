@@ -28,7 +28,7 @@ export default defineConfig({
     starlight({
       title: 'Pathfinder',
       description:
-        'An AI-assisted, human-in-the-loop workflow for building software — without giving up the decisions.',
+        'One disciplined AI delivery workflow, with human-in-the-loop and orchestrator modes — keeping consequential decisions human.',
       logo: {
         // Imported straight from the repository's single `assets/` directory
         // and processed by Vite. No copy exists anywhere under `site/`.

@@ -44,7 +44,9 @@ and *only the source files the current ticket needs*.
 
 [`context/ai-interaction.md`](/context/ai-interaction/) states the discipline as a
 rule: read only what the current work requires, prefer exact files or sections over
-broad repository scans, and work one ticket at a time.
+broad repository scans, and keep one active ticket per worker. Orchestrator
+mode coordinates independent workers without pooling their implementation
+context; each worktree has its own current-ticket file.
 
 Neither is enforced by tooling. Both are markdown an agent reads.
 
