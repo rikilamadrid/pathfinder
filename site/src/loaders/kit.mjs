@@ -33,6 +33,8 @@
 //   - Starlight's `docsLoader()`, composed in below.
 
 import { readdir, readFile, stat } from 'node:fs/promises';
+
+import { isUnpublished } from '../unpublished.mjs';
 import { extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from '@astrojs/markdown-remark';
@@ -305,11 +307,15 @@ export function kitDocsLoader({ skillsDir, contextDir }) {
         const present = new Set();
 
         for (const path of await markdownFiles(contextRoot)) {
+          const id = `context/${path.replace(/\.md$/, '')}`;
+          // Read from `unpublished.mjs`, the one statement of what the site
+          // leaves alone, which `nav.mjs` reads too. Skipped before the file is
+          // opened: a page that is never published has no reason to be read.
+          if (isUnpublished(id)) continue;
+
           const file = join(contextRoot, path);
           const raw = await readFile(file, 'utf8');
           const heading = leadingHeading(raw);
-
-          const id = `context/${path.replace(/\.md$/, '')}`;
           present.add(id);
           await publish({
             id,

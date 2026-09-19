@@ -110,6 +110,26 @@ describe("neverShips", () => {
     assert.equal(neverShips("docs/context/handoff.md"), false);
   });
 
+  it("matches this repository's own improvement ledger", () => {
+    // The same kind as history.md, and here for the same reason: durable
+    // project truth that belongs to exactly one project. It records what went
+    // wrong in Pathfinder's own delivery, with references into Pathfinder's
+    // own issues and commits, and a new project receiving it would find a
+    // stranger's operational history filed as its own.
+    assert.equal(neverShips("context/improvement-ledger.md"), true);
+  });
+
+  it("does not match the ledger template, which is the part that ships", () => {
+    // The shape is public; the contents are not. A destination project's first
+    // record writes its own ledger from this template.
+    assert.equal(neverShips("templates/improvement-ledger.template.md"), false);
+  });
+
+  it("does not match an improvement-ledger.md living anywhere else", () => {
+    assert.equal(neverShips("improvement-ledger.md"), false);
+    assert.equal(neverShips("docs/context/improvement-ledger.md"), false);
+  });
+
   it("matches this repository's own completed-work record", () => {
     // The one entry that is tracked in Git rather than ignored. Being durable
     // project truth is not a reason to ship it; it is a reason it belongs to
@@ -208,6 +228,29 @@ describe("a project's own history", () => {
       );
     });
   }
+
+  it("is never delivered, and the template it is written from always is", () => {
+    // Asserting the plan is not enough: `neverShips` is consulted by
+    // `planInstall` with a kit-relative path, and it is that arithmetic that
+    // has something to get wrong.
+    const kitRoot = kitWith({
+      "context/improvement-ledger.md": "# Improvement Ledger\n\n## 001 — Pathfinder's own friction\n",
+    });
+    const target = temporaryDirectory("pathfinder-never-ships-target-");
+
+    applyPlan(planInstall(kitRoot, target));
+
+    assert.equal(
+      existsSync(join(target, "context", "improvement-ledger.md")),
+      false,
+      "a project records its own observations; the installer hands it none",
+    );
+    assert.equal(
+      existsSync(join(target, "templates", "improvement-ledger.template.md")),
+      true,
+      "the shape it writes them from must still ship",
+    );
+  });
 
   it("is not created in a project that has none", () => {
     const kitRoot = kitWithHistory();

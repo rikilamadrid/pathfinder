@@ -35,15 +35,17 @@ __MACOSX/
 # committed. The orchestrate engine refuses to claim until this line exists.
 /.pathfinder/
 
-# Deliberately not listed above: /context/history.md. It is a never-ships file
-# like the three preceding it, and it is *not* ignored, which looks like an
-# oversight and is not. This repository's completed-work record is durable
-# project truth and is tracked, the same as any other project's; what it must
-# never be is copied into somebody else's project as though it were theirs.
-# Those are two different promises, and only `neverShips()` in the installer
-# and the staging script keeps the second one. Adding an ignore line here would
-# keep it out of the tarball by accident, which is how it was kept out before
-# — and would put Pathfinder's own history back out of version control.
+# Deliberately not listed above: /context/history.md and
+# /context/improvement-ledger.md. Both are never-ships files like the three
+# preceding them, and both are *not* ignored, which looks like an oversight and
+# is not. This repository's completed-work record and its record of what went
+# wrong in delivering that work are durable project truth and are tracked, the
+# same as any other project's; what they must never be is copied into somebody
+# else's project as though they were theirs. Those are two different promises,
+# and only `neverShips()` in the installer and the staging script keeps the
+# second one. Adding an ignore line here would keep them out of the tarball by
+# accident, which is how history.md was kept out before — and would put
+# Pathfinder's own history and ledger back out of version control.
 
 # Generated harness adapters. Pathfinder commits adapters only for the harness
 # its own maintainers use — `.claude/skills/` is tracked and CI checks it is

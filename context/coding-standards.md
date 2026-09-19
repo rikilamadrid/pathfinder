@@ -97,6 +97,8 @@ Keep durable truth in its appropriate project artifact.
   `context/tickets/`
 - completed outcomes:
   `context/history.md`
+- observations about how delivery went, and what came of them:
+  `context/improvement-ledger.md`
 - how Pathfinder runs the project, human-in-the-loop or orchestrator:
   `context/execution-mode.md`
 - active workspace state:
@@ -127,6 +129,7 @@ context/project-overview.md
 context/features/
 context/tickets/ # only when local Markdown is the ticket store
 context/history.md
+context/improvement-ledger.md
 context/tracker.md
 context/execution-mode.md
 ```
@@ -162,6 +165,13 @@ Ignore the two transient files by name.
 A team that would rather share workspace state — a single-machine project, or a
 handoff meant to be read by a colleague — can track them instead. Nothing in the
 kit reads Git state to decide how to behave.
+
+`context/improvement-ledger.md` is durable and tracked, for the same reason
+`context/history.md` is: it is this project's record of what went wrong in
+delivery and what came of it, and a reviewer should see each entry and each
+decision arrive in a diff. The installer never writes it. It is created from
+`templates/improvement-ledger.template.md` by the first observation recorded,
+so a project that has none is normal and is not missing anything.
 
 `context/execution-mode.md` is durable and tracked: it records, on one marker
 line, whether Pathfinder runs the project human-in-the-loop or as an

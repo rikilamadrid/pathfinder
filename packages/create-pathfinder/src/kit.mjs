@@ -95,6 +95,17 @@ export function isExcluded(basename) {
  * `git add -f` defeats it, and `stage-kit.mjs` copies from the working tree
  * without consulting it at all.
  *
+ * `context/improvement-ledger.md` is history's kind exactly: durable project
+ * truth, tracked in Git here, and emphatically not anybody else's. It records
+ * what went wrong during this project's delivery and what came of it — human
+ * interventions, recovery failures, deferred findings — with references into
+ * this repository's own issues and commits. Handing that to a new project
+ * would be handing it a stranger's operational history filed as its own, and
+ * under `--force` it would overwrite the entries that project had recorded for
+ * itself. `templates/improvement-ledger.template.md` is the part that ships:
+ * the shape, not the contents. A destination project's first `record` writes
+ * its own file from that template, so a missing ledger is the normal state.
+ *
  * `context/execution-mode.md` is history's kind, not tracker's. It records how
  * Pathfinder runs *this* project — human-in-the-loop or orchestrator — on one
  * marker line, and it is tracked here because it is this repository's durable
@@ -113,6 +124,7 @@ const NEVER_SHIPS = new Set([
   "context/handoff.md",
   "context/history.md",
   "context/execution-mode.md",
+  "context/improvement-ledger.md",
 ]);
 
 /**
