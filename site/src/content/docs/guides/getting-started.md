@@ -198,19 +198,20 @@ without prompts.
 ls
 ```
 
-In the empty repository you just created, six things:
+In the empty repository you just created, seven things:
 
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — the interaction rules and coding standards; the rest is written when first needed |
+| `lib/` | Shared code more than one skill's engine needs; the only entry you never invoke |
 | `roles/` | Five declarative contracts — planner, orchestrator, developer, tester, integrator — assumed by lifecycle skills |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
 | `templates/` | Starting points the project copies when it needs them |
 
 Plus a `.claude/` or `.agents/` directory if you asked for adapters. Those hold one
 generated pointer per skill, rendered from `skills/` at install time rather than
-copied — which is why they are not part of the six, and why editing a skill
+copied — which is why they are not part of the seven, and why editing a skill
 changes behavior while editing an adapter does not.
 
 Nothing is hidden from you. The installer stages nothing and commits nothing, so

@@ -107,6 +107,11 @@ Keep durable truth in its appropriate project artifact.
 None of these ships with the kit. Each is written by the workflow that first
 needs it, so a missing one is normal and is not an error.
 
+`lib/` is different from all of them: it ships, and it is code rather than
+truth. It holds what more than one skill's engine needs and nothing a person
+invokes, so that a shared rule has one home instead of one copy per skill, and
+no skill's engine ever imports another's.
+
 Learning material explains the implementation but does not replace source-of-truth documentation.
 
 ## Version control for `context/`

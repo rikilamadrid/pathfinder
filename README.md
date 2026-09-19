@@ -321,9 +321,15 @@ copies these kit entries:
 | `AGENTS.md` | Agent entry point for tools that use it |
 | `CLAUDE.md` | Claude Code project guidance |
 | `context/` | Project standards and interaction rules |
+| `lib/` | Shared code more than one skill's engine needs |
 | `roles/` | Planner, orchestrator, developer, tester, and integrator responsibility contracts |
 | `skills/` | Reusable workflow procedures |
 | `templates/` | Minimal starting shapes created when needed |
+
+`lib/` is the one entry a person never invokes. It holds code that more than
+one skill's engine needs — today the evidence-reference grammar that
+`blog-post-redactor` cites its evidence in — so that a skill needing the same
+rule imports it from here rather than from another skill's engine.
 
 The installer never silently overwrites. Files you already have are left
 alone and listed by name in the summary.
@@ -568,6 +574,8 @@ at `skills/`.
 ├── context/
 │   ├── ai-interaction.md
 │   └── coding-standards.md
+├── lib/
+│   └── evidence-references.mjs
 ├── roles/
 │   ├── integrator.md
 │   ├── orchestrator.md
