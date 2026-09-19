@@ -204,7 +204,7 @@ In the empty repository you just created, seven things:
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell an agent how to work in the project |
 | `context/` | Project truth — the interaction rules and coding standards; the rest is written when first needed |
-| `lib/` | Shared code more than one skill's engine needs; the only entry you never invoke |
+| `lib/` | Shared code the skills' engines import — the evidence-reference grammar today; nothing here is invoked or read directly |
 | `roles/` | Five declarative contracts — planner, orchestrator, developer, tester, integrator — assumed by lifecycle skills |
 | `skills/` | Skills covering discovery, specs, delivery, debugging, review, and learning |
 | `templates/` | Starting points the project copies when it needs them |

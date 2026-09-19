@@ -161,7 +161,7 @@
     },
     {
       "ref": "commit:   ",
-      "why": "A locator of spaces survives the trim of the whole string and then is not empty — but the trailing spaces are trimmed with the reference, leaving nothing after the colon.",
+      "why": "The whole reference is trimmed before it is read, so these spaces are gone and what is left is `commit:`, a type naming nothing.",
       "parses": null
     },
     {

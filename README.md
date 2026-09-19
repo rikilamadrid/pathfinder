@@ -130,7 +130,7 @@ most people eventually want both.
 
 | | `npx create-pathfinder` | Claude Code plugin |
 | --- | --- | --- |
-| Installs | the project kit — `context/`, `roles/`, `templates/`, `skills/`, `CLAUDE.md`, `AGENTS.md` | the commands, nothing else |
+| Installs | the project kit — `context/`, `lib/`, `roles/`, `templates/`, `skills/`, `CLAUDE.md`, `AGENTS.md` | the commands, nothing else |
 | Lives in | your repository, reviewed and tracked in Git | your Claude Code installation |
 | Command form | `/kickstart-pathfinder`, with a generated adapter | `/pathfinder:kickstart-pathfinder`, always |
 | Works with | any agent that can read files | Claude Code |
@@ -326,10 +326,11 @@ copies these kit entries:
 | `skills/` | Reusable workflow procedures |
 | `templates/` | Minimal starting shapes created when needed |
 
-`lib/` is the one entry a person never invokes. It holds code that more than
-one skill's engine needs — today the evidence-reference grammar that
-`blog-post-redactor` cites its evidence in — so that a skill needing the same
-rule imports it from here rather than from another skill's engine.
+`lib/` is the entry you never open. It is code the skills' engines import,
+rather than guidance to read or a shape to copy — today the evidence-reference
+grammar that `blog-post-redactor` cites its evidence in — so that a skill
+needing the same rule imports it from here rather than from another skill's
+engine.
 
 The installer never silently overwrites. Files you already have are left
 alone and listed by name in the summary.
@@ -419,7 +420,7 @@ npx create-pathfinder --agents claude-code,codex
 Nothing is configured unless you choose it, and choosing one tool never touches
 the other's directory.
 
-Adapters are generated artifacts, not copy-list entries. The six paths in the
+Adapters are generated artifacts, not copy-list entries. The seven paths in the
 table above are the kit; adapters are derived from `skills/` at install time and
 never added to `copy-list.json`.
 

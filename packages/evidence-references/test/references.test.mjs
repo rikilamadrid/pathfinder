@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import * as grammar from '../../../lib/evidence-references.mjs';
-import { runConformance } from '../conformance.mjs';
+import { fixture, runConformance } from '../conformance.mjs';
 
 runConformance(grammar, 'lib/evidence-references.mjs');
 
@@ -35,10 +35,13 @@ test('the primitive imports nothing', () => {
     'lib/evidence-references.mjs must depend on nothing, not even node builtins');
 });
 
-test('the type list lives here and is frozen against accidental growth', () => {
+test('a tenth type cannot arrive unnoticed', () => {
   // The count is the guard the Feature asked for: a tenth type is a deliberate
-  // change to this file and the fixture together, never a quiet append.
+  // change to this file and the fixture together, never a quiet append. The
+  // array itself is deliberately not frozen — it was not frozen before the
+  // extraction either, and this move had to preserve behavior exactly.
   assert.equal(grammar.SOURCE_TYPES.length, 9);
+  assert.deepEqual([...grammar.SOURCE_TYPES], fixture.types);
 });
 
 test('parsing the same reference twice gives equal, independent results', () => {
