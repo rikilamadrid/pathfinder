@@ -79,12 +79,13 @@ That installs the CLI as a dependency in your project's `package.json` and
 
 ## What it installs
 
-The installer copies six kit entries into your repository:
+The installer copies seven kit entries into your repository:
 
 | Path | What it is |
 | --- | --- |
 | `AGENTS.md`, `CLAUDE.md` | Entry files that tell supported agents how to work in the project |
 | `context/` | Project standards and interaction rules; other context is created only when needed |
+| `lib/` | Shared code more than one skill's engine needs, such as the evidence-reference grammar; nothing a person invokes |
 | `roles/` | Planner, orchestrator, developer, tester, and integrator contracts assumed by lifecycle skills |
 | `skills/` | Reusable procedures for discovery, specs, delivery, debugging, review, learning, and ticket-store selection |
 | `templates/` | Minimal starting shapes; records are created from them later, when a workflow needs one |

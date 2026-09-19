@@ -4,6 +4,7 @@
     "AGENTS.md",
     "CLAUDE.md",
     "context",
+    "lib",
     "roles",
     "skills",
     "templates"

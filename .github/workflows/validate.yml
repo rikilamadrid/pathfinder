@@ -63,6 +63,15 @@ jobs:
         working-directory: packages/orchestrate
         run: npm test
 
+      - name: Test the shared evidence-reference primitive
+        # `lib/evidence-references.mjs` is shipped kit code with no skill of
+        # its own, so its tests live here like every engine's. The suite also
+        # owns the conformance fixture every consumer runs: this step and the
+        # one below execute the same expectations against two different entry
+        # points, and a disagreement fails by the reference it disagreed on.
+        working-directory: packages/evidence-references
+        run: npm test
+
       - name: Test the blog-post-redactor engine
         # Same shape as the two engines above: it ships under skills/ and its
         # tests live here so an installed project never receives them. The

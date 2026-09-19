@@ -1,0 +1,301 @@
+{
+  "description": "The conformance fixture for Pathfinder's evidence-reference grammar. Every consumer of lib/evidence-references.mjs runs this same file through its own entry point, so that the kit has one statement of what the grammar accepts, what it refuses, and exactly what each acceptance produces. A consumer that disagrees with this file fails by the reference it disagreed on. Add a case here when the grammar gains a behavior; never edit a case to make an implementation pass.",
+  "types": ["commit", "diff", "file", "pr", "issue", "changelog", "doc", "test", "cmd"],
+
+  "parse": [
+    {
+      "ref": "commit:5314c14",
+      "why": "The plainest reference: a type and an opaque locator.",
+      "parses": { "type": "commit", "locator": "5314c14", "lines": null, "ref": "commit:5314c14" }
+    },
+    {
+      "ref": "diff:skills/blog-post-redactor/SKILL.md",
+      "why": "A path locator keeps its slashes.",
+      "parses": { "type": "diff", "locator": "skills/blog-post-redactor/SKILL.md", "lines": null, "ref": "diff:skills/blog-post-redactor/SKILL.md" }
+    },
+    {
+      "ref": "file:README.md",
+      "why": "A line range is optional on file:.",
+      "parses": { "type": "file", "locator": "README.md", "lines": null, "ref": "file:README.md" }
+    },
+    {
+      "ref": "file:README.md#L1-L20",
+      "why": "A full range is split off the locator.",
+      "parses": { "type": "file", "locator": "README.md", "lines": { "from": 1, "to": 20 }, "ref": "file:README.md#L1-L20" }
+    },
+    {
+      "ref": "file:README.md#L7",
+      "why": "A single line is the degenerate range, from and to alike.",
+      "parses": { "type": "file", "locator": "README.md", "lines": { "from": 7, "to": 7 }, "ref": "file:README.md#L7" }
+    },
+    {
+      "ref": "file:README.md#L5-L5",
+      "why": "A range whose ends are equal is legal and is not collapsed on parse.",
+      "parses": { "type": "file", "locator": "README.md", "lines": { "from": 5, "to": 5 }, "ref": "file:README.md#L5-L5" }
+    },
+    {
+      "ref": "file:README.md#L007",
+      "why": "Line numbers are read as numbers, so leading zeros are not preserved in lines; ref keeps what was written.",
+      "parses": { "type": "file", "locator": "README.md", "lines": { "from": 7, "to": 7 }, "ref": "file:README.md#L007" }
+    },
+    {
+      "ref": "file:README.md#L0-L0",
+      "why": "Line zero is not a line, and the grammar does not know that. Shape is decidable; meaning is the consumer's.",
+      "parses": { "type": "file", "locator": "README.md", "lines": { "from": 0, "to": 0 }, "ref": "file:README.md#L0-L0" }
+    },
+    {
+      "ref": "file:docs/release notes.md#L2-L4",
+      "why": "A locator may contain spaces.",
+      "parses": { "type": "file", "locator": "docs/release notes.md", "lines": { "from": 2, "to": 4 }, "ref": "file:docs/release notes.md#L2-L4" }
+    },
+    {
+      "ref": "file:x#L1-L2#L3",
+      "why": "Only the trailing range is a range. The rest stays in the locator rather than making the reference illegal.",
+      "parses": { "type": "file", "locator": "x#L1-L2", "lines": { "from": 3, "to": 3 }, "ref": "file:x#L1-L2#L3" }
+    },
+    {
+      "ref": "doc:context/history.md",
+      "why": "doc: carries the same optional range as file:.",
+      "parses": { "type": "doc", "locator": "context/history.md", "lines": null, "ref": "doc:context/history.md" }
+    },
+    {
+      "ref": "doc:context/history.md#L1-L3",
+      "why": "The second and last type a range applies to.",
+      "parses": { "type": "doc", "locator": "context/history.md", "lines": { "from": 1, "to": 3 }, "ref": "doc:context/history.md#L1-L3" }
+    },
+    {
+      "ref": "pr:126",
+      "why": "A number is an opaque locator like any other.",
+      "parses": { "type": "pr", "locator": "126", "lines": null, "ref": "pr:126" }
+    },
+    {
+      "ref": "pr:126#L1-L2",
+      "why": "A range on a type that has no lines is not a range. It stays in the locator, and a consumer will find nothing that matches.",
+      "parses": { "type": "pr", "locator": "126#L1-L2", "lines": null, "ref": "pr:126#L1-L2" }
+    },
+    {
+      "ref": "issue:55",
+      "why": "",
+      "parses": { "type": "issue", "locator": "55", "lines": null, "ref": "issue:55" }
+    },
+    {
+      "ref": "issue:55#L1",
+      "why": "Same as pr: — lines belong to file: and doc: only.",
+      "parses": { "type": "issue", "locator": "55#L1", "lines": null, "ref": "issue:55#L1" }
+    },
+    {
+      "ref": "changelog:[Unreleased]",
+      "why": "A heading locator keeps its brackets.",
+      "parses": { "type": "changelog", "locator": "[Unreleased]", "lines": null, "ref": "changelog:[Unreleased]" }
+    },
+    {
+      "ref": "changelog:[4.4.0] - 2026-09-18",
+      "why": "A released heading is a locator with spaces, dots and dashes in it.",
+      "parses": { "type": "changelog", "locator": "[4.4.0] - 2026-09-18", "lines": null, "ref": "changelog:[4.4.0] - 2026-09-18" }
+    },
+    {
+      "ref": "test:packages/orchestrate",
+      "why": "",
+      "parses": { "type": "test", "locator": "packages/orchestrate", "lines": null, "ref": "test:packages/orchestrate" }
+    },
+    {
+      "ref": "cmd:git log --oneline",
+      "why": "A command locator keeps its flags.",
+      "parses": { "type": "cmd", "locator": "git log --oneline", "lines": null, "ref": "cmd:git log --oneline" }
+    },
+    {
+      "ref": "cmd:grep -n foo#L1-L2",
+      "why": "A command that happens to end in something range-shaped is still one command.",
+      "parses": { "type": "cmd", "locator": "grep -n foo#L1-L2", "lines": null, "ref": "cmd:grep -n foo#L1-L2" }
+    },
+    {
+      "ref": "cmd:git log v4.3.0..HEAD",
+      "why": "A locator may contain a colon-free range expression.",
+      "parses": { "type": "cmd", "locator": "git log v4.3.0..HEAD", "lines": null, "ref": "cmd:git log v4.3.0..HEAD" }
+    },
+    {
+      "ref": "commit:a1b2c3d:extra",
+      "why": "Only the first colon separates. Everything after it is the locator, colons included.",
+      "parses": { "type": "commit", "locator": "a1b2c3d:extra", "lines": null, "ref": "commit:a1b2c3d:extra" }
+    },
+    {
+      "ref": "  pr:126  ",
+      "why": "Surrounding whitespace is normalized away, and `ref` is the trimmed form rather than what was written.",
+      "parses": { "type": "pr", "locator": "126", "lines": null, "ref": "pr:126" }
+    },
+    {
+      "ref": "commit: a1b2c3d",
+      "why": "Trimming is of the whole reference, not of the locator. A space after the colon belongs to the locator and will not resolve anywhere.",
+      "parses": { "type": "commit", "locator": " a1b2c3d", "lines": null, "ref": "commit: a1b2c3d" }
+    },
+    {
+      "ref": "commit:A1B2C3D",
+      "why": "The type is lowercase; the locator is whatever it is.",
+      "parses": { "type": "commit", "locator": "A1B2C3D", "lines": null, "ref": "commit:A1B2C3D" }
+    },
+
+    {
+      "ref": "rumour:someone said so",
+      "why": "An undeclared type is not a reference. This is the refusal the whole grammar exists for.",
+      "parses": null
+    },
+    {
+      "ref": "Commit:a1b2c3d",
+      "why": "Types are lowercase. A capitalized one is not a near-miss to be forgiven.",
+      "parses": null
+    },
+    {
+      "ref": "COMMIT:a1b2c3d",
+      "why": "",
+      "parses": null
+    },
+    {
+      "ref": "commit",
+      "why": "No separator, no reference.",
+      "parses": null
+    },
+    {
+      "ref": "commit:",
+      "why": "A type with no locator names nothing.",
+      "parses": null
+    },
+    {
+      "ref": "commit:   ",
+      "why": "The whole reference is trimmed before it is read, so these spaces are gone and what is left is `commit:`, a type naming nothing.",
+      "parses": null
+    },
+    {
+      "ref": ":a1b2c3d",
+      "why": "A locator with no type names nothing either.",
+      "parses": null
+    },
+    {
+      "ref": "",
+      "why": "",
+      "parses": null
+    },
+    {
+      "ref": "   ",
+      "why": "",
+      "parses": null
+    },
+    {
+      "ref": "file:README.md#L20-L1",
+      "why": "A backwards range is a refusal, not a range read in the other direction.",
+      "parses": null
+    },
+    {
+      "ref": "file:#L1",
+      "why": "Splitting the range off must leave a locator behind.",
+      "parses": null
+    },
+    {
+      "ref": "doc:#L5-L9",
+      "why": "",
+      "parses": null
+    },
+    {
+      "ref": "commit a1b2c3d",
+      "why": "A space is not a separator.",
+      "parses": null
+    },
+    {
+      "ref": "file-path:README.md",
+      "why": "A type is letters only; a hyphen makes it no type at all.",
+      "parses": null
+    },
+    {
+      "ref": "http://example.com",
+      "why": "A URL is not an evidence reference. `http` is not a declared type.",
+      "parses": null
+    }
+  ],
+
+  "parseNonString": [
+    { "value": null, "why": "Absence is refused rather than thrown on." },
+    { "value": 126, "why": "A bare number is not a reference even though `pr:126` is." },
+    { "value": true, "why": "" },
+    { "value": ["file:README.md"], "why": "A list of one reference is not a reference." },
+    { "value": { "ref": "file:README.md" }, "why": "A parsed-looking object is not re-parsed." }
+  ],
+
+  "extract": [
+    {
+      "text": "It landed in `commit:a1b2c3d4` and again in `commit:a1b2c3d4`, see `pr:126`.",
+      "expect": ["commit:a1b2c3d4", "pr:126"],
+      "why": "In order of first appearance, deduplicated."
+    },
+    {
+      "text": "Backticks are what make it a reference: commit:a1b2c3d4 and pr:126 are prose.",
+      "expect": [],
+      "why": "An unquoted reference is not extracted. Prose about a commit is not a citation of it."
+    },
+    {
+      "text": "`commit:a1b2c3d ` and `commit:a1b2c3d`",
+      "expect": ["commit:a1b2c3d"],
+      "why": "Trimming happens before deduplication, so a stray space inside the backticks does not produce a second reference."
+    },
+    {
+      "text": "`rumour:someone said so` and `Commit:abc` and `file:README.md#L20-L1`",
+      "expect": [],
+      "why": "Anything parse refuses is not extracted, however well quoted."
+    },
+    {
+      "text": "Ranges survive extraction: `file:README.md#L1-L20`, `doc:context/history.md#L7`.",
+      "expect": ["file:README.md#L1-L20", "doc:context/history.md#L7"],
+      "why": ""
+    },
+    {
+      "text": "Across lines:\n\n- first `pr:126`\n- then `issue:55`\n- then `pr:126` again\n",
+      "expect": ["pr:126", "issue:55"],
+      "why": "Order and deduplication hold across the whole body, not per line."
+    },
+    {
+      "text": "```\nA fenced block with `cmd:git log --oneline` in it.\n```",
+      "expect": ["cmd:git log --oneline"],
+      "why": "The grammar has no idea what a code fence is. A reference inside one is still a reference."
+    },
+    {
+      "text": "Every type once: `commit:a1`, `diff:b`, `file:c`, `pr:1`, `issue:2`, `changelog:[x]`, `doc:d`, `test:e`, `cmd:f`.",
+      "expect": ["commit:a1", "diff:b", "file:c", "pr:1", "issue:2", "changelog:[x]", "doc:d", "test:e", "cmd:f"],
+      "why": "All nine types are extractable."
+    },
+    {
+      "text": "No references here at all.",
+      "expect": [],
+      "why": ""
+    },
+    {
+      "text": "``",
+      "expect": [],
+      "why": "An empty code span holds no reference."
+    }
+  ],
+
+  "extractNonString": [
+    { "value": null, "why": "" },
+    { "value": 126, "why": "" },
+    { "value": ["`pr:126`"], "why": "" }
+  ],
+
+  "format": [
+    { "type": "commit", "locator": "5314c14", "lines": null, "expect": "commit:5314c14", "why": "" },
+    { "type": "file", "locator": "README.md", "lines": null, "expect": "file:README.md", "why": "No range given, no suffix written." },
+    { "type": "file", "locator": "README.md", "lines": { "from": 1, "to": 20 }, "expect": "file:README.md#L1-L20", "why": "" },
+    { "type": "file", "locator": "README.md", "lines": { "from": 7, "to": 7 }, "expect": "file:README.md#L7", "why": "A range of one line is written in its short form, so formatting is not the exact inverse of parsing." },
+    { "type": "doc", "locator": "context/history.md", "lines": { "from": 2, "to": 3 }, "expect": "doc:context/history.md#L2-L3", "why": "" },
+    { "type": "changelog", "locator": "[Unreleased]", "lines": null, "expect": "changelog:[Unreleased]", "why": "" },
+    { "type": "pr", "locator": "126", "lines": { "from": 1, "to": 1 }, "expect": "pr:126#L1", "why": "Formatting does not police which types carry lines, though parsing reads the suffix back as part of the locator. Callers pass lines only for file: and doc:." }
+  ],
+
+  "formatRefuses": [
+    { "type": "rumour", "locator": "x", "message": "unknown source type", "why": "The same closed vocabulary, enforced on the way out as well as on the way in." },
+    { "type": "Commit", "locator": "x", "message": "unknown source type", "why": "" },
+    { "type": "", "locator": "x", "message": "unknown source type", "why": "" }
+  ],
+
+  "roundTrip": {
+    "locator": "x",
+    "why": "Every declared type survives formatSource followed by parseSource with its type intact."
+  }
+}

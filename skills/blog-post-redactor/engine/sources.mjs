@@ -1,78 +1,24 @@
 /**
- * Source references: the identity of a piece of evidence.
+ * Source references: what a piece of evidence means to this pipeline.
  *
- * Every fact the pipeline carries names where it came from, in one grammar, so
- * that verification can ask a decidable question — does this reference resolve
- * against the bundle that was actually collected? Prose cannot answer that.
- * A string can.
+ * The grammar itself — `type:locator`, the nine types, the optional
+ * `#L<from>-L<to>` range on `file:` and `doc:` — is not defined here. It is the
+ * kit's shared primitive, `lib/evidence-references.mjs`, and this module
+ * imports the four grammar exports and re-exports them so that `verify.mjs`
+ * and the tests keep one import. Nothing in the redactor states the grammar a
+ * second time.
  *
- * Grammar: `type:locator`, with an optional `#L<from>-L<to>` line range on
- * file references. Locators are opaque to this module; it owns the shape, not
- * the meaning.
+ * What stays here is meaning: which references a collected evidence bundle
+ * can support, and whether a given reference resolves against it. That is the
+ * article pipeline's question, not the grammar's, and it is answered nowhere
+ * else in the kit.
  */
 
-export const SOURCE_TYPES = [
-  'commit',   // commit:5314c14
-  'diff',     // diff:skills/blog-post-redactor/SKILL.md
-  'file',     // file:README.md#L1-L20
-  'pr',       // pr:126
-  'issue',    // issue:55
-  'changelog',// changelog:[Unreleased]
-  'doc',      // doc:context/history.md
-  'test',     // test:packages/orchestrate
-  'cmd',      // cmd:git log --oneline
-];
+import {
+  SOURCE_TYPES, parseSource, formatSource, extractSources,
+} from '../../../lib/evidence-references.mjs';
 
-const PATTERN = /^([a-z]+):(.+)$/;
-
-export function parseSource(ref) {
-  if (typeof ref !== 'string') return null;
-  const match = PATTERN.exec(ref.trim());
-  if (!match) return null;
-
-  const [, type, rest] = match;
-  if (!SOURCE_TYPES.includes(type)) return null;
-
-  let locator = rest;
-  let lines = null;
-
-  const range = /#L(\d+)(?:-L(\d+))?$/.exec(rest);
-  if (range && (type === 'file' || type === 'doc')) {
-    locator = rest.slice(0, range.index);
-    lines = { from: Number(range[1]), to: range[2] ? Number(range[2]) : Number(range[1]) };
-  }
-
-  if (!locator) return null;
-  if (lines && lines.to < lines.from) return null;
-
-  return { type, locator, lines, ref: ref.trim() };
-}
-
-export function formatSource(type, locator, lines = null) {
-  if (!SOURCE_TYPES.includes(type)) {
-    throw new Error(`unknown source type: ${type}`);
-  }
-  if (!lines) return `${type}:${locator}`;
-  const suffix = lines.from === lines.to ? `#L${lines.from}` : `#L${lines.from}-L${lines.to}`;
-  return `${type}:${locator}${suffix}`;
-}
-
-/** Every source reference mentioned in a Markdown body, in order, deduplicated. */
-export function extractSources(text) {
-  if (typeof text !== 'string') return [];
-  const found = [];
-  const seen = new Set();
-  const pattern = new RegExp(`\`(${SOURCE_TYPES.join('|')}):([^\`]+)\``, 'g');
-
-  for (const match of text.matchAll(pattern)) {
-    const parsed = parseSource(`${match[1]}:${match[2]}`);
-    if (parsed && !seen.has(parsed.ref)) {
-      seen.add(parsed.ref);
-      found.push(parsed);
-    }
-  }
-  return found;
-}
+export { SOURCE_TYPES, parseSource, formatSource, extractSources };
 
 /**
  * The set of references an evidence bundle can support. Built once and then
