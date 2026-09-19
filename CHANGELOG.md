@@ -29,6 +29,25 @@ The heading of the most recent released section below is the single source of tr
 
 ### Added
 
+- **The improvement ledger, and `reflect`'s memory.** Reflection had judgment
+  and no history: the fact that justifies changing a workflow — that this is
+  the third time — was exactly what it could not see. `reflect` now keeps
+  observations about how delivery went in `context/improvement-ledger.md`, a
+  durable Markdown file created from a new template on the first record, with
+  three actions driving a deterministic engine: `record` writes one observation
+  or one dated occurrence of an entry that already describes it, `harvest`
+  reports what repeated without changing a byte, and `resolve` records a
+  decision. Evidence is the `type:locator` grammar from `lib/`, and an entry
+  with no reference that resolves is refused. A bare `/reflect` in a project
+  with no ledger behaves exactly as before; with one, it reads the harvest as
+  evidence and cites entries by id rather than asserting a pattern. Authority
+  is unchanged and stated in one place: the engine records, reflect supplies
+  judgment, the human decides. No status is inferred from GitHub or Git, no
+  proposal applies itself, and no action writes any file but the ledger. An
+  approved proposal goes the ordinary `to-specs`/`to-tickets` way. `ticket
+  review` now reports a deferred finding with its actual text, so a finding
+  nobody repaired is not silently lost.
+
 - **`lib/`, the kit's first shared code directory.** Every destination
   project now receives a seventh top-level entry beside `skills/`. It holds
   what more than one skill's engine needs and nothing a person invokes; the

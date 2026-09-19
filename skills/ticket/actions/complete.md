@@ -33,6 +33,9 @@ that the project's documented workflow gates is still asked for.
    step 4. A ticket that leaves its Feature unfinished is an increment, not a
    completed outcome, and the durable record is per Feature.
    Create the file from `templates/history.template.md` if it does not exist.
+   `Follow-up` records what remains *of this Feature*; friction about how the
+   delivery itself went belongs in the improvement ledger, which no lifecycle
+   action reads or writes.
 6. Clear or update `context/current-ticket.md`. Do nothing if it does not exist.
 7. Report the tickets that are now ready — see Next below — and let the human
    choose. Do not load one.

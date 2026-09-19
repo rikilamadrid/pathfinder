@@ -35,6 +35,11 @@ Report:
 - what was actually verified
 - anything important that remains unverified
 
+A finding this review or the human defers rather than repairs is reported as
+`deferred`, with its actual text and its evidence, so it is not lost; whether it
+becomes a ledger observation later is a separate, explicit act, and review still
+writes nothing.
+
 Do not modify the implementation unless the human explicitly asks.
 
 Do not invent findings or treat passing tests as automatic acceptance.

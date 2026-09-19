@@ -21,6 +21,8 @@ Ask before:
 - commits, merges, releases, or deployments
 - adopting prototype code into production
 - writes outside the repository, such as tickets in a shared store
+- adopting any change to Pathfinder's skills, roles, context, or templates that
+  a harvest proposed
 
 The human owns judgment, acceptance, merge, and release decisions.
 
@@ -45,6 +47,8 @@ Use the workflow skills instead of recreating their procedures in chat:
 5. `/ticket complete` — complete accepted work and durable records, and name
    the tickets that are now ready.
 6. `learn-feature` — optionally teach what was implemented.
+7. `reflect` — record friction as it appears, harvest periodically, and let the
+   human decide what becomes a Feature.
 
 In human-in-the-loop mode, the human coordinates this loop. In orchestrator
 mode, `orchestrate` coordinates the same ticket actions across dependency-safe
