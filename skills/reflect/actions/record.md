@@ -27,6 +27,23 @@ evidence, shows it, and writes it once they confirm.
      `insufficient-guidance`, `workaround`.
    - `Human intervention` — `none`, `decision`, `correction`, `recovery`.
    - `Impact` — `low`, `medium`, `high`.
+   - `Candidate improvement` — the smallest change that would have prevented
+     this, if one is already apparent. Optional, and a pure observation may
+     honestly have none.
+
+   Weigh that last one before you skip it. An entry can only leave `Open` by
+   becoming `Proposed`, and the engine refuses to propose an entry that carries
+   no candidate:
+
+   ```text
+   ledger: 001 has no `Candidate improvement`, and an entry cannot be
+   Proposed without one
+   ```
+
+   There is no amend subcommand, so an entry recorded without a candidate stays
+   at `Open` until someone edits the file by hand. Record one whenever the
+   observation suggests one, even loosely worded — a harvest can sharpen it
+   later, and the human decides what it becomes either way.
 4. Run `harvest` and look for an entry this repeats. If one describes the same
    thing, this is an occurrence of it, not a second entry: say so by id and
    record it as an occurrence. The second time something happens is the whole

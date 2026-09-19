@@ -2,8 +2,11 @@
 
 Record a decision the human already made. This is bookkeeping, not judgment.
 
-The decision comes from the human — in this conversation, or recorded in the
-tracker where a reviewer can read it. There is no other source for one.
+The decision comes from the human — said in this conversation, or written by
+them somewhere a reviewer can read it back in their own words. What matters is
+that they stated it explicitly, not where it was stated. A label, a closed
+issue, a merged pull request or an approving-sounding aside is not a decision.
+There is no other source for one.
 
 ## Process
 
@@ -16,6 +19,10 @@ tracker where a reviewer can read it. There is no other source for one.
    are terminal: reopening one is a new observation with its own evidence.
 
 3. Gather what the transition requires:
+   - `Proposed` — nothing on the command line, but the entry must already carry
+     a `Candidate improvement`. The engine refuses to propose one without it,
+     and there is no amend subcommand: an entry recorded without a candidate is
+     stuck at `Open` until a person edits the file.
    - `Approved` — `--in`, naming the Feature, ticket or issue that now tracks
      the work. It is written to the entry as `Tracked in`.
    - `Applied` — `--in`, naming the evidence that it landed, usually the merged

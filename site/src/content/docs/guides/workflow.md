@@ -475,8 +475,17 @@ Weeks later, you harvest:
 ```
 
 Reflect proposes the smallest durable change — a line in the ticket template's
-verification section — citing `004` and its two occurrences. You approve it, and a
-ticket exists:
+verification section — citing `004` and its two occurrences. You want to keep it on
+the table while you think:
+
+```bash
+/reflect resolve 004 Proposed
+```
+
+An entry can only reach `Proposed` if it carries a `Candidate improvement`, which is
+why recording one is worth the extra thought at the time.
+
+Then you approve it, and a ticket exists:
 
 ```bash
 /reflect resolve 004 Approved --in issue:212

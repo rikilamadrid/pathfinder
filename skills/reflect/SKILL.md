@@ -79,10 +79,11 @@ node skills/reflect/engine/bin/ledger.mjs harvest
 
 The report is what earlier executions already established, so it is evidence in
 step 2 and in step 10. Reading it changes nothing: `harvest` writes no file and
-moves no status.
+moves no status. Without Node, read the ledger as the plain Markdown it is.
 
 If the file does not exist, skip this step. A project with no ledger reflects
-exactly as it always has, and nothing below behaves differently.
+exactly as it always has: nothing below reads a new input, and every output
+section is unchanged.
 
 ### 1. Reconstruct what happened
 
