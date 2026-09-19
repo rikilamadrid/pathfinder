@@ -18,8 +18,9 @@ import { dirname } from 'node:path';
 
 import { CLOSED_FIELDS, isDate, refuseValue } from './vocabulary.mjs';
 import {
-  FIELD_ORDER, ID_PATTERN, field, formatId, formatRefs, ledgerPath, normalizeRef,
-  parseLedger, renderEntry, renderOccurrence, templatePath, validRef,
+  FIELD_ORDER, ID_PATTERN, field, formatId, formatRefs, insertLine, joinLedger,
+  ledgerPath, normalizeRef, parseLedger, renderEntry, renderOccurrence, templatePath,
+  validRef,
 } from './ledger.mjs';
 
 const refuse = (message) => ({ ok: false, message });
@@ -61,6 +62,20 @@ export function record({ root, repeats = null, evidence = [], note = '', ...give
   const exists = existsSync(path);
 
   if (repeats !== null) {
+    // An occurrence is a date and its evidence. The fields that describe an
+    // observation belong to the entry being repeated, and accepting them here
+    // would silently discard whatever the caller typed — including a mistyped
+    // category they would then believe had been recorded.
+    const inapplicable = ['source', 'scope', 'category', 'intervention', 'impact', 'title', 'candidate']
+      .filter((name) => given[name] !== undefined && given[name] !== null && String(given[name]) !== '')
+      .concat(String(note).trim() === '' ? [] : ['note']);
+    if (inapplicable.length > 0) {
+      return refuse(
+        `--repeats adds an occurrence of ${repeats}, which already describes itself; `
+        + `${inapplicable.map((name) => `--${name}`).join(', ')} would be ignored. `
+        + 'Drop them, or record a separate observation.',
+      );
+    }
     if (!exists) return refuse(`there is no ledger at ${path} yet, so ${repeats} cannot be repeated`);
     return appendOccurrence({ path, repeats, date: given.observed, evidence: refs });
   }
@@ -133,9 +148,18 @@ export function record({ root, repeats = null, evidence = [], note = '', ...give
 /**
  * The next id is one past the highest number in the file, not the count.
  *
- * Counting entries would reuse an id the day somebody deletes a section by
+ * Counting entries would reuse an id the moment anybody deleted a section by
  * hand, and a reused id silently reattaches one observation's history to
- * another. Ids are never reused and never renumbered.
+ * another. Taking the highest instead survives a deletion from the middle of
+ * the file, and `validate` names the resulting gap.
+ *
+ * It does not survive deleting the *last* entry: the high-water mark goes with
+ * it and the next record takes the id back. A stateless engine cannot know
+ * about a section it never saw, and the alternative — a counter stored
+ * somewhere — would be a second source of truth about a file that is supposed
+ * to be the only one. So the guarantee is honestly narrower than "never
+ * reused": ids are never renumbered, and never reused unless a person deletes
+ * the newest entry by hand.
  */
 function nextNumber(entries) {
   let highest = 0;
@@ -167,16 +191,15 @@ function appendOccurrence({ path, repeats, date, evidence }) {
     return { ok: false, message: `${repeats}'s \`Occurrences\` is \`${occurrences.value}\`, which is not a count; run validate` };
   }
 
-  const lines = [...parsed.lines];
-  lines[occurrences.line - 1] = `- Occurrences: ${count + 1}`;
+  parsed.lines[occurrences.line - 1] = `- Occurrences: ${count + 1}`;
 
   // After the last occurrence sub-item the entry already has, so the list stays
   // in the order the occurrences were recorded.
   const last = entry.occurrences.at(-1);
   const at = last ? last.line : occurrences.line;
-  lines.splice(at, 0, renderOccurrence(date, evidence));
+  insertLine(parsed, at, renderOccurrence(date, evidence));
 
-  writeFileSync(path, lines.join(parsed.eol), 'utf8');
+  writeFileSync(path, joinLedger(parsed), 'utf8');
 
   return { ok: true, id: repeats, occurrences: count + 1, created: false, path, repeated: true };
 }

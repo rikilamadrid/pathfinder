@@ -10,9 +10,10 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 
-import { writeFileSync } from 'node:fs';
+import { chmodSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-import { BIN, cleanup, ledger, ledgerFile, project, read, recordOne } from '../harness.mjs';
+import { BIN, cleanup, ledger, ledgerFile, observation, project, read, recordOne } from '../harness.mjs';
 
 after(cleanup);
 
@@ -122,5 +123,56 @@ test('there is no flag that points the write surface somewhere else', () => {
   for (const escape of ['--file', '--out', '--ledger', '--path']) {
     assert.equal(usage.includes(escape), false,
       `${escape} would make the write surface negotiable`);
+  }
+});
+
+test('--repeats refuses the fields that describe an observation rather than ignoring them', () => {
+  // An occurrence is a date and its evidence; the rest belongs to the entry
+  // being repeated. Accepting them would silently discard whatever was typed,
+  // including a mistyped category the caller would believe was recorded.
+  const root = project();
+  recordOne(root, { candidate: 'Do the thing' });
+  const before = read(root);
+
+  for (const [flag, value] of [
+    ['--category', 'BOGUS'], ['--category', 'workaround'], ['--impact', 'high'],
+    ['--title', 'Something else'], ['--source', 'review'], ['--note', 'More prose.'],
+    ['--candidate', 'A different fix'], ['--scope', 'project'], ['--intervention', 'none'],
+  ]) {
+    const result = ledger(root, ['record', '--repeats', '001', '--observed', '2026-09-19',
+      '--evidence', 'pr:133', flag, value]);
+
+    assert.equal(result.status, 1, `${flag} must be refused, not ignored`);
+    assert.ok(result.stderr.includes(flag), `the refusal names ${flag}: ${result.stderr}`);
+    assert.equal(read(root), before, 'and nothing is written');
+  }
+
+  assert.equal(ledger(root, ['record', '--repeats', '001', '--observed', '2026-09-19',
+    '--evidence', 'pr:133']).status, 0, 'the applicable flags still work');
+});
+
+test('an unexpected filesystem failure still leaves by the documented door', (t) => {
+  if (typeof process.getuid === 'function' && process.getuid() === 0) {
+    t.skip('running as root, where a read-only directory is not read-only');
+    return;
+  }
+
+  const root = project();
+  const directory = join(root, 'context');
+  chmodSync(directory, 0o500);
+
+  try {
+    const text = ledger(root, ['record', ...observation()]);
+    assert.equal(text.status, 1, 'exit 1, as the contract says for a failure');
+    assert.match(text.stderr, /ledger: /, 'a stated refusal, not a stack trace');
+    assert.equal(text.stdout.includes('at '), false);
+
+    const json = ledger(root, ['record', ...observation(), '--json']);
+    assert.equal(json.status, 1);
+    const payload = JSON.parse(json.stdout);
+    assert.equal(payload.ok, false, '--json callers get an envelope, never a traceback');
+    assert.equal(payload.command, 'record');
+  } finally {
+    chmodSync(directory, 0o700);
   }
 });

@@ -122,11 +122,34 @@ const OCCURRENCE = /^\s{2,}-\s+(\S+)\s+—\s*(.*)$/;
  * about whether a value is allowed. `validate.mjs` owns that judgment, so that
  * a malformed file can still be parsed far enough to say what is wrong with it.
  *
- * @returns {{eol: string, lines: string[], headerEnd: number, entries: object[]}}
+ * **Where an entry's fields stop.** The field block is the run of
+ * `- Field: value` lines that follows the marker, and it ends at the first
+ * blank line after it began. Everything after that is the evidence paragraph,
+ * whatever it looks like. The boundary has to be positional, because the
+ * paragraph is prose a person wrote and prose can contain a line that reads
+ * exactly like a field — wrapping alone can produce one. Without the boundary,
+ * such a line became a field the entry never had, and a later resolution
+ * rewrote it in place, silently editing the middle of somebody's evidence. The
+ * ledger's whole claim is that evidence is never edited, so the parser is
+ * where that has to be made true.
+ *
+ * Line endings are kept per line rather than detected once for the file. A
+ * ledger with one stray CRLF in it would otherwise be rewritten end to end by
+ * a one-line status change, which turns a reviewable two-line diff into a
+ * seventy-line one.
+ *
+ * @returns {{eol: string, lines: string[], endings: string[], headerEnd: number, entries: object[]}}
  */
 export function parseLedger(text) {
+  const parts = String(text).split(/(\r\n|\n)/);
+  const lines = [];
+  const endings = [];
+  for (let index = 0; index < parts.length; index += 2) {
+    lines.push(parts[index]);
+    endings.push(parts[index + 1] ?? '');
+  }
+
   const eol = text.includes('\r\n') ? '\r\n' : '\n';
-  const lines = text.replace(/\r\n/g, '\n').split('\n');
 
   const entries = [];
   let current = null;
@@ -147,6 +170,7 @@ export function parseLedger(text) {
         fields: new Map(),
         occurrences: [],
         paragraph: [],
+        fieldsOpen: true,
         endLine: number,
       };
       entries.push(current);
@@ -156,42 +180,75 @@ export function parseLedger(text) {
     if (!current) return;
     current.endLine = number;
 
+    if (line.trim() === '') {
+      // The blank line that closes the field block, once there is one to close.
+      if (current.fields.size > 0) current.fieldsOpen = false;
+      return;
+    }
+
     const marker = MARKER.exec(line);
-    if (marker) {
+    if (marker && current.marker === null) {
       current.marker = marker[1];
       current.markerLine = number;
       return;
     }
 
-    const occurrence = OCCURRENCE.exec(line);
-    if (occurrence && current.fields.has('Occurrences')) {
-      current.occurrences.push({
-        date: occurrence[1],
-        rest: occurrence[2],
-        refs: refsIn(occurrence[2]),
-        line: number,
-      });
-      return;
-    }
-
-    const field = FIELD.exec(line);
-    if (field) {
-      const name = field[1].trim();
-      // A repeated field is kept as the first one plus a note, so `validate`
-      // can name the duplicate instead of silently preferring one of them.
-      if (current.fields.has(name)) {
-        current.duplicates = current.duplicates ?? [];
-        current.duplicates.push({ name, line: number });
+    if (current.fieldsOpen) {
+      const occurrence = OCCURRENCE.exec(line);
+      if (occurrence && current.fields.has('Occurrences')) {
+        current.occurrences.push({
+          date: occurrence[1],
+          rest: occurrence[2],
+          refs: refsIn(occurrence[2]),
+          line: number,
+        });
         return;
       }
-      current.fields.set(name, { value: field[2].trim(), line: number });
-      return;
+
+      const field = FIELD.exec(line);
+      if (field) {
+        const name = field[1].trim();
+        // A repeated field is kept as the first one plus a note, so `validate`
+        // can name the duplicate instead of silently preferring one of them.
+        if (current.fields.has(name)) {
+          current.duplicates = current.duplicates ?? [];
+          current.duplicates.push({ name, line: number });
+          return;
+        }
+        current.fields.set(name, { value: field[2].trim(), line: number });
+        return;
+      }
+
+      // Prose arriving before any blank line still ends the fields: whatever
+      // this is, the field block is over.
+      if (current.fields.size > 0) current.fieldsOpen = false;
     }
 
-    if (line.trim() !== '') current.paragraph.push({ text: line, line: number });
+    current.paragraph.push({ text: line, line: number });
   });
 
-  return { eol, lines, headerEnd, entries };
+  return { eol, lines, endings, headerEnd, entries };
+}
+
+/**
+ * Put a parsed ledger back together, each line with the ending it arrived with.
+ *
+ * @param {{lines: string[], endings: string[], eol: string}} parsed
+ */
+export function joinLedger({ lines, endings, eol }) {
+  return lines.map((line, index) => `${line}${endings[index] ?? eol}`).join('');
+}
+
+/**
+ * Insert one line into a parsed ledger, at a 0-based index.
+ *
+ * The new line takes the ending of the line it displaces, so inserting into a
+ * CRLF file produces a CRLF line and inserting into an LF file an LF one,
+ * without anything having to know which kind of file this is.
+ */
+export function insertLine(parsed, at, line) {
+  parsed.lines.splice(at, 0, line);
+  parsed.endings.splice(at, 0, parsed.endings[at] ?? parsed.endings[at - 1] ?? parsed.eol);
 }
 
 /** One entry's field value, or null. */

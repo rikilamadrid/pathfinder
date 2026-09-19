@@ -106,7 +106,7 @@ test('a malformed evidence reference is named', () => {
 test('a status that has lost its required field is named', () => {
   const cases = [
     ['- Status: Open', '- Status: Approved', /requires a `Tracked in` line/],
-    ['- Status: Open', '- Status: Applied', /requires a `Applied in` line/],
+    ['- Status: Open', '- Status: Applied', /requires an `Applied in` line/],
     ['- Status: Open', '- Status: Rejected', /requires a `Decision` line/],
     ['- Status: Open', '- Status: Deferred', /requires a `Decision` line/],
   ];
@@ -127,7 +127,7 @@ test('a Proposed entry with no candidate improvement is named', () => {
 
 test('an occurrence count that disagrees with the list is named', () => {
   const root = damaged((text) => text.replace('- Occurrences: 1', '- Occurrences: 4'));
-  assert.ok(problems(root).some((problem) => /says 4 but 1 are listed/.test(problem.message)));
+  assert.ok(problems(root).some((problem) => /says 4 but 1 is listed/.test(problem.message)));
 });
 
 test('a malformed date is named, wherever it is', () => {
@@ -171,4 +171,47 @@ test('validate writes nothing, even when the ledger is broken', () => {
 
   assert.deepEqual(touched(before, snapshot(root)), [],
     'naming a problem is the whole job; repairing evidence is not');
+});
+
+test('validate is as deterministic as harvest, across directory, timezone and locale', () => {
+  // The ticket names both commands. A report whose ordering came from
+  // `localeCompare`, or whose text embedded a formatted date, would pass every
+  // other test in this file and fail this one.
+  const root = damaged((text) => text
+    .replace('- Category: missing-contract', '- Category: invented')
+    .replace('- Impact: high', '- Impact: enormous')
+    .replace('- Observed: 2026-09-18', '- Observed: last Tuesday'));
+
+  const runs = [
+    ledger(root, ['validate']),
+    ledger(root, ['validate'], { cwd: '/' }),
+    ledger(root, ['validate'], { cwd: '/tmp', env: { TZ: 'UTC' } }),
+    ledger(root, ['validate'], { env: { TZ: 'Asia/Tokyo' } }),
+    ledger(root, ['validate'], { env: { LANG: 'C', LC_ALL: 'C' } }),
+    ledger(root, ['validate'], { env: { LANG: 'tr_TR.UTF-8', LC_ALL: 'tr_TR.UTF-8', TZ: 'Pacific/Kiritimati' } }),
+  ];
+
+  for (const run of runs) assert.equal(run.status, 1, 'the ledger is broken in three ways');
+  for (const run of runs.slice(1)) assert.equal(run.stdout, runs[0].stdout);
+
+  const json = [
+    ledger(root, ['validate', '--json'], { cwd: root, env: { LC_ALL: 'C' } }),
+    ledger(root, ['validate', '--json'], { cwd: '/tmp', env: { LC_ALL: 'tr_TR.UTF-8', TZ: 'Asia/Tokyo' } }),
+  ];
+  assert.equal(json[0].stdout, json[1].stdout);
+});
+
+test('a valid ledger is never rejected, whatever it contains', () => {
+  // False positives matter as much as misses: a validator that cries wolf on a
+  // legitimate entry is one people stop running.
+  const root = project();
+  const result = recordOne(root, {
+    title: 'Unicode, punctuation and an em dash — all of it',
+    candidate: 'Keep accepting what the grammar accepts',
+    note: 'A paragraph with "smart quotes", a tab\tand a `file:README.md#L1-L2` reference in it.',
+    evidence: ['file:docs/release notes.md#L2-L4', 'cmd:git log --oneline v1..v2', 'changelog:[4.4.0] - 2026-09-18'],
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(ledger(root, ['validate']).status, 0, ledger(root, ['validate']).stdout);
 });

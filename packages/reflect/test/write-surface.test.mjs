@@ -15,7 +15,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { LEDGER_PATH } from '../../../skills/reflect/engine/ledger.mjs';
@@ -90,6 +90,21 @@ test('resolve touches the ledger and nothing else', () => {
   const approved = changedBy(root, ['resolve', '001', 'Approved', '--in', 'issue:130']);
   assert.equal(approved.result.status, 0, approved.result.stderr);
   assert.deepEqual(approved.touched, [LEDGER_PATH]);
+});
+
+test('the only directory the engine creates is the one the ledger lives in', () => {
+  const root = furnished();
+  rmSync(join(root, 'context'), { recursive: true, force: true });
+  const before = snapshot(root);
+
+  const result = ledger(root, ['record',
+    '--observed', '2026-09-18', '--source', 'review', '--scope', 'workflow',
+    '--category', 'workflow-friction', '--intervention', 'decision', '--impact', 'low',
+    '--title', 'A thing', '--note', 'It happened.', '--evidence', 'issue:1']);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(touched(before, snapshot(root)), ['context/', LEDGER_PATH],
+    'the ledger and the directory holding it, and nothing else');
 });
 
 test('harvest and validate touch nothing at all', () => {

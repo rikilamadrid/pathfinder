@@ -200,4 +200,24 @@ function main(argv) {
   return 2;
 }
 
-process.exit(main(process.argv.slice(2)));
+/**
+ * Anything the commands did not anticipate — an unreadable directory, a full
+ * disk — still has to leave by the documented door. A stack trace on stdout
+ * would break the `--json` contract for the caller that most needs it, and an
+ * uncaught throw exits with a code the contract does not define.
+ */
+function run(argv) {
+  try {
+    return main(argv);
+  } catch (error) {
+    const message = `the ledger could not be read or written: ${error.message ?? error}`;
+    if (argv.includes('--json')) {
+      process.stdout.write(`${JSON.stringify({ ok: false, command: argv[0] ?? null, message }, null, 2)}\n`);
+    } else {
+      process.stderr.write(`ledger: ${message}\n`);
+    }
+    return 1;
+  }
+}
+
+process.exit(run(process.argv.slice(2)));

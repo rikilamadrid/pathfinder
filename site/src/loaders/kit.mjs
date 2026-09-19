@@ -33,13 +33,12 @@
 //   - Starlight's `docsLoader()`, composed in below.
 
 import { readdir, readFile, stat } from 'node:fs/promises';
-
-import { isUnpublished } from '../unpublished.mjs';
 import { extname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from '@astrojs/markdown-remark';
 import { docsLoader } from '@astrojs/starlight/loaders';
 import { WORKFLOW_LOOPS } from '../nav.mjs';
+import { isUnpublished } from '../unpublished.mjs';
 
 const SKILL_FILE = 'SKILL.md';
 

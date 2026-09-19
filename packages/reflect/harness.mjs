@@ -87,20 +87,31 @@ export function observation(overrides = {}) {
 export const recordOne = (root, overrides = {}) => ledger(root, ['record', ...observation(overrides)]);
 
 /**
- * Every file in a tree, as path → contents, so a test can prove that a command
+ * Every path in a tree, as path → contents, so a test can prove that a command
  * touched exactly one of them and nothing else appeared or vanished.
+ *
+ * Directories are entries too, marked rather than read. A command that created
+ * a stray directory — a lock, a scratch area, a backup folder — would otherwise
+ * be invisible to a comparison that only looked at files.
  */
 export function snapshot(root) {
-  const files = new Map();
+  const paths = new Map();
   const walk = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
       const path = join(directory, entry.name);
-      if (entry.isDirectory()) walk(path);
-      else if (entry.isFile()) files.set(relative(root, path).split(sep).join('/'), readFileSync(path, 'utf8'));
+      const key = relative(root, path).split(sep).join('/');
+      if (entry.isDirectory()) {
+        paths.set(`${key}/`, '<directory>');
+        walk(path);
+      } else if (entry.isFile()) {
+        paths.set(key, readFileSync(path, 'utf8'));
+      } else {
+        paths.set(key, '<other>');
+      }
     }
   };
   walk(root);
-  return files;
+  return paths;
 }
 
 /** Paths that differ between two snapshots: changed, added or removed. */

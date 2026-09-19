@@ -103,7 +103,8 @@ export function validate({ root }) {
     if (status && STATUSES.includes(status.value)) {
       const needs = STATUS_REQUIRES[status.value];
       if (needs && !entry.fields.has(needs)) {
-        say(id, status.line, `\`${status.value}\` requires a \`${needs}\` line`);
+        const article = /^[AEIOU]/.test(needs) ? 'an' : 'a';
+        say(id, status.line, `\`${status.value}\` requires ${article} \`${needs}\` line`);
       }
       if (status.value === 'Proposed' && !field(entry, 'Candidate improvement')) {
         say(id, status.line, '`Proposed` requires a `Candidate improvement` line');
@@ -132,7 +133,9 @@ export function validate({ root }) {
       if (!Number.isInteger(count) || count < 1) {
         say(id, occurrences.line, `\`Occurrences\` is \`${occurrences.value}\`, which is not a count`);
       } else if (count !== entry.occurrences.length) {
-        say(id, occurrences.line, `\`Occurrences\` says ${count} but ${entry.occurrences.length} are listed`);
+        const listed = entry.occurrences.length;
+        say(id, occurrences.line,
+          `\`Occurrences\` says ${count} but ${listed} ${listed === 1 ? 'is' : 'are'} listed`);
       }
     }
 

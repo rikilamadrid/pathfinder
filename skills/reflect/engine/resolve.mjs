@@ -19,9 +19,17 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 import { STATUSES, TRANSITIONS, TRANSITION_REQUIRES, isDate } from './vocabulary.mjs';
-import { FIELD_ORDER, field, formatRefs, ledgerPath, normalizeRef, parseLedger, validRef } from './ledger.mjs';
+import {
+  FIELD_ORDER, field, formatRefs, insertLine, joinLedger, ledgerPath, normalizeRef,
+  parseLedger, validRef,
+} from './ledger.mjs';
 
 const refuse = (message, usage = false) => ({ ok: false, usage, message });
+
+/** `a`, `a or b`, `a, b or c` — a list a person reads rather than parses. */
+const orList = (values) => (values.length < 3
+  ? values.join(' or ')
+  : `${values.slice(0, -1).join(', ')} or ${values.at(-1)}`);
 
 /**
  * @returns {{ok: true, id: string, from: string, to: string, changed: string[], path: string}
@@ -52,7 +60,7 @@ export function resolve({ root, id, status, in: evidence = [], why = null, on = 
 
   const allowed = TRANSITIONS[from] ?? [];
   if (!allowed.includes(status)) {
-    const where = allowed.length > 0 ? `only ${allowed.join(' or ')}` : 'nothing; it is terminal';
+    const where = allowed.length > 0 ? `only ${orList(allowed)}` : 'nothing; it is terminal';
     return refuse(`${id} is \`${from}\`, and \`${from}\` goes to ${where} — not \`${status}\``);
   }
 
@@ -92,7 +100,6 @@ export function resolve({ root, id, status, in: evidence = [], why = null, on = 
   if (status === 'Applied') writes['Applied in'] = formatRefs(refs);
   if (requires.why) writes['Decision'] = `${String(why).trim()} (${on})`;
 
-  const lines = [...parsed.lines];
   const changed = [];
 
   // Applied in a fixed order so that two entries resolved the same way read
@@ -100,22 +107,22 @@ export function resolve({ root, id, status, in: evidence = [], why = null, on = 
   // keys. Insertions shift later lines, so the entry's own line numbers are
   // re-read from a fresh parse between writes rather than trusted.
   for (const name of FIELD_ORDER.filter((candidate) => candidate in writes)) {
-    const state = parseLedger(lines.join(parsed.eol));
+    const state = parseLedger(joinLedger(parsed));
     const target = state.entries.find((candidate) => candidate.id === id);
     const existing = target.fields.get(name);
     const line = `- ${name}: ${writes[name]}`;
 
     if (existing) {
-      if (lines[existing.line - 1] !== line) changed.push(name);
-      lines[existing.line - 1] = line;
+      if (parsed.lines[existing.line - 1] !== line) changed.push(name);
+      parsed.lines[existing.line - 1] = line;
       continue;
     }
 
-    lines.splice(insertionPoint(target, name), 0, line);
+    insertLine(parsed, insertionPoint(target, name), line);
     changed.push(name);
   }
 
-  writeFileSync(path, lines.join(parsed.eol), 'utf8');
+  writeFileSync(path, joinLedger(parsed), 'utf8');
 
   return { ok: true, id, from, to: status, changed, path };
 }
