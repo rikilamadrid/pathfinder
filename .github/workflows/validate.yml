@@ -81,6 +81,17 @@ jobs:
         working-directory: packages/blog-post-redactor
         run: npm test
 
+      - name: Test the improvement-ledger engine
+        # `reflect`'s engine ships under skills/ like the others, and its tests
+        # live here so an installed project never receives them. The suite runs
+        # the real CLI against real scratch projects, because the guarantees
+        # being checked are about a file on disk: that the engine writes exactly
+        # one path, that a harvest is the same bytes in any timezone or locale,
+        # and that it reads evidence references through the shared primitive
+        # rather than a grammar of its own.
+        working-directory: packages/reflect
+        run: npm test
+
       - name: Assert no root manifest
         # NOT_A_FRAMEWORK.md promises the kit has no runtime and no package
         # manager. Nested tooling may carry its own manifest; the root may not.

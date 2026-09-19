@@ -16,6 +16,8 @@
 import { readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { isUnpublished } from './unpublished.mjs';
+
 /**
  * Mirrors README § "The complete workflow". Each entry is a loop heading and
  * the skills that loop runs through, in the order the README walks them.
@@ -196,7 +198,11 @@ function contextIds(contextDir, prefix = '') {
     .flatMap((entry) => {
       const path = prefix ? `${prefix}/${entry.name}` : entry.name;
       if (entry.isDirectory()) return contextIds(contextDir, path);
-      return entry.name.endsWith('.md') ? [path.replace(/\.md$/, '')] : [];
+      if (!entry.name.endsWith('.md')) return [];
+      const id = path.replace(/\.md$/, '');
+      // The same statement the loader reads, so the sidebar cannot list a page
+      // that does not exist and cannot omit one that does.
+      return isUnpublished(`context/${id}`) ? [] : [id];
     })
     .sort();
 }
