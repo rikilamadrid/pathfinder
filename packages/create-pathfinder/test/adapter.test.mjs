@@ -520,7 +520,7 @@ describe("against the real kit", () => {
     }
   });
 
-  it("gives exactly eleven skills an argument-hint, and copies each verbatim", () => {
+  it("gives exactly twelve skills an argument-hint, and copies each verbatim", () => {
     const hinted = names
       .map((name) => [name, readSkillMetadata(join(skillsRoot, name, "SKILL.md"))])
       .filter(([, metadata]) => metadata.argumentHint !== null);
@@ -528,8 +528,8 @@ describe("against the real kit", () => {
     assert.deepEqual(
       hinted.map(([name]) => name),
       ["blog-post-redactor", "challenge-me", "hooksmith", "learning-review",
-       "map-system", "orchestrate", "quiz-me", "render-artifact", "role",
-       "teach-architecture", "ticket"],
+       "map-system", "orchestrate", "quiz-me", "reflect", "render-artifact",
+       "role", "teach-architecture", "ticket"],
     );
 
     for (const [, metadata] of hinted) {

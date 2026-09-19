@@ -110,7 +110,7 @@ An adapter carries the canonical skill's frontmatter and a pointer to it, and no
 - `quiz-me` — assess understanding of a recently taught feature with evidence-based questions
 - `challenge-me` — create a small transfer exercise applying a learned concept in a changed context
 - `learning-review` — review accumulated lessons, identify gaps, and create a reinforcement plan
-- `reflect` — review completed work, and the reflection itself, and propose reusable workflow improvements for human approval
+- `reflect` — review completed work, and the reflection itself, and propose reusable workflow improvements for human approval; `record`, `harvest`, and `resolve` keep them in the improvement ledger
 - `handoff` — preserve useful state between sessions or tools
 - `role` — explicitly override the role the lifecycle would assume
 - `whereami` — report a compact read-only snapshot of the current session

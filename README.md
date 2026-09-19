@@ -468,7 +468,7 @@ Some common entry points:
 | `handoff` | Leaving factual state for another session |
 | `whereami` | Getting quick session orientation |
 | `learn-feature` | Learning from completed work |
-| `reflect` | Improving the workflow from actual experience |
+| `reflect` | Improving the workflow from actual experience, kept in the improvement ledger |
 | `blog-post-redactor` | Writing up shipped work from repository evidence |
 | `setup-tracker` | Choosing where tickets live |
 

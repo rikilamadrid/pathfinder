@@ -1,11 +1,27 @@
 ---
 name: reflect
-description: Review meaningful completed work to extract project-specific lessons, identify reusable Pathfinder workflow improvements, and evaluate the quality of the reflection process itself.
+description: Review meaningful completed work to extract project-specific lessons, identify reusable Pathfinder workflow improvements, record them in the improvement ledger under human decision, and evaluate the quality of the reflection process itself.
+argument-hint: "[record|harvest|resolve]"
 ---
 
 # Reflect
 
 Review completed work and identify evidence that the development workflow itself should improve.
+
+## Process
+
+With an action, read only `skills/reflect/actions/<action>.md` and follow it:
+
+- `record` — write one observation, or one occurrence of an existing entry.
+- `harvest` — read what the ledger says and turn repetition into proposals.
+- `resolve` — record a decision a human already made.
+
+With no action, run the reflection this file describes.
+
+The actions give reflect a memory. They do not give it authority: reflect
+supplies judgment, the engine records, and the human decides. Nothing here
+writes any file but `context/improvement-ledger.md`, and nothing writes it
+without the human saying so in this invocation.
 
 ## Purpose
 
@@ -52,6 +68,22 @@ And:
 
 ## Part 1 — Reflect on the work
 
+### 0. Read the ledger, when there is one
+
+If `context/improvement-ledger.md` exists, run the harvest before step 1 and
+read its report as evidence alongside the repository:
+
+```bash
+node skills/reflect/engine/bin/ledger.mjs harvest
+```
+
+The report is what earlier executions already established, so it is evidence in
+step 2 and in step 10. Reading it changes nothing: `harvest` writes no file and
+moves no status.
+
+If the file does not exist, skip this step. A project with no ledger reflects
+exactly as it always has, and nothing below behaves differently.
+
 ### 1. Reconstruct what happened
 
 Review the relevant work and available evidence.
@@ -91,10 +123,15 @@ Look specifically for:
 * gaps between Pathfinder's intended workflow and what actually happened
 * cases where an existing rule prevented a problem
 * cases where following existing guidance still produced a poor result
+* a signal the harvest already records, which makes this an occurrence of that
+  entry rather than a new finding
 
 Success alone is not evidence that the workflow was good.
 
 Failure alone is not evidence that the workflow must change.
+
+Where the harvest reported something, say which entry a signal matches, by id.
+The second time something happens is the evidence; the first time is a note.
 
 ### 3. Separate local knowledge from reusable learning
 
@@ -132,6 +169,11 @@ Interesting but not useful enough to preserve.
 Discard it.
 
 Not every observation deserves memory.
+
+Close this step by offering, in one line, which findings are worth a ledger
+entry — usually none, and never a routine success. Record one only if the human
+says so, or already said so when they invoked this reflection: `/reflect record`
+is the action that writes it.
 
 ### 4. Test generality
 
@@ -303,6 +345,9 @@ Do not recursively optimize stylistic preferences, wording preferences, or isola
 
 Self-improvements must materially improve reflection quality.
 
+Close this step as step 3 closes: offer in one line which candidates are worth a
+ledger entry, and record only on the human's word.
+
 ### 10. Evidence levels for self-improvement
 
 Treat evidence for changes to Reflect according to three levels:
@@ -319,6 +364,11 @@ It does not establish a general pattern.
 
 The same weakness has appeared across multiple reflections or required repeated human correction.
 
+Where a ledger exists, this is what the harvest can show and recollection
+cannot: an entry with occurrences of 2 or more, or two entries sharing a
+category and a candidate. Cite the ids. Nothing else counts as history, and a
+Level 1 claim cites none.
+
 This provides stronger justification for changing Reflect.
 
 #### Level 3 — Validation
@@ -329,7 +379,8 @@ This is the strongest evidence that the improvement should remain.
 
 When history is available, prefer patterns over isolated incidents.
 
-Do not fabricate historical evidence.
+Do not fabricate historical evidence. Without a ledger there is no history to
+cite, and an incident stays an incident.
 
 ### 11. Bound the recursion
 
@@ -376,6 +427,26 @@ It must not automatically rewrite its own skill definition unless the human expl
 Self-reference does not lower the evidence threshold.
 
 It raises it.
+
+### The ledger changes none of this
+
+Reflect proposes. Humans promote. An entry is evidence, not permission, and a
+pattern in the ledger authorises nothing by existing.
+
+Reflect may recommend recording an observation, recommend that a signal is an
+occurrence of an entry it already has, read the harvest as evidence, and
+recommend a proposal be `Proposed` or promoted into work.
+
+Reflect may not record without the human's word in this invocation; may not
+decide `Approved`, `Rejected`, `Deferred` or `Applied`; may not infer a status
+from GitHub, Git, a pull request or a ticket; may not create product work from
+an entry; and may not change how it or any other skill behaves because the
+ledger says something.
+
+An approved proposal goes the ordinary way — `to-specs`, or `to-tickets` on an
+existing Feature, then the normal ticket loop. Reflect names the next action and
+does not run it: planning belongs to the planner, and roles never call one
+another.
 
 ---
 
@@ -451,6 +522,24 @@ For each candidate provide:
 * regression risk
 * validation
 * confidence
+
+---
+
+## Files
+
+- `skills/reflect/actions/record.md`, `harvest.md`, `resolve.md` — the three
+  actions, read one at a time.
+- `skills/reflect/engine/bin/ledger.mjs` — the engine. `record`, `resolve`,
+  `harvest`, `validate`. It reads no clock, so every date is one a person gave
+  it, and it writes no file but the ledger.
+- `context/improvement-ledger.md` — the ledger itself, durable and tracked.
+  Created from `templates/improvement-ledger.template.md` by the first
+  observation recorded. A project without one is normal.
+- `lib/evidence-references.mjs` — the `type:locator` evidence grammar the
+  engine parses with, shared with `blog-post-redactor` and stated in one place.
+
+Node is needed only for the three actions. A bare reflection reads the harvest
+where Node is available and the ledger as plain text where it is not.
 
 ---
 

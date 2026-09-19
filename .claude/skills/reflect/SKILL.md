@@ -1,6 +1,7 @@
 ---
 name: reflect
-description: Review meaningful completed work to extract project-specific lessons, identify reusable Pathfinder workflow improvements, and evaluate the quality of the reflection process itself.
+description: Review meaningful completed work to extract project-specific lessons, identify reusable Pathfinder workflow improvements, record them in the improvement ledger under human decision, and evaluate the quality of the reflection process itself.
+argument-hint: "[record|harvest|resolve]"
 ---
 
 <!-- pathfinder:adapter v1 source=skills/reflect/SKILL.md -->

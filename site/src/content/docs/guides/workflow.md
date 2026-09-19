@@ -265,8 +265,16 @@ finished work
 
 → reflect                  reconstruct what actually happened
                            separate project knowledge from reusable lessons
+  → record                 keep the ones worth keeping, with their evidence
+                           ◆ you confirm each entry
+
+  ↓ the improvement ledger accumulates
+
+  → harvest                periodically: what repeated, what it suggests
                            propose the smallest durable improvement — often none
      ◆ you decide whether a proposal becomes part of Pathfinder
+
+  → resolve                record your decision, and later what came of it
 
 → reflect on reflect       one bounded pass over its own performance
      ◆ same promotion rule; self-reference does not lower the bar
@@ -290,6 +298,204 @@ the project.
 The self-check stops after one pass. It does not recurse, it does not go looking for
 a problem because the section exists, and "no improvement needed" is the expected
 result.
+
+### The improvement ledger
+
+Reflection without memory restarts every time. A reflection can see the execution in
+front of it, and the thing that actually justifies changing a workflow — that this is
+the third time — is exactly what it cannot see. So the judgment stayed good and the
+evidence kept evaporating.
+
+`context/improvement-ledger.md` is where it stops evaporating. One durable Markdown
+file in `context/`, tracked in Git, holding observations about how delivery went and
+what came of them. It is not a backlog and not a task list. It carries no authority:
+nothing in it changes a skill, a role, a template or a contract, and an entry that
+has been sitting there for a year has changed nothing by sitting there.
+
+A project with no friction worth recording has no ledger at all, and that is a
+perfectly good state to be in. Pathfinder creates it from
+`templates/improvement-ledger.template.md` the first time you record something.
+
+#### Observation, recurrence, proposal
+
+Three different things, deliberately kept apart.
+
+An **observation** is one thing that happened, with the evidence that shows it
+happened. It is recorded because you said to.
+
+A **recurrence** is the same thing happening again. It is an *occurrence* of the entry
+that already describes it — a dated line under that entry — never a second entry. This
+is the whole reason the file exists: one annoyance is an anecdote, and the count is
+what turns it into a case.
+
+A **proposal** is a reading of the ledger: this repeated, here is the smallest durable
+change that would address it. Proposals come out of a harvest, and most harvests
+produce none.
+
+#### The lifecycle
+
+```text
+record → harvest → your decision → resolve
+```
+
+**`/reflect record`** writes one observation, or one occurrence of an entry that
+already describes it. Reflect gathers the evidence from the repository and the tracker
+rather than from recollection, classifies it, shows you the entry it would write, and
+writes it once you confirm. An observation with no reference that resolves is refused,
+and the refusal tells you what evidence would make it recordable.
+
+**`/reflect harvest`** reads the ledger and reports what it says: open entries most
+repeated first, repeated signals, entries you deferred that have happened again since,
+entries awaiting a decision, and where approved work is tracked. Reflect then applies
+its ordinary judgment to that report and writes any proposal in its usual evidence
+format, citing entries by id.
+
+**Your decision** is the only thing that moves an entry forward. Reflect recommends.
+
+**`/reflect resolve`** records what you decided, with what the decision rests on.
+
+#### Statuses
+
+| Status | Means |
+| --- | --- |
+| `Open` | Recorded. Nothing decided. |
+| `Proposed` | A live proposal, waiting on you. |
+| `Approved` | You approved it, **and** a Feature, ticket or issue now tracks the work. |
+| `Applied` | The work landed, and the evidence of it landing was checked. |
+| `Rejected` | You decided against it, with your reason. |
+| `Deferred` | Not now, with your reason. Comes back to `Open` if it recurs. |
+
+`Open → Proposed → Approved → Applied` is the spine. `Rejected` and `Deferred` are
+reachable from the two points where you are actually deciding something. `Applied` and
+`Rejected` are terminal — reopening one is a new observation with its own evidence.
+
+`Approved` and `Applied` both require a reference, because both are claims about the
+world. `Rejected` and `Deferred` both require your reason and the date, because a
+decision nobody can review later is not much of a record.
+
+#### Evidence references
+
+Every entry carries at least one reference in Pathfinder's `type:locator` grammar —
+the same grammar the rest of the kit uses, stated once in `lib/evidence-references.mjs`:
+
+```text
+pr:126            issue:94           commit:5314c14
+file:README.md#L1-L20                diff:skills/reflect/SKILL.md
+doc:context/history.md               test:packages/reflect
+changelog:[Unreleased]               cmd:npm test
+```
+
+The engine checks that a reference is well formed. Whether it is *true* — that the
+pull request is the one that shows this, that the command still prints that — is
+checked in the session, with you present, before anything is written.
+
+#### Why harvest only reads
+
+`harvest` changes nothing: no file, no status, no entry. It is deterministic in the
+strong sense — the same ledger produces the same bytes on any machine, in any
+directory, in any timezone. It reads no clock, which is why every date in the file is
+one a person supplied.
+
+That matters because a report you can re-run and diff is a report you can trust. If
+reading the ledger could quietly reorganise it, you would never be sure whether a
+pattern was found or manufactured.
+
+#### Why reflect recommends and never approves
+
+Reflect may notice a signal worth recording, recommend that it matches an entry it
+already has, read the harvest as evidence, and recommend a proposal be considered or
+promoted.
+
+Reflect may not record because it noticed something without you saying so, decide
+`Approved`, `Rejected`, `Deferred` or `Applied`, infer a status from GitHub, Git, a
+pull request or a ticket, create work from an entry, or change how anything behaves
+because the ledger says something.
+
+> The engine records. Reflect supplies judgment. You supply authority.
+
+A closed issue does not become `Applied` on its own, and a merged pull request does
+not approve anything. Someone says those words or they are not true. Every status
+change is a reviewed line in a tracked file, so the audit trail is just Git.
+
+#### How approved learning becomes work
+
+Nothing special. An approved proposal goes the ordinary way: `to-specs` for a new
+Feature, or `to-tickets` on an existing one, then the normal ticket loop — implement,
+review, complete. Reflect names the next action and does not run it; planning belongs
+to the planner.
+
+The ledger entry is then resolved to `Applied` with the merged pull request named, so
+the entry ends up carrying its own provenance: what was observed, how often, what was
+decided, and what shipped because of it. A year later that chain is still readable
+from the file, without reconstructing anything from memory.
+
+#### An entry, end to end
+
+Synthetic, but shaped exactly like a real one.
+
+You have just finished a ticket where the test suite passed locally and failed in CI
+over a fixture path. It is the second time this month.
+
+```bash
+/reflect record
+```
+
+Reflect gathers the evidence, classifies it, and shows you what it would write. You
+confirm — and because an entry already describes this, it records an occurrence rather
+than a new entry:
+
+```markdown
+## 004 — CI fails on fixture paths that pass locally
+
+<!-- pathfinder:improvement 004 -->
+
+- Observed: 2026-01-08
+- Source: review
+- Scope: workflow
+- Category: missing-contract
+- Human intervention: correction
+- Impact: medium
+- Candidate improvement: Verification should run the suite the way CI runs it
+- Status: Open
+- Evidence: `pr:41`, `cmd:npm test`
+- Occurrences: 2
+  - 2026-01-08 — `pr:41`, `cmd:npm test`
+  - 2026-01-22 — `pr:53`
+
+The suite passed locally and failed in CI on a fixture path. The fix was
+mechanical; finding it was not.
+```
+
+Weeks later, you harvest:
+
+```text
+## Repeated
+
+- 004 — CI fails on fixture paths that pass locally (2 occurrences)
+```
+
+Reflect proposes the smallest durable change — a line in the ticket template's
+verification section — citing `004` and its two occurrences. You approve it, and a
+ticket exists:
+
+```bash
+/reflect resolve 004 Approved --in issue:212
+```
+
+The ticket goes through the normal loop. When its pull request merges:
+
+```bash
+/reflect resolve 004 Applied --in pr:219
+```
+
+The entry now records the whole chain, and the next harvest stops reporting it.
+
+#### What it does not do
+
+No dashboards, no charts, no scheduled harvests, no scoring, no staleness. No project
+reports anything anywhere — a ledger is local to its repository and there is no
+telemetry of any kind. And no entry, however many occurrences it has, changes anything
+on its own.
 
 ## Communication, after the work is done
 
