@@ -27,6 +27,20 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Added
+
+- **`blog-post-redactor`.** Turns work that shipped into a technical article
+  built only from repository evidence. Four separated stages, read-only
+  evidence collection, story selection, writing and verification, hand each
+  other files rather than one prompt, so extraction cannot start from a thesis
+  and writing cannot reach back into the repository for a fact a paragraph
+  wants. A claim the repository cannot support is cut, or marked
+  `[NEEDS HUMAN CONFIRMATION]` and listed in `metadata.json`; verification
+  fails the run when a cited source does not resolve, when stated confidence
+  outruns the evidence, or when anything outside the output directory changed.
+  Voice and story patterns are configuration a project edits without touching
+  the pipeline. Twenty-sixth skill in the kit.
+
 ## [4.4.0] - 2026-09-18
 
 ### Added

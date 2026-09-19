@@ -291,6 +291,58 @@ The self-check stops after one pass. It does not recurse, it does not go looking
 a problem because the section exists, and "no improvement needed" is the expected
 result.
 
+## Communication, after the work is done
+
+Every loop above points inward, at the project or at the workflow. This one points
+outward. Blog Post Redactor turns work Pathfinder can prove happened into a
+technical story worth publishing.
+
+```text
+a completed feature, ticket, or release
+
+→ collect                   reconstruct what actually happened, read-only:
+                            commits, diffs, pull requests, changelog, docs, tests
+
+→ angles                    find three to five real stories in that evidence,
+                            and recommend one with its reasoning
+     ◆ you pick the story — the agent recommends, you choose
+
+→ write                     write the chosen post, from the evidence alone
+
+→ verify                    check the finished package against its own evidence
+     ◆ you decide whether it gets published — the skill never posts
+
+→ stop
+```
+
+The stages hand each other files rather than one long prompt, and that is the
+design rather than an implementation detail. Collection runs before any story
+exists, so it cannot be steered toward one; writing sees the collected evidence
+and not the repository, so a paragraph that wants one more fact cannot go and
+invent it.
+
+What is mechanical and what is judgment is worth being precise about:
+
+- **Evidence collection is deterministic where possible.** It runs an allowlist of
+  read-only Git commands and changes nothing in your repository.
+- **Story selection and writing require model judgment.** No script picks the
+  angle or writes the prose, which is why the candidates are shown to you.
+- **Verification can prove source references exist.** It fails the run when a
+  citation does not resolve, when stated confidence outruns the evidence, or when
+  anything outside the output directory changed.
+- **Semantic overreach still requires the verification reading pass.** No check
+  can tell that a sentence claims more than the source beneath it supports, so
+  that stage directs a paragraph-by-paragraph read for overreach, false
+  causation, and borrowed certainty. It is a reading pass, not a passing test.
+
+A claim the repository cannot settle is cut, or marked
+`[NEEDS HUMAN CONFIRMATION]` and listed in `metadata.json`. It is never quietly
+asserted.
+
+Output lands in `blog-posts/` — the evidence, the candidate angles, the article,
+and social versions. [`blog-post-redactor`](/skills/blog-post-redactor/) has the
+full pipeline.
+
 ## Two utilities, outside every loop
 
 [`handoff`](/skills/handoff/) preserves state between sessions or tools, for when a
@@ -332,8 +384,9 @@ widen, narrow, or pre-approve them.
 
 **Decisions that stay yours** — not operations the agent pauses on, but choices it
 never makes. Product and MVP scope, the stack and architecture, infrastructure,
-prototype direction, and the reconstruction choices taken from an external
-reference. The agent recommends, with reasoning; you choose. Editing
+prototype direction, which story a write-up tells, and the reconstruction choices
+taken from an external reference. The agent recommends, with reasoning; you
+choose. Editing
 `ai-interaction.md` does not hand any of these over.
 
 Git and delivery workflow is neither: an agent follows what

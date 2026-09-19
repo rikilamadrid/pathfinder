@@ -2,9 +2,10 @@
 __MACOSX/
 ._*
 
-# Destination-project generated learning/prototype output may be ignored locally if desired.
+# Destination-project generated learning/prototype/blog output may be ignored locally if desired.
 # prototypes/
 # learning/
+# blog-posts/
 
 # Local planning only — not pushed
 .features/
