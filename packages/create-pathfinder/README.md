@@ -3,6 +3,8 @@
 **A reusable workflow kit for directing AI agents through software delivery,
 while keeping judgment and consequential decisions human.**
 
+<sub>Field kit <code>PF-047</code> · the unfolding atlascope</sub>
+
 Pathfinder gives you one disciplined workflow with two ways to operate it:
 work one ticket at a time with direct human control in **human-in-the-loop**
 mode, or let **orchestrator** mode coordinate several dependency-safe workers
