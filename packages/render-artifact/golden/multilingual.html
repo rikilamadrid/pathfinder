@@ -5,23 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Typography probe — every script the cap admits</title>
 <meta name="description" content="A fixture, not an example. Each label is chosen to sit at or near the 32-column cap so the probe exercises the boundary rather than the comfortable middle.">
-<meta name="generator" content="Pathfinder render-artifact 0.10.0">
+<meta name="generator" content="Pathfinder render-artifact 0.11.0">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cg%20fill='%23E0611F'%3E%3Crect%20x='4'%20y='23'%20width='24'%20height='6.4'%20rx='3.2'%20transform='rotate(-3%2016%2026.2)'/%3E%3Crect%20x='7'%20y='14.6'%20width='18'%20height='6'%20rx='3'%20transform='rotate(4%2016%2017.6)'/%3E%3Crect%20x='9.6'%20y='7'%20width='12.8'%20height='5.4'%20rx='2.7'%20transform='rotate(-6%2016%209.7)'/%3E%3Crect%20x='12.4'%20y='1'%20width='7.2'%20height='4.4'%20rx='2.2'%20transform='rotate(5%2016%203.2)'/%3E%3C/g%3E%3C/svg%3E">
 <style>:root {
   color-scheme: light;
-  --pf-page: #FDFCFB;
-  --pf-surface: #FFFFFF;
-  --pf-surface-2: #F5F2EF;
-  --pf-ink: #1B1815;
-  --pf-muted: #5C5550;
-  --pf-line: #E2DCD6;
-  --pf-line-strong: #8C837A;
+  --pf-page: #FBF3DE;
+  --pf-surface: #FFFBF0;
+  --pf-surface-2: #F6EDD2;
+  --pf-ink: #2A160D;
+  --pf-muted: #6E5740;
+  --pf-line: #D9C79C;
+  --pf-line-strong: #8C7454;
   --pf-accent: #E0611F;
-  --pf-accent-ink: #1B1815;
-  --pf-link: #B34A13;
+  --pf-accent-ink: #2A160D;
+  --pf-link: #9E3F0F;
   --pf-ok: #1F6F43;
   --pf-no: #A62B1E;
-  --pf-shadow: 0 1px 2px rgba(27, 24, 21, .06), 0 8px 24px rgba(27, 24, 21, .05);
+  --pf-focus: #2A160D;
+  --pf-shadow: 0 1px 2px rgba(42, 22, 13, .08), 0 8px 24px rgba(42, 22, 13, .06);
 
   --pf-space-1: .25rem;
   --pf-space-2: .5rem;
@@ -40,6 +41,7 @@
              "Helvetica Neue", Arial, sans-serif;
   --pf-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
              "Liberation Mono", monospace;
+  --pf-serif: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
 }
 
 /* Light is the base, so a reader whose system states no preference gets a
@@ -48,36 +50,38 @@
    and both win over the media query because they are on the element. */
 :root[data-pf-theme="dark"] {
   color-scheme: dark;
-  --pf-page: #14120F;
-  --pf-surface: #1D1A16;
-  --pf-surface-2: #262218;
-  --pf-ink: #F2EEE9;
-  --pf-muted: #B0A79E;
-  --pf-line: #35302A;
-  --pf-line-strong: #7A7168;
+  --pf-page: #17191C;
+  --pf-surface: #1F2226;
+  --pf-surface-2: #23272C;
+  --pf-ink: #F7F0DF;
+  --pf-muted: #CDC2AA;
+  --pf-line: #33383F;
+  --pf-line-strong: #8A7E68;
   --pf-accent: #E0611F;
   --pf-accent-ink: #1B1815;
   --pf-link: #F0A97E;
   --pf-ok: #6FD39B;
   --pf-no: #F09085;
+  --pf-focus: #FFF2A8;
   --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-pf-theme="auto"] {
     color-scheme: dark;
-    --pf-page: #14120F;
-    --pf-surface: #1D1A16;
-    --pf-surface-2: #262218;
-    --pf-ink: #F2EEE9;
-    --pf-muted: #B0A79E;
-    --pf-line: #35302A;
-    --pf-line-strong: #7A7168;
+    --pf-page: #17191C;
+    --pf-surface: #1F2226;
+    --pf-surface-2: #23272C;
+    --pf-ink: #F7F0DF;
+    --pf-muted: #CDC2AA;
+    --pf-line: #33383F;
+    --pf-line-strong: #8A7E68;
     --pf-accent: #E0611F;
     --pf-accent-ink: #1B1815;
     --pf-link: #F0A97E;
     --pf-ok: #6FD39B;
     --pf-no: #F09085;
+    --pf-focus: #FFF2A8;
     --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
   }
 }
@@ -102,6 +106,9 @@ h1, h2, h3, h4 {
   margin: 0;
   font-weight: 650;
 }
+/* Names and headings take the serif; everything read for more than a moment
+   stays in the system sans. Two roles, no web font, no network request. */
+h1, h2 { font-family: var(--pf-serif); letter-spacing: -.01em; }
 
 p { margin: 0 0 var(--pf-space-4); max-width: var(--pf-measure); }
 p:last-child { margin-bottom: 0; }
@@ -110,7 +117,7 @@ a { color: var(--pf-link); text-underline-offset: .18em; }
 a:hover { text-decoration-thickness: 2px; }
 
 :focus-visible {
-  outline: 3px solid var(--pf-accent);
+  outline: 3px solid var(--pf-focus);
   outline-offset: 2px;
   border-radius: var(--pf-radius-sm);
 }
@@ -284,10 +291,10 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 .pf-module { margin-bottom: var(--pf-space-8); scroll-margin-top: 128px; }
 .pf-module-head { margin-bottom: var(--pf-space-5); }
 /* --pf-link, not --pf-accent. This is 11px text, so WCAG 2.1 AA wants 4.5:1
-   and the accent gives 3.47:1 on the light page — it clears the 3:1 non-text
-   bar the mark and the focus ring rely on, and fails as soon as it becomes
-   words. --pf-link is the accent darkened for exactly this: 5.25:1 light,
-   9.51:1 dark. Any future accent-coloured *text* takes this token. */
+   and the accent gives 3.22:1 on the light page — it clears the 3:1 non-text
+   bar the mark relies on, and fails as soon as it becomes words. --pf-link is
+   the accent darkened for exactly this: 5.98:1 light, 8.96:1 dark. Any future
+   accent-coloured *text* takes this token. */
 .pf-module-index {
   font-size: .6875rem;
   font-weight: 700;
@@ -1479,7 +1486,7 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 <dt>Commit</dt>
 <dd>1faaf37</dd>
 <dt>Renderer</dt>
-<dd>Pathfinder render-artifact 0.10.0</dd>
+<dd>Pathfinder render-artifact 0.11.0</dd>
 </dl>
 </footer>
 <script>(function () {
