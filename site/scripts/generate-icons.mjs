@@ -1,12 +1,17 @@
-// Rasterises the PWA icon set into `assets/` from the single hand-authored
-// mark, `assets/logo.svg`. Run it with `npm run icons` from `site/`, and only
-// when the mark changes — the outputs are committed brand files, not build
-// output. Nothing in the site build calls this script, so `sharp` stays a
-// devDependency and a deploy never rasterises anything.
+// Rasterises the committed raster brand files into `assets/` from their
+// hand-authored SVG sources: the PWA icon set from `assets/logo.svg`, and the
+// social card from `assets/og-image.svg`. Run it with `npm run icons` from
+// `site/`, and only when a source changes — the outputs are committed brand
+// files, not build output. Nothing in the site build calls this script, so
+// `sharp` stays a devDependency and a deploy never rasterises anything.
 //
 // Why a script rather than a one-off command in a README: `assets/README.md`
 // asks that raster files be regenerated rather than edited, and a convention
 // nobody can re-run is not a convention. This file *is* the recorded command.
+//
+// Pass output file names to regenerate only those — `npm run icons --
+// og-image.png` leaves the icon set's bytes exactly as they were. Without
+// arguments everything is regenerated.
 //
 // The mark is drawn edge to edge on its 32-unit grid, so each output states its
 // own inset rather than inheriting one. See SAFE_ZONE below for the case that
@@ -55,9 +60,29 @@ const targets = [
   { file: 'apple-touch-icon-180.png', size: 180, inset: 0.8, background: WHITE },
 ];
 
+// Cards are rendered at their declared size with no inset and no canvas: the
+// source SVG paints its own opaque ground and states its own dimensions, so
+// the only decision here is which file to read. 1280×640 is the 1.91:1 frame
+// the Open Graph scrapers and GitHub's repository social preview both crop to
+// without letterboxing.
+const cards = [
+  { file: 'og-image.png', source: 'og-image.svg', width: 1280, height: 640 },
+];
+
+// Names on the command line select outputs; no names means all of them. A
+// name that matches nothing is an error rather than a silent no-op, because
+// the likely cause is a typo and the likely result is a stale file.
+const requested = new Set(process.argv.slice(2));
+const wanted = (file) => requested.size === 0 || requested.has(file);
+for (const name of requested) {
+  if (![...targets.map((t) => t.file), ...cards.map((c) => c.file)].includes(name)) {
+    throw new Error(`generate-icons: no output named ${name}`);
+  }
+}
+
 await mkdir(assets, { recursive: true });
 
-for (const { file, size, inset, background } of targets) {
+for (const { file, size, inset, background } of targets.filter((t) => wanted(t.file))) {
   const markPx = Math.round(size * inset);
 
   const rendered = await sharp(mark, { density: (BASE_DPI * markPx) / BASE_PX })
@@ -78,4 +103,19 @@ for (const { file, size, inset, background } of targets) {
   console.log(`generate-icons: ${file} — ${size}×${size}, mark at ${Math.round(inset * 100)}%`);
 }
 
-console.log(`generate-icons: wrote ${targets.length} icons to assets/ from logo.svg`);
+for (const { file, source, width, height } of cards.filter((c) => wanted(c.file))) {
+  // The SVG declares width and height in CSS pixels, so the default density
+  // already renders it 1:1. `resize` is a guard, not a scale. The source paints
+  // an opaque ground, so dropping the alpha channel changes no pixel — it only
+  // stops a scraper from having to decide what to composite nothing onto.
+  const card = await sharp(join(assets, source))
+    .resize(width, height)
+    .removeAlpha()
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+  await writeFile(join(assets, file), card);
+  console.log(`generate-icons: ${file} — ${width}×${height} from ${source}`);
+}
+
+const written = [...targets, ...cards].filter((t) => wanted(t.file)).length;
+console.log(`generate-icons: wrote ${written} file(s) to assets/`);
