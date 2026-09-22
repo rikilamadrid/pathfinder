@@ -15,8 +15,8 @@ head:
 hero:
   tagline: Direct AI agents through software delivery without giving up the decisions.
   image:
-    alt: The Pathfinder cairn
-    file: ../../../../assets/logo.svg
+    alt: "The Pathfinder atlascope: a brass-cased cobalt instrument whose paper well carries the four-bar trail and a route needle"
+    file: ../../../../assets/atlascope.svg
   actions:
     - text: Start a project
       link: /guides/getting-started/

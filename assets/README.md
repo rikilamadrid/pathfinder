@@ -11,6 +11,7 @@
 | `icon-512.png` | Same, at the size install prompts and app listings read. |
 | `icon-maskable-512.png` | Manifest icon, `purpose: maskable`. Opaque white; mark inset to the safe zone. |
 | `apple-touch-icon-180.png` | iOS add-to-home-screen. Opaque — iOS composites transparency onto black. |
+| `atlascope.svg` | The hero object alone, 560×560, transparent ground — the instrument from `og-image.svg` moved by one `translate`, so the two cannot drift. The docs landing page's hero image. |
 | `og-image.svg` | The social card, hand-authored: wordmark beside the atlascope, 1280×640 — the 1.91:1 frame Open Graph scrapers and GitHub's repository preview both crop to without letterboxing. |
 | `og-image.png` | Rasterised from `og-image.svg`, opaque, no alpha. Upload it as the repository's social preview (Settings → General) and serve it as `og:image`. |
 
