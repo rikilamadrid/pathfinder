@@ -116,6 +116,18 @@ describe("formatIdentity — capability", () => {
     assert.match(block, /^[\x00-\x7F]*$/);
   });
 
+  it("carries the maker's serial beside the version, in every tier", () => {
+    // PF-047 is the one mark shared across the ecosystem's tools: the same
+    // workshop, a serial per tool. It is a label, so it must survive the ASCII
+    // and colourless tiers exactly like the version does, and it must never
+    // become the wordmark's job to carry it.
+    for (const theme of [createTheme(utf8Tty), createTheme(asciiTty), createTheme({ ...utf8Tty, env: { NO_COLOR: "1" } })]) {
+      const block = formatIdentity({ theme });
+      assert.match(block, /PF-047/, `serial lost in ${theme.tier}/${theme.unicode ? "unicode" : "ascii"}`);
+      assert.ok(block.indexOf(`v${VERSION}`) < block.indexOf("PF-047"), "the serial does not follow the version");
+    }
+  });
+
   it("keeps the wordmark in every tier, because identity is not decoration", () => {
     for (const theme of [
       createTheme(utf8Tty),
