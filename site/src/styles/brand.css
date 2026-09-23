@@ -202,11 +202,13 @@ starlight-menu-button[aria-expanded='true'] button {
 
 /* The theme picker and the repository link are quiet controls: muted ink,
  * full ink on hover, like the footer's links. Starlight gives them the link
- * colour, which on this header reads as a third accent. */
-.right-group :is(starlight-theme-select label, .social-icons a) {
+ * colour, which on this header reads as a third accent. Below 50rem Starlight
+ * moves the same two controls into the foot of the mobile menu, so the rule
+ * names both homes and the controls look the same wherever they sit. */
+:is(.right-group, .mobile-preferences) :is(starlight-theme-select label, .social-icons a) {
   color: var(--sl-color-gray-3);
 }
-.right-group :is(starlight-theme-select label:hover, .social-icons a:hover) {
+:is(.right-group, .mobile-preferences) :is(starlight-theme-select label:hover, .social-icons a:hover) {
   color: var(--sl-color-text);
   opacity: 1;
 }

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import { buildSidebar } from './src/nav.mjs';
+import { codeThemes } from './src/code-themes.mjs';
 
 const skillsDir = fileURLToPath(new URL('../skills', import.meta.url));
 const contextDir = fileURLToPath(new URL('../context', import.meta.url));
@@ -73,6 +74,15 @@ export default defineConfig({
         { tag: 'meta', attrs: { name: 'apple-mobile-web-app-title', content: 'Pathfinder' } },
       ],
       customCss: ['./src/styles/brand.css'],
+      // Code blocks: Starlight's bundled syntax themes are cool grey and blue,
+      // the only saturated cool hues the site would otherwise carry. The two
+      // themes in `src/code-themes.mjs` restate the palette for tokens; the
+      // frames, tab bars and copy buttons keep taking Starlight's variables,
+      // so `brand.css` still owns everything around the code.
+      expressiveCode: {
+        themes: codeThemes,
+        useStarlightUiThemeColors: true,
+      },
       // Wraps Starlight's own footer rather than replacing it — see the
       // component. A reader who lands on a deep page from a search result
       // otherwise has no link back to the repository the site is generated from.
