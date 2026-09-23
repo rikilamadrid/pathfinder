@@ -73,6 +73,25 @@ The heading of the most recent released section below is the single source of tr
   Voice and story patterns are configuration a project edits without touching
   the pipeline. Twenty-sixth skill in the kit.
 
+### Changed
+
+- **The artifact renderer paints on the ecosystem's grounds.** Generated
+  artifacts are paper by day and the workshop ground after dark, with warm ink
+  and hairlines, a serif for names and module titles, and a focus ring that
+  follows the ground — ink on paper, pale in the dark — because one value
+  cannot serve both. Blaze orange stays the only signal: the mark, an authored
+  path, the focused component; never a ground and never a word. Every `--pf-*`
+  token keeps its name, so existing specifications render unchanged in
+  structure. The contrast gate grows from the diagram's seventeen surfaces to
+  thirty-two per theme, measuring the shell's own text, links and focus rings
+  alongside the diagram's, and caught one failing pairing before it shipped.
+  This is an intentional change to rendered bytes: the renderer version moves
+  from 0.10.0 to 0.11.0 and the goldens are regenerated with it.
+- **The installer's identity block prints the maker's serial.** The first line
+  now reads `P A T H F I N D E R  v4.4.0 · PF-047`, the serial dim beside the
+  version and joined by the theme's own glyph, so the ASCII tier stays ASCII.
+  Nothing else about a run changes.
+
 ## [4.4.0] - 2026-09-18
 
 ### Added
