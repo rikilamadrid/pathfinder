@@ -1,0 +1,170 @@
+---
+// The header's brand lockup: a field manual's title block.
+//
+// Starlight's own SiteTitle renders one image and hides the site name from
+// sighted readers. That is the right shape for a wordmark file and the wrong
+// one for this identity, which is a small *object* — the four-bar mark set into
+// a recessed well — labelled the way every Pathfinder surface labels itself:
+// the name in Engraved type, then a plate line naming the surface and carrying
+// the maker's serial. No CSS on the default component can add text it does not
+// render, so this is the smallest override that gets there: same link, same
+// `siteTitleHref`, same `site-title` class that Starlight's header layout
+// already sizes, and nothing else of Starlight's replaced.
+//
+// The mark is `assets/logo.svg`, imported through Starlight's own logo option so
+// it stays the one processed copy and the favicon's geometry. The wordmark file
+// is untouched and still the README's and social card's — here the name is set
+// in type, because at header size the hand-drawn grey letters read as the
+// previous identity, and because a name in Engraved is how the ecosystem
+// writes product names. Blaze appears once, as the inspection dot on the
+// plate — a signal, never text — the same dot the social card's maker's label
+// carries.
+//
+// Accessibility: the link's name is "Pathfinder Field Manual". The serial is a
+// maker's mark, not information a reader navigates by, so it is hidden from
+// assistive technology; the mark image is decorative because the name is text.
+import { logos } from 'virtual:starlight/user-images';
+
+const { siteTitle, siteTitleHref } = Astro.locals.starlightRoute;
+const mark = logos.dark;
+const SURFACE = 'Field Manual';
+// Stated in `assets/README.md` and the CLI; the README is the record.
+const SERIAL = 'PF-047';
+---
+
+<a href={siteTitleHref} class="site-title sl-flex">
+	{
+		mark && (
+			<span class="well" aria-hidden="true">
+				<img src={mark.src} width={mark.width} height={mark.height} alt="" />
+			</span>
+		)
+	}
+	<span class="lockup">
+		<span class="name" translate="no">{siteTitle}</span>
+		<span class="plate">
+			<span class="surface">{SURFACE}</span>
+			<span class="dot" aria-hidden="true"></span>
+			<span class="serial" aria-hidden="true">{SERIAL}</span>
+		</span>
+	</span>
+</a>
+
+<style>
+	.site-title {
+		align-items: center;
+		gap: 0.625rem;
+		color: var(--sl-color-text);
+		text-decoration: none;
+		white-space: nowrap;
+		min-width: 0;
+		/* Starlight's title wrapper clips overflow and leaves 0.25rem for the
+		   focus ring. The site-wide ring is 3px at a 3px offset, which is 2px
+		   too far here and loses its outer edge, so it sits closer on this one
+		   control. */
+		border-radius: 0.375rem;
+		outline-offset: 1px;
+	}
+
+	/* The well: a recess in the header's ground the mark sits in. Depth here is
+	   meaning — it is the one object on this chrome — and it is the same recess
+	   the search field uses, so the two read as fittings on one surface. */
+	.well {
+		flex: none;
+		display: grid;
+		place-items: center;
+		width: 1.75rem;
+		height: 1.75rem;
+		border-radius: 0.375rem;
+		background: var(--ww-well);
+		box-shadow:
+			inset 0 1px 2px var(--ww-well-shade),
+			inset 0 -1px 0 var(--ww-well-light),
+			0 0 0 1px var(--ww-hairline);
+	}
+
+	.well img {
+		display: block;
+		width: 1.125rem;
+		height: 1.125rem;
+	}
+
+	.lockup {
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		gap: 0.0625rem;
+		min-width: 0;
+		overflow: hidden;
+	}
+
+	/* Engraved: the name, as on every product. */
+	.name {
+		font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+		font-size: 1.0625rem;
+		line-height: 1.1;
+		letter-spacing: -0.01em;
+		color: var(--sl-color-text);
+	}
+
+	/* Plate: the label on the object — what this surface is, and who made it. */
+	.plate {
+		display: flex;
+		align-items: center;
+		gap: 0.6em;
+		font-family: var(--sl-font-mono);
+		font-size: 0.625rem;
+		line-height: 1.2;
+		font-weight: 800;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--sl-color-gray-3);
+	}
+
+	/* The inspection dot: blaze as signal, non-text, with the edge it needs on
+	   paper. */
+	/* Tracking leaves a trailing 0.14em after the last letter; take it back so
+	   the dot sits centred between its neighbours. */
+	.surface {
+		margin-inline-end: -0.14em;
+	}
+
+	.dot {
+		width: 0.3125rem;
+		height: 0.3125rem;
+		border-radius: 50%;
+		background: var(--ww-signal);
+		box-shadow: 0 0 0 1px var(--ww-signal-edge);
+	}
+
+	.site-title:hover .name {
+		text-decoration: underline;
+		text-decoration-thickness: 1px;
+		text-underline-offset: 0.15em;
+	}
+
+	/* Under 360px the title column is about 170px wide. The name and serial are
+	   the identity; the surface label is the first thing to give. */
+	@media (max-width: 22.5rem) {
+		.surface {
+			display: none;
+		}
+	}
+
+	@media (min-width: 50rem) {
+		.site-title {
+			gap: 0.75rem;
+		}
+		.well {
+			width: 2rem;
+			height: 2rem;
+		}
+		.well img {
+			width: 1.25rem;
+			height: 1.25rem;
+		}
+		.name {
+			font-size: 1.125rem;
+		}
+	}
+</style>

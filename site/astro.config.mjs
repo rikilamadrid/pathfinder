@@ -31,9 +31,11 @@ export default defineConfig({
         'One disciplined AI delivery workflow, with human-in-the-loop and orchestrator modes — keeping consequential decisions human.',
       logo: {
         // Imported straight from the repository's single `assets/` directory
-        // and processed by Vite. No copy exists anywhere under `site/`.
-        src: '../assets/logo-wordmark.svg',
-        replacesTitle: true,
+        // and processed by Vite. No copy exists anywhere under `site/`. This is
+        // the mark alone: the header sets the name in type, in `SiteTitle`,
+        // and the wordmark file stays the README's and the social card's.
+        src: '../assets/logo.svg',
+        alt: '',
       },
       favicon: '/favicon.svg',
       head: [
@@ -76,6 +78,10 @@ export default defineConfig({
       // otherwise has no link back to the repository the site is generated from.
       components: {
         Footer: './src/components/Footer.astro',
+        // The header lockup: mark in a well, name in type, plate line with the
+        // maker's serial. Starlight's default renders an image and a hidden
+        // name, and no CSS can add the text — see the component.
+        SiteTitle: './src/components/SiteTitle.astro',
       },
       social: [
         {
