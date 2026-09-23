@@ -16,6 +16,8 @@ while keeping judgment and consequential decisions human.**
 
 <sub>by Lamadrid Labs</sub>
 
+<sub>Field kit <code>PF-047</code> · the unfolding atlascope</sub>
+
 </div>
 
 Pathfinder is a small, portable set of skills, roles, context files, and

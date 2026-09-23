@@ -89,6 +89,31 @@ export const DIAGRAM_SURFACES = [
 ];
 
 /**
+ * The shell's own surfaces — what every artifact paints before a kind adds a
+ * single section. These were measured by hand and stated in `theme.mjs`'s
+ * comment for as long as the palette held still; once the palette could move
+ * they belong here, where a change to the numbers fails a test instead of
+ * leaving a comment describing colours nobody uses.
+ */
+export const CHROME_SURFACES = [
+  { what: "body text on the page", fg: "--pf-ink", bg: "--pf-page", kind: "text" },
+  { what: "muted text on the page", fg: "--pf-muted", bg: "--pf-page", kind: "text" },
+  { what: "muted text on a card", fg: "--pf-muted", bg: "--pf-surface", kind: "text" },
+  { what: "link on the page", fg: "--pf-link", bg: "--pf-page", kind: "text" },
+  { what: "link on a raised surface", fg: "--pf-link", bg: "--pf-surface-2", kind: "text" },
+  { what: "ok text on a card", fg: "--pf-ok", bg: "--pf-surface", kind: "text" },
+  { what: "no text on a card", fg: "--pf-no", bg: "--pf-surface", kind: "text" },
+  { what: "skip link and flow step, ink on the accent", fg: "--pf-accent-ink", bg: "--pf-accent", kind: "text" },
+  { what: "the mark on the header", fg: "--pf-accent", bg: "--pf-surface", kind: "non-text" },
+  { what: "the current navigation border", fg: "--pf-accent", bg: "--pf-page", kind: "non-text" },
+  { what: "focus ring on the page", fg: "--pf-focus", bg: "--pf-page", kind: "non-text" },
+  { what: "focus ring on a card", fg: "--pf-focus", bg: "--pf-surface", kind: "non-text" },
+  { what: "focus ring on a raised surface", fg: "--pf-focus", bg: "--pf-surface-2", kind: "non-text" },
+  { what: "hairline against a card", fg: "--pf-line", bg: "--pf-surface", kind: "decorative" },
+  { what: "card against the page", fg: "--pf-surface", bg: "--pf-page", kind: "decorative" },
+];
+
+/**
  * The bar each kind of surface has to clear.
  *
  * `decorative` is not a lowered bar, it is the absence of one: a fill whose
@@ -99,10 +124,10 @@ export const DIAGRAM_SURFACES = [
  */
 export const BAR = { text: 4.5, "non-text": 3, decorative: 0 };
 
-/** Every surface measured in one theme. */
+/** Every surface — the diagram's and the shell's — measured in one theme. */
 export function measure(theme) {
   const t = tokens(theme);
-  return DIAGRAM_SURFACES.map((surface) => {
+  return [...DIAGRAM_SURFACES, ...CHROME_SURFACES].map((surface) => {
     const value = ratio(t[surface.fg], t[surface.bg]);
     return {
       ...surface,

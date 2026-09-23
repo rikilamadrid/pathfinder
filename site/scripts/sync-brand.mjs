@@ -24,6 +24,10 @@ const publicDir = join(siteRoot, 'public');
 // `publicDir`. They are rasterised from `assets/logo.svg` by
 // `scripts/generate-icons.mjs`, which runs by hand when the mark changes — not
 // as part of the build, which only ever copies.
+//
+// The social card is the same shape of thing: an `og:image` is fetched by URL
+// by whichever scraper renders the link, so it too has to be served from
+// `publicDir`. It is rasterised from `assets/og-image.svg` by the same script.
 const files = [
   'favicon.svg',
   'favicon-32.png',
@@ -31,6 +35,7 @@ const files = [
   'icon-512.png',
   'icon-maskable-512.png',
   'apple-touch-icon-180.png',
+  'og-image.png',
 ];
 
 await mkdir(publicDir, { recursive: true });

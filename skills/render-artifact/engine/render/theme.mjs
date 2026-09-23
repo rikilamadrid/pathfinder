@@ -6,21 +6,32 @@
  * any of it — a kind supplies sections, not styling, and a producer supplies
  * neither.
  *
- * Colour is the project's own: blaze orange #E0611F, the paint on a real trail
- * marker, and bearing grey alongside it. Every pairing below was measured, not
- * eyeballed:
+ * Colour is the ecosystem's, adapted for Pathfinder. The grounds are paper and
+ * night rather than white and black: a warm reading ground by day, a workshop
+ * ground after dark, warm ink on both. Blaze orange #E0611F — the paint on a
+ * real trail marker and the only colour in the mark — is the *signal*: the
+ * mark, the focus of a diagram, an authored path, never a ground and never a
+ * word. Every pairing below was measured, not eyeballed, and the ones the
+ * diagram and the chrome actually paint are held to their bars by
+ * `packages/render-artifact/lib/contrast.mjs`, which reads these values rather
+ * than restating them:
  *
- *   light  ink on page 17.25:1   muted 7.14:1   link 5.25:1   accent 3.47:1
- *   dark   ink on page 16.19:1   muted 7.89:1   link 9.51:1   accent 5.25:1
+ *   light  ink on page 15.57:1   muted 6.12:1   link 5.98:1   accent 3.22:1
+ *   dark   ink on page 15.50:1   muted 9.98:1   link 8.96:1   accent 4.95:1
  *
  * WCAG 2.1 AA wants 4.5:1 for body text and 3:1 for interface boundaries and
- * focus indicators. Read the accent row again: 3.47:1 on the light page clears
+ * focus indicators. Read the accent row again: 3.22:1 on the light page clears
  * the non-text bar and misses the text one. So `--pf-accent` is for the mark,
- * the focus ring, rules and fills — never for words. Words in accent colour
- * take `--pf-link`, which is the same hue darkened until it passes.
+ * rules and fills — never for words. Words in accent colour take `--pf-link`,
+ * which is the same hue darkened until it passes.
  *
  * Filled accent surfaces carry `--pf-accent-ink` rather than white for the same
- * arithmetic: white on blaze orange is 3.56:1, near-black is 4.97:1.
+ * arithmetic: white on blaze orange is 3.56:1, the ink is 4.84:1 (4.97:1 in the
+ * dark theme).
+ *
+ * The focus ring is `--pf-focus`, not the accent, and it changes with the
+ * ground: ink on paper, pale in the dark. One value cannot serve both — a pale
+ * ring on paper measures 1.18:1 and is simply not there.
  *
  * No web font, no network request, no build step. The stack is whatever the
  * reader's system already has, so the artifact opens from `file://` and looks
@@ -30,19 +41,20 @@
 export const THEME_CSS = `
 :root {
   color-scheme: light;
-  --pf-page: #FDFCFB;
-  --pf-surface: #FFFFFF;
-  --pf-surface-2: #F5F2EF;
-  --pf-ink: #1B1815;
-  --pf-muted: #5C5550;
-  --pf-line: #E2DCD6;
-  --pf-line-strong: #8C837A;
+  --pf-page: #FBF3DE;
+  --pf-surface: #FFFBF0;
+  --pf-surface-2: #F6EDD2;
+  --pf-ink: #2A160D;
+  --pf-muted: #6E5740;
+  --pf-line: #D9C79C;
+  --pf-line-strong: #8C7454;
   --pf-accent: #E0611F;
-  --pf-accent-ink: #1B1815;
-  --pf-link: #B34A13;
+  --pf-accent-ink: #2A160D;
+  --pf-link: #9E3F0F;
   --pf-ok: #1F6F43;
   --pf-no: #A62B1E;
-  --pf-shadow: 0 1px 2px rgba(27, 24, 21, .06), 0 8px 24px rgba(27, 24, 21, .05);
+  --pf-focus: #2A160D;
+  --pf-shadow: 0 1px 2px rgba(42, 22, 13, .08), 0 8px 24px rgba(42, 22, 13, .06);
 
   --pf-space-1: .25rem;
   --pf-space-2: .5rem;
@@ -61,6 +73,7 @@ export const THEME_CSS = `
              "Helvetica Neue", Arial, sans-serif;
   --pf-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
              "Liberation Mono", monospace;
+  --pf-serif: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
 }
 
 /* Light is the base, so a reader whose system states no preference gets a
@@ -69,36 +82,38 @@ export const THEME_CSS = `
    and both win over the media query because they are on the element. */
 :root[data-pf-theme="dark"] {
   color-scheme: dark;
-  --pf-page: #14120F;
-  --pf-surface: #1D1A16;
-  --pf-surface-2: #262218;
-  --pf-ink: #F2EEE9;
-  --pf-muted: #B0A79E;
-  --pf-line: #35302A;
-  --pf-line-strong: #7A7168;
+  --pf-page: #17191C;
+  --pf-surface: #1F2226;
+  --pf-surface-2: #23272C;
+  --pf-ink: #F7F0DF;
+  --pf-muted: #CDC2AA;
+  --pf-line: #33383F;
+  --pf-line-strong: #8A7E68;
   --pf-accent: #E0611F;
   --pf-accent-ink: #1B1815;
   --pf-link: #F0A97E;
   --pf-ok: #6FD39B;
   --pf-no: #F09085;
+  --pf-focus: #FFF2A8;
   --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
 }
 
 @media (prefers-color-scheme: dark) {
   :root[data-pf-theme="auto"] {
     color-scheme: dark;
-    --pf-page: #14120F;
-    --pf-surface: #1D1A16;
-    --pf-surface-2: #262218;
-    --pf-ink: #F2EEE9;
-    --pf-muted: #B0A79E;
-    --pf-line: #35302A;
-    --pf-line-strong: #7A7168;
+    --pf-page: #17191C;
+    --pf-surface: #1F2226;
+    --pf-surface-2: #23272C;
+    --pf-ink: #F7F0DF;
+    --pf-muted: #CDC2AA;
+    --pf-line: #33383F;
+    --pf-line-strong: #8A7E68;
     --pf-accent: #E0611F;
     --pf-accent-ink: #1B1815;
     --pf-link: #F0A97E;
     --pf-ok: #6FD39B;
     --pf-no: #F09085;
+    --pf-focus: #FFF2A8;
     --pf-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .3);
   }
 }
@@ -123,6 +138,9 @@ h1, h2, h3, h4 {
   margin: 0;
   font-weight: 650;
 }
+/* Names and headings take the serif; everything read for more than a moment
+   stays in the system sans. Two roles, no web font, no network request. */
+h1, h2 { font-family: var(--pf-serif); letter-spacing: -.01em; }
 
 p { margin: 0 0 var(--pf-space-4); max-width: var(--pf-measure); }
 p:last-child { margin-bottom: 0; }
@@ -131,7 +149,7 @@ a { color: var(--pf-link); text-underline-offset: .18em; }
 a:hover { text-decoration-thickness: 2px; }
 
 :focus-visible {
-  outline: 3px solid var(--pf-accent);
+  outline: 3px solid var(--pf-focus);
   outline-offset: 2px;
   border-radius: var(--pf-radius-sm);
 }
@@ -305,10 +323,10 @@ code, pre, kbd { font-family: var(--pf-mono); font-size: .875em; }
 .pf-module { margin-bottom: var(--pf-space-8); scroll-margin-top: 128px; }
 .pf-module-head { margin-bottom: var(--pf-space-5); }
 /* --pf-link, not --pf-accent. This is 11px text, so WCAG 2.1 AA wants 4.5:1
-   and the accent gives 3.47:1 on the light page — it clears the 3:1 non-text
-   bar the mark and the focus ring rely on, and fails as soon as it becomes
-   words. --pf-link is the accent darkened for exactly this: 5.25:1 light,
-   9.51:1 dark. Any future accent-coloured *text* takes this token. */
+   and the accent gives 3.22:1 on the light page — it clears the 3:1 non-text
+   bar the mark relies on, and fails as soon as it becomes words. --pf-link is
+   the accent darkened for exactly this: 5.98:1 light, 8.96:1 dark. Any future
+   accent-coloured *text* takes this token. */
 .pf-module-index {
   font-size: .6875rem;
   font-weight: 700;

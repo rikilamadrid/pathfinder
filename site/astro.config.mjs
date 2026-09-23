@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import { buildSidebar } from './src/nav.mjs';
+import { codeThemes } from './src/code-themes.mjs';
 
 const skillsDir = fileURLToPath(new URL('../skills', import.meta.url));
 const contextDir = fileURLToPath(new URL('../context', import.meta.url));
@@ -31,9 +32,11 @@ export default defineConfig({
         'One disciplined AI delivery workflow, with human-in-the-loop and orchestrator modes — keeping consequential decisions human.',
       logo: {
         // Imported straight from the repository's single `assets/` directory
-        // and processed by Vite. No copy exists anywhere under `site/`.
-        src: '../assets/logo-wordmark.svg',
-        replacesTitle: true,
+        // and processed by Vite. No copy exists anywhere under `site/`. This is
+        // the mark alone: the header sets the name in type, in `SiteTitle`,
+        // and the wordmark file stays the README's and the social card's.
+        src: '../assets/logo.svg',
+        alt: '',
       },
       favicon: '/favicon.svg',
       head: [
@@ -71,11 +74,24 @@ export default defineConfig({
         { tag: 'meta', attrs: { name: 'apple-mobile-web-app-title', content: 'Pathfinder' } },
       ],
       customCss: ['./src/styles/brand.css'],
+      // Code blocks: Starlight's bundled syntax themes are cool grey and blue,
+      // the only saturated cool hues the site would otherwise carry. The two
+      // themes in `src/code-themes.mjs` restate the palette for tokens; the
+      // frames, tab bars and copy buttons keep taking Starlight's variables,
+      // so `brand.css` still owns everything around the code.
+      expressiveCode: {
+        themes: codeThemes,
+        useStarlightUiThemeColors: true,
+      },
       // Wraps Starlight's own footer rather than replacing it — see the
       // component. A reader who lands on a deep page from a search result
       // otherwise has no link back to the repository the site is generated from.
       components: {
         Footer: './src/components/Footer.astro',
+        // The header lockup: mark in a well, name in type, plate line with the
+        // maker's serial. Starlight's default renders an image and a hidden
+        // name, and no CSS can add the text — see the component.
+        SiteTitle: './src/components/SiteTitle.astro',
       },
       social: [
         {

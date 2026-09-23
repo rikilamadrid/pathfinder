@@ -2,7 +2,7 @@
  * The diagram's own colours, measured rather than eyeballed.
  *
  * `theme.mjs` records measured ratios for the lesson's surfaces and explains
- * why `--pf-accent` may take a rule or a fill but never a word: at 3.47:1 on
+ * why `--pf-accent` may take a rule or a fill but never a word: at 3.22:1 on
  * the light page it clears the boundary bar and misses the text one. Diagrams
  * introduced surfaces that note does not cover — node strokes, edge lines,
  * captions on a boundary fill — and inheriting the tokens is not the same as

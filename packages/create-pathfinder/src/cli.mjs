@@ -1081,6 +1081,16 @@ const TAGLINE = "trail markers for AI-assisted work";
 const SIGN_OFF = "Trail's marked. The rest is yours.";
 
 /**
+ * The maker's serial. Every Pathfinder surface carries it — the social card,
+ * the READMEs, this block — and it is the one mark the four products of the
+ * ecosystem share: one workshop, 047, separate serials per tool. It is a label,
+ * not a flourish, so it is printed dim beside the version and never coloured.
+ * The value is stated once here and once in `assets/README.md`; if they ever
+ * disagree, the README is the record.
+ */
+const SERIAL = "PF-047";
+
+/**
  * Who is running, said once, at the top.
  *
  * The requirement is that a reader recognises this tool before parsing the word
@@ -1129,7 +1139,7 @@ export function formatIdentity({ theme = createTheme(), version = VERSION } = {}
       "",
       ...markBlock(theme, [
         "",
-        `${theme.brand("P A T H F I N D E R")}  ${theme.dim(`v${version}`)}`,
+        `${theme.brand("P A T H F I N D E R")}  ${theme.dim(`v${version} ${theme.glyph.info} ${SERIAL}`)}`,
         theme.dim(TAGLINE),
         "",
       ]),

@@ -244,8 +244,16 @@ export function buildSidebar({ skillsDir, contextDir }) {
     { label: 'Guides', items: GUIDES },
     { label: 'Concepts', items: CONCEPTS },
     // The index sits above the groups it summarizes, so "which skill do I need?"
-    // is answerable before scrolling twenty names.
-    { label: 'Skill reference', items: [{ label: 'All skills', link: '/skills/' }] },
+    // is answerable before scrolling twenty names. Configuration sits beside it
+    // because it is the same kind of page — a table to look something up in,
+    // not a guide to read through — and the only one of its kind.
+    {
+      label: 'Reference',
+      items: [
+        { label: 'All skills', link: '/skills/' },
+        { label: 'Configuration', link: '/reference/configuration/' },
+      ],
+    },
     ...groups,
     {
       label: 'Project context',

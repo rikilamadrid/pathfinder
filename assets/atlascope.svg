@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 560" width="560" height="560">
+  <title>The Pathfinder atlascope</title>
+  <desc>Pathfinder's hero object on a transparent ground: a brass-cased cobalt
+  instrument whose paper well carries the four-bar trail mark and a route
+  needle at bearing 032. The geometry is the atlascope from og-image.svg,
+  literal for literal, moved by one translate so the two can never drift
+  apart. The brass chassis is the object's boundary against the page: 3.83:1
+  on quiet paper, 4.16:1 on the night ground, so one file serves both themes.
+  Hand-authored, no font reference, no raster.</desc>
+
+  <defs>
+    <!-- Single light source, upper-left. Every highlight and shadow agrees. -->
+    <linearGradient id="brass" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#C8863A"/>
+      <stop offset="0.55" stop-color="#A96E2D"/>
+      <stop offset="1" stop-color="#6E4519"/>
+    </linearGradient>
+    <linearGradient id="enamel" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#1A5A80"/>
+      <stop offset="0.6" stop-color="#12496B"/>
+      <stop offset="1" stop-color="#0B3450"/>
+    </linearGradient>
+    <clipPath id="well"><circle cx="940" cy="330" r="112"/></clipPath>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+    <filter id="contact" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+  </defs>
+
+  <!-- og-image.svg draws the instrument centred on 940,330. This canvas centres
+       it on 280,280 with room for the cast shadow; nothing else changes. -->
+  <g transform="translate(-660 -50)">
+  <!-- ===== The atlascope ===== centre 940,330 -->
+
+  <!-- Cast shadow: black at low alpha, offset down-right from the light. -->
+  <ellipse cx="954" cy="352" rx="230" ry="222" fill="#000000" opacity="0.20" filter="url(#soft)"/>
+  <ellipse cx="944" cy="336" rx="230" ry="228" fill="#000000" opacity="0.28" filter="url(#contact)"/>
+
+  <!-- Chassis: brass ring. -->
+  <circle cx="940" cy="330" r="228" fill="url(#brass)"/>
+  <!-- machined top rim -->
+  <circle cx="940" cy="330" r="226" fill="none" stroke="#FFF7E6" stroke-opacity="0.32" stroke-width="2"/>
+  <!-- ring seam at 7 o'clock: evidence that it was assembled -->
+  <path d="M832 516 L822 526" stroke="#553316" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- Thumb-rest wear at 3 o'clock: brass worn bright where a hand has held it. -->
+  <path d="M1147.6 278.2 A214 214 0 0 1 1147.6 381.8" fill="none" stroke="#E2B26A" stroke-opacity="0.55" stroke-width="18" stroke-linecap="round"/>
+
+  <!-- Enamel face. Shadow line beneath the brass, then the cobalt. -->
+  <circle cx="940" cy="330" r="200" fill="#000000" opacity="0.45"/>
+  <circle cx="940" cy="330" r="197" fill="url(#enamel)"/>
+  <circle cx="940" cy="330" r="195" fill="none" stroke="#FFF7E6" stroke-opacity="0.18" stroke-width="1.5"/>
+
+  <!-- Twelve detents on the enamel. Cream on cobalt: 7.74:1. Cardinal ticks longer. -->
+  <g fill="none" stroke="#F2E7C0" stroke-width="3" stroke-linecap="round">
+    <path d="M940.0 154.0 L940.0 140.0"/>
+    <path d="M1028.0 177.6 L1033.0 168.9"/>
+    <path d="M1092.4 242.0 L1101.1 237.0"/>
+    <path d="M1116.0 330.0 L1130.0 330.0"/>
+    <path d="M1092.4 418.0 L1101.1 423.0"/>
+    <path d="M1028.0 482.4 L1033.0 491.1"/>
+    <path d="M940.0 506.0 L940.0 520.0"/>
+    <path d="M852.0 482.4 L847.0 491.1"/>
+    <path d="M787.6 418.0 L778.9 423.0"/>
+    <path d="M764.0 330.0 L750.0 330.0"/>
+    <path d="M787.6 242.0 L778.9 237.0"/>
+    <path d="M852.0 177.6 L847.0 168.9"/>
+  </g>
+
+  <!-- Inner bezel. -->
+  <circle cx="940" cy="330" r="124" fill="url(#brass)"/>
+  <circle cx="940" cy="330" r="122" fill="none" stroke="#FFF7E6" stroke-opacity="0.3" stroke-width="1.5"/>
+
+  <!-- Paper well: recessed, so its rim carries a shadow ring. Paper vs cobalt 8.66:1. -->
+  <circle cx="940" cy="330" r="116" fill="#FBF3DE"/>
+  <circle cx="940" cy="330" r="113" fill="none" stroke="#000000" stroke-opacity="0.28" stroke-width="6"/>
+  <circle cx="940" cy="330" r="109" fill="none" stroke="#000000" stroke-opacity="0.10" stroke-width="4"/>
+
+  <!-- Map on the paper: faint grid and one contour, clipped to the well. -->
+  <g clip-path="url(#well)" fill="none" stroke="#553316" stroke-opacity="0.16" stroke-width="1">
+    <path d="M828 290 H1052 M828 330 H1052 M828 370 H1052 M828 410 H1052"/>
+    <path d="M900 218 V442 M940 218 V442 M980 218 V442 M1020 218 V442"/>
+    <path d="M846 396 C880 350 920 400 968 372 S1030 300 1052 318" stroke-opacity="0.3" stroke-dasharray="5 6"/>
+  </g>
+
+  <!-- The trail: logo.svg's four bars, geometry unchanged, scaled 2.9 onto the
+       paper. Blaze on paper well, non-text: 3.22:1 — no outline needed. -->
+  <g clip-path="url(#well)">
+    <g fill="#E0611F" transform="translate(840.6 309.6) scale(2.9)">
+      <rect x="4" y="23" width="24" height="6.4" rx="3.2" transform="rotate(-3 16 26.2)"/>
+      <rect x="7" y="14.6" width="18" height="6" rx="3" transform="rotate(4 16 17.6)"/>
+      <rect x="9.6" y="7" width="12.8" height="5.4" rx="2.7" transform="rotate(-6 16 9.7)"/>
+      <rect x="12.4" y="1" width="7.2" height="4.4" rx="2.2" transform="rotate(5 16 3.2)"/>
+    </g>
+  </g>
+
+  <!-- Penciled correction on the map: a struck coordinate. Muted ink on paper 8.38:1. -->
+  <g fill="none" stroke="#5C4227" stroke-width="2" stroke-linecap="round" clip-path="url(#well)">
+    <path d="M986 396 L998 408 M998 396 L986 408"/>
+    <path d="M1004 402 H1030" stroke-dasharray="3 4"/>
+  </g>
+
+  <!-- Route needle at bearing 032°, pivoting at the well's centre. It lies
+       wholly over the paper, so the tail is dark steel (Edge on paper 10.14:1)
+       and the blaze tip clears 3.22:1 as a non-text signal. Hairline edge keeps
+       the tip crisp against the paper. -->
+  <polygon points="995.1 241.8 945.9 333.7 934.1 326.3" fill="#E0611F" stroke="#553316" stroke-width="1"/>
+  <polygon points="918.8 363.9 934.1 326.3 945.9 333.7" fill="#553316"/>
+  <!-- Pivot: brass cap with a highlight. -->
+  <circle cx="940" cy="330" r="11" fill="url(#brass)"/>
+  <circle cx="940" cy="330" r="11" fill="none" stroke="#553316" stroke-width="1.5"/>
+  <circle cx="937" cy="327" r="3" fill="#FFF7E6" opacity="0.7"/>
+
+  <!-- Four fasteners on the chassis at 2, 5, 7 and 10 o'clock. The one at
+       5 o'clock is the repair: a slotted screw where the others are pins. -->
+  <g>
+    <circle cx="1125.3" cy="223.0" r="8" fill="#6E4519"/><circle cx="1125.3" cy="223.0" r="6" fill="url(#brass)"/><circle cx="1123.5" cy="221.2" r="2" fill="#FFF7E6" opacity="0.6"/>
+    <circle cx="754.7"  cy="223.0" r="8" fill="#6E4519"/><circle cx="754.7"  cy="223.0" r="6" fill="url(#brass)"/><circle cx="752.9"  cy="221.2" r="2" fill="#FFF7E6" opacity="0.6"/>
+    <circle cx="833.0"  cy="515.3" r="8" fill="#6E4519"/><circle cx="833.0"  cy="515.3" r="6" fill="url(#brass)"/><circle cx="831.2"  cy="513.5" r="2" fill="#FFF7E6" opacity="0.6"/>
+    <!-- the mismatched one -->
+    <circle cx="1047.0" cy="515.3" r="9" fill="#553316"/><circle cx="1047.0" cy="515.3" r="7" fill="#8C837A"/>
+    <path d="M1041.5 511.0 L1052.5 519.6" stroke="#2A160D" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  </g>
+</svg>

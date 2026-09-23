@@ -1,31 +1,225 @@
-/* Pathfinder brand accent for Starlight.
+/* Pathfinder's site adapter for Wonder Wagon.
  *
- * One colour, no theme variants — see `assets/README.md`. Blaze orange
- * #E0611F is the only hue in the mark because it clears WCAG 3:1 non-text
- * contrast on both a white page and a dark canvas, so the same value anchors
- * both themes here. The surrounding steps are lightness variations of it,
- * which Starlight uses for hover states, borders, and tinted backgrounds. */
+ * One canonical semantic layer, `--ww-*`, then Starlight's own variables are
+ * assigned from it. Starlight keeps owning `--sl-*`; this file only decides
+ * what they point at, which is what keeps the theme upgrade-safe — a Starlight
+ * release that adds a variable gets its default, and one that renames a class
+ * loses a cosmetic rule at most, never a colour.
+ *
+ * Every text and boundary pairing below was measured with the WCAG 2.x
+ * formula against the ground it actually sits on; the ratios are in the
+ * comments. Blaze orange #E0611F stays the mark's only colour and now works as
+ * signal — the active item, the needle, the trail — never as a ground. It
+ * clears 3:1 as a non-text mark on every ground here (3.22 page, 3.11 sidebar,
+ * 4.95 night) and is never used as text.
+ *
+ * Two environments, both first class. Starlight's default is dark and its
+ * light theme is opt-in via data-theme, so the night values sit on :root and
+ * the day values on the light selector, matching props.css. */
 
 :root {
-  --pathfinder-blaze: #e0611f;
+  /* ---- Wonder Wagon semantic layer: night ---- */
+  --ww-ground:        #17191C;  /* workshop night */
+  --ww-ground-side:   #1F2226;
+  --ww-ground-code:   #23272C;
+  --ww-ink:           #F7F0DF;  /* lamplight — 15.50 on ground */
+  --ww-ink-muted:     #CDC2AA;  /* 9.98 on ground, 9.04 on sidebar */
+  --ww-hairline:      #33383F;
+  --ww-hairline-shade:#3E444C;
+  --ww-signal:        #E0611F;  /* blaze — 4.95 on ground, non-text only */
+  --ww-link:          #F0A97E;  /* 8.96 on ground, 8.23 on accent-low */
+  --ww-accent:        #B34A13;  /* button ground; white on it 5.38 */
+  --ww-accent-low:    #3A1607;
+  --ww-focus:         #FFF2A8;  /* 15.53 on ground — pale ring in the dark */
+  --ww-metal:         #A96E2D;  /* brass — the hero's boundary, 4.16 on ground */
+  --ww-well:          #23272C;  /* a recess in the ground; blaze on it 4.22 */
+  --ww-well-shade:    rgb(0 0 0 / 0.55);   /* the recess's inner shadow, top edge */
+  --ww-well-light:    rgb(255 255 255 / 0.06); /* and the lit lip at its bottom */
+  --ww-signal-edge:   transparent;  /* blaze needs no edge on the night ground */
 
-  /* Dark theme (Starlight's default). */
-  --sl-color-accent-low: #3a1607;
-  --sl-color-accent: #b34a13;
-  --sl-color-accent-high: #f0a97e;
+  /* ---- Starlight assignments ---- */
+  --pathfinder-blaze: var(--ww-signal);
+  --sl-color-accent-low:  var(--ww-accent-low);
+  --sl-color-accent:      var(--ww-accent);
+  --sl-color-accent-high: var(--ww-link);
+  --sl-color-white:  var(--ww-ink);
+  --sl-color-gray-1: #E9E0CB;
+  --sl-color-gray-2: #DCD1B8;
+  --sl-color-gray-3: var(--ww-ink-muted);
+  --sl-color-gray-4: #8A7E68;   /* 4.42 on ground, non-text */
+  --sl-color-gray-5: #2A2E34;
+  --sl-color-gray-6: var(--ww-ground-code);
+  --sl-color-gray-7: var(--ww-ground-side);
+  --sl-color-black:  var(--ww-ground);
+  --sl-color-bg:            var(--ww-ground);
+  --sl-color-bg-nav:        var(--ww-ground);
+  --sl-color-bg-sidebar:    var(--ww-ground-side);
+  --sl-color-bg-inline-code:var(--ww-ground-code);
+  --sl-color-text:          var(--ww-ink);
+  --sl-color-text-accent:   var(--ww-link);
+  --sl-color-hairline-light:var(--ww-hairline);
+  --sl-color-hairline:      var(--ww-hairline);
+  --sl-color-hairline-shade:var(--ww-hairline-shade);
 }
 
 :root[data-theme='light'] {
-  --sl-color-accent-low: #fbdcc9;
-  --sl-color-accent: #b34a13;
-  --sl-color-accent-high: #57230a;
+  /* ---- Wonder Wagon semantic layer: day ---- */
+  --ww-ground:        #FBF3DE;  /* quiet paper — the reading ground */
+  --ww-ground-side:   #F9EFD6;  /* blaze clears 3.11 here */
+  --ww-ground-code:   #F1E3BF;
+  --ww-ink:           #2A160D;  /* 15.57 on ground, 15.05 on sidebar */
+  --ww-ink-muted:     #6E5740;  /* 6.12 on ground, 5.92 on sidebar */
+  --ww-hairline:      #D9C79C;
+  --ww-hairline-shade:#C9B48A;
+  --ww-signal:        #E0611F;  /* 3.22 on ground, non-text only */
+  --ww-link:          #9E3F0F;  /* 5.98 on ground, 5.39 sidebar, 5.10 accent-low */
+  --ww-accent:        #B34A13;
+  --ww-accent-low:    #FBDCC9;
+  --ww-focus:         #2A160D;  /* ink ring — a pale ring vanishes on paper (1.18) */
+  --ww-metal:         #A96E2D;  /* 3.83 on ground */
+  --ww-well:          #FFFAEB;  /* the paper under glass, brighter than the
+                                   field; blaze on it 3.41 — on the page
+                                   paper it would be 3.22 and on the code
+                                   ground only 2.79 */
+  --ww-well-shade:    rgb(85 51 22 / 0.22);  /* edge-coloured shadow on paper */
+  --ww-well-light:    rgb(255 255 255 / 0.7);
+  --ww-signal-edge:   #553316;  /* blaze on paper always carries a dark edge */
+
+  --sl-color-accent-low:  var(--ww-accent-low);
+  --sl-color-accent:      var(--ww-accent);
+  --sl-color-accent-high: #57230A;   /* 11.50 on ground */
+  --sl-color-white:  var(--ww-ink);
+  --sl-color-gray-1: #3A2415;
+  --sl-color-gray-2: #5C4227;
+  --sl-color-gray-3: var(--ww-ink-muted);
+  --sl-color-gray-4: #937A57;   /* 3.68 on ground, non-text */
+  --sl-color-gray-5: var(--ww-hairline);
+  --sl-color-gray-6: var(--ww-ground-code);
+  --sl-color-gray-7: var(--ww-ground-side);
+  --sl-color-black:  var(--ww-ground);
+  --sl-color-bg:            var(--ww-ground);
+  --sl-color-bg-nav:        var(--ww-ground);
+  --sl-color-bg-sidebar:    var(--ww-ground-side);
+  --sl-color-bg-inline-code:var(--ww-ground-code);
+  --sl-color-text:          var(--ww-ink);
+  --sl-color-text-accent:   var(--ww-link);
+  --sl-color-hairline-light:var(--ww-hairline);
+  --sl-color-hairline:      var(--ww-hairline);
+  --sl-color-hairline-shade:var(--ww-hairline-shade);
 }
 
-/* The wordmark is hand-drawn paths with no font reference, so it needs no
- * theme handling — but it does need room to breathe in the header. */
-.site-title img {
-  height: 1.5rem;
-  width: auto;
+/* ---- Type: three roles, no web fonts ----
+ * Working (system sans) is Starlight's default and stays the body. Engraved
+ * (a warm serif) is for names and headings only. Plate (mono, upper, tracked)
+ * is for labels on objects — here, the sidebar's group labels, which name the
+ * workflow loops. Body copy, tables and code never take Plate. */
+main h1,
+.sl-markdown-content :is(h2, h3, h4):not(:where(.not-content *)),
+.hero h1 {
+  font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+  letter-spacing: -0.01em;
+}
+
+/* Depends on Starlight's sidebar markup; if a release renames the class the
+ * labels fall back to Starlight's default weight and nothing else changes. */
+.sidebar-content .group-label .large {
+  font-family: var(--sl-font-mono);
+  font-size: var(--sl-text-2xs);
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* ---- Focus: visible on every control, in both environments ----
+ * The ring sits on whatever is behind the control, so it follows the ground:
+ * ink on paper, pale in the dark. One value cannot do both — pale on paper
+ * measures 1.18:1. */
+:focus-visible {
+  outline: 3px solid var(--ww-focus);
+  outline-offset: 3px;
+}
+
+/* ---- Quiet surfaces: reference tables ----
+ * Starlight lets a table scroll (`display: block; overflow: auto`) but wraps
+ * the code inside its cells anywhere, so a narrow first column shatters
+ * `execution-mode.md` into three-character fragments. A token is one word:
+ * keep it whole and let the table use the scroll container it already has. */
+.sl-markdown-content table code:not(:where(.not-content *)) {
+  white-space: nowrap;
+}
+
+/* ---- Header chrome ----
+ * The lockup lives in `components/SiteTitle.astro`; these rules make the rest
+ * of the bar the same surface it sits on. Both depend on Starlight's header
+ * markup and degrade to Starlight's defaults if a release renames a hook.
+ *
+ * The bar's bottom edge is a machined one: the hairline Starlight draws, plus a
+ * lit lip beneath it — a highlight on paper, a shadow after dark — so the bar
+ * reads as a plate over the page rather than a line across it. */
+header.header {
+  box-shadow: 0 1px 0 var(--ww-well-light);
+}
+
+/* The search field takes the same recess as the mark's well, so the header's
+ * two fittings agree. Starlight only draws the field from 50rem; below that
+ * the button is a bare icon and this rule matches nothing. */
+@media (min-width: 50rem) {
+  site-search button[data-open-modal] {
+    border-color: var(--ww-hairline);
+    border-radius: 0.375rem;
+    background-color: var(--ww-well);
+    color: var(--sl-color-gray-3);
+    box-shadow:
+      inset 0 1px 2px var(--ww-well-shade),
+      inset 0 -1px 0 var(--ww-well-light);
+  }
+  site-search button[data-open-modal]:hover,
+  site-search button[data-open-modal]:focus-visible {
+    border-color: var(--ww-hairline-shade);
+  }
+  /* The shortcut chip sat on the field's ground and vanishes now that the
+   * field is recessed; it becomes a small raised key. */
+  site-search button[data-open-modal] > kbd {
+    background-color: var(--ww-ground);
+    box-shadow: 0 0 0 1px var(--ww-hairline), 0 1px 0 var(--ww-hairline-shade);
+    border-radius: 0.25rem;
+  }
+}
+
+/* The mobile menu button is the one raised control on the bar: a disc of the
+ * page's ground with a hairline rim and Starlight's own shadow, in both
+ * environments. Starlight's default inverts it — a cream disc on the night
+ * ground — which is the loudest thing on the screen. */
+starlight-menu-button button {
+  background-color: var(--ww-ground-code);
+  color: var(--sl-color-text);
+  box-shadow: 0 0 0 1px var(--ww-hairline-shade), var(--sl-shadow-md);
+}
+starlight-menu-button[aria-expanded='true'] button {
+  background-color: var(--ww-hairline);
+  box-shadow: 0 0 0 1px var(--ww-hairline-shade);
+}
+
+/* The theme picker and the repository link are quiet controls: muted ink,
+ * full ink on hover, like the footer's links. Starlight gives them the link
+ * colour, which on this header reads as a third accent. Below 50rem Starlight
+ * moves the same two controls into the foot of the mobile menu, so the rule
+ * names both homes and the controls look the same wherever they sit. */
+:is(.right-group, .mobile-preferences) :is(starlight-theme-select label, .social-icons a) {
+  color: var(--sl-color-gray-3);
+}
+:is(.right-group, .mobile-preferences) :is(starlight-theme-select label:hover, .social-icons a:hover) {
+  color: var(--sl-color-text);
+  opacity: 1;
+}
+
+/* The hero object is the one place the landing page carries the brand's
+ * material language. Starlight's hero already scales its image; this only
+ * keeps the instrument from growing past the size its details were drawn for
+ * and lets the cast shadow in the SVG do the work a CSS shadow would fake. */
+.hero img {
+  max-width: min(100%, 26rem);
+  height: auto;
 }
 
 /* Splash pages carry neither a sidebar nor a table of contents, so Starlight
@@ -36,4 +230,8 @@
  * `<html>` by Starlight, so this reaches only the pages that need it. */
 [data-has-hero] .sl-markdown-content {
   max-width: 50rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero img { transition: none; }
 }
