@@ -53,7 +53,7 @@
     "prepublishOnly": "node scripts/publish-guard.mjs"
   },
   "devDependencies": {
-    "wonder-wagon-ui": "file:../../../wonder-wagon-ui/packages/foundation"
+    "wonder-wagon-ui": "file:../../wonder-wagon-ui/packages/foundation"
   },
   "publishConfig": {
     "access": "public"
