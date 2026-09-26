@@ -20,24 +20,6 @@ jobs:
           # shallow fetch has none, and the rule would silently skip.
           fetch-depth: 0
 
-      - name: Check out the Wonder Wagon CLI generator
-        uses: actions/checkout@v4
-        with:
-          repository: rikilamadrid/wonder-wagon-ui
-          # Decision U requires every consumer proof to name the immutable
-          # foundation revision it was generated and checked against.
-          ref: 2381be9fdfe2e2e84132134cf8335485d9b95967
-          path: wonder-wagon-ui
-
-      - name: Set up Bun for the generator build
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.2
-
-      - name: Build the React-free CLI generator
-        working-directory: wonder-wagon-ui
-        run: bun install --frozen-lockfile && bun run --filter wonder-wagon-ui build
-
       - name: Set up Node
         # Two validator rules run the installer rather than describing it:
         # copy-list-installer asks it what it would copy, and adapter-freshness
@@ -46,17 +28,17 @@ jobs:
         # to prevent — so this step must stay ahead of the validator.
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Validate kit structure
         run: python3 .github/scripts/validate-kit.py
 
       - name: Test the installer
         # The installer runtime remains dependency-free. This install exposes
-        # only the pinned, locally built generator used by the drift check; the
-        # generated module committed under src/ is what the package ships.
+        # only the exact registry version of the generator used by the drift check;
+        # the generated module committed under src/ is what the package ships.
         working-directory: packages/create-pathfinder
-        run: npm install --ignore-scripts --no-package-lock --no-audit --no-fund && npm test
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm test
 
       - name: Test the render-artifact engine
         # The engine ships under skills/; its tests live here so an installed
