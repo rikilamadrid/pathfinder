@@ -70,6 +70,73 @@ function strokeWidths(block, theme) {
     .map((found) => found[0].length);
 }
 
+/** Feature 21's formatter, frozen here as the byte oracle for Decision U. */
+function legacyIdentity(theme, version = VERSION) {
+  const rows = [
+    { indent: 3, width: 3 },
+    { indent: 2, width: 5 },
+    { indent: 1, width: 7 },
+    { indent: 0, width: 9 },
+  ];
+  const beside = [
+    "",
+    `${theme.brand("P A T H F I N D E R")}  ${theme.dim(`v${version} ${theme.glyph.info} PF-047`)}`,
+    theme.dim("trail markers for AI-assisted work"),
+    "",
+  ];
+  const lines = rows.map((row, index) => {
+    const drawn = " ".repeat(row.indent) + theme.glyph.rule.repeat(row.width);
+    const text = beside[index] ?? "";
+    const pad = " ".repeat(13 - row.indent - row.width);
+    return `  ${theme.brand(drawn)}${text ? pad + text : ""}`;
+  });
+  return ["", ...lines].join("\n") + "\n";
+}
+
+describe("Decision U — Pathfinder byte-identity gate", () => {
+  it("matches the pre-foundation formatter at every shipped colour and glyph tier", () => {
+    const inputs = [
+      { env: { LANG: "en_US.UTF-8", COLORTERM: "truecolor" }, platform: "linux", isTTY: true },
+      { env: { LANG: "en_US.UTF-8", TERM: "xterm-256color" }, platform: "linux", isTTY: true },
+      { env: { LANG: "en_US.UTF-8", TERM: "xterm" }, platform: "linux", isTTY: true },
+      { env: { LANG: "en_US.UTF-8", NO_COLOR: "1" }, platform: "linux", isTTY: true },
+      { env: { LANG: "C", NO_COLOR: "1" }, platform: "linux", isTTY: true },
+      { env: {}, platform: "linux", isTTY: false },
+    ];
+
+    for (const input of inputs) {
+      const theme = createTheme(input);
+      assert.equal(formatIdentity({ theme }), legacyIdentity(theme), JSON.stringify(input));
+    }
+  });
+
+  it("adds the approved explicit ASCII override without disabling colour", () => {
+    const theme = createTheme({
+      env: { LANG: "en_US.UTF-8", COLORTERM: "truecolor", WW_ASCII: "1" },
+      platform: "linux",
+      isTTY: true,
+    });
+    const block = formatIdentity({ theme });
+    assert.equal(theme.colorDepth, 24);
+    assert.match(block, /===/);
+    assert.ok(block.includes("\u001B[38;2;224;97;31m"));
+    assert.ok(!block.includes("━"));
+  });
+
+  it("uses the shared line form only when the full block would wrap", () => {
+    const theme = createTheme({
+      env: { LANG: "en_US.UTF-8", COLORTERM: "truecolor" },
+      platform: "linux",
+      isTTY: true,
+      columns: 32,
+    });
+    const identity = formatIdentity({ theme });
+    assert.match(identity, WORDMARK);
+    assert.ok(!identity.includes("\n"));
+    assert.ok(!identity.includes("━━━"));
+  });
+});
+
 describe("formatIdentity — the required devices", () => {
   it("carries a wordmark, the mark, and a version", () => {
     const theme = createTheme(utf8Tty);

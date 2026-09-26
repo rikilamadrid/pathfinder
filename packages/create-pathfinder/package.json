@@ -43,12 +43,17 @@
     "templates"
   ],
   "scripts": {
-    "test": "node --test",
+    "test": "node scripts/wonder-wagon/sync-cli-identity.mjs --check && node --test",
+    "wonder-wagon:sync": "node scripts/wonder-wagon/sync-cli-identity.mjs",
+    "wonder-wagon:check": "node scripts/wonder-wagon/sync-cli-identity.mjs --check",
     "stage": "node scripts/stage-kit.mjs",
     "unstage": "node scripts/stage-kit.mjs --clean",
     "prepack": "node scripts/stage-kit.mjs",
     "postpack": "node scripts/stage-kit.mjs --clean",
     "prepublishOnly": "node scripts/publish-guard.mjs"
+  },
+  "devDependencies": {
+    "wonder-wagon-ui": "file:../../wonder-wagon-ui/packages/foundation"
   },
   "publishConfig": {
     "access": "public"

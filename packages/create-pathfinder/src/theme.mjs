@@ -38,6 +38,7 @@
  */
 
 import { clip, width } from "./cells.mjs";
+import { detectTerminal } from "./cli-identity.mjs";
 
 /**
  * SGR codes, written out rather than depended on.
@@ -201,22 +202,17 @@ const GLYPHS = Object.freeze({
  * everywhere, while a wrong "yes" leaves mojibake in the first output a new
  * user ever sees from this tool.
  *
- * Moved from `cli.mjs` unchanged. The rules are not revisited here — a rewrite
- * would be a behaviour change wearing a refactor's clothes.
+ * Decision U moved the rules into the generated Wonder Wagon module. This
+ * wrapper keeps the rest of Pathfinder's theme API stable.
  */
 function detectUnicode(env, platform) {
-  if (platform === "win32") {
-    return Boolean(env.WT_SESSION) || env.TERM_PROGRAM === "vscode";
-  }
-  const locale = env.LC_ALL || env.LC_CTYPE || env.LANG || "";
-  return /utf-?8/i.test(locale);
+  return detectTerminal({ env, isTTY: false, platform }).unicode;
 }
 
 /**
  * May this run emit colour?
  *
- * The order of these checks is the whole answer, so it is written as a sequence
- * of refusals ending in the default:
+ * The shared generated detector applies this sequence of refusals:
  *
  * 1. `FORCE_COLOR=0` is an explicit "no" and outranks everything, including a
  *    terminal that would otherwise qualify.
@@ -229,11 +225,7 @@ function detectUnicode(env, platform) {
  * 5. Otherwise: colour if this is a terminal.
  */
 function detectColor(env, isTTY) {
-  if (env.FORCE_COLOR === "0") return false;
-  if (env.NO_COLOR !== undefined) return false;
-  if (env.TERM === "dumb") return false;
-  if (env.FORCE_COLOR !== undefined) return true;
-  return isTTY;
+  return detectTerminal({ env, isTTY }).depth !== 0;
 }
 
 /**
@@ -245,7 +237,8 @@ function detectColor(env, isTTY) {
  * different rendering. Exactly one consumer exists, `brand`, and if a severity
  * ever reads this value something has gone wrong upstream.
  *
- * Answered only from what the environment volunteers. Nothing is probed, no
+ * Answered by the shared generated detector from what the environment
+ * volunteers. Nothing is probed, no
  * escape sequence is written and read back, and no reply is waited for: a
  * capability query is a round trip with a terminal that may never answer, and
  * this module is not allowed to block or to hold state.
@@ -271,17 +264,7 @@ function detectColor(env, isTTY) {
  */
 function detectColorDepth(env, color) {
   if (!color) return 0;
-  if (env.FORCE_COLOR === "3") return 24;
-  if (env.FORCE_COLOR === "2") return 8;
-
-  const colorterm = env.COLORTERM || "";
-  if (/^(truecolor|24bit)$/i.test(colorterm)) return 24;
-
-  const term = env.TERM || "";
-  if (/-direct$/i.test(term)) return 24;
-  if (/256color/i.test(term)) return 8;
-
-  return 4;
+  return detectTerminal({ env, isTTY: true }).depth;
 }
 
 /**
