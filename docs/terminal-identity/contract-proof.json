@@ -1,0 +1,597 @@
+{
+  "baseline": "ab3c0d654e3f6655ed9b12cb6d7f279909b7de85",
+  "comparisons": 42,
+  "allEqual": true,
+  "results": [
+    {
+      "args": [
+        "--version"
+      ],
+      "env": {},
+      "exitCode": 0,
+      "stdoutBytes": 6,
+      "stderrBytes": 0,
+      "stdoutSHA256": "d4e4d4e812e1dafc4e760f5ee12c48ef76f8af41d27cbf3bf2ff065505b9cfe6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--help"
+      ],
+      "env": {},
+      "exitCode": 0,
+      "stdoutBytes": 2774,
+      "stderrBytes": 0,
+      "stdoutSHA256": "c9b26e2062b970b81f795c265891d010b5ffc36df393d7c9627f1ce33a8e4725",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--unknown"
+      ],
+      "env": {},
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2821,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "2f45e3863cd5b0179465b7d5e480029bf9d8c4782b5cd35e22c67a83f61f6cb7",
+      "equal": true
+    },
+    {
+      "args": [
+        "--json"
+      ],
+      "env": {},
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2818,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "fbca5f9e7e31b3e8e555f3715acf2944f2ce3f2ff25375f682009774a2f44533",
+      "equal": true
+    },
+    {
+      "args": [
+        "--dry-run",
+        "--yes"
+      ],
+      "env": {},
+      "exitCode": 0,
+      "stdoutBytes": 349,
+      "stderrBytes": 0,
+      "stdoutSHA256": "a339a5a9fb70937c36797e355e988311430a91f6836b34af35832060560052a6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--no-git-init",
+        "--yes"
+      ],
+      "env": {},
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stderrBytes": 357,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "0901226d286290fe0da61a7326419236a086626b827e759b7347640139b2dda7",
+      "equal": true
+    },
+    {
+      "args": [
+        "--version"
+      ],
+      "env": {
+        "NO_COLOR": "1"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 6,
+      "stderrBytes": 0,
+      "stdoutSHA256": "d4e4d4e812e1dafc4e760f5ee12c48ef76f8af41d27cbf3bf2ff065505b9cfe6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--help"
+      ],
+      "env": {
+        "NO_COLOR": "1"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 2774,
+      "stderrBytes": 0,
+      "stdoutSHA256": "c9b26e2062b970b81f795c265891d010b5ffc36df393d7c9627f1ce33a8e4725",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--unknown"
+      ],
+      "env": {
+        "NO_COLOR": "1"
+      },
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2821,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "2f45e3863cd5b0179465b7d5e480029bf9d8c4782b5cd35e22c67a83f61f6cb7",
+      "equal": true
+    },
+    {
+      "args": [
+        "--json"
+      ],
+      "env": {
+        "NO_COLOR": "1"
+      },
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2818,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "fbca5f9e7e31b3e8e555f3715acf2944f2ce3f2ff25375f682009774a2f44533",
+      "equal": true
+    },
+    {
+      "args": [
+        "--dry-run",
+        "--yes"
+      ],
+      "env": {
+        "NO_COLOR": "1"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 349,
+      "stderrBytes": 0,
+      "stdoutSHA256": "a339a5a9fb70937c36797e355e988311430a91f6836b34af35832060560052a6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--no-git-init",
+        "--yes"
+      ],
+      "env": {
+        "NO_COLOR": "1"
+      },
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stderrBytes": 357,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "0901226d286290fe0da61a7326419236a086626b827e759b7347640139b2dda7",
+      "equal": true
+    },
+    {
+      "args": [
+        "--version"
+      ],
+      "env": {
+        "WW_ASCII": "1"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 6,
+      "stderrBytes": 0,
+      "stdoutSHA256": "d4e4d4e812e1dafc4e760f5ee12c48ef76f8af41d27cbf3bf2ff065505b9cfe6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--help"
+      ],
+      "env": {
+        "WW_ASCII": "1"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 2774,
+      "stderrBytes": 0,
+      "stdoutSHA256": "c9b26e2062b970b81f795c265891d010b5ffc36df393d7c9627f1ce33a8e4725",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--unknown"
+      ],
+      "env": {
+        "WW_ASCII": "1"
+      },
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2821,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "2f45e3863cd5b0179465b7d5e480029bf9d8c4782b5cd35e22c67a83f61f6cb7",
+      "equal": true
+    },
+    {
+      "args": [
+        "--json"
+      ],
+      "env": {
+        "WW_ASCII": "1"
+      },
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2818,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "fbca5f9e7e31b3e8e555f3715acf2944f2ce3f2ff25375f682009774a2f44533",
+      "equal": true
+    },
+    {
+      "args": [
+        "--dry-run",
+        "--yes"
+      ],
+      "env": {
+        "WW_ASCII": "1"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 346,
+      "stderrBytes": 0,
+      "stdoutSHA256": "33af9ee9e42d4a81b95d50328e15bde1e214c21d08adbee371c7dc5d0ecd0fc4",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--no-git-init",
+        "--yes"
+      ],
+      "env": {
+        "WW_ASCII": "1"
+      },
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stderrBytes": 357,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "0901226d286290fe0da61a7326419236a086626b827e759b7347640139b2dda7",
+      "equal": true
+    },
+    {
+      "args": [
+        "--version"
+      ],
+      "env": {
+        "TERM": "dumb"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 6,
+      "stderrBytes": 0,
+      "stdoutSHA256": "d4e4d4e812e1dafc4e760f5ee12c48ef76f8af41d27cbf3bf2ff065505b9cfe6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--help"
+      ],
+      "env": {
+        "TERM": "dumb"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 2774,
+      "stderrBytes": 0,
+      "stdoutSHA256": "c9b26e2062b970b81f795c265891d010b5ffc36df393d7c9627f1ce33a8e4725",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--unknown"
+      ],
+      "env": {
+        "TERM": "dumb"
+      },
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2821,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "2f45e3863cd5b0179465b7d5e480029bf9d8c4782b5cd35e22c67a83f61f6cb7",
+      "equal": true
+    },
+    {
+      "args": [
+        "--json"
+      ],
+      "env": {
+        "TERM": "dumb"
+      },
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2818,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "fbca5f9e7e31b3e8e555f3715acf2944f2ce3f2ff25375f682009774a2f44533",
+      "equal": true
+    },
+    {
+      "args": [
+        "--dry-run",
+        "--yes"
+      ],
+      "env": {
+        "TERM": "dumb"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 349,
+      "stderrBytes": 0,
+      "stdoutSHA256": "a339a5a9fb70937c36797e355e988311430a91f6836b34af35832060560052a6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--no-git-init",
+        "--yes"
+      ],
+      "env": {
+        "TERM": "dumb"
+      },
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stderrBytes": 357,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "0901226d286290fe0da61a7326419236a086626b827e759b7347640139b2dda7",
+      "equal": true
+    },
+    {
+      "args": [
+        "--version"
+      ],
+      "env": {
+        "FORCE_COLOR": "3"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 6,
+      "stderrBytes": 0,
+      "stdoutSHA256": "d4e4d4e812e1dafc4e760f5ee12c48ef76f8af41d27cbf3bf2ff065505b9cfe6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--help"
+      ],
+      "env": {
+        "FORCE_COLOR": "3"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 2774,
+      "stderrBytes": 0,
+      "stdoutSHA256": "c9b26e2062b970b81f795c265891d010b5ffc36df393d7c9627f1ce33a8e4725",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--unknown"
+      ],
+      "env": {
+        "FORCE_COLOR": "3"
+      },
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2821,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "2f45e3863cd5b0179465b7d5e480029bf9d8c4782b5cd35e22c67a83f61f6cb7",
+      "equal": true
+    },
+    {
+      "args": [
+        "--json"
+      ],
+      "env": {
+        "FORCE_COLOR": "3"
+      },
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2818,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "fbca5f9e7e31b3e8e555f3715acf2944f2ce3f2ff25375f682009774a2f44533",
+      "equal": true
+    },
+    {
+      "args": [
+        "--dry-run",
+        "--yes"
+      ],
+      "env": {
+        "FORCE_COLOR": "3"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 349,
+      "stderrBytes": 0,
+      "stdoutSHA256": "a339a5a9fb70937c36797e355e988311430a91f6836b34af35832060560052a6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--no-git-init",
+        "--yes"
+      ],
+      "env": {
+        "FORCE_COLOR": "3"
+      },
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stderrBytes": 357,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "0901226d286290fe0da61a7326419236a086626b827e759b7347640139b2dda7",
+      "equal": true
+    },
+    {
+      "args": [
+        "--version"
+      ],
+      "env": {
+        "COLORTERM": "truecolor"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 6,
+      "stderrBytes": 0,
+      "stdoutSHA256": "d4e4d4e812e1dafc4e760f5ee12c48ef76f8af41d27cbf3bf2ff065505b9cfe6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--help"
+      ],
+      "env": {
+        "COLORTERM": "truecolor"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 2774,
+      "stderrBytes": 0,
+      "stdoutSHA256": "c9b26e2062b970b81f795c265891d010b5ffc36df393d7c9627f1ce33a8e4725",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--unknown"
+      ],
+      "env": {
+        "COLORTERM": "truecolor"
+      },
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2821,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "2f45e3863cd5b0179465b7d5e480029bf9d8c4782b5cd35e22c67a83f61f6cb7",
+      "equal": true
+    },
+    {
+      "args": [
+        "--json"
+      ],
+      "env": {
+        "COLORTERM": "truecolor"
+      },
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2818,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "fbca5f9e7e31b3e8e555f3715acf2944f2ce3f2ff25375f682009774a2f44533",
+      "equal": true
+    },
+    {
+      "args": [
+        "--dry-run",
+        "--yes"
+      ],
+      "env": {
+        "COLORTERM": "truecolor"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 349,
+      "stderrBytes": 0,
+      "stdoutSHA256": "a339a5a9fb70937c36797e355e988311430a91f6836b34af35832060560052a6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--no-git-init",
+        "--yes"
+      ],
+      "env": {
+        "COLORTERM": "truecolor"
+      },
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stderrBytes": 357,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "0901226d286290fe0da61a7326419236a086626b827e759b7347640139b2dda7",
+      "equal": true
+    },
+    {
+      "args": [
+        "--version"
+      ],
+      "env": {
+        "TERM": "xterm-256color"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 6,
+      "stderrBytes": 0,
+      "stdoutSHA256": "d4e4d4e812e1dafc4e760f5ee12c48ef76f8af41d27cbf3bf2ff065505b9cfe6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--help"
+      ],
+      "env": {
+        "TERM": "xterm-256color"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 2774,
+      "stderrBytes": 0,
+      "stdoutSHA256": "c9b26e2062b970b81f795c265891d010b5ffc36df393d7c9627f1ce33a8e4725",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--unknown"
+      ],
+      "env": {
+        "TERM": "xterm-256color"
+      },
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2821,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "2f45e3863cd5b0179465b7d5e480029bf9d8c4782b5cd35e22c67a83f61f6cb7",
+      "equal": true
+    },
+    {
+      "args": [
+        "--json"
+      ],
+      "env": {
+        "TERM": "xterm-256color"
+      },
+      "exitCode": 2,
+      "stdoutBytes": 0,
+      "stderrBytes": 2818,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "fbca5f9e7e31b3e8e555f3715acf2944f2ce3f2ff25375f682009774a2f44533",
+      "equal": true
+    },
+    {
+      "args": [
+        "--dry-run",
+        "--yes"
+      ],
+      "env": {
+        "TERM": "xterm-256color"
+      },
+      "exitCode": 0,
+      "stdoutBytes": 349,
+      "stderrBytes": 0,
+      "stdoutSHA256": "a339a5a9fb70937c36797e355e988311430a91f6836b34af35832060560052a6",
+      "stderrSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "equal": true
+    },
+    {
+      "args": [
+        "--no-git-init",
+        "--yes"
+      ],
+      "env": {
+        "TERM": "xterm-256color"
+      },
+      "exitCode": 1,
+      "stdoutBytes": 0,
+      "stderrBytes": 357,
+      "stdoutSHA256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stderrSHA256": "0901226d286290fe0da61a7326419236a086626b827e759b7347640139b2dda7",
+      "equal": true
+    }
+  ]
+}

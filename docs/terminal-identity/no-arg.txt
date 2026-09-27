@@ -1,0 +1,23 @@
+
+     ━━━
+    ━━━━━      P A T H F I N D E R  v4.4.0 · PF-047
+   ━━━━━━━     trail markers for AI-assisted work
+  ━━━━━━━━━
+
+  🔍  ENVIRONMENT
+  │  · No Git repository here
+  │  ✓ Tools detected: Claude Code, Codex, VS Code, Cursor (noted, not configured)
+
+Pathfinder installs into version control so you can review what it wrote
+and undo it. It will not touch an existing history.
+
+? Initialize a Git repository here? [Y/n] n
+
+Nothing was installed.
+
+Pathfinder writes the whole kit into your project. Without version
+control there is no way to review or undo that, so it will not run
+outside a repository.
+
+Run `git init` here yourself and try again, or cd into an existing
+repository.

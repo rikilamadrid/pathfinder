@@ -1,0 +1,50 @@
+Usage: npx create-pathfinder [options]
+
+Installs the Pathfinder workflow kit into the current Git repository.
+
+Copies: AGENTS.md, CLAUDE.md, context, lib, roles, skills, templates
+
+Options:
+  --agents <ids>  Generate skill adapters for these tools, comma-separated.
+                  Valid ids: claude-code, codex. Alias: --agent.
+                  Without it, nothing is configured unless you are asked and
+                  say so.
+  --dry-run       Report what would be written, and any `git init` that would
+                  run first; change nothing and ask nothing.
+  --force         Overwrite files that already exist, and replace a file you
+                  wrote at a path an adapter would occupy. Off by default.
+  --mode <mode>   Record how Pathfinder runs this project, in
+                  context/execution-mode.md: human-in-the-loop (one ticket at
+                  a time, the default) or orchestrator (several dependency-safe
+                  ticket workers at once). Without it an interactive run asks
+                  once, and a scripted run records nothing, which means
+                  human-in-the-loop. Re-run with it to change the mode.
+  --git-init      Run `git init` here if this is not a repository yet.
+  --no-git-init   Never run `git init`; refuse instead.
+  --no-clipboard  Never offer to copy the Kickstart prompt. The prompt is
+                  printed either way.
+  --no-open       Never offer to open the project in an editor.
+  --yes           Take the defaults and ask nothing. Alias: --no-input.
+                  It does not authorize `git init` or configure any tool;
+                  pass --git-init and --agents for those.
+  -h, --help      Show this message.
+  -v, --version   Print the version and exit, whatever else you passed.
+                  Nothing else is printed.
+
+Adapters are generated files Pathfinder owns and regenerates without --force.
+A file it did not generate is never replaced, at any path, without --force.
+
+Environment:
+  PATHFINDER_PROMPT=classic
+                  Ask every question as a numbered list and y/n instead of an
+                  arrow-key selector. Both are supported; use this for screen
+                  readers, for scripts, or simply if you prefer typing. It is
+                  also what a terminal narrower than 49 columns and TERM=dumb
+                  select on their own.
+  NO_COLOR        Print no colour. It does not disable the selector.
+  WW_ASCII=1      Use ASCII terminal marks. Colour remains available.
+
+Without a terminal on both stdin and stdout, nothing is ever asked. In that
+case a directory that is not a Git repository needs --git-init, or the install
+is refused, and neither your clipboard nor an editor is touched — --yes does
+not authorize either one.
