@@ -188,8 +188,10 @@ jobs:
         run: python3 .github/scripts/validate-kit.py
 
       - name: Test the installer
+        # Same install as validate.yml: the test script's drift check imports the
+        # pinned wonder-wagon-ui generator, a devDependency that ships nothing.
         working-directory: packages/create-pathfinder
-        run: npm test
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm test
 
       - name: Publish to npm
         # The single fallible authenticated step, and the first irreversible one
