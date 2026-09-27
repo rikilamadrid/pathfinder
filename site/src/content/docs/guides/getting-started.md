@@ -43,7 +43,7 @@ should run this project:
 
 ```text
      ━━━
-    ━━━━━      P A T H F I N D E R  v4.4.0
+    ━━━━━      P A T H F I N D E R  v4.5.0 · PF-047
    ━━━━━━━     trail markers for AI-assisted work
   ━━━━━━━━━
 
