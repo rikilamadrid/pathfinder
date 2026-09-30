@@ -43,6 +43,8 @@ Use the workflow skills instead of recreating their procedures in chat:
 1. `to-tickets` — slice one approved Feature into executable tickets.
 2. `/ticket load` — load one ticket, its Feature, and relevant context.
 3. `/ticket start` — implement that ticket.
+   Optional before review: `/ticket adversary` challenges the implementation
+   through reproducible experiments; Tester independently verifies them.
 4. `/ticket review` — verify the work and report findings.
 5. `/ticket complete` — complete accepted work and durable records, and name
    the tickets that are now ready.

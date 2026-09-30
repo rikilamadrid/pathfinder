@@ -1,7 +1,7 @@
 ---
 name: role
 description: Explicitly override the role Pathfinder's lifecycle would assume.
-argument-hint: planner|orchestrator|developer|tester|integrator
+argument-hint: planner|orchestrator|developer|adversary|tester|integrator
 ---
 
 <!-- pathfinder:adapter v1 source=skills/role/SKILL.md -->

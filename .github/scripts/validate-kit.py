@@ -97,13 +97,14 @@ ROLE_LINE_CEILING = 40
 # Lifecycle entry points assume one responsibility unless the human explicitly
 # overrides it with `/role`. The paths are the contract: the `ticket` wrapper
 # dispatches to actions whose responsibilities differ, so the action files —
-# not the wrapper — carry its four mappings.
+# not the wrapper — carry its action mappings.
 LIFECYCLE_ROLE_ASSUMPTIONS = {
     "skills/kickstart-pathfinder/SKILL.md": "planner",
     "skills/to-specs/SKILL.md": "planner",
     "skills/to-tickets/SKILL.md": "planner",
     "skills/ticket/actions/load.md": "developer",
     "skills/ticket/actions/start.md": "developer",
+    "skills/ticket/actions/adversary.md": "adversary",
     "skills/ticket/actions/review.md": "tester",
     "skills/ticket/actions/complete.md": "developer",
     "skills/orchestrate/actions/status.md": "orchestrator",

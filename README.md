@@ -257,17 +257,19 @@ The normal lifecycle assumes its responsibility boundary automatically:
 | --- | --- |
 | `kickstart-pathfinder`, `to-specs`, `to-tickets` | `planner` |
 | `/ticket load`, `/ticket start`, `/ticket complete` | `developer` |
+| `/ticket adversary` (optional) | `adversary` |
 | `/ticket review` | `tester` |
 | `/orchestrate status`, `start`, `resume` | `orchestrator` |
 | `/orchestrate integrate` | `integrator` |
 
-Pathfinder ships five:
+Pathfinder ships six:
 
 | Role | Responsibility |
 | --- | --- |
 | `planner` | Discovers project direction and produces Features and tickets |
 | `orchestrator` | Coordinates dependency-safe workers without implementing their tickets |
 | `developer` | Implements approved work without accepting its own work |
+| `adversary` | Challenges implementation through experiments for Tester, without a verdict |
 | `tester` | Independently verifies delivered work and reports findings |
 | `integrator` | Checks whether reviewed work can land, under human merge authority |
 
@@ -324,7 +326,7 @@ copies these kit entries:
 | `CLAUDE.md` | Claude Code project guidance |
 | `context/` | Project standards and interaction rules |
 | `lib/` | Shared code more than one skill's engine needs |
-| `roles/` | Planner, orchestrator, developer, tester, and integrator responsibility contracts |
+| `roles/` | Planner, orchestrator, developer, adversary, tester, and integrator responsibility contracts |
 | `skills/` | Reusable workflow procedures |
 | `templates/` | Minimal starting shapes created when needed |
 
@@ -464,7 +466,7 @@ Some common entry points:
 | `prototype` | Proving an important assumption cheaply |
 | `to-specs` | Turning approved direction into Features |
 | `to-tickets` | Slicing one approved Feature into executable tickets |
-| `ticket` | The delivery loop: `load`, `start`, `review`, `complete` |
+| `ticket` | The delivery loop: `load`, `start`, `adversary`, `review`, `complete` |
 | `orchestrate` | Coordinating isolated workers and controlled integration in orchestrator mode |
 | `debug-issue` | Something is observably broken |
 | `handoff` | Leaving factual state for another session |

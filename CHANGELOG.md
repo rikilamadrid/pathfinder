@@ -29,6 +29,11 @@ The heading of the most recent released section below is the single source of tr
 
 ### Added
 
+- Optional `/ticket adversary` and a bounded Adversary role: reproducible
+  experiments for independent Tester verification, with a transient head-bound
+  report in orchestrator claims. Automatic scheduling is a separate delivery
+  change; this action grants no verdict, repair, or acceptance authority.
+
 - **The improvement ledger, and `reflect`'s memory.** Reflection had judgment
   and no history: the fact that justifies changing a workflow — that this is
   the third time — was exactly what it could not see. `reflect` now keeps

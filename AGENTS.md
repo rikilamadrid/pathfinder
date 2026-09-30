@@ -10,7 +10,7 @@ Read `context/execution-mode.md` by the rule in `skills/ticket/SKILL.md`: human-
 
 Use the smallest relevant context for the active task. Keep each ticket stable, reviewable, and verifiable.
 
-The roles are `planner`, `orchestrator`, `developer`, `tester`, and `integrator`. Lifecycle skills assume the responsible role for each invocation and read its contract themselves. When the human explicitly names a role, read `roles/<name>.md` before anything else and use it instead for that session. A role is a declarative contract stating what a worker is responsible for and what it must not do, where a skill states how to perform a task. Assumed or explicit, a role narrows responsibility and never grants human authority.
+The roles are `planner`, `orchestrator`, `developer`, `adversary`, `tester`, and `integrator`. Lifecycle skills assume the responsible role for each invocation and read its contract themselves. When the human explicitly names a role, read `roles/<name>.md` before anything else and use it instead for that session. A role is a declarative contract stating what a worker is responsible for and what it must not do, where a skill states how to perform a task. Assumed or explicit, a role narrows responsibility and never grants human authority.
 
 Canonical skills live under `skills/` and are the only behavior contract; anything under `.claude/skills/` or `.agents/skills/` is a generated pointer to one, so edit the canonical file and regenerate the adapter.
 
