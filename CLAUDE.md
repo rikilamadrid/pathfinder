@@ -32,7 +32,8 @@ rule; do not ignore `context/` wholesale.
 
 Lifecycle skills assume their responsible role for each invocation and read its
 contract themselves: planning uses `planner`, ticket implementation and
-completion use `developer`, and ticket review uses `tester`. Orchestration uses
+completion use `developer`, the optional adversary action uses `adversary`,
+and ticket review uses `tester`. Orchestration uses
 `orchestrator`; integration uses `integrator`. Each worker implements one active
 ticket in its own worktree; roles never call one another directly.
 
@@ -98,7 +99,7 @@ An adapter carries the canonical skill's frontmatter and a pointer to it, and no
 - `prototype` — create and iterate the cheapest useful validation artifact
 - `to-specs` — generate context-sized feature specs
 - `to-tickets` — decompose one approved Feature into blocker-linked tickets
-- `ticket` — run one action of the ticket delivery loop: `load`, `start`, `review`, `complete`
+- `ticket` — run one action of the ticket delivery loop: `load`, `start`, `adversary`, `review`, `complete`
 - `orchestrate` — coordinate several dependency-safe ticket workers at once in orchestrator mode
 - `debug-issue` — diagnose an observed failure to its root cause, apply the smallest justified fix, and verify it
 - `render-artifact` — compile a typed specification into a deterministic, self-contained visual artifact

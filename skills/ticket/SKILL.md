@@ -1,7 +1,7 @@
 ---
 name: ticket
-description: Run one action of the ticket delivery loop — load, start, review, or complete.
-argument-hint: load|start|review|complete [key]
+description: Run one action of the ticket delivery loop — load, start, adversary, review, or complete.
+argument-hint: load|start|adversary|review|complete [key]
 ---
 
 # Ticket
@@ -10,14 +10,15 @@ The delivery loop, as one skill. The human names the action:
 
 `/ticket load <ticket>`
 `/ticket start`
+`/ticket adversary`
 `/ticket review`
 `/ticket complete [<ticket>]`
 
 ## Process
 
 1. Take the action from the invocation.
-   If none was given, list the four actions below and stop.
-   If it is not one of the four, say so, list them, and stop.
+   If none was given, list the five actions below and stop.
+   If it is not one of the five, say so, list them, and stop.
 2. Read only `skills/ticket/actions/<action>.md` and follow it exactly.
 
 ## Actions
@@ -27,6 +28,9 @@ The delivery loop, as one skill. The human names the action:
   minimum context the ticket names, and writes the session's workspace state.
 - `start` — implement the loaded ticket, restating the pre-implementation
   summary before editing anything.
+- `adversary` — optionally challenge one implemented ticket through bounded,
+  reproducible experiments. It gives no verdict, changes no lifecycle status,
+  and hands suspected defects to Tester.
 - `review` — verify implemented work against the ticket and its parent Feature,
   and report findings. It changes no implementation and accepts nothing.
 - `complete` — complete work the human has accepted, through the project's
@@ -47,6 +51,7 @@ defined:
 - `load` writes `Proposed` → `Ready`.
 - `start` writes `Ready` → `In Progress`.
 - `complete` writes `Complete`.
+- `adversary` writes no status.
 - `review` writes no status. Review is workflow activity, not lifecycle state.
 
 The parent Feature's status is derived from its tickets, never maintained by
@@ -77,7 +82,7 @@ the file existed.
 ## Rules
 
 - Run the one action the human named. Do not continue into the next one.
-- Read only that action's file. The other three are not context for this work.
+- Read only that action's file. The other actions are not context for this work.
 - One ticket at a time. A session that finishes a ticket stops there.
 - Human authority is unchanged: approval, acceptance, merge, and release are
   the human's, whichever action is running.
