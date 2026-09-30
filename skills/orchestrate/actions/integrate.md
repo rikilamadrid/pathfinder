@@ -28,7 +28,20 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
 3. Run `orchestrate check <key> --json`. It reports immutable base and worker
    commit IDs, `mergeBase`, `conflicts`, and advisory `overlaps` against other
    in-flight ticket branches. On refusal, preserve the claim and report it.
-   - `behind`: send the existing worker the `rebase-and-reverify` brief.
+   - `behind`: choose the update strategy from the documented repository Git
+     policy before dispatch. Read the destination project's project overview;
+     for Pathfinder itself read CONTRIBUTING.md §Git workflow and §Releasing.
+     If published-history rewriting or force-pushing is explicitly prohibited
+     and ticket-branch merges are allowed, use `merge-and-reverify`. A rule
+     requiring linear history on the default branch after squash merge does
+     not itself prohibit merges into ticket branches. Where policy permits
+     rebase, retain `rebase-and-reverify` with the required explicit rewrite
+     approval. Never infer rewrite permission from silence or run approval.
+     Missing, contradictory or uncertain policy, or a policy permitting neither
+     strategy, opens a human gate before mutation. Record the policy source,
+     chosen session, exact base/worker SHAs and branch-update approval in the
+     handoff. This is agent interpretation of documented policy, not a new
+     prose parser, routing policy or durable configuration schema.
    - `conflict`: serialize this ticket behind the merge that made it conflict
      and send its worker the `resolve-conflict` brief with the paths and heads.
    - `candidate`: continue to step 5. Overlap while both branches are in flight
@@ -38,15 +51,24 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
 
    ```sh
    orchestrate brief <key> --harness <harness> --session rebase-and-reverify --approval "<scope>" --json
-   # or --session resolve-conflict
+   # or --session merge-and-reverify / resolve-conflict
    ```
 
    Dispatch using `start` step 3's harness translation, under the unchanged
    recorded implementation profile. Obtain explicit permission for any rebase
    or force-push the project gates; a merge approval does not imply permission
    to rewrite history. Append integration evidence and the human's guidance.
-   Mark the worker working when it starts. Require all ticket verification and
-   independent review again; then mark done and restart this action's checks.
+   Before dispatch, checkpoint `State: working` and `Next` with the chosen
+   session, target base SHA and pending update/verification in the existing
+   current-ticket file. Updating a ticket branch is separately authorised from
+   merging its PR into the default branch. Both strategies preserve the claim,
+   worktree, branch, execution profile and PR. After the branch update, the
+   worker checkpoints remaining verification; its DONE report starts fresh
+   independent Tester review at the updated head: checkpoint `State: review`
+   and `Next` for that review before dispatch. Previous-head PASS or CI is stale.
+   Require full ticket verification, fresh independent PASS and current-head CI;
+   only then mark done and restart this action's checks. No fresh integration
+   result or review alone authorises the final PR merge.
    Never resolve a conflict as integrator. If the worker cannot resolve within
    scope, open its exact human gate and let other workers continue.
 5. Present this ticket's PR link, tester/CI evidence, overlap, and current
@@ -81,5 +103,15 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
 
 A failed or unavailable worker retains its ticket, branch, worktree, claim and
 profile. `resume` is the only return to work, with guidance for a failed worker.
-Use its recorded State, Updated, and Next instead of starting over. A compatible
+Use its recorded State, Updated, and Next instead of starting over. For an
+interrupted refresh, preserve the selected strategy and target SHA in Next;
+resume the same integration session under the same policy and approval. Inspect
+ancestry and any in-progress merge/rebase before acting: do not repeat an update
+already incorporated, change strategy silently, or discard unresolved work.
+If policy or target identity cannot be established, gate before mutation. Pending update, verification or push resumes Developer with the same strategy,
+even if Next also mentions future review. Resume Tester only from recorded
+`State: review` with Next explicitly confirming verification and push complete
+at the exact current PR head SHA and Tester pending. A new base head requires fresh assessment; a new worker head requires
+fresh review and CI. Never infer current verification from Last alone.
+A compatible
 replacement harness is permitted only after the old writer has stopped.

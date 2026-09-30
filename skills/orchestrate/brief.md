@@ -3,7 +3,7 @@
 What the orchestrator hands a worker, and how each harness honours it.
 
 ```sh
-node skills/orchestrate/engine/bin/orchestrate.mjs brief <key> --harness claude-code|codex|manual [--session implementation|resume|review|rebase-and-reverify|resolve-conflict] [--approval <text>] [--json]
+node skills/orchestrate/engine/bin/orchestrate.mjs brief <key> --harness claude-code|codex|manual [--session implementation|resume|review|rebase-and-reverify|merge-and-reverify|resolve-conflict] [--approval <text>] [--json]
 ```
 
 ## Output
@@ -29,14 +29,14 @@ missing: a brief that lacks one is refused.
 | Field | Meaning |
 | --- | --- |
 | `ticket`, `title`, `ref` | the ticket's key, title, and where it lives in the store |
-| `session` | `implementation`, `resume`, `review`, `rebase-and-reverify`, or `resolve-conflict`: the keys of `PROTOCOLS` in `engine/brief.mjs` |
+| `session` | `implementation`, `resume`, `review`, `rebase-and-reverify`, `merge-and-reverify`, or `resolve-conflict`: the keys of `PROTOCOLS` in `engine/brief.mjs` |
 | `worktree`, `branch` | the claim the worker runs inside; the worktree path is absolute |
 | `main` | the main checkout: where untracked project context lives, such as `context/tracker.md` and Feature specs, when the worktree has no copy |
 | `role` | the role contract the session assumes, from the routing policy |
 | `model` | the model the session runs on, from the routing policy |
 | `effort` | the reasoning effort the session runs at, from the routing policy |
 | `approval` | the scope of the human approval the orchestration run was granted |
-| `protocol` | the ordered steps for the session. Implementation loads, starts, and reports a gate, done, or failure. Resume reads the worktree's state file first and continues rather than restarting. Review runs `/ticket review`, changes nothing, and reports PASS or findings. Rebase-and-reverify and resolve-conflict are the integration repair sessions `integration-brief.md` states |
+| `protocol` | the ordered steps for the session. Implementation loads, starts, and reports a gate, done, or failure. Resume reads the worktree's state file first and continues rather than restarting. Review runs `/ticket review`, changes nothing, and reports PASS or findings. Rebase-and-reverify, merge-and-reverify and resolve-conflict are the integration repair sessions `integration-brief.md` states |
 
 `role`, `model`, and `effort` are first-class fields whatever their values.
 `inherited` is a value, not an absence. A later routing policy changes what
