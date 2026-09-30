@@ -197,6 +197,15 @@ overlap, divergence, `git merge-tree` conflict evidence, review, and CI.
 | `behind` | Resume the existing developer to update onto the default branch and rerun verification |
 | `conflict` | Serialize the conflicting work and return it to its developer for resolution |
 
+A behind branch is refreshed under the documented Git policy: `merge-and-reverify`
+preserves published history when ticket-branch merges are allowed, while
+`rebase-and-reverify` remains available where rewriting is permitted and explicitly
+approved. Missing, ambiguous or contradictory policy requires a human gate before
+mutation. Both preserve the existing claim and PR and require full verification,
+fresh independent Tester review and CI at the updated head, and a fresh integration
+check. Recovery retains the strategy, target SHA and remaining work in the worker's
+transient state. Updating a ticket branch does not approve the final PR merge.
+
 Overlap while branches are in flight is advisory; worktrees isolate changes but
 do not resolve conflicts. A merge changes the evidence, so every remaining done
 branch is checked again. A behind or conflicted branch is never presented as a

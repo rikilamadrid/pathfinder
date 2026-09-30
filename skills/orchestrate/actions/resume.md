@@ -34,7 +34,17 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
 3. Confirm the run's approval. A resume inside a running `/orchestrate start`
    uses that run's approval. A resume on its own asks the human once, stating
    the same scope for this one ticket.
-4. Build the resume brief:
+4. Read `Next` before choosing the session. If it records a pending integration
+   refresh, use its `merge-and-reverify` or `rebase-and-reverify` session with
+   the recorded target SHA, policy evidence and approval, and inspect Git
+   progress before repeating work. Pending update, verification or push always
+   resumes the Developer refresh, even if Next also mentions future review.
+   Dispatch Tester only when recorded `State: review` and Next explicitly says
+   verification and push are complete at the exact head SHA, with Tester pending.
+   Confirm that head still matches the PR; stale evidence needs revalidation.
+   Use `review` for that handoff, never a Developer update.
+   Missing or ambiguous integration guidance requires a gate before mutation.
+   Otherwise build the ordinary resume brief:
 
    ```sh
    orchestrate brief <key> --harness <harness> --session resume --approval "<approved scope>" --json
