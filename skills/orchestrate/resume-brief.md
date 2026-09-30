@@ -27,5 +27,9 @@ role, model, and effort the claim recorded for implementation.
 6. Report `GATE:`, `DONE:`, or `FAILED:` exactly as in `worker-brief.md`.
 7. Never merge, and never change another ticket's worktree.
 
-Review findings the orchestrator sends back are appended beneath the brief. A
-resumed developer repairs those and nothing else.
+Choose the session through `orchestrate stage <key> --advance --json` before
+building the brief. Ordinary `resume` continues implementation; `repair`
+receives only complete checkpointed Tester findings, retaining the original
+reviewed SHA through partial repair. Completion marks `Repair: completed:<SHA>`
+before Adversary so historical findings cannot be mistaken for new repairs.
+A live appended prompt never replaces the transient report.

@@ -206,6 +206,7 @@ export function seedStateFile({ key, title, ref, store, worktree, branch, now, p
     `- Worktree: ${worktree}`,
     `- Branch: ${branch}`,
     "- State: working",
+    "- Adversary: required",
     `- Updated: ${now}`,
     `- Git: branch ${branch}, clean`,
     "- Blocker: none",

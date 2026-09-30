@@ -14,6 +14,7 @@ import { strict as assert } from "node:assert";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { after, describe, it } from "node:test";
 
 import { run } from "../src/cli.mjs";
@@ -666,5 +667,25 @@ describe("the mode file never ships", () => {
     assert.equal(neverShips("execution-mode.md"), false);
     assert.equal(neverShips("templates/execution-mode.md"), false);
     assert.equal(neverShips("docs/context/execution-mode.md"), false);
+  });
+});
+
+describe("installed recoverable verification handoffs", () => {
+  it("ships loadable stage/report readers and all three role sessions without a destination dependency", async () => {
+    const cwd = makeRepository();
+    const installed = await invoke(["--mode", "orchestrator"], { cwd });
+    assert.equal(installed.code, 0, installed.err);
+    const engine = join(cwd, "skills/orchestrate/engine");
+    const load = (name) => import(pathToFileURL(join(engine, name)).href);
+    const { selectStage } = await load("stage.mjs");
+    const { readFindingsReport } = await load("findings.mjs");
+    const { select } = await load("policies/static.mjs");
+    assert.equal(typeof selectStage, "function");
+    assert.equal(readFindingsReport("").ok, false);
+    for (const [session, role] of [["implementation", "developer"], ["adversary", "adversary"], ["review", "tester"]]) {
+      assert.equal(select({}, { session }).role, role);
+      assert.equal(existsSync(join(cwd, "roles", `${role}.md`)), true);
+    }
+    assert.equal(existsSync(join(cwd, "node_modules")), false);
   });
 });

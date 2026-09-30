@@ -26,7 +26,7 @@ export const WORKTREES_DIR = ".pathfinder/worktrees";
 export const BRANCH_PREFIX = "ticket/";
 
 /** The execution states a claim's state file may record. */
-export const CLAIM_STATES = Object.freeze(["working", "review", "human-gate", "done", "failed"]);
+export const CLAIM_STATES = Object.freeze(["working", "adversary", "review", "repair", "human-gate", "done", "failed"]);
 
 /**
  * @returns {Claim[]}
@@ -59,6 +59,10 @@ export function readClaims(root) {
       updated: state.updated,
       next: state.next,
       last: state.last,
+      adversary: state.adversary,
+      review: state.review,
+      repair: state.repair,
+      gateStage: state.gateStage,
       stateFile: state.present,
       elsewhere: null,
       profile: state.profile,
@@ -147,8 +151,9 @@ export function readStateFile(path) {
     return empty;
   }
   const field = (name) => {
-    const match = new RegExp(`^-\\s*${name}:\\s*(.*)$`, "m").exec(text);
-    return match ? match[1].trim() || null : null;
+    const matches = [...text.matchAll(new RegExp(`^-\\s*${name}:\\s*(.*)$`, "gm"))];
+    if (matches.length > 1) return "invalid:duplicate field";
+    return matches.length ? matches[0][1].trim() || null : null;
   };
   const state = field("State");
   // The fence immediately under the heading, with only blank lines between —
@@ -172,5 +177,9 @@ export function readStateFile(path) {
     updated: field("Updated"),
     next: field("Next"),
     last: field("Last"),
+    adversary: field("Adversary"),
+    review: field("Review"),
+    repair: field("Repair"),
+    gateStage: field("Gate stage"),
   };
 }

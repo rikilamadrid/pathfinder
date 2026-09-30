@@ -31,8 +31,13 @@ The heading of the most recent released section below is the single source of tr
 
 - Optional `/ticket adversary` and a bounded Adversary role: reproducible
   experiments for independent Tester verification, with a transient head-bound
-  report in orchestrator claims. Automatic scheduling is a separate delivery
-  change; this action grants no verdict, repair, or acceptance authority.
+  report in orchestrator claims. This action grants no verdict, repair, or
+  acceptance authority.
+- Standard orchestrated Developer → Adversary → Tester delivery, with SHA-bound
+  experiment and confirmed-findings handoffs, stage-aware recovery, one-pass
+  legacy review compatibility and repair cycles. Unchanged integration refresh
+  keeps its fresh Tester/CI path; behavior changes rerun Adversary. `done` means
+  reviewed work and human acceptance/merge gates remain separate.
 
 ### Fixed
 

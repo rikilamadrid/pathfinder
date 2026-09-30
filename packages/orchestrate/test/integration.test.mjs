@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
-import { cleanUpTemporaryDirectories, makeProject, orchestrate, json, runGit, temporaryDirectory } from "../lib/harness.mjs";
+import { prepareIntegrationReview, cleanUpTemporaryDirectories, makeProject, orchestrate, json, runGit, temporaryDirectory } from "../lib/harness.mjs";
 
 after(cleanUpTemporaryDirectories);
 function project() { return makeProject({ tickets: { "1.1": { title: "Alpha" }, "1.2": { title: "Beta" } } }); }
@@ -101,7 +101,7 @@ describe("integration evidence from real Git branches", () => {
     const ready = json(call(root, "status", "--json")).rows[0];
     assert.equal(ready.recordedState, "review");
     assert.equal(ready.next, `verification and push complete at ${updated}; Tester pending`);
-    const tester = json(call(root, "brief", "1.1", "--harness", "codex", "--session", "review", "--json"));
+    const tester = json(call(root, "brief", "1.1", "--harness", "codex", "--session", "review", "--gh", prepareIntegrationReview(root), "--json"));
     assert.equal(tester.brief.role, "tester");
     assert.equal(runGit(["rev-parse", "HEAD"], worktree).trim(), updated);
     done(root, "1.1"); // Coordinator records the new independent PASS.
@@ -242,7 +242,7 @@ describe("recovery and integration briefs", () => {
       const brief = json(call(root, "brief", "1.1", "--harness", "manual", "--session", session, "--json"));
       assert.match(brief.translation.invocation.prompt, /Missing, ambiguous or contradictory policy requires GATE/);
       assert.match(brief.translation.invocation.prompt, /documented repository Git policy/);
-      assert.match(brief.translation.invocation.prompt, /checkpoint State: review and Next: verification and push complete at <exact head SHA>; Tester pending/);
+      assert.match(brief.translation.invocation.prompt, /checkpoint Review: integration:<exact head SHA>, State: review and Next: verification and push complete at <exact head SHA>; Tester pending/);
       assert.equal(runGit(["rev-parse", "HEAD"], path(root, "1.1")), before);
       if (session === "merge-and-reverify") {
         assert.match(brief.translation.invocation.prompt, /Never rebase, reset published history, or force-push/);

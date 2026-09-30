@@ -115,25 +115,36 @@ throughout.
      continue.
   3. When the human answers, run
      `orchestrate gate <key> resolve --answer "<answer>"`, then resume **only
-     that worker**: build
-     `orchestrate brief <key> --harness <harness> --session resume --approval "<the scope the human approved>" --json`
+     that worker** through `stage --advance`, preserving its gated phase: build
+     `orchestrate brief <key> --harness <harness> --session <selected session> --approval "<the scope the human approved>" --json`
      and start it exactly as step 3 does. A gate is never answered for the human.
 
-- **`DONE: <pull request>`**: review it.
-  1. `orchestrate state <key> --set review --last "developer reported DONE: <pull request>"`
-  2. Build
-     `orchestrate brief <key> --harness <harness> --session review --approval "<the scope the human approved>" --json`
-     and start a tester session with it exactly as step 3 does.
-  3. On **PASS**: `orchestrate state <key> --set done --last "review PASS"`. The
-     ticket is work-complete, not yet safe to land. Hand it to
-     `/orchestrate integrate <key>` under the integrator role; the orchestrator
-     never merges it.
-  4. On **findings**: resume the developer with the resume brief, the findings
-     appended beneath its prompt (`translation.invocation.prompt`, or
-     `translation.invocation.arguments.message` for Codex). After **two** rounds
-     of findings, open a gate with the
-     question "Review found issues after two repair rounds: <summary>. How
-     should this ticket proceed?"
+- **`DONE: <pull request>`**, **`EXPERIMENTS: <pull request>`**, or **Tester PASS/findings**:
+  1. Remove the finished session from the live set. Never dispatch while another
+     session still owns this claim. Read its checkpoint; Developer completion
+     must already be `adversary`, never reviewed `done`.
+  2. Run `orchestrate stage <key> --live <live keys> --advance --json`. It
+     queries the current PR, validates identity, completeness and SHA, and
+     checkpoints the selected phase before dispatch. Do not reconstruct reports
+     from `Last` or append findings solely to a live prompt.
+  3. Dispatch its returned `session` using
+     `orchestrate brief <key> --harness <harness> --session <session> --approval "<approved scope>" --json`
+     and step 3's exact harness translation. `adversary` invokes the stateless
+     action; only its complete current-head experiment report permits `review`.
+     The review brief carries that report for independent verification.
+  4. Tester writes the full bounded findings/verification/limits checkpoint
+     before reporting. Matching complete findings select `repair`; advancing
+     records the repair origin before Developer dispatch. The repair brief
+     carries the confirmed findings. A restart with those findings does not
+     require repeating Tester. Missing/incomplete findings stay in review;
+     stale findings before first repair require coordination, never invented
+     repair instructions. Partial repair resumes using its original findings.
+  5. A repaired published head returns to Adversary, then fresh Tester. After
+     two rounds of confirmed findings, open the existing human gate with the
+     exact summary; do not repair forever or use Adversary suspicions as findings.
+  6. A current-head Tester PASS selects `done` with no worker session. Hand it
+     to `/orchestrate integrate <key>`; it remains unaccepted until the human gate.
+     A refusal preserves the claim and is reported without dispatch.
 
 - **`FAILED: <reason>`**
   1. `orchestrate state <key> --set failed --last "<reason>"`
@@ -145,6 +156,20 @@ throughout.
 - **A session that ends with no report.** Read its state file through
   `orchestrate status`. If it did not reach `done`, `failed`, or `human-gate`,
   it is stale. Report it and do not redispatch it.
+
+## Compatibility at adoption
+
+At a stopped-session boundary before the first dispatch with this version,
+classify pre-existing claims once with `orchestrate stage <key> --adopt`.
+The coordinator must establish this is an actual pre-adoption claim, not a
+new claim whose marker was lost. A claim already in legacy review receives
+`Adversary: legacy-review:<exact PR head SHA>` for that one review; other
+unfinished claims and newly seeded claims require `Adversary: required`.
+Never classify a live session or rewrite its file concurrently. Do not classify
+completed retained claims. Missing, duplicate or unreadable markers after adoption
+are invalid and require coordination; never grant legacy status implicitly.
+Legacy findings use the same Tester checkpoint and convert to required flow
+before repair. Changed heads cannot inherit the legacy exception.
 
 ## 5. Refresh eligibility
 

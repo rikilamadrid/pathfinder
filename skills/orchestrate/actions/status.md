@@ -35,7 +35,7 @@ this default. A role narrows responsibility and never grants human authority.
 
 ## States
 
-`ready`, `blocked`, `working`, `review`, `human-gate`, `done`, `stale`,
+`ready`, `blocked`, `working`, `adversary`, `review`, `repair`, `human-gate`, `done`, `stale`,
 `failed`, `integrated`. The table's LIFECYCLE column is the store's status and
 is never rewritten here. `integrated` is the view's word for `Complete`.
 

@@ -22,7 +22,11 @@ existing Next field before updating; recovery inspects Git progress and resumes
 that same strategy without repeating a completed update. After either refresh,
 pending update, verification or push resumes Developer; future review mentioned
 in Next does not authorise Tester dispatch. Only State: review with verification
-and push explicitly complete at the exact current PR head permits Tester.
+and push explicitly complete plus `Review: integration:<exact current PR head>`
+permits Tester without Adversary when behavior is unchanged. Changed behavior
+checkpoints required Adversary pending first. Neither refresh may set done until
+fresh current-head Tester PASS; confirmed findings checkpoint before repair and
+repairs return through Adversary.
 Full ticket verification, fresh independent Tester PASS and current-head CI are
 required before a fresh integration check. The final PR merge remains a separate
 human gate. Merging the base into a ticket branch does not authorise merging the

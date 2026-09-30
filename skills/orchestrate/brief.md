@@ -3,7 +3,7 @@
 What the orchestrator hands a worker, and how each harness honours it.
 
 ```sh
-node skills/orchestrate/engine/bin/orchestrate.mjs brief <key> --harness claude-code|codex|manual [--session implementation|resume|review|rebase-and-reverify|merge-and-reverify|resolve-conflict] [--approval <text>] [--json]
+node skills/orchestrate/engine/bin/orchestrate.mjs brief <key> --harness claude-code|codex|manual [--session implementation|resume|adversary|review|repair|rebase-and-reverify|merge-and-reverify|resolve-conflict] [--approval <text>] [--json]
 ```
 
 ## Output
@@ -29,7 +29,7 @@ missing: a brief that lacks one is refused.
 | Field | Meaning |
 | --- | --- |
 | `ticket`, `title`, `ref` | the ticket's key, title, and where it lives in the store |
-| `session` | `implementation`, `resume`, `review`, `rebase-and-reverify`, `merge-and-reverify`, or `resolve-conflict`: the keys of `PROTOCOLS` in `engine/brief.mjs` |
+| `session` | `implementation`, `resume`, `adversary`, `review`, `repair`, `rebase-and-reverify`, `merge-and-reverify`, or `resolve-conflict`: the keys of `PROTOCOLS` in `engine/brief.mjs` |
 | `worktree`, `branch` | the claim the worker runs inside; the worktree path is absolute |
 | `main` | the main checkout: where untracked project context lives, such as `context/tracker.md` and Feature specs, when the worktree has no copy |
 | `role` | the role contract the session assumes, from the routing policy |
@@ -43,8 +43,8 @@ missing: a brief that lacks one is refused.
 goes in those three fields, and nothing about how a brief is built, read, or
 translated moves.
 
-The implementation selection is the one the claim recorded. A review brief
-asks the same policy again from the same recorded estimate, so a brief never
+The implementation selection is the one the claim recorded. Adversary and review briefs
+ask the same policy again from the same recorded estimate, so a brief never
 depends on anything the claim did not write down.
 
 ## Translation
@@ -125,3 +125,15 @@ The old mutating session must have ended before the replacement starts. A
 non-inherited model specific to one harness may be refused by another; that is
 an explicit incompatibility, never permission to change the persisted profile.
 Automatic failover is not part of this adapter.
+
+## Stage and handoff validation
+
+Before postimplementation dispatch use `stage <key> --advance --json` from the
+main checkout with an accurate `--live` set. It reads the current PR through
+`gh pr view` and the claim's checkpoint; `brief` independently rechecks
+Adversary/review/repair dispatch against that current head. Complete matching
+experiment or Tester reports cross sessions in the translated protocol, using
+the existing transient file as the recovery source. No new durable schema or
+execution-profile version is involved. Unknown/absent compatibility markers
+are refused; explicit one-time safe-boundary `stage --adopt` is only for actual
+pre-adoption claims as `actions/start.md` defines.

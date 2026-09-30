@@ -27,7 +27,7 @@ your repository that you can widen, narrow, or pre-approve parts of.
 
 The lifecycle also reads its responsibility boundary automatically. Discovery
 and planning use `planner`; ticket load, start, and complete use `developer`;
-ticket review uses `tester`. `/role` is an explicit human override, not a setup
+the optional ticket adversary action uses `adversary`; ticket review uses `tester`. `/role` is an explicit human override, not a setup
 step before any arrow on this page. Roles narrow responsibility and never grant
 the human authority that the decision points reserve.
 
@@ -168,7 +168,8 @@ project context
      ◆ dependencies, migrations, destructive commands, and commits
        all stop here for approval
 
-→ /ticket review           check against requirements, regressions, standards
+→ /ticket adversary        optional bounded experiments in human-in-the-loop
+→ /ticket review           independently check against requirements, regressions, standards
 
 → /ticket complete         confirm each acceptance criterion with evidence
                            and name the tickets that are now ready
@@ -616,3 +617,11 @@ If you have not installed anything yet, [Getting started](/guides/getting-starte
 runs the first loop end to end in a real repository. If you have, the skill you will
 read most is [`ticket`](/skills/ticket/), which dispatches the four actions,
 and [all skills](/skills/) lists every one of them with its own summary.
+
+In orchestrator mode, separate Adversary and Tester sessions are standard after
+implementation. Adversary tries to prove the implementation wrong through
+reproducible experiments; Tester decides whether they violate its contract.
+Only Tester-confirmed findings return to Developer. Repaired heads repeat
+Adversary then Tester. Transient SHA-bound checkpoints preserve both handoffs
+across stops; the [execution-mode guide](./execution-modes/) explains recovery
+and unchanged-behavior integration revalidation. Human acceptance remains last.

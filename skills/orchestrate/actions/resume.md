@@ -34,25 +34,34 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
 3. Confirm the run's approval. A resume inside a running `/orchestrate start`
    uses that run's approval. A resume on its own asks the human once, stating
    the same scope for this one ticket.
-4. Read `Next` before choosing the session. If it records a pending integration
-   refresh, use its `merge-and-reverify` or `rebase-and-reverify` session with
-   the recorded target SHA, policy evidence and approval, and inspect Git
-   progress before repeating work. Pending update, verification or push always
-   resumes the Developer refresh, even if Next also mentions future review.
-   Dispatch Tester only when recorded `State: review` and Next explicitly says
-   verification and push are complete at the exact head SHA, with Tester pending.
-   Confirm that head still matches the PR; stale evidence needs revalidation.
-   Use `review` for that handoff, never a Developer update.
-   Missing or ambiguous integration guidance requires a gate before mutation.
-   Otherwise build the ordinary resume brief:
+4. Select from the existing checkpoint, never unconditionally resume Developer:
 
    ```sh
-   orchestrate brief <key> --harness <harness> --session resume --approval "<approved scope>" --json
+   orchestrate stage <key> --live <this run's live keys> --advance --json
+   orchestrate brief <key> --harness <harness> --session <returned session> --approval "<approved scope>" --json
    ```
 
-   Add the human's gate decision or guidance, when there is one, beneath the
-   brief text: `translation.invocation.prompt` for Claude Code and manual
-   sessions, `translation.invocation.arguments.message` for Codex.
+   Establish any one-time adoption classification as `start` defines before
+   stage selection. An absent marker is not a legacy exemption. The stage
+   selector checks the current PR and exact report head. `adversary` with no
+   complete matching report resumes Adversary; a complete matching report
+   permits Tester even if the prior session stopped before the state transition.
+   A complete matching Tester findings checkpoint resumes confirmed repair
+   without rerunning Tester; absent/incomplete findings leave review pending.
+   Stale findings before repair never become instructions. An already-started
+   repair retains its original reviewed findings through partial pushes.
+   `done` requires current-head Tester PASS and returns to integration.
+
+   Preserve pending integration refresh session/target/policy/approval from
+   `Next`; resume that Developer session until update, full verification and
+   push finish. Its separate `Review: integration:<head SHA>` path permits fresh
+   Tester at that exact head without Adversary only when behavior is unchanged.
+   Behavior changes enter Adversary. Missing/ambiguous guidance or unexpected
+   head drift requires coordination before mutation. Add human guidance beneath
+   the translated prompt only as supplemental context, never as the sole findings
+   checkpoint. A failed worker needs explicit human guidance before its state
+   can be returned to its recorded pending phase.
+
 5. Start the worker session exactly as `start` step 3 does for the active
    harness, and record the key as live.
 6. Handle its reports exactly as `start` step 4 does.

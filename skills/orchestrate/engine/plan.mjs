@@ -29,7 +29,7 @@ import { profileFor } from "./route.mjs";
 
 // States whose worker is running. A gated worker's session has ended while it
 // waits for a human, so it holds no slot and is not stale.
-const ACTIVE = new Set(["working", "review"]);
+const ACTIVE = new Set(["working", "adversary", "review", "repair"]);
 
 /**
  * @param {{root: string, tickets: object[], feature?: string|null, workers?: number, live?: string[]}} args
