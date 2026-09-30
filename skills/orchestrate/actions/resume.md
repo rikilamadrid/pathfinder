@@ -66,7 +66,9 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
    repair retains its original reviewed findings through partial pushes.
    Advancement alone records pending repair; the owning Developer must run
    `stage --begin-repair` before edits to validate current reviewed/local head
-   freshness and record started repair.
+   freshness and record started repair. For integration-origin repair, this
+   validated start consumes the full verification/push prerequisite for that
+   origin; later factual `Next` progress updates do not erase it.
    `done` requires current-head Tester PASS and returns to integration.
 
    Preserve pending integration refresh session/target/policy/approval from

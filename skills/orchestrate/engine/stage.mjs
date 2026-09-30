@@ -25,7 +25,11 @@ const matches = (report, claim, pr, head) => report?.ticket === claim.key && rep
 function reviewPrerequisite(claim, experiments, pr, head) {
   if (claim.review?.startsWith("integration:")) {
     if (claim.review.slice(12).toLowerCase() !== head.toLowerCase()) return refuse("integration-only review head changed; full revalidation required");
-    if (!(claim.next ?? "").includes(`verification and push complete at ${head}; Tester pending`)) return refuse("integration-only review lacks completed full verification/push checkpoint");
+    // Owning begin-repair validates full verification and exact-head freshness
+    // before writing this marker. Consume that prerequisite at start: Next
+    // remains a mutable progress instruction during partial repair.
+    const startedOrigin = claim.state === "repair" && claim.repair === `started:${head}`;
+    if (!startedOrigin && !(claim.next ?? "").includes(`verification and push complete at ${head}; Tester pending`)) return refuse("integration-only review lacks completed full verification/push checkpoint");
     return { ok: true, integration: true };
   }
   const legacy = /^legacy-review:([a-f0-9]{40})$/i.exec(claim.adversary ?? "");

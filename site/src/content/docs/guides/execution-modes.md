@@ -280,7 +280,9 @@ remain human decisions.
 Repair dispatch advancement is pending until the owning Developer validates
 its reviewed/current PR and local head with `stage --begin-repair`. A stop
 before that worker starts still blocks changed-head findings; only started
-repair retains its origin through partial pushes. Ordinary Tester evidence
+repair retains its origin through partial pushes. For integration-origin repair,
+that validated start consumes the full verification/push prerequisite; updating
+`Next` with repair progress does not erase it. Ordinary Tester evidence
 cannot bypass missing or stale experiments. Failed sessions retain `Failed
 stage`; explicit human guidance and a stopped-session confirmation restore
 that recorded phase through the normal head/report checks, including the

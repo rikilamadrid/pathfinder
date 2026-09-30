@@ -153,6 +153,48 @@ describe("recoverable Adversary and Tester delivery", () => {
     assert.equal(started.stage().started, true); assert.equal(started.stage().report.head_sha, reviewed);
     assert.equal(started.begin().status, 0, "restarted owning repair keeps original handoff idempotently");
   });
+  it("retains validated integration repair origin after partial commits and Next progress updates", () => {
+    for (const source of ["integration", "ordinary", "legacy"]) {
+      const s = setup(); const origin = s.sha();
+      s.set({ State: "review", Review: source === "integration" ? `integration:${origin}` : "ordinary",
+        Adversary: source === "legacy" ? `legacy-review:${origin}` : "required" });
+      if (source === "ordinary") s.experiments();
+      s.findings();
+      if (source === "integration") {
+        const before = readFileSync(s.path, "utf8");
+        assert.match(s.run("stage", "1.1", "--advance").stderr, /completed full verification/);
+        assert.equal(readFileSync(s.path, "utf8"), before);
+        s.set({ Next: `verification and push complete at ${origin}; Tester pending` });
+      }
+      s.stage("--advance");
+      if (source === "integration") {
+        s.set({ Next: "repair progress; verification not complete" });
+        const pending = readFileSync(s.path, "utf8");
+        assert.notEqual(s.begin().status, 0, "pending cannot consume unvalidated completion");
+        assert.equal(readFileSync(s.path, "utf8"), pending);
+        s.set({ Next: `verification and push complete at ${origin}; Tester pending` });
+      }
+      assert.equal(s.begin().status, 0);
+      s.commit(); s.set({ Next: "partial repair committed; remaining repair and full verification pending" });
+      const preserved = readFileSync(s.path, "utf8");
+      assert.equal(s.stage().started, true);
+      assert.equal(s.stage().report.head_sha, origin);
+      assert.equal(s.begin().status, 0, "owning resumed repair is idempotent after progress update");
+      for (const harness of ["manual", "claude-code", "codex"]) {
+        const brief = s.run("brief", "1.1", "--session", "repair", "--harness", harness, "--json");
+        assert.equal(brief.status, 0, brief.stderr);
+        assert.match(JSON.stringify(json(brief).translation), new RegExp(origin));
+      }
+      assert.deepEqual(readFindingsReport(readFileSync(s.path, "utf8")).report, readFindingsReport(preserved).report);
+      if (source === "integration") {
+        s.set({ Review: `integration:${s.sha()}` });
+        assert.match(s.run("stage", "1.1").stderr, /full revalidation/);
+        s.set({ Review: `integration:${origin}` });
+      }
+      s.set({ State: "adversary", Adversary: "required", Review: "ordinary", Repair: `completed:${origin}` });
+      assert.equal(s.stage().session, "adversary", "changed behavior requires fresh experiments");
+    }
+  });
   it("recovers failed phases only with explicit human guidance and their recorded origin", () => {
     for (const phase of ["working", "adversary", "review", "repair", "integration-refresh"]) {
       const s = setup();
