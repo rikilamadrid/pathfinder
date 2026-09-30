@@ -1,0 +1,21 @@
+P A T H F I N D E R  v4.4.0 · PF-047
+  🔍  ENVIRONMENT
+  │  ✓ Git repository detected
+  │  ✓ Tools detected: Claude Code, Codex, VS Code, Cursor (noted, not configured)
+
+  │  ✓ Kit files — 139 copied
+  📋  DRY RUN
+  │  Would install the Pathfinder kit into /private/var/folders/mg/5t_hfz0d3vx2d98lkp8c77m40000gn/T/pathfinder-visual-6jnhzu1n
+  │  ✓ 139 files to write
+
+     ━━━
+    ━━━━━      🎉  READY WHEN YOU ARE
+   ━━━━━━━     139 files
+  ━━━━━━━━━
+
+  Hand your agent this prompt to begin:
+
+    Use skills/kickstart-pathfinder/SKILL.md. Help me initialize this
+    project. Do not install packages or write product code yet.
+
+  Trail's marked. The rest is yours.

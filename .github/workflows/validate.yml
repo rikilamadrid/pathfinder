@@ -28,18 +28,17 @@ jobs:
         # to prevent — so this step must stay ahead of the validator.
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Validate kit structure
         run: python3 .github/scripts/validate-kit.py
 
       - name: Test the installer
-        # `node --test` is the standard library, so this adds no dependency and
-        # needs no install step — the package has none. Scoped to the installer:
-        # the kit's executable code is the render-artifact engine, and it is
-        # tested by the step below rather than here.
+        # The installer runtime remains dependency-free. This install exposes
+        # only the exact registry version of the generator used by the drift check;
+        # the generated module committed under src/ is what the package ships.
         working-directory: packages/create-pathfinder
-        run: npm test
+        run: npm ci --ignore-scripts --no-audit --no-fund && npm test
 
       - name: Test the render-artifact engine
         # The engine ships under skills/; its tests live here so an installed

@@ -108,7 +108,7 @@ const USAGE = `orchestrate
   board ... [--comment-blocked <key>] [--comment-unblocked <key> --by <key>]
       Also post why a ticket waits, or that a completion unblocked it.
 
-  brief <key> --harness claude-code|codex|manual [--session implementation|resume|review]
+  brief <key> --harness claude-code|codex|manual [--session implementation|resume|review|rebase-and-reverify|merge-and-reverify|resolve-conflict]
         [--approval <text>] [--json]
       The worker brief for a claimed ticket, from the profile its claim
       recorded, and how that harness would honour it. Refuses a model or

@@ -1,0 +1,157 @@
+{
+  "kind": "unchanged real product CLI",
+  "sourceRevision": "ab3c0d654e3f6655ed9b12cb6d7f279909b7de85",
+  "captures": [
+    {
+      "name": "wide",
+      "command": [
+        "node",
+        "packages/create-pathfinder/bin/create-pathfinder.mjs",
+        "--dry-run",
+        "--yes"
+      ],
+      "columns": 110,
+      "env": {},
+      "exitCode": 0,
+      "bytes": 1311,
+      "input": null
+    },
+    {
+      "name": "narrow",
+      "command": [
+        "node",
+        "packages/create-pathfinder/bin/create-pathfinder.mjs",
+        "--dry-run",
+        "--yes"
+      ],
+      "columns": 42,
+      "env": {},
+      "exitCode": 0,
+      "bytes": 1078,
+      "input": null
+    },
+    {
+      "name": "legacy-narrow-32",
+      "command": [
+        "node",
+        "packages/create-pathfinder/bin/create-pathfinder.mjs",
+        "--dry-run",
+        "--yes"
+      ],
+      "columns": 32,
+      "env": {},
+      "exitCode": 0,
+      "bytes": 1078,
+      "input": null
+    },
+    {
+      "name": "no-color",
+      "command": [
+        "node",
+        "packages/create-pathfinder/bin/create-pathfinder.mjs",
+        "--dry-run",
+        "--yes"
+      ],
+      "columns": 110,
+      "env": {
+        "NO_COLOR": "1"
+      },
+      "exitCode": 0,
+      "bytes": 903,
+      "input": null
+    },
+    {
+      "name": "ascii",
+      "command": [
+        "node",
+        "packages/create-pathfinder/bin/create-pathfinder.mjs",
+        "--dry-run",
+        "--yes"
+      ],
+      "columns": 110,
+      "env": {
+        "WW_ASCII": "1"
+      },
+      "exitCode": 0,
+      "bytes": 1191,
+      "input": null
+    },
+    {
+      "name": "ansi256",
+      "command": [
+        "node",
+        "packages/create-pathfinder/bin/create-pathfinder.mjs",
+        "--dry-run",
+        "--yes"
+      ],
+      "columns": 110,
+      "env": {
+        "COLORTERM": ""
+      },
+      "exitCode": 0,
+      "bytes": 1251,
+      "input": null
+    },
+    {
+      "name": "ansi16",
+      "command": [
+        "node",
+        "packages/create-pathfinder/bin/create-pathfinder.mjs",
+        "--dry-run",
+        "--yes"
+      ],
+      "columns": 110,
+      "env": {
+        "COLORTERM": "",
+        "TERM": "xterm"
+      },
+      "exitCode": 0,
+      "bytes": 1231,
+      "input": null
+    },
+    {
+      "name": "dumb",
+      "command": [
+        "node",
+        "packages/create-pathfinder/bin/create-pathfinder.mjs",
+        "--dry-run",
+        "--yes"
+      ],
+      "columns": 110,
+      "env": {
+        "TERM": "dumb"
+      },
+      "exitCode": 0,
+      "bytes": 903,
+      "input": null
+    },
+    {
+      "name": "help",
+      "command": [
+        "node",
+        "packages/create-pathfinder/bin/create-pathfinder.mjs",
+        "--help"
+      ],
+      "columns": 110,
+      "env": {},
+      "exitCode": 0,
+      "bytes": 2824,
+      "input": null
+    },
+    {
+      "name": "no-arg",
+      "command": [
+        "node",
+        "packages/create-pathfinder/bin/create-pathfinder.mjs"
+      ],
+      "columns": 110,
+      "env": {
+        "NO_COLOR": "1",
+        "PATHFINDER_PROMPT": "classic"
+      },
+      "exitCode": 1,
+      "bytes": 783,
+      "input": "n\n"
+    }
+  ]
+}

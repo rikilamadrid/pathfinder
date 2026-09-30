@@ -27,6 +27,12 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+### Fixed
+
+- Integration refresh now supports merging the default branch into a published ticket branch when repository policy prohibits history rewriting, with full revalidation and fresh independent review before the separate merge gate.
+
+## [4.5.0] - 2026-09-27
+
 ### Added
 
 - Optional `/ticket adversary` and a bounded Adversary role: reproducible
@@ -93,9 +99,17 @@ The heading of the most recent released section below is the single source of tr
   This is an intentional change to rendered bytes: the renderer version moves
   from 0.10.0 to 0.11.0 and the goldens are regenerated with it.
 - **The installer's identity block prints the maker's serial.** The first line
-  now reads `P A T H F I N D E R  v4.4.0 · PF-047`, the serial dim beside the
+  now reads `P A T H F I N D E R  v4.5.0 · PF-047`, the serial dim beside the
   version and joined by the theme's own glyph, so the ASCII tier stays ASCII.
-  Nothing else about a run changes.
+  The mark, the tagline and the placement are unchanged. A terminal narrower
+  than the block's 51 columns, which the serial widens, gets the
+  identity as its single line instead of a block that would wrap.
+- **`WW_ASCII=1` asks for ASCII glyphs without giving up colour.** Set it and
+  the mark and the run's own glyphs fall back to ASCII while any colour the
+  terminal allows stays on; `--help` lists it. Without it, piped and
+  non-terminal output is byte-for-byte what 4.4.0 printed, apart from the
+  version number, the `lib` entry in the copy list, the new help line, and
+  the larger file count the kit's new content brings.
 
 ## [4.4.0] - 2026-09-18
 

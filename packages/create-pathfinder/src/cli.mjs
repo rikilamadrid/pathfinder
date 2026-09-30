@@ -22,6 +22,10 @@ import { copyToClipboard } from "./clipboard.mjs";
 import { detectEditors, openInEditor } from "./editor.mjs";
 import { kickstartPrompt, kickstartPromptLines } from "./kickstart-prompt.mjs";
 import { createTheme } from "./theme.mjs";
+import {
+  PRODUCT as CLI_PRODUCT,
+  renderCliIdentity as renderGeneratedCliIdentity,
+} from "./cli-identity.mjs";
 import { createProgress } from "./progress.mjs";
 import { summarize } from "./outcome.mjs";
 import { activationLines } from "./activation.mjs";
@@ -86,6 +90,7 @@ Environment:
                   also what a terminal narrower than 49 columns and TERM=dumb
                   select on their own.
   NO_COLOR        Print no colour. It does not disable the selector.
+  WW_ASCII=1      Use ASCII terminal marks. Colour remains available.
 
 Without a terminal on both stdin and stdout, nothing is ever asked. In that
 case a directory that is not a Git repository needs --git-init, or the install
@@ -1049,27 +1054,6 @@ function indent(text) {
  * wide a rendered string is; these are the constants a designer would hand you,
  * and they are the reason the block is stable under any terminal width.
  */
-const MARK_ROWS = Object.freeze([
-  Object.freeze({ indent: 3, width: 3 }),
-  Object.freeze({ indent: 2, width: 5 }),
-  Object.freeze({ indent: 1, width: 7 }),
-  Object.freeze({ indent: 0, width: 9 }),
-]);
-
-/** Where the text column starts, counted in the mark's own authored cells. */
-const TEXT_COLUMN = 13;
-
-/**
- * What the tool is, in five words.
- *
- * Reviewed against the finished run and kept. It earns its place by being the
- * only line that says what Pathfinder *is* rather than what it just did, and
- * "markers" is load-bearing: this project's whole argument is that it is not a
- * framework, and a marker is the least presumptuous thing you can leave on a
- * trail. Somebody still has to walk it.
- */
-const TAGLINE = "trail markers for AI-assisted work";
-
 /**
  * The last thing the run says.
  *
@@ -1079,16 +1063,6 @@ const TAGLINE = "trail markers for AI-assisted work";
  * way out would spend the goodwill this whole feature exists to build.
  */
 const SIGN_OFF = "Trail's marked. The rest is yours.";
-
-/**
- * The maker's serial. Every Pathfinder surface carries it — the social card,
- * the READMEs, this block — and it is the one mark the four products of the
- * ecosystem share: one workshop, 047, separate serials per tool. It is a label,
- * not a flourish, so it is printed dim beside the version and never coloured.
- * The value is stated once here and once in `assets/README.md`; if they ever
- * disagree, the README is the record.
- */
-const SERIAL = "PF-047";
 
 /**
  * Who is running, said once, at the top.
@@ -1117,34 +1091,34 @@ const SERIAL = "PF-047";
  * Both of those decisions live at the call site, where the tier is known.
  */
 function markBlock(theme, beside = []) {
-  const stroke = theme.glyph.rule;
-
-  return MARK_ROWS.map((row, index) => {
-    const drawn = " ".repeat(row.indent) + stroke.repeat(row.width);
+  const textColumn = CLI_PRODUCT.mark.width + 4;
+  return CLI_PRODUCT.mark.rows.map((row, index) => {
+    const drawn = theme.unicode
+      ? row.expressive.map((segment) => segment.text).join("")
+      : row.plain;
     const text = beside[index] ?? "";
 
     // Padding to a constant from two constants. The decorated text is appended
     // after the padding is already decided, so no escape sequence is ever part
     // of a length this function computes.
-    const pad = " ".repeat(TEXT_COLUMN - row.indent - row.width);
+    const pad = " ".repeat(textColumn - [...drawn].length);
     return `  ${theme.brand(drawn)}${text ? pad + text : ""}`;
   });
 }
 
 export function formatIdentity({ theme = createTheme(), version = VERSION } = {}) {
-  // The two text lines sit beside the mark's middle rows, so the wordmark lands
-  // level with the widest part of the blaze rather than floating above it.
-  return (
-    [
-      "",
-      ...markBlock(theme, [
-        "",
-        `${theme.brand("P A T H F I N D E R")}  ${theme.dim(`v${version} ${theme.glyph.info} ${SERIAL}`)}`,
-        theme.dim(TAGLINE),
-        "",
-      ]),
-    ].join("\n") + "\n"
-  );
+  // The call site owns contract-tier suppression. Promoting that tier here
+  // preserves this formatter's direct-call behavior while the generated module
+  // itself still returns "" for a contract or machine call.
+  return renderGeneratedCliIdentity({
+    version,
+    caps: {
+      tier: theme.tier === "contract" ? "plain" : theme.tier,
+      depth: theme.colorDepth,
+      unicode: theme.unicode,
+      columns: theme.columns,
+    },
+  });
 }
 
 /**

@@ -50,6 +50,7 @@ describe("Codex harness translation", () => {
       resume: "resume",
       review: "review",
       "rebase-and-reverify": "rebase_and_reverify",
+      "merge-and-reverify": "merge_and_reverify",
       "resolve-conflict": "resolve_conflict",
     };
     assert.deepEqual(Object.keys(expected).sort(), Object.keys(PROTOCOLS).sort());
@@ -190,6 +191,7 @@ describe("Codex harness translation", () => {
     assert.equal(run("claim", "53.6").status, 0);
     for (const [session, expected] of [
       ["rebase-and-reverify", "pathfinder_53_6_rebase_and_reverify"],
+      ["merge-and-reverify", "pathfinder_53_6_merge_and_reverify"],
       ["resolve-conflict", "pathfinder_53_6_resolve_conflict"],
     ]) {
       const result = run("brief", "53.6", "--harness", "codex", "--session", session, "--json");

@@ -1,0 +1,26 @@
+
+  [38;2;224;97;31m   ━━━[0m
+  [38;2;224;97;31m  ━━━━━[0m      [38;2;224;97;31mP A T H F I N D E R[0m  [2mv4.4.0 · PF-047[0m
+  [38;2;224;97;31m ━━━━━━━[0m     [2mtrail markers for AI-assisted work[0m
+  [38;2;224;97;31m━━━━━━━━━[0m
+
+  🔍  [1mENVIRONMENT[0m
+  [2m│[0m  [32m✓ Git repository detected[0m
+  [2m│[0m  [32m✓ Tools detected:[0m [1mClaude Code, Codex, VS Code, Cursor[0m [2m(noted, not configured)[0m
+
+  [2m│[0m  [32m✓ Kit files[0m — [1m139[0m copied
+  📋  [1mDRY RUN[0m
+  [2m│[0m  Would install the Pathfinder kit into [1m/private/var/folders/mg/5t_hfz0d3vx2d98lkp8c77m40000gn/T/pathfinder-visual-6jnhzu1n[0m
+  [2m│[0m  [32m✓ 139 files to write[0m
+
+  [38;2;224;97;31m   ━━━[0m
+  [38;2;224;97;31m  ━━━━━[0m      🎉  [38;2;224;97;31mREADY WHEN YOU ARE[0m
+  [38;2;224;97;31m ━━━━━━━[0m     [2m139 files[0m
+  [38;2;224;97;31m━━━━━━━━━[0m
+
+  [1mHand your agent this prompt to begin:[0m
+
+    [36m[1mUse skills/kickstart-pathfinder/SKILL.md. Help me initialize this[0m[0m
+    [36m[1mproject. Do not install packages or write product code yet.[0m[0m
+
+  [2mTrail's marked. The rest is yours.[0m

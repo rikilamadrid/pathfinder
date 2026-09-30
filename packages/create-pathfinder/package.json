@@ -1,6 +1,6 @@
 {
   "name": "create-pathfinder",
-  "version": "4.4.0",
+  "version": "4.5.0",
   "description": "Install Pathfinder's workflow kit: human-in-the-loop delivery or dependency-safe orchestration, with human authority preserved.",
   "keywords": [
     "pathfinder",
@@ -43,12 +43,17 @@
     "templates"
   ],
   "scripts": {
-    "test": "node --test",
+    "test": "node scripts/wonder-wagon/sync-cli-identity.mjs --check && node --test",
+    "wonder-wagon:sync": "node scripts/wonder-wagon/sync-cli-identity.mjs",
+    "wonder-wagon:check": "node scripts/wonder-wagon/sync-cli-identity.mjs --check",
     "stage": "node scripts/stage-kit.mjs",
     "unstage": "node scripts/stage-kit.mjs --clean",
     "prepack": "node scripts/stage-kit.mjs",
     "postpack": "node scripts/stage-kit.mjs --clean",
     "prepublishOnly": "node scripts/publish-guard.mjs"
+  },
+  "devDependencies": {
+    "wonder-wagon-ui": "0.1.0"
   },
   "publishConfig": {
     "access": "public"

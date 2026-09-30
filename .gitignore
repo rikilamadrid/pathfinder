@@ -91,3 +91,6 @@ __MACOSX/
 /packages/create-pathfinder/skills/
 /packages/create-pathfinder/templates/
 /packages/create-pathfinder/*.tgz
+
+# Registry-installed development tooling for the CLI identity drift check.
+/packages/create-pathfinder/node_modules/
