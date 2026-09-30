@@ -276,3 +276,12 @@ fresh Tester/CI and integration checks without a new Adversary run. If behavior
 changes, Adversary precedes Tester. Neither path sets done before current-head
 Tester PASS. One session owns each claim at a time, and acceptance/merge/release
 remain human decisions.
+
+Repair dispatch advancement is pending until the owning Developer validates
+its reviewed/current PR and local head with `stage --begin-repair`. A stop
+before that worker starts still blocks changed-head findings; only started
+repair retains its origin through partial pushes. Ordinary Tester evidence
+cannot bypass missing or stale experiments. Failed sessions retain `Failed
+stage`; explicit human guidance and a stopped-session confirmation restore
+that recorded phase through the normal head/report checks, including the
+selected integration refresh strategy. An unknown origin requires a human gate.

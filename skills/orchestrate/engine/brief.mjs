@@ -48,7 +48,7 @@ export const PROTOCOLS = Object.freeze({
     "Commit on the ticket branch, push it, and open a draft pull request against the default branch whose body says <closes>.",
     "On a human decision: record Gate stage: <current pending phase> before setting State: human-gate and Gate: <question> in context/current-ticket.md, then stop and report GATE: <question>.",
     "When verified, committed, pushed, and the draft pull request is open: checkpoint Adversary: required, Review: ordinary, and State: adversary before ending; report DONE: <pull request> with the exact published head SHA. This is Adversary pending, never reviewed done.",
-    "When the work cannot be completed inside the ticket: set State: failed and report FAILED: <reason>.",
+    "When the work cannot be completed inside the ticket: preserve Failed stage: <current pending phase> before setting State: failed and report FAILED: <reason>.",
     "Never merge, and never change another ticket's worktree.",
   ]),
   resume: Object.freeze([
@@ -61,7 +61,7 @@ export const PROTOCOLS = Object.freeze({
     "Commit on the ticket branch, push it, and keep or open a draft pull request against the default branch whose body says <closes>.",
     "On a human decision: record Gate stage: <current pending phase> before setting State: human-gate and Gate: <question> in context/current-ticket.md, then stop and report GATE: <question>.",
     "When verified, committed, pushed, and the draft pull request is open: checkpoint Adversary: required, Review: ordinary, and State: adversary before ending; report DONE: <pull request> with the exact published head SHA. This is Adversary pending, never reviewed done.",
-    "When the work cannot be completed inside the ticket: set State: failed and report FAILED: <reason>.",
+    "When the work cannot be completed inside the ticket: preserve Failed stage: <current pending phase> before setting State: failed and report FAILED: <reason>.",
     "Never merge, and never change another ticket's worktree.",
   ]),
   "rebase-and-reverify": Object.freeze([
@@ -72,7 +72,7 @@ export const PROTOCOLS = Object.freeze({
     "Commit any repairs, push the verified branch under the approved Git policy, and update the existing pull request with verification evidence. Never open a duplicate PR.",
     "On a human decision: record Gate stage: <current pending phase> before setting State: human-gate and Gate: <question>, then report GATE: <question>.",
     "When verified and pushed: compare implementation behavior before/after this refresh, recording the diff and reasoning. If unchanged, checkpoint Review: integration:<exact head SHA>, State: review and Next: verification and push complete at <exact head SHA>; Tester pending. If behavior changed (including a repair), checkpoint Adversary: required, Review: ordinary, State: adversary; Adversary pending. Report DONE: <pull request> with that SHA; never set done before fresh Tester review. This hands off to fresh independent Tester review, current-head CI and a fresh integration check; it does not accept the work or authorise the final PR merge.",
-    "When work cannot be completed inside this ticket: set State: failed and report FAILED: <reason>.",
+    "When work cannot be completed inside this ticket: preserve Failed stage: <current pending phase> before setting State: failed and report FAILED: <reason>.",
     "Never merge the ticket into the default branch, and never change another ticket’s worktree.",
   ]),
   "merge-and-reverify": Object.freeze([
@@ -84,7 +84,7 @@ export const PROTOCOLS = Object.freeze({
     "Commit the branch update and any authorised repairs, push normally without force, and update the existing pull request with verification evidence. Never create a replacement claim, branch, worktree, profile, or PR.",
     "On a human decision: record Gate stage: <current pending phase> before setting State: human-gate and Gate: <question>, then report GATE: <question>.",
     "When verified and pushed: compare implementation behavior before/after this refresh, recording the diff and reasoning. If unchanged, checkpoint Review: integration:<exact head SHA>, State: review and Next: verification and push complete at <exact head SHA>; Tester pending. If behavior changed (including a repair), checkpoint Adversary: required, Review: ordinary, State: adversary; Adversary pending. Report DONE: <pull request> with that SHA; never set done before fresh Tester review. This hands off to fresh independent Tester review, current-head CI and a fresh integration check; it does not accept the work or authorise the final PR merge.",
-    "When work cannot be completed inside this ticket: set State: failed and report FAILED: <reason>.",
+    "When work cannot be completed inside this ticket: preserve Failed stage: <current pending phase> before setting State: failed and report FAILED: <reason>.",
     "Never merge the ticket into the default branch, and never change another ticket’s worktree.",
   ]),
   "resolve-conflict": Object.freeze([
@@ -95,28 +95,28 @@ export const PROTOCOLS = Object.freeze({
     "Commit any repairs, push the verified branch under the approved Git policy, and update the existing pull request with verification evidence. Never open a duplicate PR.",
     "On a human decision: record Gate stage: <current pending phase> before setting State: human-gate and Gate: <question>, then report GATE: <question>.",
     "When verified and pushed: compare implementation behavior before/after this refresh, recording the diff and reasoning. If unchanged, checkpoint Review: integration:<exact head SHA>, State: review and Next: verification and push complete at <exact head SHA>; Tester pending. If behavior changed (including a repair), checkpoint Adversary: required, Review: ordinary, State: adversary; Adversary pending. Report DONE: <pull request> with that SHA; never set done before fresh Tester review. This hands off to fresh independent Tester review, current-head CI and a fresh integration check; it does not accept the work or authorise the final PR merge.",
-    "When work cannot be completed inside this ticket: set State: failed and report FAILED: <reason>.",
+    "When work cannot be completed inside this ticket: preserve Failed stage: <current pending phase> before setting State: failed and report FAILED: <reason>.",
     "Never merge the ticket into the default branch, and never change another ticket’s worktree.",
   ]),
   adversary: Object.freeze([
     "Work only inside this claim's worktree. Read current-ticket.md, the ticket, Feature and current PR head; preserve its profile, branch and PR.",
     "Run /ticket adversary as the named role. Challenge bounded assumptions and produce experiments, never verdicts or repairs; change no implementation, tests or lifecycle status.",
     "Write the complete matching Adversary experiments checkpoint before ending. Report EXPERIMENTS: <pull request> with exact head SHA; do not dispatch Tester or change State. If interrupted, preserve the previous section until a complete replacement is ready.",
-    "On a human-only decision record Gate stage: <current pending phase> before setting State: human-gate and Gate: <question>, then report GATE. Never merge or accept.",
+    "On inability to finish, preserve Failed stage: adversary before setting State: failed and report FAILED. On a human-only decision record Gate stage: <current pending phase> before setting State: human-gate and Gate: <question>, then report GATE. Never merge or accept.",
   ]),
   repair: Object.freeze([
     "Work only inside this existing claim's worktree. Read current-ticket.md and the complete Tester findings checkpoint first; do not invent instructions from Last or repair unverified Adversary hypotheses.",
-    "Continue the confirmed repair at its recorded original reviewed SHA; partial repair commits may have changed the branch. Preserve Repair origin, claim, profile, branch and existing PR. Read the ticket and Feature from their canonical sources.",
+    "Before any implementation edit, run orchestrate stage <ticket> --begin-repair from this owning worktree. It verifies the current PR and local checkout still match the reviewed head before recording Repair: started:<reviewed SHA>. Pending:<SHA> (or an old bare origin) is not proof a Developer began; on drift report GATE. On a restarted started repair the command preserves its original origin idempotently. Continue the confirmed repair at its recorded original reviewed SHA; partial repair commits may have changed the branch. Preserve Repair origin, claim, profile, branch and existing PR. Read the ticket and Feature from their canonical sources.",
     "Run /ticket load <ticket>, then /ticket start as the named role, fixing only confirmed findings. Rerun full ticket verification, commit and push under repository policy, updating the same PR.",
     "Before ending, checkpoint Repair: completed:<original reviewed SHA>, Adversary: required, Review: ordinary and State: adversary with the exact new PR head; report DONE: <pull request>. Old findings are repair instructions about the original head, not verification of new work. Keep prior head identifiers until complete report replacement.",
-    "On a human decision record Gate stage: <current pending phase> before setting State: human-gate and Gate: <question>, then report GATE. On failure set State: failed and report FAILED. Never merge or accept.",
+    "On a human decision record Gate stage: <current pending phase> before setting State: human-gate and Gate: <question>, then report GATE. On failure preserve Failed stage: <current pending phase> before setting State: failed and report FAILED. Never merge or accept.",
   ]),
   review: Object.freeze([
     "Work only inside the worktree named above. Change no implementation, commit nothing, and push nothing.",
     "Read context/tracker.md and the Feature spec from the main checkout named above whenever the worktree has no copy.",
     "Read the matching Adversary experiments checkpoint and independently verify its attacked contracts and uncertainty; legacy/integration-only review follows its recorded exception. Confirm the coordinator checkpointed State: review in context/current-ticket.md, then run /ticket review as the role named above.",
     "Checkpoint the full bounded Tester findings report (PASS or findings), ticket/PR/exact reviewed SHA, actual verification and limits before ending. Use findings.mjs --checkpoint; change no implementation/tests/lifecycle. Report PASS, or findings by severity with file and line, and what was and was not verified. Only matching complete findings authorize Developer repair; only current-head PASS authorizes reviewed done.",
-    "On a question only a human can answer: record Gate stage: <current pending phase> before setting State: human-gate and Gate: <question> in context/current-ticket.md, then stop and report GATE.",
+    "On inability to complete review, preserve Failed stage: review before setting State: failed and report FAILED. On a question only a human can answer: record Gate stage: <current pending phase> before setting State: human-gate and Gate: <question> in context/current-ticket.md, then stop and report GATE.",
   ]),
 });
 

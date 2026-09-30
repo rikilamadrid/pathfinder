@@ -34,7 +34,7 @@ against it.
    `context/current-ticket.md`, then stop and report `GATE: <question>`.
 6. When verified, committed, pushed, and the draft pull request is open: set
    `Adversary: required`, `Review: ordinary`, and `State: adversary` before ending; report `DONE: <pull request>` with exact published head SHA.
-7. When the work cannot be completed inside the ticket: set `State: failed` and
+7. When the work cannot be completed inside the ticket: preserve `Failed stage: <pending phase>` before setting `State: failed` and
    report `FAILED: <reason>`.
 8. Never merge, and never change another ticket's worktree.
 

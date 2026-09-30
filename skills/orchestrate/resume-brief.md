@@ -29,7 +29,14 @@ role, model, and effort the claim recorded for implementation.
 
 Choose the session through `orchestrate stage <key> --advance --json` before
 building the brief. Ordinary `resume` continues implementation; `repair`
-receives only complete checkpointed Tester findings, retaining the original
+receives only complete checkpointed Tester findings. `stage --advance` records
+`Repair: pending:<SHA>`; only the owning Developer runs `stage --begin-repair`
+before edits to validate freshness and record `Repair: started:<SHA>`, retaining the original
 reviewed SHA through partial repair. Completion marks `Repair: completed:<SHA>`
 before Adversary so historical findings cannot be mistaken for new repairs.
 A live appended prompt never replaces the transient report.
+
+A failed session preserves `Failed stage` before failure. After confirming it
+stopped and obtaining human guidance, the coordinator runs
+`stage --advance --guidance "<human answer>"` to restore that recorded phase
+through the same head/report checks. Missing origins require a human gate.

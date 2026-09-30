@@ -28,7 +28,9 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
    - `done`, `failed`, `working` in a live session, or no claim at all: report
      the row and stop. Resume never starts a second session on live work, and a
      failed worker resumes only when the human has given guidance in this
-     conversation; with that guidance, continue at step 3. Cancelling instead
+     conversation; with that guidance and a recorded `Failed stage`, continue
+     at step 3. A missing/unreadable failure origin requires a human decision,
+     never a phase guessed from `Last`. Cancelling instead
      is a separate human decision: preserve the worktree, branch, claim, and
      profile until the human explicitly authorises their release.
 3. Confirm the run's approval. A resume inside a running `/orchestrate start`
@@ -41,6 +43,18 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
    orchestrate brief <key> --harness <harness> --session <returned session> --approval "<approved scope>" --json
    ```
 
+   For a stopped failed worker, replace the ordinary stage command with the
+   human's explicit guidance:
+
+   ```sh
+   orchestrate stage <key> --live <live keys> --advance --guidance "<human answer>" --json
+   ```
+
+   This restores only its recorded `Failed stage`, validates the ordinary
+   head/report rules before writing, and preserves Next's integration strategy
+   and target. It never interprets Last as phase, guidance or findings. Without
+   guidance or a readable origin it refuses, preserving the failed claim.
+
    Establish any one-time adoption classification as `start` defines before
    stage selection. An absent marker is not a legacy exemption. The stage
    selector checks the current PR and exact report head. `adversary` with no
@@ -50,6 +64,9 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
    without rerunning Tester; absent/incomplete findings leave review pending.
    Stale findings before repair never become instructions. An already-started
    repair retains its original reviewed findings through partial pushes.
+   Advancement alone records pending repair; the owning Developer must run
+   `stage --begin-repair` before edits to validate current reviewed/local head
+   freshness and record started repair.
    `done` requires current-head Tester PASS and returns to integration.
 
    Preserve pending integration refresh session/target/policy/approval from
@@ -59,8 +76,8 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
    Behavior changes enter Adversary. Missing/ambiguous guidance or unexpected
    head drift requires coordination before mutation. Add human guidance beneath
    the translated prompt only as supplemental context, never as the sole findings
-   checkpoint. A failed worker needs explicit human guidance before its state
-   can be returned to its recorded pending phase.
+   checkpoint. Ordinary Tester evidence never overrides a missing or stale
+   required experiment checkpoint; preserve the report and report the refusal.
 
 5. Start the worker session exactly as `start` step 3 does for the active
    harness, and record the key as live.

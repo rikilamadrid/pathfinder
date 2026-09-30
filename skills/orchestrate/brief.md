@@ -137,3 +137,13 @@ the existing transient file as the recovery source. No new durable schema or
 execution-profile version is involved. Unknown/absent compatibility markers
 are refused; explicit one-time safe-boundary `stage --adopt` is only for actual
 pre-adoption claims as `actions/start.md` defines.
+
+Repair advancement records only `pending:<reviewed SHA>`. The Developer must
+run `stage --begin-repair` from its owning worktree before edits; the PR and
+local checkout must still match the reviewed head. Only `started:<SHA>` permits
+partial-repair recovery at later heads. Bare old origins are pending, never an
+implicit started exemption. Ordinary reports require matching experiments even
+when a complete Tester checkpoint survives; only recorded legacy/integration
+review exceptions bypass that prerequisite. Failed sessions preserve their
+pending `Failed stage`; stopped-session human guidance uses
+`stage --advance --guidance` to restore it through the same checks.

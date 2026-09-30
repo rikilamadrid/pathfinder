@@ -63,6 +63,7 @@ export function readClaims(root) {
       review: state.review,
       repair: state.repair,
       gateStage: state.gateStage,
+      failedStage: state.failedStage,
       stateFile: state.present,
       elsewhere: null,
       profile: state.profile,
@@ -181,5 +182,6 @@ export function readStateFile(path) {
     review: field("Review"),
     repair: field("Repair"),
     gateStage: field("Gate stage"),
+    failedStage: field("Failed stage"),
   };
 }

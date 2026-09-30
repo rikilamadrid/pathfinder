@@ -45,7 +45,7 @@ import { loadPolicy, runPolicy } from "../policies/registry.mjs";
 import { profileFor } from "../route.mjs";
 import { claim } from "../claim.mjs";
 import { claimFor } from "../claims.mjs";
-import { canonical, checkoutRoot, repositoryRoot } from "../git.mjs";
+import { canonical, checkoutRoot, repositoryRoot, resolveRef } from "../git.mjs";
 import { isKey } from "../keys.mjs";
 import { orchestratorRefusal } from "../mode.mjs";
 import { computeStatus, formatStatus } from "../status.mjs";
@@ -53,10 +53,12 @@ import { describeStore, readTickets, resolveStore } from "../store.mjs";
 
 const USAGE = `orchestrate
 
-  stage <key> [--live a,b] [--adopt | --advance] [--json]
+  stage <key> [--live a,b] [--adopt | --advance | --begin-repair] [--guidance <human answer>] [--json]
       Select the recoverable session from the exact current PR and checkpoint.
       --adopt classifies an old claim once at a stopped session boundary.
-      --advance checkpoints the selected stage before dispatch.
+      --advance checkpoints a pending phase; it never marks repair started.
+      --begin-repair runs only in the owning Developer worktree before edits.
+      --guidance with --advance restores a recorded failed phase after authorization.
 
   check <key> [--json]
       Check a done claim: candidate, behind, or conflict; overlap is advisory.
@@ -141,7 +143,7 @@ async function main(argv) {
   switch (command) {
     case "stage": {
       if (!isKey(positional[0])) return fail(2, "stage needs a ticket key");
-      return stage({ root, key: positional[0], gh: common.gh, live: listOf(flags.live), adopt: Boolean(flags.adopt), advance: Boolean(flags.advance), json: Boolean(flags.json) });
+      return stage({ root, key: positional[0], gh: common.gh, live: listOf(flags.live), adopt: Boolean(flags.adopt), advance: Boolean(flags.advance), beginRepair: Boolean(flags["begin-repair"]), guidance: flags.guidance, json: Boolean(flags.json) });
     }
     case "check": {
       if (!isKey(positional[0])) return fail(2, "check needs a ticket key");
@@ -299,15 +301,22 @@ async function estimate({ root, store: storeOverride, gh, key, assessment, json 
   return 0;
 }
 
-function stage({ root, key, gh, live, adopt, advance, json }) {
+function stage({ root, key, gh, live, adopt, advance, beginRepair, guidance, json }) {
   const refusal = orchestratorRefusal(root);
   if (refusal) return fail(1, refusal);
-  const found = claimFor(root, key);
+  let found = claimFor(root, key);
   if (!found || found.orphan) return fail(1, `${key} has no registered claim`);
   if (!found.stateFile) return fail(1, `${key} has no readable checkpoint`);
-  if (live.includes(key)) return fail(1, `${key} already has a live session`);
+  if (live.includes(key) && !beginRepair) return fail(1, `${key} already has a live session`);
   const worktree = join(root, found.worktree);
-  if (adopt && advance) return fail(2, "choose adoption or advancement, not both");
+  if ((adopt && (advance || beginRepair || guidance)) || (beginRepair && (advance || guidance))) return fail(2, "choose adoption, advancement or worker repair start separately");
+  if (beginRepair && found.state !== "repair") return fail(1, "repair start requires the recorded pending repair phase");
+  if (beginRepair && !samePath(checkoutRoot(process.cwd()) ?? "", worktree)) return fail(1, "repair start belongs to the Developer inside this claim's worktree");
+  if (guidance) {
+    if (!advance || !oneLine(guidance)) return fail(2, "guided failure recovery needs --advance and non-empty human guidance");
+    if (found.state !== "failed" || !["working", "adversary", "review", "repair"].includes(found.failedStage)) return fail(1, "guided recovery requires failed claim with recorded Failed stage; never infer phase from Last");
+    found = { ...found, state: found.failedStage };
+  }
   if (adopt) {
     if (found.state === "done") return fail(1, "completed retained claim needs no adoption write");
     if (found.adversary) return fail(1, "claim already classified; missing or damaged marker is not implicit legacy");
@@ -325,13 +334,25 @@ function stage({ root, key, gh, live, adopt, advance, json }) {
   }
   const identity = found.state === "working" ? { ok: true } : currentPr(root, found.branch, gh);
   if (!identity.ok) return fail(1, identity.message);
-  const result = selectStage({ claim: found, text: checkpointText(root, found), ...identity, live });
+  const result = selectStage({ claim: found, text: checkpointText(root, found), ...identity, live: beginRepair ? live.filter((entry) => entry !== key) : live });
   if (!result.ok) return fail(1, result.message);
+  if (beginRepair) {
+    if (result.session !== "repair") return fail(1, "repair start requires complete confirmed findings and recorded repair phase");
+    if (!result.started && resolveRef(worktree, "HEAD") !== identity.head) return fail(1, "first repair worker checkout differs from current reviewed PR head");
+    const updated = updateStateFile(worktree, { set: { Repair: `started:${result.repair}`, Updated: new Date().toISOString() } });
+    if (!updated.ok) return fail(1, updated.message);
+    result.started = true;
+  }
   if (advance) {
     const set = { State: result.state, Updated: new Date().toISOString() };
-    if (result.repair) { set.Repair = result.repair; set.Adversary = "required"; }
+    if (result.repair) {
+      set.Repair = `${result.started ? "started" : "pending"}:${result.repair}`;
+      if (result.legacy) set.Review = `legacy:${result.repair}`;
+      set.Adversary = "required";
+    }
     if (result.state === "adversary") { set.Adversary = "required"; set.Review = "ordinary"; }
-    const updated = updateStateFile(worktree, { set });
+    if (guidance) set.Last = `human failure-resume guidance: ${oneLine(guidance)}`;
+    const updated = updateStateFile(worktree, { set, unset: guidance ? ["Failed stage"] : [] });
     if (!updated.ok) return fail(1, updated.message);
   }
   process.stdout.write(json ? JSON.stringify(result, null, 2) + "\n" : `${key}: ${result.session ?? "integration"} (${result.state})\n`);
@@ -547,6 +568,7 @@ function state({ root, key, set, gate: gateText, last, next, now }) {
   const fields = { State: set, Updated: now };
   const unset = [];
   if (gateText && set !== "human-gate") return fail(2, "--gate is only for --set human-gate");
+  if (set === "failed" && found.state !== "failed") fields["Failed stage"] = found.state === "human-gate" ? found.gateStage : found.state;
   if (set === "human-gate" && found.state !== "human-gate") fields["Gate stage"] = found.state;
   if (gateText) fields.Gate = oneLine(gateText);
   else if (set !== "human-gate") unset.push("Gate");
@@ -579,7 +601,7 @@ function parse(argv) {
   let command = null;
   const valued = new Set([
     "root", "store", "gh", "feature", "slug", "now", "live", "risk", "reason", "harness", "session", "approval",
-    "workers", "question", "answer", "set", "gate", "last", "next", "comment-blocked", "comment-unblocked", "by",
+    "workers", "question", "answer", "set", "gate", "last", "next", "comment-blocked", "comment-unblocked", "by", "guidance",
   ]);
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -591,7 +613,7 @@ function parse(argv) {
         const value = equals === -1 ? argv[++index] : argument.slice(equals + 1);
         if (value === undefined || value.startsWith("--")) return { error: `--${name} needs a value` };
         flags[name] = value;
-      } else if (name === "json" || name === "help" || name === "announce" || name === "force" || name === "adopt" || name === "advance") {
+      } else if (name === "json" || name === "help" || name === "announce" || name === "force" || name === "adopt" || name === "advance" || name === "begin-repair") {
         flags[name] = true;
       } else {
         return { error: `unknown option \`${argument}\`` };

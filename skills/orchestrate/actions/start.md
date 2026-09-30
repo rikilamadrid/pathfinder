@@ -134,7 +134,11 @@ throughout.
      The review brief carries that report for independent verification.
   4. Tester writes the full bounded findings/verification/limits checkpoint
      before reporting. Matching complete findings select `repair`; advancing
-     records the repair origin before Developer dispatch. The repair brief
+     records a pending repair origin before Developer dispatch. Only the owning
+     Developer can run `stage --begin-repair` before edits to record started
+     repair after matching reviewed/current PR and local head checks. A stop
+     after advancement but before worker start still requires head freshness.
+     The repair brief
      carries the confirmed findings. A restart with those findings does not
      require repeating Tester. Missing/incomplete findings stay in review;
      stale findings before first repair require coordination, never invented
@@ -142,12 +146,16 @@ throughout.
   5. A repaired published head returns to Adversary, then fresh Tester. After
      two rounds of confirmed findings, open the existing human gate with the
      exact summary; do not repair forever or use Adversary suspicions as findings.
-  6. A current-head Tester PASS selects `done` with no worker session. Hand it
+  6. A current-head Tester PASS with the required matching experiments (or its
+     recorded legacy/integration exception) selects `done` with no worker session. Hand it
      to `/orchestrate integrate <key>`; it remains unaccepted until the human gate.
      A refusal preserves the claim and is reported without dispatch.
 
 - **`FAILED: <reason>`**
-  1. `orchestrate state <key> --set failed --last "<reason>"`
+  1. Preserve `Failed stage: <pending phase>` before setting `State: failed`.
+     Workers must checkpoint it; `orchestrate state <key> --set failed --last
+     "<reason>"` records it automatically when transitioning a pending phase.
+     Never infer a missing failure phase from `Last`.
   2. Record the failure reason once in the ticket’s Notes / Decisions (an issue
      comment for GitHub), without changing its lifecycle status. Report it to
      the human. A failed worker keeps its worktree and branch. The
