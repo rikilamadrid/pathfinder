@@ -117,7 +117,7 @@ export function makeProject({
   // Every installed Pathfinder project carries its role contracts, and the
   // routing registry refuses a selection naming a role that has none.
   mkdirSync(join(root, "roles"), { recursive: true });
-  for (const role of ["planner", "orchestrator", "developer", "tester"]) {
+  for (const role of ["planner", "orchestrator", "developer", "adversary", "tester"]) {
     writeFileSync(join(root, "roles", `${role}.md`), `---\nname: ${role}\ndescription: ${role}\n---\n`);
   }
 
@@ -268,4 +268,25 @@ export function statefulGh(issues) {
         .filter(Boolean)
         .map((line) => JSON.parse(line)),
   };
+}
+
+/** Current PR identity stand-in for dispatch/recovery tests; SHA follows real Git. */
+export function prGh(root, key = "1.1") {
+  const directory = temporaryDirectory("orchestrate-pr-");
+  const script = join(directory, "gh");
+  const worktree = join(root, ".pathfinder/worktrees", key);
+  writeFileSync(script, `#!${process.execPath}\nconst {execFileSync}=require('node:child_process');\nconsole.log(JSON.stringify({url:'https://github.com/acme/widgets/pull/7',headRefOid:execFileSync('git',['rev-parse','HEAD'],{cwd:${JSON.stringify(worktree)},encoding:'utf8'}).trim()}));\n`);
+  chmodSync(script, 0o755);
+  return script;
+}
+export function prepareIntegrationReview(root, key = "1.1") {
+  const worktree = join(root, ".pathfinder/worktrees", key);
+  const sha = runGit(["rev-parse", "HEAD"], worktree).trim();
+  const path = join(worktree, "context/current-ticket.md");
+  let text = readFileSync(path, "utf8");
+  text = text.replace(/^- State:.*$/m, "- State: review");
+  text = text.replace(/^- Review:.*\n?/m, "").replace("- Next:", `- Review: integration:${sha}\n- Next:`);
+  text = text.replace(/^- Next:.*$/m, `- Next: verification and push complete at ${sha}; Tester pending`);
+  writeFileSync(path, text);
+  return prGh(root, key);
 }

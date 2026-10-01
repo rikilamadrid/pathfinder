@@ -30,11 +30,11 @@ against it.
 4. Commit on the ticket branch, push it, and open a draft pull request against
    the default branch. Its body says `Closes #<issue>` for a GitHub ticket, or
    names the ticket file for a local one.
-5. On a human decision: set `State: human-gate` and `Gate: <question>` in
+5. On a human decision: record `Gate stage: <current pending phase>`, then set `State: human-gate` and `Gate: <question>` in
    `context/current-ticket.md`, then stop and report `GATE: <question>`.
 6. When verified, committed, pushed, and the draft pull request is open: set
-   `State: done` and report `DONE: <pull request>`.
-7. When the work cannot be completed inside the ticket: set `State: failed` and
+   `Adversary: required`, `Review: ordinary`, and `State: adversary` before ending; report `DONE: <pull request>` with exact published head SHA.
+7. When the work cannot be completed inside the ticket: preserve `Failed stage: <pending phase>` before setting `State: failed` and
    report `FAILED: <reason>`.
 8. Never merge, and never change another ticket's worktree.
 

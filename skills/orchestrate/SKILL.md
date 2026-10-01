@@ -97,6 +97,9 @@ engine/plan.mjs              the dispatch plan: claim now, wait, blocked, stale
 engine/comments.mjs          every note the orchestrator writes, one spelling each
 engine/tracker.mjs           notes and the gate label, idempotent by marker
 engine/statefile.mjs         updates to a worker's state file lines
+engine/stage.mjs             current-head checkpoint validation and recovery session
+engine/experiments.mjs       bounded transient Adversary experiments
+engine/findings.mjs          bounded transient independent Tester review
 ```
 
 `profile.md` documents the profile, its thresholds, and routing policies.

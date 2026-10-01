@@ -226,12 +226,22 @@ choose the coordinator
   ├─ human-in-the-loop: you drive one ticket session
   └─ orchestrator: /orchestrate start coordinates isolated workers
   ↓
-each worker: /ticket load → /ticket start → review → acceptance
+each claim: /ticket load → /ticket start → adversary (optional in human-in-the-loop) → independent review → human acceptance
   ↓
 integration safety + human merge authority
   ↓
 /ticket complete → next eligible work
 ```
+
+Orchestrated delivery uses separate Developer, Adversary and Tester sessions on
+one claim. Adversary produces bounded reproducible experiments with potential
+impact and uncertainty; Tester alone confirms PASS or findings. Human-in-the-loop
+`/ticket adversary` is optional. Reports live transiently in the claimed
+`context/current-ticket.md`, tied to the exact PR head. Recovery resumes the
+recorded stage; confirmed repairs rerun Adversary then Tester. Integration-only
+refresh of unchanged behavior needs fresh Tester/CI without rerunning Adversary.
+Acceptance and final merge still require the human.
+
 
 A prototype is optional. Use one when an important assumption is cheaper to
 prove than to debate.

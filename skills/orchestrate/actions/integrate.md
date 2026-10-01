@@ -63,9 +63,16 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
    current-ticket file. Updating a ticket branch is separately authorised from
    merging its PR into the default branch. Both strategies preserve the claim,
    worktree, branch, execution profile and PR. After the branch update, the
-   worker checkpoints remaining verification; its DONE report starts fresh
-   independent Tester review at the updated head: checkpoint `State: review`
-   and `Next` for that review before dispatch. Previous-head PASS or CI is stale.
+   worker checkpoints remaining verification. Compare behavior before/after the
+   update, recording evidence and reasoning. When unchanged, checkpoint
+   `Review: integration:<exact head SHA>`, `State: review`, and `Next` confirming
+   full verification and push complete; fresh independent Tester is pending.
+   If behavior changed (including confirmed repairs or behavior-changing conflict
+   resolution), checkpoint `Adversary: required`, `Review: ordinary` and
+   `State: adversary` before ending; rerun Adversary then Tester. Keep old reports
+   as historical SHA-bound evidence until complete replacement. Never set done
+   before fresh Tester review. Use `stage --advance` and its validated brief
+   session, not an unconditional Tester dispatch. Previous-head PASS or CI is stale.
    Require full ticket verification, fresh independent PASS and current-head CI;
    only then mark done and restart this action's checks. No fresh integration
    result or review alone authorises the final PR merge.
@@ -113,5 +120,7 @@ even if Next also mentions future review. Resume Tester only from recorded
 `State: review` with Next explicitly confirming verification and push complete
 at the exact current PR head SHA and Tester pending. A new base head requires fresh assessment; a new worker head requires
 fresh review and CI. Never infer current verification from Last alone.
+A full bounded Tester findings checkpoint precedes Developer repair; partial
+repair retains its reviewed origin, then returns through Adversary on the new head.
 A compatible
 replacement harness is permitted only after the old writer has stopped.

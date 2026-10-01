@@ -33,6 +33,7 @@ import {
   cleanUpTemporaryDirectories,
   gitEnv,
   json,
+  prepareIntegrationReview,
   makeProject,
   orchestrate,
   temporaryDirectory,
@@ -251,7 +252,7 @@ describe("the routing policy", () => {
       effort: "inherited",
     });
     assert.equal(runPolicy(policy, estimate, { session: "review" }).selection.role, "tester");
-    assert.match(runPolicy(policy, estimate, { session: "deploy" }).message, /session must be implementation or review/);
+    assert.match(runPolicy(policy, estimate, { session: "deploy" }).message, /session must be implementation or review or adversary/);
   });
 
   it("refuses a policy the engine does not ship, naming the shipped ones", async () => {
@@ -361,7 +362,8 @@ describe("the seam: adding a policy changes nothing else", () => {
 
   function engineCopy() {
     const home = temporaryDirectory("orchestrate-engine-copy-");
-    const engine = join(home, "engine");
+    const engine = join(home, "skills/orchestrate/engine");
+    cpSync(join(ENGINE_ROOT, "../../../lib"), join(home, "lib"), { recursive: true });
     cpSync(ENGINE_ROOT, engine, { recursive: true });
     return engine;
   }
@@ -434,7 +436,7 @@ describe("the seam: adding a policy changes nothing else", () => {
     assert.equal(claude.status, 1, "Claude Code subagents take no effort, so effort: high is refused");
     assert.match(claude.stderr, /cannot honour effort `high`: the subagent call takes no reasoning-effort setting/);
 
-    const review = JSON.parse(run(engine, ["brief", "1.1", "--harness", "manual", "--session", "review", "--json"], root).stdout);
+    const review = JSON.parse(run(engine, ["brief", "1.1", "--harness", "manual", "--session", "review", "--gh", prepareIntegrationReview(root), "--json"], root).stdout);
     assert.deepEqual(
       { role: review.brief.role, model: review.brief.model, session: review.brief.session },
       { role: "tester", model: "sonnet", session: "review" },
@@ -566,7 +568,7 @@ describe("repairs from the 53.7 review", () => {
 
     const implementation = formatBrief(buildBrief({ ...BRIEF_BASE, selection: { role: "developer", model: "inherited", effort: "inherited" } }).brief);
     assert.match(implementation, /\/ticket load 1\.1, then \/ticket start/);
-    assert.match(buildBrief({ ...BRIEF_BASE, session: "deploy", selection: { role: "developer", model: "inherited", effort: "inherited" } }).message, /session must be implementation, resume, rebase-and-reverify, merge-and-reverify, resolve-conflict, review/);
+    assert.match(buildBrief({ ...BRIEF_BASE, session: "deploy", selection: { role: "developer", model: "inherited", effort: "inherited" } }).message, /session must be implementation, resume, rebase-and-reverify, merge-and-reverify, resolve-conflict, adversary, repair, review/);
   });
 
   it("reads the ticket shapes the estimate previously missed", () => {
@@ -658,6 +660,6 @@ describe("repairs from the 53.7 re-review", () => {
 
   it("has a review worker at a gate set State: human-gate, as status expects", () => {
     const text = formatBrief(buildBrief({ ...BRIEF_BASE, session: "review", selection: { role: "tester", model: "inherited", effort: "inherited" } }).brief);
-    assert.match(text, /set State: human-gate and Gate: <question>/);
+    assert.match(text, /Gate stage: <current pending phase> before setting State: human-gate and Gate: <question>/);
   });
 });

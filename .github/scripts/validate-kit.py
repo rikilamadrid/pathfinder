@@ -1588,6 +1588,32 @@ def check_help_text() -> None:
                  "in `--help`, so `--agents` accepts a value the help omits")
 
 
+def check_orchestrated_handoffs() -> None:
+    """Validate the shipped finite states, routing and report-reader discovery."""
+    probe = """
+      import { CLAIM_STATES } from './skills/orchestrate/engine/claims.mjs';
+      import { PROTOCOLS } from './skills/orchestrate/engine/brief.mjs';
+      import { select } from './skills/orchestrate/engine/policies/static.mjs';
+      import { selectStage } from './skills/orchestrate/engine/stage.mjs';
+      import { readFindingsReport } from './skills/orchestrate/engine/findings.mjs';
+      for (const stage of ['adversary','review','repair']) {
+        if (!CLAIM_STATES.includes(stage) || !PROTOCOLS[stage]) throw Error('missing stage '+stage);
+      }
+      for (const [session,role] of [['implementation','developer'],['adversary','adversary'],['review','tester']]) {
+        if (select({}, {session}).role !== role) throw Error('wrong routing '+session);
+      }
+      if (typeof selectStage !== 'function' || readFindingsReport('').ok) throw Error('missing checkpoint boundary');
+    """
+    try:
+        result = subprocess.run(['node', '--input-type=module', '-e', probe], cwd=ROOT,
+                                capture_output=True, text=True, check=False)
+    except OSError:
+        print('note: node unavailable, skipping orchestrated-handoffs')
+        return
+    if result.returncode:
+        fail('skills/orchestrate/engine', 'orchestrated-handoffs', result.stderr.strip())
+
+
 def main() -> int:
     skill_names = check_skills()
     check_claude_md(skill_names)
@@ -1598,6 +1624,7 @@ def main() -> int:
     check_copy_list()
     check_roles(skill_names)
     check_lifecycle_role_assumptions()
+    check_orchestrated_handoffs()
     check_help_text()
     check_no_junk_tracked()
     check_never_ships()

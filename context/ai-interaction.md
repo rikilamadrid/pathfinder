@@ -54,7 +54,13 @@ Use the workflow skills instead of recreating their procedures in chat:
 
 In human-in-the-loop mode, the human coordinates this loop. In orchestrator
 mode, `orchestrate` coordinates the same ticket actions across dependency-safe
-workers in separate worktrees and hands reviewed work to the integrator. One
+workers in separate worktrees. Successful implementation checkpoints Adversary
+pending; a separate bounded Adversary session precedes independent Tester.
+Suspected defects reach Tester first. Full confirmed findings and experiments
+cross sessions through the transient current-ticket checkpoint at the exact PR
+head. Repairs rerun Adversary then Tester; unchanged integration-only refresh
+requires fresh Tester/CI. Only current-head reviewed work reaches done and the
+integrator. One
 worker’s human gate does not stop unrelated workers. The execution-mode rule
 lives in `skills/ticket/SKILL.md`; neither mode changes human authority.
 
@@ -70,8 +76,9 @@ Ticket status records durable lifecycle state only:
 `Cancelled` and `Superseded` are terminal alternatives.
 
 - `Ready` means the human approved execution.
-- Review and testing are optional workflow activity, not a status.
-  A ticket stays `In Progress` until it is complete.
+- Review and testing are workflow activity, not a status. Human-in-the-loop
+  coordination remains optional; orchestrated delivery requires its separate
+  Adversary and Tester phases. A ticket stays `In Progress` until it is complete.
 - `Blocked` is not a status. A ticket's blockers are the edges under its
   `## Blocked by`, and anything else that stops work is recorded in current
   workspace state.

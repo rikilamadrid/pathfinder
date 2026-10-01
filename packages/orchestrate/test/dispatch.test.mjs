@@ -20,6 +20,7 @@ import { approvalScope, blockedNote, claimedNote, gateOpenedNote, marker } from 
 import { updateStateText } from "../../../skills/orchestrate/engine/statefile.mjs";
 import { appendUnderNotes } from "../../../skills/orchestrate/engine/tracker.mjs";
 import {
+  prepareIntegrationReview,
   cleanUpTemporaryDirectories,
   issue,
   json,
@@ -307,7 +308,8 @@ describe("repairs from the 53.3 review", () => {
     const root = abc();
     orchestrate(["claim", "1.1", "--now", NOW], { root });
     for (const session of ["implementation", "resume", "review"]) {
-      const text = orchestrate(["brief", "1.1", "--harness", "manual", "--session", session], { root }).stdout;
+      const extra = session === "review" ? ["--gh", prepareIntegrationReview(root)] : [];
+      const text = orchestrate(["brief", "1.1", "--harness", "manual", "--session", session, ...extra], { root }).stdout;
       assert.match(text, /^Main: {6}\/.+$/m, session);
       assert.equal(/^Main: {6}(.+)$/m.exec(text)[1].endsWith(/^Worktree: {2}(.+)$/m.exec(text)[1].replace(/\/\.pathfinder\/worktrees\/1\.1$/, "")), true, session);
       assert.match(text, /Read context\/tracker\.md and the Feature spec from the main checkout named above whenever the worktree has no copy/, session);

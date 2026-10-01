@@ -96,7 +96,7 @@ inspectable input, and v1's `static` policy ignores them.
 ## Routing policies
 
 A policy is one module in `engine/policies/` exporting a synchronous
-`select(estimate, { session })`, where `session` is `implementation` or
+`select(estimate, { session })`, where `session` is `implementation`, `adversary`, or
 `review`. The registry finds policies by file name. A helper a policy imports
 is named with a leading underscore, and neither it nor a `*.test.mjs` file is
 listed as a policy. A policy receives a deep-frozen copy of the estimate, so a
@@ -116,6 +116,7 @@ v1 ships `static` alone:
 | Session | role | model | effort |
 | --- | --- | --- | --- |
 | implementation | `developer` | `inherited` | `inherited` |
+| adversary | `adversary` | `inherited` | `inherited` |
 | review | `tester` | `inherited` | `inherited` |
 
 `inherited` means whatever the session that dispatches the worker already

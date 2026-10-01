@@ -36,7 +36,7 @@ function frozenCopy(value) {
   const copy = Array.isArray(value) ? value.map(frozenCopy) : Object.fromEntries(Object.entries(value).map(([k, v]) => [k, frozenCopy(v)]));
   return Object.freeze(copy);
 }
-export const SESSIONS = Object.freeze(["implementation", "review"]);
+export const SESSIONS = Object.freeze(["implementation", "review", "adversary"]);
 
 /** Every policy this engine ships, by name, sorted. */
 export function shippedPolicies() {

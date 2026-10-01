@@ -48,6 +48,8 @@ describe("Codex harness translation", () => {
     const expected = {
       implementation: "implementation",
       resume: "resume",
+      adversary: "adversary",
+      repair: "repair",
       review: "review",
       "rebase-and-reverify": "rebase_and_reverify",
       "merge-and-reverify": "merge_and_reverify",

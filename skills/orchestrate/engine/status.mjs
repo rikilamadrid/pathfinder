@@ -38,7 +38,9 @@ export const STATES = Object.freeze([
   "ready",
   "blocked",
   "working",
+  "adversary",
   "review",
+  "repair",
   "human-gate",
   "done",
   "stale",
@@ -49,7 +51,7 @@ export const STATES = Object.freeze([
 // A worker at a human gate stopped on purpose and waits for a person, so it is
 // shown as human-gate whether or not a session is live. Only work that was
 // meant to be running and has no session is stale.
-const STALE_WHEN_UNATTENDED = new Set(["working", "review"]);
+const STALE_WHEN_UNATTENDED = new Set(["working", "adversary", "review", "repair"]);
 const ABANDONED = new Set(["Cancelled", "Superseded"]);
 
 /**

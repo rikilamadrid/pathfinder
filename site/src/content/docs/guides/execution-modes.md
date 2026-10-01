@@ -110,7 +110,7 @@ A claim creates a linked worktree at `.pathfinder/worktrees/<key>` and a separat
 `ticket/<key>-<slug>` branch. Git's claim ref and worktree checks prevent duplicate
 ownership. Each worktree has its own `context/current-ticket.md`, so one worker's
 state never overwrites another's. The orchestrator coordinates; developers
-implement, testers review, and the integrator checks landing safety.
+implement, adversaries challenge, testers independently review, and the integrator checks landing safety.
 
 ### The profile you approve
 
@@ -129,7 +129,7 @@ Those estimates are coarse evidence from declared ticket paths, not a guarantee
 that branches cannot conflict. Actual changed-file overlap is checked again at
 integration.
 
-This release ships **static** routing: implementation role `developer`, review
+This release ships **static** routing: implementation role `developer`, Adversary role `adversary`, review
 role `tester`, model `inherited`, effort `inherited`. Inherited means the model
 and reasoning effort already used by the dispatching session. Dynamic model
 routing is not part of this release.
@@ -159,6 +159,8 @@ and last recorded result. Its vocabulary is distinct from ticket lifecycle:
 | `ready` | Eligible and unclaimed |
 | `blocked` | Waiting on dependencies or another stated constraint |
 | `working` | An owned worker is implementing |
+| `adversary` | Bounded experiments are pending or underway; no verdict |
+| `repair` | Developer repairs only checkpointed Tester-confirmed findings |
 | `review` | Independent verification is underway |
 | `human-gate` | This ticket needs the named human decision |
 | `done` | Work is ready for integration assessment after verification and review |
@@ -168,12 +170,13 @@ and last recorded result. Its vocabulary is distinct from ticket lifecycle:
 
 Ticket lifecycle remains `Proposed → Ready → In Progress → Complete`, with
 `Cancelled` and `Superseded` as terminal alternatives. `blocked` and
-`human-gate` are not lifecycle statuses. A developer's completion report starts
-independent tester review; it does not accept or merge the work.
+`human-gate` are not lifecycle statuses. A developer's completion report leaves Adversary pending, followed by
+independent Tester review; it does not accept or merge the work.
 
 ## Gates and the tracker
 
-A worker needing a human decision records `State: human-gate` and the exact
+A worker needing a human decision preserves `Gate stage: <pending phase>`
+and records `State: human-gate` and the exact
 `Gate` question. Its dependents wait; unrelated workers continue. On GitHub
 Issues, the orchestrator adds `gate: human` and an idempotent comment. The issue
 keeps its ordinary lifecycle label. Resolution records the answer and removes
@@ -240,3 +243,47 @@ There is no automatic cross-harness failover.
 Failed work is preserved too. If repair needs a scope decision or repeated
 review cannot resolve a finding, the exact decision returns to the human while
 unrelated workers continue.
+
+## Recovering the verification handoffs
+
+Every new orchestrated claim follows `working → adversary → review → done`.
+Developer completion checkpoints Adversary pending before the session ends.
+`done` means independent Tester reviewed the current PR head, never merely
+implementation complete. Human-in-the-loop Adversary remains optional.
+
+The claim's ignored `context/current-ticket.md` carries complete bounded
+`Adversary experiments` and `Tester findings` reports. Both identify ticket,
+PR and exact head SHA; reports are transient, not durable ticket/store fields.
+Adversary uses `experiment_id`, reproducibility, uncertainty, potential impact
+and verifier instructions without a verdict. Tester independently confirms the
+contract violation and checkpoints findings, actual verification and limits
+before Developer repair. Last summaries and live appended prompts cannot
+replace those reports.
+
+`/orchestrate resume` selects the recorded stage on the same claim. Missing or
+stale experiments rerun Adversary; matching complete experiments permit Tester
+even after a stop before the review transition. Matching complete findings
+resume Developer without repeating Tester merely because orchestration stopped.
+Missing/incomplete findings stay in review; unexpected head drift before repair
+requires coordination. Partial repair retains its reviewed origin. A repaired
+head reruns Adversary then Tester (`review → repair → adversary → review`).
+
+At adoption, only an actual pre-existing legacy review gets one SHA-bound
+transient exemption at a safe stopped-session boundary. New/converted claims
+require experiments; missing/unreadable markers never imply legacy. Unchanged
+integration-only refresh records its separate SHA-bound review path and requires
+fresh Tester/CI and integration checks without a new Adversary run. If behavior
+changes, Adversary precedes Tester. Neither path sets done before current-head
+Tester PASS. One session owns each claim at a time, and acceptance/merge/release
+remain human decisions.
+
+Repair dispatch advancement is pending until the owning Developer validates
+its reviewed/current PR and local head with `stage --begin-repair`. A stop
+before that worker starts still blocks changed-head findings; only started
+repair retains its origin through partial pushes. For integration-origin repair,
+that validated start consumes the full verification/push prerequisite; updating
+`Next` with repair progress does not erase it. Ordinary Tester evidence
+cannot bypass missing or stale experiments. Failed sessions retain `Failed
+stage`; explicit human guidance and a stopped-session confirmation restore
+that recorded phase through the normal head/report checks, including the
+selected integration refresh strategy. An unknown origin requires a human gate.

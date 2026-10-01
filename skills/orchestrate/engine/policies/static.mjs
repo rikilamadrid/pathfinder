@@ -18,7 +18,7 @@ export const description = "developer implements, tester reviews, model and effo
  */
 export function select(profile, { session }) {
   return {
-    role: session === "review" ? "tester" : "developer",
+    role: session === "review" ? "tester" : session === "adversary" ? "adversary" : "developer",
     model: "inherited",
     effort: "inherited",
   };
