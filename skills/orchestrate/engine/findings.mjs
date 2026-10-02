@@ -5,6 +5,11 @@ import { pathToFileURL } from "node:url";
 import { parseSource } from "../../../lib/evidence-references.mjs";
 import { claimFor } from "./claims.mjs";
 import { repositoryRoot } from "./git.mjs";
+import { readExperimentReport } from "./experiments.mjs";
+import { testerJudgeErrors } from "./judge-prose.mjs";
+import { projectionProblem } from "./judgment.mjs";
+import { readEvidenceJudge } from "./mode.mjs";
+import { readTickets, resolveStore } from "./store.mjs";
 
 export const FINDINGS_HEADING = "## Tester findings";
 const nonempty = (v) => typeof v === "string" && v.trim() !== "" && v.length <= 2048;
@@ -14,7 +19,7 @@ export function validateFindingsReport(report) {
   const errors = [];
   if (!object(report)) return { ok: false, errors: ["review must be an object"] };
   if (Buffer.byteLength(JSON.stringify(report, null, 2)) > 32768) errors.push("review exceeds 32 KiB");
-  for (const key of Object.keys(report)) if (!["ticket", "pr", "head_sha", "result", "findings", "verification", "limits"].includes(key)) errors.push(`unknown review field: ${key}`);
+  for (const key of Object.keys(report)) if (!["ticket", "pr", "head_sha", "result", "findings", "verification", "limits", "judge"].includes(key)) errors.push(/^[a-z_]{1,32}$/.test(key) ? `unknown review field: ${key}` : "an unknown review field");
   if (typeof report.ticket !== "string" || !/^\d+\.\d+$/.test(report.ticket)) errors.push("invalid ticket");
   if (typeof report.pr !== "string" || !/^https:\/\/[^\s]+\/pull\/[1-9]\d*$/.test(report.pr ?? "")) errors.push("invalid PR URL");
   if (typeof report.head_sha !== "string" || !/^[a-f0-9]{40}$/i.test(report.head_sha)) errors.push("invalid reviewed SHA");
@@ -26,7 +31,22 @@ export function validateFindingsReport(report) {
     const fields = ["severity", "location", "impact", "evidence", "repair_instruction"];
     if (Object.keys(f).some((key) => !fields.includes(key)) || fields.some((key) => key === "evidence" ? !list(f[key]) || f[key].some((r) => !parseSource(r)) : !nonempty(f[key]))) errors.push("complete finding severity/location/impact/evidence/repair_instruction required");
   }
+  // The optional judge-facing projection: shape only here, so lifecycle
+  // gating never depends on how well it is written. Its prose is checked when
+  // the checkpoint is written and again before any judge is asked.
+  if (report.judge !== undefined) errors.push(...testerJudgeErrors(report, { prose: false }));
   return { ok: errors.length === 0, errors };
+}
+/**
+ * Problems that refuse writing this checkpoint for an Evidence Judge: the
+ * projection's prose, and its absence from a PASS when the project names a
+ * judge. Each names the field to rewrite, never its value.
+ */
+export function judgeProjectionErrors(report, { judgeEnabled = false } = {}) {
+  // Only a PASS is ever judged; a findings report's projection is never sent.
+  if (report.result !== "PASS") return [];
+  if (report.judge === undefined) return judgeEnabled ? ["this project's Evidence Judge needs a judge-facing projection: add judge.verification (one action_summary and observation_summary per verification item) and judge.limits_summary"] : [];
+  return testerJudgeErrors(report);
 }
 export function renderFindingsReport(report) {
   const checked = validateFindingsReport(report);
@@ -62,13 +82,30 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     if (process.argv.slice(2).join(" ") !== "--checkpoint") throw new Error("usage: findings.mjs --checkpoint < review.json");
     const input = readFileSync(0, "utf8");
     if (Buffer.byteLength(input) > 32768) throw new Error("review exceeds 32 KiB");
-    const report = JSON.parse(input);
+    let report;
+    try { report = JSON.parse(input); } catch { throw new Error("stdin is not valid JSON; nothing was written"); }
     const root = repositoryRoot(process.cwd());
     const claim = root && claimFor(root, report.ticket);
     if (!claim?.worktree || resolve(root, claim.worktree) !== process.cwd()) throw new Error("run inside this ticket's claimed worktree");
     const path = join(process.cwd(), "context/current-ticket.md");
     const text = readFileSync(path, "utf8");
     if (!new RegExp(`^- Ticket: ${report.ticket.replaceAll(".", "\\.")}(?:\\s|$)`, "m").test(text)) throw new Error("checkpoint ticket identity differs from review");
+    const judgeEnabled = readEvidenceJudge(root).explicit;
+    const judge = judgeProjectionErrors(report, { judgeEnabled });
+    if (judge.length) throw new Error(`judge-facing projection refused; nothing was written, and the raw evidence is unchanged: ${judge.join("; ")}`);
+    // The same checks the bundle will run, in its order, on the ticket's
+    // criteria and this claim's experiments, so writing never accepts what
+    // integration would refuse.
+    if (judgeEnabled && report.result === "PASS" && report.judge !== undefined) {
+      const read = readTickets(root, resolveStore(root));
+      const ticket = read.ok ? read.tickets.find((entry) => entry.key === report.ticket) : null;
+      if (!ticket) console.error("findings: the ticket could not be read here; its criteria are checked with this projection at integration");
+      else {
+        const experiments = readExperimentReport(text);
+        const problem = projectionProblem({ ticket: report.ticket, body: ticket.body, pr: report.pr, head: report.head_sha, findings: report, experiments: experiments.ok ? experiments.report : null });
+        if (problem) throw new Error(`judge-facing projection refused; nothing was written, and the raw evidence is unchanged: ${problem}`);
+      }
+    }
     writeFileSync(path, replaceFindingsReport(text, report));
     console.log("Tester findings checkpoint written; State unchanged.");
   } catch (error) { console.error(`findings: ${error.message}`); process.exitCode = 1; }

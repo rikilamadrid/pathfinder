@@ -71,6 +71,24 @@ each with exactly `severity`, `location`, `impact`, `evidence` (1–20 existing
 at most 2048 characters; the entire JSON is at most 32 KiB. This checkpoint is
 transient, not a durable regression record or acceptance decision.
 
+When `context/execution-mode.md` names an Evidence Judge, a `PASS` report also
+has `judge`, the only part of it a judge provider may receive: exactly
+`verification` (one object per `verification` item, in order, each with exactly
+`action_summary` and `observation_summary`) and `limits_summary`. Write each as
+judge prose — one plain line of at most 280 characters, using only letters,
+digits, spaces and `. , ; ( ) ' % -` — saying what was done and what was
+observed, never a command, output, path, URL or value. The raw fields keep
+their full evidence locally. The helper refuses invalid or missing judge prose,
+naming the field to rewrite, and writes nothing. A `## Verification` item that
+is not judge prose as written (a command, path, URL, header, code or value)
+also needs an entry in `judge.criteria` — `criterion` (`verification:N`) and a
+judge-prose `summary` that keeps everything it requires; the review brief names
+those items, and the raw criterion is never sent. A criterion judged from a
+summary always comes back as `require_evidence`, for the human to compare the
+summary with the original.
+`skills/orchestrate/evidence-judge.md` has the full rules. Without a judge,
+`judge` is optional and nothing changes.
+
 Re-query the PR head before ending; head drift makes this evidence stale.
 Write the complete report before the coordinator advances to Developer repair.
 Missing/incomplete findings remain Tester work; `Last` and live prompts cannot

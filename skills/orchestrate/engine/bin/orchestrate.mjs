@@ -12,6 +12,7 @@
  *   node bin/orchestrate.mjs announce <key> [--now <iso>]
  *   node bin/orchestrate.mjs gate <key> open --question <text> | resolve [--answer <text>] [--now <iso>]
  *   node bin/orchestrate.mjs state <key> --set <state> [--gate <text>] [--last <text>] [--next <text>] [--now <iso>]
+ *   node bin/orchestrate.mjs judge <key> [--timeout-ms N] [--json]
  *
  * Every command takes `--root <dir>` (default: the repository containing the
  * working directory), `--store <spec>` to override `context/tracker.md`
@@ -29,7 +30,7 @@
  * from git, the worktrees' state files, and the ticket store on every call.
  */
 
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { checkIntegration, formatCheck, releaseClaim } from "../integration.mjs";
@@ -37,6 +38,10 @@ import { computeBoard, formatBoard } from "../board.mjs";
 import { buildBrief, formatBrief, translateBrief } from "../brief.mjs";
 import { approvalScope, blockedNote, claimedNote, gateOpenedNote, gateResolvedNote, unblockedNote } from "../comments.mjs";
 import { checkpointText, currentPr, selectStage } from "../stage.mjs";
+import { readExperimentReport } from "../experiments.mjs";
+import { readFindingsReport } from "../findings.mjs";
+import { buildBundle, criteriaNeedingSummary, decide, summarizedOf, DEFAULT_TIMEOUT_MS, duplicateJudgment, evaluate, JUDGMENT_HEADING, judgmentRecord, replaceJudgment } from "../judgment.mjs";
+import { loadJudge } from "../judges/registry.mjs";
 import { computePlan, formatPlan } from "../plan.mjs";
 import { updateStateFile } from "../statefile.mjs";
 import { postNote, setGateLabel } from "../tracker.mjs";
@@ -47,7 +52,7 @@ import { claim } from "../claim.mjs";
 import { claimFor } from "../claims.mjs";
 import { canonical, checkoutRoot, repositoryRoot, resolveRef } from "../git.mjs";
 import { isKey } from "../keys.mjs";
-import { orchestratorRefusal } from "../mode.mjs";
+import { orchestratorRefusal, readEvidenceJudge } from "../mode.mjs";
 import { computeStatus, formatStatus } from "../status.mjs";
 import { describeStore, readTickets, resolveStore } from "../store.mjs";
 
@@ -62,6 +67,12 @@ const USAGE = `orchestrate
 
   check <key> [--json]
       Check a done claim: candidate, behind, or conflict; overlap is advisory.
+
+  judge <key> [--timeout-ms N] [--json]
+      Ask the configured Evidence Judge whether a done claim's Tester and
+      Adversary evidence supports its ticket's ## Verification items. Prints
+      continue, require_evidence or escalate; exits 0 only for continue. With
+      no judge configured, continue without any call. Never changes State.
 
   release <key> [--force --approval <human permission>] [--json]
       Remove a merged worktree, branch and claim ref. Unmerged work is refused
@@ -152,6 +163,12 @@ async function main(argv) {
       process.stdout.write(flags.json ? JSON.stringify(result, null, 2) + "\n" : formatCheck(result));
       return 0;
     }
+    case "judge": {
+      if (!isKey(positional[0])) return fail(2, "judge needs a ticket key");
+      const timeoutMs = flags["timeout-ms"] === undefined ? DEFAULT_TIMEOUT_MS : Number(flags["timeout-ms"]);
+      if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120000) return fail(2, "--timeout-ms must be a whole number from 100 to 120000");
+      return judge({ ...common, key: positional[0], timeoutMs, json: Boolean(flags.json) });
+    }
     case "release": {
       if (!isKey(positional[0])) return fail(2, "release needs a ticket key");
       const result = releaseClaim({ root, key: positional[0], force: Boolean(flags.force), approval: flags.approval });
@@ -231,6 +248,7 @@ async function main(argv) {
         harness: flags.harness,
         session: flags.session ?? "implementation",
         gh: common.gh,
+        store: common.store,
         live: listOf(flags.live),
         approval: flags.approval ?? "as granted by the orchestration run that dispatches this worker",
         json: Boolean(flags.json),
@@ -359,7 +377,79 @@ function stage({ root, key, gh, live, adopt, advance, beginRepair, guidance, jso
   return 0;
 }
 
-async function brief({ root, key, harness, session, approval, json, gh = "gh", live = [] }) {
+/**
+ * The Evidence Judge seam: after deterministic Tester evidence reaches done,
+ * before the integrator presents the merge to the human. Deterministic checks
+ * run first and a refusal there asks no provider. Writes only its own
+ * checkpoint section, and nothing at all when no judge is configured.
+ */
+async function judge({ root, store: storeOverride, gh, key, timeoutMs, json }) {
+  const refusal = orchestratorRefusal(root);
+  if (refusal) return fail(1, refusal);
+  const found = claimFor(root, key);
+  if (!found || found.orphan || !found.stateFile) return fail(1, `${key} has no registered claim with a readable checkpoint`);
+  if (found.state !== "done") return fail(1, `${key} is ${found.state ?? "unclaimed"}; the evidence judge reads only Tester-reviewed done claims`);
+  const report = (result) => {
+    const summarized = result.summarized_criteria?.length ? [`  judged from the Tester's summary, not the ticket's text: ${result.summarized_criteria.join(", ")}`] : [];
+    process.stdout.write(json ? JSON.stringify(result, null, 2) + "\n" : [`${key}: evidence judgment ${result.decision}${result.provider ? ` (${result.provider}${result.from ? `, ${result.from}` : ""})` : ""}`, ...result.reasons.map((reason) => `  ${reason}`), ...summarized, ""].join("\n"));
+    if (result.decision === "continue") return 0;
+    return fail(1, `evidence judgment ${result.decision}: do not present ${key} for approval as ready; put this judgment before the human`);
+  };
+  const config = readEvidenceJudge(root);
+  if (!config.explicit) return report({ ticket: key, provider: null, status: "not-configured", ...decide({ status: "not-configured" }) });
+  const loaded = await loadJudge(config.name);
+  if (!loaded.ok) return report({ ticket: key, provider: config.name, status: "failed", ...decide({ status: "failed", failure: { kind: "configuration", message: loaded.message } }) });
+  const identity = currentPr(root, found.branch, gh);
+  if (!identity.ok) return fail(1, identity.message);
+  const checkpoint = checkpointText(root, found);
+  // Before anything is asked or paid for: a result could not be written back.
+  if (duplicateJudgment(checkpoint)) return fail(1, `${key}: duplicate ${JUDGMENT_HEADING} sections in ${found.worktree}/context/current-ticket.md; remove all but one. No judge was asked`);
+  const stage = selectStage({ claim: found, text: checkpoint, ...identity });
+  if (!stage.ok || stage.state !== "done") return fail(1, `deterministic evidence does not reach done (${stage.message ?? stage.state}); no judgment requested`);
+  const store = resolveStore(root, { override: storeOverride });
+  const read = readTickets(root, store, { gh });
+  if (!read.ok) return fail(1, read.message);
+  const ticket = read.tickets.find((entry) => entry.key === key);
+  if (!ticket) return fail(1, `no ticket ${key} in ${describeStore(store)}`);
+
+  const { judge: provider } = loaded;
+  const env = Object.fromEntries(provider.environment.filter((name) => process.env[name] !== undefined).map((name) => [name, process.env[name]]));
+  const secrets = provider.secrets.map((name) => env[name]).filter(Boolean);
+  const experiments = readExperimentReport(checkpoint);
+  const built = buildBundle({
+    ticket: key, body: ticket.body, pr: identity.pr, head: identity.head,
+    findings: readFindingsReport(checkpoint).report, experiments: experiments.ok ? experiments.report : null, secrets,
+  });
+  const { record, from } = built.ok
+    ? await evaluate({ bundle: built.bundle, judge: provider, checkpoint, env, timeoutMs, secrets })
+    : { record: judgmentRecord({ ticket: key, pr: identity.pr, head: identity.head, judge: provider, outcome: { status: "refused", reason: built.reason } }), from: "policy" };
+  if (from !== "checkpoint") {
+    const path = join(root, ...found.worktree.split("/"), "context", "current-ticket.md");
+    writeFileSync(path, replaceJudgment(readFileSync(path, "utf8"), record), "utf8");
+  }
+  // The human sees which criteria the judge read as the Tester's restatement.
+  const summarized = built.ok ? summarizedOf(built.bundle) : [];
+  return report({ ...record, from, summarized_criteria: summarized });
+}
+
+const JUDGE_PROSE_GUIDE = "written as judge prose (skills/orchestrate/evidence-judge.md: one plain line of at most 280 characters, letters, digits, spaces and . , ; ( ) ' % - only). Raw commands, output, logs and references stay in the raw fields and are never sent";
+const JUDGE_PROJECTION = Object.freeze({
+  review: `This project names an Evidence Judge. A PASS report also needs \`judge\`: one \`action_summary\` and \`observation_summary\` per \`verification\` item, in order, and a \`limits_summary\`, ${JUDGE_PROSE_GUIDE}.`,
+  adversary: `This project names an Evidence Judge. Each experiment also needs \`judge\` with \`contract_attacked\`, \`action_summary\`, \`expected_result\` and \`observation_summary\`, ${JUDGE_PROSE_GUIDE}.`,
+});
+
+/** Which of the ticket's criteria the Tester must restate for the judge, read from the ticket itself. */
+function criteriaGuidance(root, key, { store: storeOverride, gh }) {
+  const read = readTickets(root, resolveStore(root, { override: storeOverride }), { gh });
+  const ticket = read.ok ? read.tickets.find((entry) => entry.key === key) : null;
+  if (!ticket) return "Any ## Verification item that is not judge prose as written also needs a `judge.criteria` entry: `criterion` (verification:N) and a judge-prose `summary` of what it requires; the raw criterion is never sent.";
+  const needed = criteriaNeedingSummary(ticket.body);
+  return needed.length
+    ? `These ## Verification items cannot be sent to the judge as written: ${needed.join(", ")}. Add a \`judge.criteria\` entry for each, with \`criterion\` and a judge-prose \`summary\` that keeps everything it requires; the raw criterion stays local.`
+    : "Every ## Verification item can be sent to the judge as written; `judge.criteria` is not needed.";
+}
+
+async function brief({ root, key, harness, session, approval, json, gh = "gh", store: storeOverride, live = [] }) {
   const found = claimFor(root, key);
   if (!found || found.orphan) return fail(1, `${key} has no registered claim to brief`);
   if (!found.profile) {
@@ -403,6 +493,11 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", l
 
   if (handoff?.experiments) built.brief.protocol.push(`Adversary experiments to independently verify: ${JSON.stringify(handoff.experiments)}`);
   if (handoff?.report) built.brief.protocol.push(`Confirmed Tester findings at the original reviewed head; repair only these, not unverified experiments: ${JSON.stringify(handoff.report)}`);
+  // Only a project that names a judge asks for the judge-facing projection.
+  if (readEvidenceJudge(root).explicit && JUDGE_PROJECTION[session]) {
+    built.brief.protocol.push(JUDGE_PROJECTION[session]);
+    if (session === "review") built.brief.protocol.push(criteriaGuidance(root, key, { store: storeOverride, gh }));
+  }
   const translated = translateBrief(built.brief, harness);
   if (!translated.ok) return fail(1, translated.message);
 
@@ -601,7 +696,7 @@ function parse(argv) {
   let command = null;
   const valued = new Set([
     "root", "store", "gh", "feature", "slug", "now", "live", "risk", "reason", "harness", "session", "approval",
-    "workers", "question", "answer", "set", "gate", "last", "next", "comment-blocked", "comment-unblocked", "by", "guidance",
+    "workers", "question", "answer", "set", "gate", "last", "next", "comment-blocked", "comment-unblocked", "by", "guidance", "timeout-ms",
   ]);
 
   for (let index = 0; index < argv.length; index += 1) {

@@ -1,0 +1,28 @@
+{
+  "note": "Recorded from the live TypeSafe API on 2026-10-01 with synthetic evidence only, through Pathfinder's Jev adapter. Key order, two-decimal rounding and saturated confidences are the provider's own.",
+  "inputs": {
+    "ticket": "9.1",
+    "title": "Synthetic adder",
+    "body": "# Synthetic adder\n\n## Verification\n\n- `node add.mjs 2 3` prints 5\n- adding a negative number gives the correct sum\n",
+    "pr": "https://github.com/example/synthetic/pull/1",
+    "head": "0000000000000000000000000000000000000000",
+    "verification": ["Ran `node add.mjs 2 3`; it printed 5.", "Ran the unit suite: 4 passing, 0 failing."],
+    "limits": "floating-point inputs not tried",
+    "experiment": {
+      "experiment_id": "neg1", "contract": "adding a negative number gives the correct sum", "hypothesis": "sign may be dropped",
+      "setup": "scratch", "steps": ["run node add.mjs 2 -3"], "expected_result": "-1", "observed_result": "`node add.mjs 2 -3` printed -1",
+      "evidence": ["cmd:node add.mjs 2 -3"], "reproducibility": "three runs", "potential_impact": "wrong sums", "verifier_instruction": "repeat"
+    }
+  },
+  "response": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "criterion_1": { "type": "choice", "choice": "supported", "confidence": 1, "probabilities": { "insufficient": 0, "supported": 1, "contradicted": 0 } },
+      "criterion_1_evidence": { "type": "choice", "choice": "tester:verification:1", "confidence": 1, "probabilities": { "tester:verification:2": 0, "none": 0, "tester:limits": 0, "tester:verification:1": 1, "adversary:neg1": 0 } },
+      "criterion_2": { "type": "choice", "choice": "supported", "confidence": 1, "probabilities": { "insufficient": 0, "supported": 1, "contradicted": 0 } },
+      "criterion_2_evidence": { "type": "choice", "choice": "adversary:neg1", "confidence": 1, "probabilities": { "tester:verification:2": 0, "tester:limits": 0, "none": 0, "tester:verification:1": 0, "adversary:neg1": 1 } },
+      "concern": { "type": "choice", "choice": "none", "confidence": 0.99, "probabilities": { "none": 1, "scope": 0, "security": 0 } }
+    },
+    "usage": { "input_tokens": 1658, "output_tokens": 292 }
+  }
+}

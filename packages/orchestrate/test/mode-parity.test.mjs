@@ -53,3 +53,23 @@ describe("the installer and the engine read the mode identically", () => {
     }
   });
 });
+
+describe("the installer and the engine agree on the Evidence Judge", () => {
+  it("offers only providers the engine ships, and both read none as no judge", async () => {
+    const { shippedJudges } = await import("../../../skills/orchestrate/engine/judges/registry.mjs");
+    const offered = installer.EVIDENCE_JUDGE_CHOICES.filter((choice) => choice !== engine.NO_EVIDENCE_JUDGE);
+    assert.ok(offered.every((name) => shippedJudges().includes(name)), "every offered judge exists");
+    assert.deepEqual(Object.keys(installer.EVIDENCE_JUDGE_PROVIDERS), offered);
+    for (const [content, expected] of [
+      [null, { name: null, explicit: false }],
+      ["<!-- pathfinder:execution-mode orchestrator -->\n", { name: null, explicit: false }],
+      ["<!-- pathfinder:evidence-judge none -->\n", { name: null, explicit: false }],
+      ["<!-- pathfinder:evidence-judge jev -->\n", { name: "jev", explicit: true }],
+      ["It says `<!-- pathfinder:evidence-judge jev -->` inline.\n", { name: null, explicit: false }],
+    ]) {
+      assert.deepEqual(engine.readEvidenceJudgeMarker(content), expected);
+      const raw = installer.readEvidenceJudgeMarker(content);
+      assert.equal(raw === null || raw === engine.NO_EVIDENCE_JUDGE ? null : raw, expected.name);
+    }
+  });
+});

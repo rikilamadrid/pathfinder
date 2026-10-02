@@ -25,6 +25,16 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
    Find the existing PR by the claim's branch. Require independent tester PASS,
    final ticket verification, and green required CI at the PR's current head.
    Missing or outdated evidence goes back to the tester/worker, not a guess.
+   Then run `orchestrate judge <key> --json`; `skills/orchestrate/evidence-judge.md`
+   is its contract. It asks the configured Evidence Judge whether this exact
+   head's Tester and Adversary evidence supports the ticket's `## Verification`
+   items, and changes no State, status or approval. `continue` — including no
+   judge configured — proceeds to step 3. `require_evidence` or `escalate`
+   (exit 1) stops this ticket: present the judgment's reasons to the human and
+   do not request merge approval as if the work were ready. The human decides
+   whether fresh independent Tester evidence is needed or explicitly accepts
+   the work with the judgment in view. A judge failure is never approval, and
+   a `continue` is never acceptance.
 3. Run `orchestrate check <key> --json`. It reports immutable base and worker
    commit IDs, `mergeBase`, `conflicts`, and advisory `overlaps` against other
    in-flight ticket branches. On refusal, preserve the claim and report it.
@@ -85,7 +95,7 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
    Without approval, stop this ticket here without merging or releasing.
 6. Immediately before merging, refresh the default branch, PR head, CI and
    check. If either commit ID differs from the presented evidence, restart the
-   checks. Merge only the approved current head, through the project's merge
+   checks from step 2, Evidence Judge included. Merge only the approved current head, through the project's merge
    workflow (Pathfinder uses squash merge). Do not let the forge delete a local
    branch/worktree: cleanup belongs to `release`. A rejected/failed merge
    preserves everything and is reported, never treated as completion.

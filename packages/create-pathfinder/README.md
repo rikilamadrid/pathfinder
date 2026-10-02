@@ -356,6 +356,58 @@ pass `--force` to replace it. An unknown value exits 2. Without `--mode`, a
 scripted run preserves any existing mode and creates no new mode file. A project
 with no file remains human-in-the-loop; the scripted output stays unchanged.
 
+### Evidence Judge (optional)
+
+An orchestrator project can also use an Evidence Judge: before
+`/orchestrate integrate` presents done work for your approval, it asks whether
+the recorded Tester and Adversary evidence supports the ticket's verification
+items. The first provider is Jev, TypeSafe's structured-decision model.
+
+Harness access and Jev access are separate. Claude Code, Codex, or any other
+harness does not include Jev; enabling it needs your own TypeSafe API key and
+credits. Pathfinder works fully without it, and it is off unless you choose it.
+
+In an interactive terminal, an orchestrator project with no recorded choice is
+asked once, after the mode question, with no as the default:
+
+```text
+Evidence Judge (optional)
+
+Pathfinder can use Jev to independently check whether Tester evidence
+supports a ticket's verification criteria before you approve a merge.
+Jev is a separate TypeSafe API service with its own account, API key, and
+credits. Your coding tool's subscription does not include it, and
+Pathfinder works fully without it.
+
+? Enable the Jev Evidence Judge? [y/N]
+```
+
+That is the `PATHFINDER_PROMPT=classic` form; the arrow-key form is a Yes/No
+selector with No highlighted.
+
+Either answer is recorded in `context/execution-mode.md`, as
+`<!-- pathfinder:evidence-judge jev -->` or `<!-- pathfinder:evidence-judge none -->`.
+From a script, or to change it later:
+
+```bash
+npx create-pathfinder --evidence-judge jev
+npx create-pathfinder --evidence-judge none
+```
+
+The installer never asks for, prints, or stores the key. It only reports
+whether `TYPESAFE_API_KEY` is set, and a missing key is setup to do later, not
+a failed install:
+
+```text
+  Evidence Judge: Jev (TypeSafe) configured (context/execution-mode.md)
+  Credential: TYPESAFE_API_KEY not detected. Set it before using the Evidence Judge: https://docs.typesafe.ai/introduction/quickstart
+```
+
+A key in the environment never enables the judge by itself, and re-running the
+installer, changing `--mode`, or choosing tools keeps the recorded choice. The
+[Evidence Judge contract](https://github.com/rikilamadrid/pathfinder/blob/main/skills/orchestrate/evidence-judge.md)
+lists exactly what is sent to Jev and what is not.
+
 Orchestrator mode uses Node and Git, plus `gh` for GitHub Issues. It keeps one
 active ticket per isolated worker and every human gate; it adds no daemon or
 automatic merging. See [Execution modes](https://pathfinder-kit.vercel.app/guides/execution-modes/)
@@ -459,6 +511,7 @@ one. Pathfinder reports the project directory so you can open it yourself.
 | `--dry-run` | Show what would happen without changing anything |
 | `--force` | Overwrite files that already exist, and replace a file you wrote at a path an adapter would occupy. Off by default |
 | `--mode <mode>` | Record how Pathfinder runs the project in `context/execution-mode.md`: `human-in-the-loop` or `orchestrator`. Re-run with it to change the mode |
+| `--evidence-judge <judge>` | Optional, for orchestrator mode: `none` (the default) or `jev`. Jev is a separate TypeSafe service with its own key in `TYPESAFE_API_KEY`. Re-run with `none` to turn it off |
 | `--git-init` | Initialize Git if the current directory is not already in a repository |
 | `--no-git-init` | Never initialize Git; refuse installation instead |
 | `--no-clipboard` | Never offer to copy the Kickstart prompt |
@@ -514,6 +567,8 @@ In CI, redirected, or piped execution:
 - Git initialization requires `--git-init`
 - adapters require `--agents`
 - the execution mode is recorded only with `--mode`
+- an Evidence Judge is recorded only with `--evidence-judge`, never because
+  `TYPESAFE_API_KEY` is set
 - the clipboard is untouched
 - no editor is launched
 

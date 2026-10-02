@@ -1,0 +1,149 @@
+{
+  "note": "Real Tester and Adversary checkpoints recorded for Pathfinder ticket 55.2 at its reviewed head, verbatim, each with a hand-written judge-facing projection added beside the raw evidence. The raw fields stay local; only the judge fields may reach a provider.",
+  "ticket_body": "# 55.2 Recoverable orchestrated adversary and tester handoffs\n\n## Verification\n\n- A started integration repair stays recoverable with its original reviewed findings after Next changes\n- Repair start, origin and findings guards refuse invalid recovery without writes\n- The orchestrate and installer suites, kit validation, adapters and site build pass\n",
+  "findings": {
+    "ticket": "55.2",
+    "pr": "https://github.com/rikilamadrid/pathfinder/pull/149",
+    "head_sha": "a0401ff94ef2158119b6bc3c94c3e99726ec59e5",
+    "result": "PASS",
+    "findings": [],
+    "verification": [
+      "Reviewed ticket #146, approved Feature55 requirements/acceptance criteria, current SHA-matching Adversary checkpoint, and four-file bounded repair diff from d942f6a to a0401ff. No new architecture or scope expansion observed.",
+      "npm test --prefix packages/orchestrate: 186/186 pass, no skips; actual scratch Git claims, report readers, all supported brief translations, legacy/integration paths, phase/failure recovery and regression boundaries. Log: file:.pathfinder/tester-third-orchestrate.log",
+      "npm test --prefix packages/create-pathfinder: 702/702 pass, no skips. Initial sandbox run failed two detached scratch-editor argument tests; complete escalated rerun passed with identical scope and no real editor. Log: file:.pathfinder/tester-third-installer.log",
+      "python3 .github/scripts/validate-kit.py: all rules pass, 26 skills. node packages/create-pathfinder/scripts/generate-adapters.mjs --check: 26 adapters up to date. Logs: file:.pathfinder/tester-third-kit.log and file:.pathfinder/tester-third-adapters.log",
+      "npm run build --prefix site: 45 pages built, postbuild manifest/icons/iOS metadata all pass. Inspected rendered workflow and execution-modes recovery guidance; validated-start consumption and mutable Next contract present. Log: file:.pathfinder/tester-third-site.log",
+      "Independent actual CLI driver cmd:node .pathfinder/tester-third/recovery-check.mjs exercised integration, ordinary and legacy findings origins. Valid owning-worker begin followed by partial commit, three factual Next replacements, local-only then simulated-published head updates retained repair routing, original reviewed SHA/full findings and claim/profile across resume. All manual/claude-code/codex repair briefs retained original reviewed evidence.",
+      "Independent driver confirmed pending integration begin with missing verification completion refuses without writes; local checkout drift and separately varied forge head drift before begin refuse. Live dispatch, wrong/duplicate Repair or Review origins, duplicate/partial findings reports refuse without checkpoint mutation; malformed origins cannot emit repair briefs in any supported harness. Evidence: file:.pathfinder/tester-third/recovery-observations.json",
+      "Independent driver verified guided failed integration repair resumes started origin despite mutable Next and changed head; unguided failed review refuses, guided matching complete findings recover repair; stale ordinary experiments cannot be overridden by current Tester PASS. Full orchestration suite also covers recorded failed-phase restoration.",
+      "Requeried PR149 immediately before checkpoint: exact head a0401ff94ef2158119b6bc3c94c3e99726ec59e5 unchanged; Structural checks and Vercel checks green. Reviewed checkout exact match and tracked clean."
+    ],
+    "limits": "GitHub head and CI were read from the real PR; independent recovery simulations used actual Git/engine CLI with a controlled gh response, not a live forge race or real remote partial repair push. No real implementation edits, merges, releases, production integrations, browser installability test, or stress test were performed. PASS is independent verification evidence, not human acceptance. Transient scratch fixtures/logs are ignored.",
+    "judge": {
+      "verification": [
+        {
+          "action_summary": "Reviewed ticket 146, the approved Feature 55 acceptance criteria, the matching Adversary checkpoint and the four-file repair diff from d942f6a to a0401ff.",
+          "observation_summary": "No new architecture or scope expansion was observed."
+        },
+        {
+          "action_summary": "Ran the orchestrate package test suite.",
+          "observation_summary": "186 of 186 tests passed with no skips, covering scratch Git claims, report readers, brief translations, legacy and integration paths, phase and failure recovery, and regression boundaries."
+        },
+        {
+          "action_summary": "Ran the installer package test suite.",
+          "observation_summary": "702 of 702 tests passed with no skips. A first sandboxed run failed two scratch-editor argument tests; the complete escalated rerun passed with identical scope."
+        },
+        {
+          "action_summary": "Ran the kit validation script and the adapter generator check.",
+          "observation_summary": "Every validation rule passed for 26 skills, and all 26 adapters were up to date."
+        },
+        {
+          "action_summary": "Built the documentation site and inspected the rendered workflow and execution-modes recovery guidance.",
+          "observation_summary": "45 pages built and every postbuild check passed; the validated-start consumption and the mutable Next contract were present."
+        },
+        {
+          "action_summary": "Ran an independent recovery driver over integration, ordinary and legacy findings origins, with a partial commit, three Next replacements, and local then published head updates.",
+          "observation_summary": "Repair routing, the original reviewed head, the full findings and the claim profile were kept across resume, and every supported harness's repair brief kept the original reviewed evidence."
+        },
+        {
+          "action_summary": "Drove a pending integration begin without verification completion, checkout and forge head drift, live dispatch, wrong or duplicate origins, and partial findings reports.",
+          "observation_summary": "Each case refused without changing the checkpoint, and malformed origins produced no repair brief in any supported harness."
+        },
+        {
+          "action_summary": "Drove guided and unguided failure recovery, and a stale ordinary Adversary report beside a current passing Tester review.",
+          "observation_summary": "Guided failed integration repair resumed its started origin despite a changed Next and head; unguided failed review refused; the stale ordinary experiments were not overridden."
+        },
+        {
+          "action_summary": "Queried pull request 149 again immediately before the checkpoint.",
+          "observation_summary": "The head was unchanged at a0401ff, structural and Vercel checks were green, and the reviewed checkout matched exactly and was clean."
+        }
+      ],
+      "limits_summary": "Recovery simulations used the real Git and engine CLI with a controlled forge response, not a live forge race or a real remote partial push. No implementation edits, merges, releases, production integrations, browser installability or stress tests were performed."
+    }
+  },
+  "experiments": {
+    "ticket": "55.2",
+    "pr": "https://github.com/rikilamadrid/pathfinder/pull/149",
+    "head_sha": "a0401ff94ef2158119b6bc3c94c3e99726ec59e5",
+    "experiments": [
+      {
+        "setup": "PR149 checkout at a0401ff94ef2158119b6bc3c94c3e99726ec59e5. Driver runs the actual shipped stage/state CLI in isolated ignored scratch Git claims. Local gh stub returns scratch worker HEAD. This is a bounded recovery experiment, not a real remote or product implementation change.",
+        "steps": [
+          "Run node .pathfinder/adversary/third-run.mjs from this claim worktree.",
+          "Inspect the named outputs in .pathfinder/adversary/third-observations.json and the scratch current-ticket checkpoints."
+        ],
+        "evidence": [
+          "cmd:node .pathfinder/adversary/third-run.mjs",
+          "file:.pathfinder/adversary/third-run.mjs",
+          "file:.pathfinder/adversary/third-observations.json"
+        ],
+        "experiment_id": "started-integration-repair-mutable-next",
+        "contract": "A legitimately started integration-origin partial repair remains recoverable using its original reviewed findings after Developer updates Next with progress.",
+        "hypothesis": "The bounded change might still couple recovery to the obsolete verification-completion wording in Next, or behave differently from ordinary and legacy origins.",
+        "expected_result": "After validated owning-worker begin and a partial commit, updating Next should retain repair routing and the original reviewed origin, without current-head verification being implied.",
+        "observed_result": "integration_partial_updated_next now selects repair with the original reviewed report and started marker. Ordinary and legacy cases also select repair after the same Next update. guard_started_progress independently selected repair after validated begin, partial commit and a replacement progress note.",
+        "reproducibility": "Observed in two integration-origin scratch flows within one driver run, using actual CLI commands and separate Git claims. Local stub equates published and checked-out head; remote timing and uncommitted product repairs remain outside this experiment.",
+        "potential_impact": "If another progress format changes recovery behavior, partial repair could still be stranded; the exercised replacement notes did not exhibit that outcome.",
+        "verifier_instruction": "Independently reproduce the owning-worker begin, partial pushed head and Next replacement in a scratch claim. Confirm returned findings retain the original reviewed head and that this result is repair instructions rather than verification of the new head.",
+        "judge": {
+          "contract_attacked": "A started integration-origin partial repair stays recoverable with its original reviewed findings after the Developer updates Next with progress.",
+          "action_summary": "Ran the third adversary script from the claim worktree and inspected its recorded observations and scratch checkpoints.",
+          "expected_result": "After a validated begin and a partial commit, updating Next keeps repair routing and the original reviewed origin, without implying current-head verification.",
+          "observation_summary": "The partially updated integration case selected repair with the original reviewed report and started marker; ordinary and legacy cases also selected repair after the same Next update."
+        }
+      },
+      {
+        "setup": "PR149 checkout at a0401ff94ef2158119b6bc3c94c3e99726ec59e5. Driver runs the actual shipped stage/state CLI in isolated ignored scratch Git claims. Local gh stub returns scratch worker HEAD. This is a bounded recovery experiment, not a real remote or product implementation change.",
+        "steps": [
+          "Run node .pathfinder/adversary/third-run.mjs from this claim worktree.",
+          "Inspect the named outputs in .pathfinder/adversary/third-observations.json and the scratch current-ticket checkpoints."
+        ],
+        "evidence": [
+          "cmd:node .pathfinder/adversary/third-run.mjs",
+          "file:.pathfinder/adversary/third-run.mjs",
+          "file:.pathfinder/adversary/third-observations.json"
+        ],
+        "experiment_id": "integration-start-prerequisite-and-origin-guards",
+        "contract": "Only a validated repair start consumes the integration-only full-verification prerequisite; the exact review origin and full original Tester findings remain mandatory.",
+        "hypothesis": "Allowing mutable Next after start could accidentally waive prerequisite checks for pending repair or for mismatched/corrupt repair provenance.",
+        "expected_result": "Missing completion before start must refuse without writes. Validated begin may allow later progress changes. Wrong integration origin, wrong started origin and missing original findings remain refused.",
+        "observed_result": "guard_begin_missing_completion returned exit1 while guard_begin_refusal_preserves_checkpoint was true. After restoring completed verification wording, guard_valid_begin selected started repair. Later guard_wrong_integration_origin, guard_wrong_started_origin and guard_missing_original_findings each returned exit1; the respective messages identified changed review head, different repair origin, and absent complete findings.",
+        "reproducibility": "One actual-CLI run per boundary using a scratch claim; corruption was introduced only in ignored scratch checkpoints. No externally consequential Git operation occurred.",
+        "potential_impact": "If malformed provenance were accepted in an untested combination, the consumed prerequisite could authorize repairs without valid original independent evidence; these exercised boundaries refused that state.",
+        "verifier_instruction": "Reproduce each guard through stage and repair brief in the supported harnesses. Verify refusal preserves complete report bytes and cannot yield a repair invocation. Include duplicate/malformed checkpoint fields in independent verification where relevant.",
+        "judge": {
+          "contract_attacked": "Only a validated repair start consumes the integration-only full-verification prerequisite; the exact review origin and the full original Tester findings remain mandatory.",
+          "action_summary": "Ran the third adversary script from the claim worktree and inspected its recorded observations and scratch checkpoints.",
+          "expected_result": "A begin without completion refuses without writes; a validated begin allows later progress changes; a wrong integration origin, a wrong started origin or missing original findings still refuse.",
+          "observation_summary": "The begin without completion exited 1 and preserved the checkpoint; after completion the valid begin selected started repair; the wrong origins and the missing findings each exited 1 with a message naming the cause."
+        }
+      },
+      {
+        "setup": "PR149 checkout at a0401ff94ef2158119b6bc3c94c3e99726ec59e5. Driver runs the actual shipped stage/state CLI in isolated ignored scratch Git claims. Local gh stub returns scratch worker HEAD. This is a bounded recovery experiment, not a real remote or product implementation change.",
+        "steps": [
+          "Run node .pathfinder/adversary/third-run.mjs from this claim worktree.",
+          "Inspect the named outputs in .pathfinder/adversary/third-observations.json and the scratch current-ticket checkpoints."
+        ],
+        "evidence": [
+          "cmd:node .pathfinder/adversary/third-run.mjs",
+          "file:.pathfinder/adversary/third-run.mjs",
+          "file:.pathfinder/adversary/third-observations.json"
+        ],
+        "experiment_id": "pending-drift-guided-recovery-upstream-freshness",
+        "contract": "Pending repair refuses unexpected head drift; guided failure recovery restores its recorded phase; current downstream review cannot override stale ordinary experiments.",
+        "hypothesis": "The integration-origin adjustment could weaken another shared stage prerequisite or restoration path.",
+        "expected_result": "A changed head before owning-worker begin refuses. Failed review without guidance refuses; authorized guidance resumes review with complete matching experiments. Stale ordinary upstream report remains insufficient alongside current independent review evidence.",
+        "observed_result": "pending_drift and pending_begin_drift both refused stale reviewed instructions. failed_without_guidance refused and failed_guided selected review. stale_upstream_with_current_review refused for the complete matching experiment prerequisite. These paths retained their same observed boundary behavior on the new repaired head.",
+        "reproducibility": "Observed once for each actual scratch CLI scenario. Guidance is an explicit simulated human-authorized argument; live-session ownership and forge races are not comprehensively simulated.",
+        "potential_impact": "If these shared guards vary under real network or harness conditions, stale instructions or incorrect phase restoration could still occur; no such outcome was reproduced by these bounded inputs.",
+        "verifier_instruction": "Repeat with independently varied local and PR head values, live-session declarations and all supported harness translations. Verify recorded profile, claim, branch and PR identity survive permitted recovery and all refusals.",
+        "judge": {
+          "contract_attacked": "Pending repair refuses unexpected head drift, guided failure recovery restores its recorded phase, and current downstream review cannot override stale ordinary experiments.",
+          "action_summary": "Ran the third adversary script from the claim worktree and inspected its recorded observations and scratch checkpoints.",
+          "expected_result": "A changed head before begin refuses; failed review refuses without guidance and resumes review with it; a stale ordinary report stays insufficient beside current review.",
+          "observation_summary": "Both drift cases refused the stale instructions; unguided failure refused and guided failure selected review; the stale upstream report was refused for the matching experiment prerequisite, as on the previous head."
+        }
+      }
+    ]
+  }
+}

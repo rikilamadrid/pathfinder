@@ -29,13 +29,17 @@ Each marker, as written:
 ```html
 <!-- pathfinder:execution-mode orchestrator -->
 <!-- pathfinder:routing-policy static -->
+<!-- pathfinder:evidence-judge jev -->
 <!-- pathfinder:ticket-store github-issues owner/repo -->
 <!-- pathfinder:ticket 47.1 -->
 ```
 
 An `execution-mode.md` with any other value, or none, is invalid: the ticket
 lifecycle says so once and proceeds human-in-the-loop, and orchestration
-refuses to run. The routing-policy marker is read only in orchestrator mode.
+refuses to run. The routing-policy and evidence-judge markers are read only in
+orchestrator mode. The evidence-judge value is `jev` or `none`; without the
+line, or with `none`, no judge is asked. Only this line enables the optional
+judge — never a credential in the environment.
 
 See [Execution modes](/guides/execution-modes/) for what the two modes change,
 and [Ticket stores](/guides/ticket-stores/) for what choosing a store commits

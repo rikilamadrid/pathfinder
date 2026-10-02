@@ -148,6 +148,59 @@ changed. Codex dispatch uses the native `collaboration.spawn_agent` capability;
 if it is unavailable, dispatch stops. Manual translation prints a brief for a
 human-started session rather than pretending one was launched.
 
+## Optionally ask an Evidence Judge before the merge gate
+
+The Evidence Judge is an optional capability, not a harness. Before presenting
+a claim that reached `done` — independent Tester PASS at the current head, still
+unaccepted — for approval, the integrator runs `orchestrate judge <key>`,
+which asks whether the recorded Tester and Adversary evidence supports the
+ticket's `## Verification` items. Pathfinder validates the answer and decides:
+`continue` to the usual approval request, or stop and put `require_evidence`
+or `escalate` in front of the human. A failing, slow or malformed judge
+escalates. The judge never approves, and its absence or failure is never
+approval.
+
+Jev, TypeSafe's structured-decision model, is the first provider. It is not the
+coding harness, a replacement for Claude Code or Codex, a Tester, an Adversary,
+a reviewer, or workflow authority; it only classifies evidence.
+
+**Harness access and Jev access are separate.** Using Claude Code, Codex, or
+another harness does not provide Jev access. Enabling the Jev Evidence Judge
+needs your own TypeSafe API key and credits — see TypeSafe's
+[quick start](https://docs.typesafe.ai/introduction/quickstart) and
+[pricing](https://docs.typesafe.ai/models). Jev is optional; Pathfinder works
+without it.
+
+The choice is one explicit line beside the mode marker, written by the
+installer's question or `--evidence-judge`:
+
+```text
+<!-- pathfinder:evidence-judge jev -->
+<!-- pathfinder:evidence-judge none -->
+```
+
+No line, or `none`, means no judge: nothing is asked and integration is
+unchanged. A `TYPESAFE_API_KEY` in the environment never enables Jev on its own;
+it is read only by the Jev provider, from the session's environment, and is
+never prompted for, printed or written to a file.
+
+What Pathfinder sends is the ticket key, its verification items where they
+are plain prose (otherwise the Tester's plain restatement of them), and a
+judge-facing projection that the Tester and Adversary write beside their raw
+evidence: for each check, what was done and what was observed, and for each
+experiment, the contract attacked, what was done, the expected result and what
+was observed. That projection is judge prose: short plain lines with no room
+for pasted command lines, output, URLs with credentials, headers or JSON.
+Raw commands, output, logs and evidence references stay in the local
+checkpoint, and nothing is sent from source code, diffs, other repository
+files, the Feature spec, conversation or the Tester's verdict. Common
+credential formats are refused; a short secret written as ordinary prose is
+not detected, which the contract's threat model lists as residual risk.
+Jev's answers are treated as untrusted input and validated before Pathfinder's
+own policy uses them. The
+[Evidence Judge contract](https://github.com/rikilamadrid/pathfinder/blob/main/skills/orchestrate/evidence-judge.md)
+documents the full bundle, the output contract and the decision table.
+
 ## Read status without reconstructing chat history
 
 `/orchestrate status` reads Git, the ticket store, and each worker's state file.
