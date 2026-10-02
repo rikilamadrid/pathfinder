@@ -303,6 +303,7 @@ describe("summarize — the shape it returns", () => {
       "failures",
       "handlers",
       "harnessRows",
+      "judge",
       "mode",
       "overwritten",
       "skipped",

@@ -78,6 +78,45 @@ export function readRoutingPolicy(root) {
   return { name: DEFAULT_ROUTING_POLICY, explicit: false };
 }
 
+const JUDGE_MARKER = /^<!--\s*pathfinder:evidence-judge\s+(\S+)\s*-->$/;
+
+/** The value that records an explicit choice of no judge. */
+export const NO_EVIDENCE_JUDGE = "none";
+
+/**
+ * The Evidence Judge provider a mode file's contents name, on its own
+ * optional line:
+ *
+ *     <!-- pathfinder:evidence-judge <provider> -->
+ *
+ * No line, or `none` (the installer's record of a project that declined), is
+ * no judge: integration behaves exactly as it did before the judge existed. A
+ * credential in the environment never enables one; only this line does.
+ * Whether the name is a provider this engine ships is the judge registry's
+ * question, not this reader's.
+ *
+ * @returns {{name: string|null, explicit: boolean}}
+ */
+export function readEvidenceJudgeMarker(content) {
+  for (const line of String(content ?? "").split(/\r?\n/)) {
+    const match = JUDGE_MARKER.exec(line.trim());
+    if (match) return match[1] === NO_EVIDENCE_JUDGE ? { name: null, explicit: false } : { name: match[1], explicit: true };
+  }
+  return { name: null, explicit: false };
+}
+
+/** The project's Evidence Judge, read from its mode file. */
+export function readEvidenceJudge(root) {
+  const path = join(root, ...EXECUTION_MODE_PATH.split("/"));
+  let content = null;
+  try {
+    if (existsSync(path)) content = readFileSync(path, "utf8");
+  } catch {
+    content = null;
+  }
+  return readEvidenceJudgeMarker(content);
+}
+
 /**
  * The mode a project effectively runs in: the recorded value, the default for
  * no file, and `null` for an invalid file so the caller names the problem.

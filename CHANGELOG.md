@@ -38,6 +38,28 @@ The heading of the most recent released section below is the single source of tr
   legacy review compatibility and repair cycles. Unchanged integration refresh
   keeps its fresh Tester/CI path; behavior changes rerun Adversary. `done` means
   reviewed work and human acceptance/merge gates remain separate.
+- Optional orchestrated Evidence Judge, with Jev as its first provider:
+  `orchestrate judge` asks whether a done claim's Tester and Adversary
+  evidence supports its ticket's verification items before the integrator
+  presents it for approval. Pathfinder validates the provider's output and
+  owns the decision. A missing, failing or malformed judge never approves,
+  and a project without the `evidence-judge` marker is unchanged. The judge
+  receives only a judge-facing projection, written in restricted judge prose
+  beside the raw evidence and validated when the checkpoint is written and
+  again before any request; raw commands, output, logs and references never
+  leave the checkpoint. Criteria that are not plain prose are sent as the
+  Tester's restatement and always need the human's comparison
+  (`require_evidence`); evidence ids are Pathfinder's own; and each request is
+  held to the provider's declared endpoint and headers and sent as exactly the
+  bytes that were checked. The credential screen remains a final check. The
+  boundary prevents accidental transmission of raw technical payloads and
+  common credential material; it is not data-loss prevention against a short
+  secret expressed, deliberately or carelessly, as natural-language prose.
+- Installer: an optional Evidence Judge choice, separate from the harness
+  question. An orchestrator project is asked once, defaulting to no, and
+  `--evidence-judge jev|none` sets or changes it. Jev needs its own TypeSafe API
+  key, which the installer never asks for, prints or stores; a key in the
+  environment never enables the judge, and the choice survives re-runs.
 
 ### Fixed
 

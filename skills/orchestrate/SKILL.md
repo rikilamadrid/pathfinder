@@ -80,7 +80,7 @@ and, for a GitHub Issues store, the `gh` CLI. It holds no state of its own:
 every call re-derives its answer from Git, the worktrees, and the store.
 
 ```
-engine/bin/orchestrate.mjs   board | claim | owner | status | estimate | brief | check | release
+engine/bin/orchestrate.mjs   board | claim | owner | status | estimate | brief | check | judge | release
 engine/store.mjs             reads the configured ticket store
 engine/board.mjs             eligibility
 engine/claims.mjs            claims, from git worktrees and state files
@@ -100,11 +100,14 @@ engine/statefile.mjs         updates to a worker's state file lines
 engine/stage.mjs             current-head checkpoint validation and recovery session
 engine/experiments.mjs       bounded transient Adversary experiments
 engine/findings.mjs          bounded transient independent Tester review
+engine/judgment.mjs          optional Evidence Judge: bundle, validation, policy, checkpoint
+engine/judges/              Evidence Judge providers; jev is the first
 ```
 
 `profile.md` documents the profile, its thresholds, and routing policies.
 `brief.md` documents the brief and the harness translation table.
 `worker-brief.md` and `resume-brief.md` state what each brief asks a worker to do.
+`evidence-judge.md` documents the optional Evidence Judge and its trust boundary.
 
 A store other than local Markdown needs one machine-readable line in
 `context/tracker.md`, described in `skills/ticket/store.md`.

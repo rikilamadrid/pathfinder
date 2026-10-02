@@ -53,6 +53,108 @@ const MARKER_PATTERN = new RegExp(`^<!--\\s*${EXECUTION_MODE_MARKER}\\s+(\\S+)\\
 // policy it does not ship rather than silently falling back to `static`.
 const ROUTING_POLICY_PATTERN = /^<!--\s*pathfinder:routing-policy\s+(\S+)\s*-->$/;
 
+// The Evidence Judge provider, preserved the same way and judged by the engine.
+const EVIDENCE_JUDGE_PATTERN = /^<!--\s*pathfinder:evidence-judge\s+(\S+)\s*-->$/;
+
+/**
+ * The Evidence Judge choices this installer offers, the first the default.
+ * `none` records that the project declined; the engine reads it, like no line
+ * at all, as no judge. A judge is enabled only by an explicit choice — never
+ * by a credential happening to be in the environment.
+ */
+export const EVIDENCE_JUDGE_CHOICES = Object.freeze(["none", "jev"]);
+
+/**
+ * What onboarding needs to say about each provider. Only the credential's
+ * name is ever read here, to report whether it is set; its value is never
+ * printed, written, or sent anywhere by the installer.
+ */
+export const EVIDENCE_JUDGE_PROVIDERS = Object.freeze({
+  jev: Object.freeze({
+    label: "Jev (TypeSafe)",
+    credential: "TYPESAFE_API_KEY",
+    setup: "https://docs.typesafe.ai/introduction/quickstart",
+  }),
+});
+
+/** The question, and the explanation printed before it. */
+export const EVIDENCE_JUDGE_QUESTION = "Enable the Jev Evidence Judge?";
+export const EVIDENCE_JUDGE_EXPLANATION = Object.freeze([
+  "Evidence Judge (optional)",
+  "",
+  "Pathfinder can use Jev to independently check whether Tester evidence",
+  "supports a ticket's verification criteria before you approve a merge.",
+  "Jev is a separate TypeSafe API service with its own account, API key, and",
+  "credits. Your coding tool's subscription does not include it, and",
+  "Pathfinder works fully without it.",
+]);
+
+/** Is `TYPESAFE_API_KEY` (or the chosen provider's credential) set? Never its value. */
+export function evidenceJudgeCredential(judge, env = {}) {
+  const provider = EVIDENCE_JUDGE_PROVIDERS[judge];
+  if (!provider) return null;
+  const value = env[provider.credential];
+  return { name: provider.credential, detected: typeof value === "string" && value.trim() !== "", setup: provider.setup };
+}
+
+/**
+ * Read `--evidence-judge <none|jev>`. An unknown value is refused, as an
+ * unknown mode is, rather than quietly recording no judge.
+ *
+ * @returns {{evidenceJudge: string} | {error: string}}
+ */
+export function parseEvidenceJudgeFlag(value) {
+  if (value === undefined || value === "" || value.startsWith("-")) {
+    return { error: `\`--evidence-judge\` needs a value: ${EVIDENCE_JUDGE_CHOICES.join(" or ")}` };
+  }
+  if (!EVIDENCE_JUDGE_CHOICES.includes(value)) {
+    return { error: `unknown evidence judge \`${value}\`. Valid values: ${EVIDENCE_JUDGE_CHOICES.join(", ")}` };
+  }
+  return { evidenceJudge: value };
+}
+
+/** The Evidence Judge marker in the project's mode file, or null for none or unreadable. */
+export function readEvidenceJudgeFile(root) {
+  const existing = readExisting(join(root, ...EXECUTION_MODE_PATH.split("/")));
+  return existing.content === null ? null : readEvidenceJudgeMarker(existing.content);
+}
+
+/** The prose under the markers, true to what the judge line says. */
+function evidenceJudgeProse(evidenceJudge) {
+  if (evidenceJudge === "jev") {
+    return [
+      "The evidence-judge line enables the optional Evidence Judge in orchestrator",
+      "mode. Before integration presents done work for approval, Jev, a separate",
+      "TypeSafe API service, checks whether the recorded Tester and Adversary",
+      "evidence supports the ticket's verification items. It reads its own API key",
+      "from `TYPESAFE_API_KEY`; your coding tool does not provide one. It never",
+      "approves, and its absence or failure is never approval. Run",
+      "`npx create-pathfinder --evidence-judge none` to turn it off.",
+    ];
+  }
+  if (evidenceJudge === "none") {
+    return [
+      "The evidence-judge line records that this project uses no Evidence Judge.",
+      "Run `npx create-pathfinder --evidence-judge jev` to enable the optional Jev",
+      "Evidence Judge, which needs its own TypeSafe API key.",
+    ];
+  }
+  return [
+    "An optional `<!-- pathfinder:evidence-judge <provider> -->` line names the",
+    "Evidence Judge that integration asks before presenting done work. Without it",
+    "no judge is asked.",
+  ];
+}
+
+/** The Evidence Judge provider a file names on its own marker line, or null. */
+export function readEvidenceJudgeMarker(content) {
+  for (const line of String(content ?? "").split(/\r?\n/)) {
+    const match = EVIDENCE_JUDGE_PATTERN.exec(line.trim());
+    if (match) return match[1];
+  }
+  return null;
+}
+
 /** The routing policy a file names on its own marker line, or null. */
 export function readRoutingPolicyMarker(content) {
   for (const line of String(content ?? "").split(/\r?\n/)) {
@@ -153,7 +255,7 @@ export function effectiveExecutionMode(reading) {
  * @param {string} mode one of EXECUTION_MODES
  * @returns {string}
  */
-export function renderExecutionMode(mode, { routingPolicy = null } = {}) {
+export function renderExecutionMode(mode, { routingPolicy = null, evidenceJudge = null } = {}) {
   if (!isExecutionMode(mode)) {
     throw new Error(`renderExecutionMode: unknown execution mode \`${mode}\``);
   }
@@ -177,6 +279,7 @@ export function renderExecutionMode(mode, { routingPolicy = null } = {}) {
     "",
     `<!-- ${EXECUTION_MODE_MARKER} ${mode} -->`,
     ...(routingPolicy ? [`<!-- pathfinder:routing-policy ${routingPolicy} -->`] : []),
+    ...(evidenceJudge ? [`<!-- pathfinder:evidence-judge ${evidenceJudge} -->`] : []),
     "",
     ...meaning,
     "",
@@ -192,6 +295,8 @@ export function renderExecutionMode(mode, { routingPolicy = null } = {}) {
     "`<!-- pathfinder:routing-policy <name> -->`, names the routing policy that",
     "chooses each worker's role, model, and effort. Without it the policy is",
     "`static`.",
+    "",
+    ...evidenceJudgeProse(evidenceJudge),
     "",
   ].join("\n");
 }
@@ -210,14 +315,21 @@ export function renderExecutionMode(mode, { routingPolicy = null } = {}) {
  *            state: string, action: "write"|"replace"|"up-to-date"|"conflict"|"unreadable",
  *            contents: string|null, message?: string}}
  */
-export function planExecutionMode({ targetRoot, mode, force = false }) {
+export function planExecutionMode({ targetRoot, mode, force = false, evidenceJudge = undefined }) {
   const relativePath = EXECUTION_MODE_PATH;
   const destination = join(targetRoot, ...relativePath.split("/"));
   const existing = readExisting(destination);
-  // A routing policy the project chose survives a mode change: rewriting the
-  // mode is not a decision about routing.
-  const routingPolicy = isPathfinderExecutionMode(existing.content) ? readRoutingPolicyMarker(existing.content) : null;
-  const contents = renderExecutionMode(mode, { routingPolicy });
+  // A routing policy or evidence judge the project chose survives a mode
+  // change: rewriting the mode is not a decision about either. Dropping the
+  // judge silently would turn its checks off without anyone deciding to.
+  // An explicit choice, `none` included, replaces it; no choice keeps it.
+  const ours = isPathfinderExecutionMode(existing.content);
+  const routingPolicy = ours ? readRoutingPolicyMarker(existing.content) : null;
+  const previousEvidenceJudge = ours ? readEvidenceJudgeMarker(existing.content) : null;
+  const judge = evidenceJudge === undefined ? previousEvidenceJudge : evidenceJudge;
+  const previousMode = ours ? readExecutionMode(existing.content).mode : null;
+  const contents = renderExecutionMode(mode, { routingPolicy, evidenceJudge: judge });
+  const choice = { evidenceJudge: judge, previousEvidenceJudge, previousMode };
 
   if (existing.unreadable) {
     return {
@@ -228,6 +340,7 @@ export function planExecutionMode({ targetRoot, mode, force = false }) {
       action: "unreadable",
       contents: null,
       message: existing.message,
+      ...choice,
     };
   }
 
@@ -238,7 +351,7 @@ export function planExecutionMode({ targetRoot, mode, force = false }) {
     shipped: true,
   });
 
-  return { relativePath, destination, mode, state, action: actionFor(state, force), contents };
+  return { relativePath, destination, mode, state, action: actionFor(state, force), contents, ...choice };
 }
 
 function actionFor(state, force) {
@@ -269,11 +382,13 @@ function actionFor(state, force) {
  *            errors: {relativePath: string, message: string}[]}}
  */
 export function applyExecutionModePlan(item, { dryRun = false, onProgress } = {}) {
-  const result = { action: null, mode: null, relativePath: EXECUTION_MODE_PATH, errors: [] };
+  const result = { action: null, mode: null, relativePath: EXECUTION_MODE_PATH, errors: [], evidenceJudge: null, previousMode: null };
   if (!item) return result;
 
   result.action = item.action;
   result.mode = item.mode;
+  result.evidenceJudge = item.evidenceJudge ?? null;
+  result.previousMode = item.previousMode ?? null;
 
   switch (item.action) {
     case "up-to-date":

@@ -137,7 +137,7 @@ approved ticket graph
 → /orchestrate start → dispatch plan → ◆ scoped human approval
     ├─ developer A → tester A → integration assessment
     └─ developer B → human gate (A continues)
-→ /orchestrate integrate → ◆ merge authority → /ticket complete <key>
+→ /orchestrate integrate → optional Evidence Judge → ◆ merge authority → /ticket complete <key>
 → refresh eligibility from the canonical graph
 ```
 
@@ -625,3 +625,6 @@ Only Tester-confirmed findings return to Developer. Repaired heads repeat
 Adversary then Tester. Transient SHA-bound checkpoints preserve both handoffs
 across stops; the [execution-mode guide](./execution-modes/) explains recovery
 and unchanged-behavior integration revalidation. Human acceptance remains last.
+A project that opts into the optional Evidence Judge also has the recorded
+evidence classified before that gate; the judge never approves, and its absence
+or failure is never approval.

@@ -34,9 +34,15 @@ import {
   EXECUTION_MODE_OPTIONS,
   EXECUTION_MODE_PATH,
   EXECUTION_MODE_QUESTION,
+  EVIDENCE_JUDGE_EXPLANATION,
+  EVIDENCE_JUDGE_PROVIDERS,
+  EVIDENCE_JUDGE_QUESTION,
   applyExecutionModePlan,
+  evidenceJudgeCredential,
+  parseEvidenceJudgeFlag,
   parseExecutionModeFlag,
   planExecutionMode,
+  readEvidenceJudgeFile,
 } from "./execution-mode.mjs";
 import {
   HARNESSES,
@@ -67,6 +73,14 @@ Options:
                   ticket workers at once). Without it an interactive run asks
                   once, and a scripted run records nothing, which means
                   human-in-the-loop. Re-run with it to change the mode.
+  --evidence-judge <judge>
+                  Optional, for orchestrator mode: none (the default) or jev,
+                  the Jev Evidence Judge. Jev is a separate TypeSafe API
+                  service with its own key in TYPESAFE_API_KEY; your coding
+                  tool does not include it. Recorded in
+                  context/execution-mode.md. Without it an interactive
+                  orchestrator run asks once, and a key in the environment
+                  never enables a judge. Re-run with none to turn it off.
   --git-init      Run \`git init\` here if this is not a repository yet.
   --no-git-init   Never run \`git init\`; refuse instead.
   --no-clipboard  Never offer to copy the Kickstart prompt. The prompt is
@@ -251,16 +265,30 @@ export async function run(
   // the same reason every other question is.
   const modeSelection = await selectExecutionMode({ findings, options, prompter, out });
 
+  // An optional capability, not a tool: asked after the mode it belongs to,
+  // and only when an explicit choice is still missing.
+  const judgeSelection = await selectEvidenceJudge({ cwd, findings, modeSelection, options, prompter, out });
+
   const plan = planInstall(kitRoot, cwd, { force: options.force });
 
   // Planned here, beside the kit plan, because it is a file in `context/` the
   // kit copy deliberately does not carry: the mode is this project's answer,
   // not the kit's. Null when nothing was asked and nothing was flagged, and a
   // null plan applies to nothing and reports nothing.
+  // A judge choice alone rewrites the file under the mode it already records,
+  // and is never a decision about the mode. A file that records no valid mode
+  // has none to keep, so a judge-only run leaves it untouched and fails.
+  const judgeWithoutMode =
+    modeSelection === null && judgeSelection !== null && findings.executionMode?.present === true && !findings.executionMode.valid;
   const modePlan =
-    modeSelection === null
+    (modeSelection === null && judgeSelection === null) || judgeWithoutMode
       ? null
-      : planExecutionMode({ targetRoot: cwd, mode: modeSelection.mode, force: options.force });
+      : planExecutionMode({
+          targetRoot: cwd,
+          mode: modeSelection?.mode ?? recordedMode(findings),
+          force: options.force,
+          evidenceJudge: judgeSelection?.value,
+        });
 
   // Both plans are computed before anything is written, which is what lets the
   // progress bar state a real denominator instead of discovering its own total
@@ -319,14 +347,29 @@ export async function run(
         ),
   );
 
-  const mode = recordExecutionMode({
+  const recorded = recordExecutionMode({
     plan: modePlan,
     options,
     result,
+    judgeOnly: modeSelection === null,
     onProgress: (unit) => progress.advance(unit),
     onDone: (line) => progress.milestone(railed(theme, line)),
     theme,
   });
+  const mode = judgeWithoutMode
+    ? {
+        ...recorded,
+        errors: [
+          {
+            relativePath: EXECUTION_MODE_PATH,
+            message:
+              "records no valid execution mode, so the Evidence Judge was not recorded and the file was left untouched. " +
+              "Fix its marker, or pass --mode <human-in-the-loop|orchestrator> with --evidence-judge to choose one",
+          },
+        ],
+      }
+    : recorded;
+  const judge = judgeOutcome({ selection: judgeSelection, mode, env });
 
   const adapters = generateAdapters({
     plan: adapterPlan,
@@ -361,7 +404,7 @@ export async function run(
   // plan or a result: the two renderings disagree about everything except the
   // facts, and this is what makes "except the facts" true rather than a hope
   // about two functions being edited together.
-  const outcome = summarize({ plan, result, adapters, hooks, mode, harnesses, options });
+  const outcome = summarize({ plan, result, adapters, hooks, mode, judge, harnesses, options });
 
   report({ outcome, harnesses, customTools, cwd, gitRoot, options, out, err, theme });
 
@@ -577,6 +620,54 @@ async function selectExecutionMode({ findings, options, prompter, out }) {
   return { mode: answer, explicit: false };
 }
 
+/** The mode a project already records, or the default for none. */
+function recordedMode(findings) {
+  return findings.executionMode?.valid ? findings.executionMode.mode : DEFAULT_EXECUTION_MODE;
+}
+
+/**
+ * Whether to use an Evidence Judge, if this run has anything to say.
+ *
+ * `--evidence-judge` says it outright. Otherwise an interactive run asks once,
+ * and only for an orchestrator project — the judge exists only there — whose
+ * mode file records no choice yet. The answer defaults to no. A credential in
+ * the environment is never a reason to enable one, and never changes the
+ * question; enabling is a decision, not a detection. An unanswered question
+ * records nothing.
+ *
+ * @returns {Promise<{value: string, explicit: boolean} | null>}
+ */
+async function selectEvidenceJudge({ cwd, findings, modeSelection, options, prompter, out }) {
+  if (options.evidenceJudge !== null) return { value: options.evidenceJudge, explicit: true };
+  if (!prompter.interactive || options.yes) return null;
+  const mode = modeSelection?.mode ?? (findings.executionMode?.valid ? findings.executionMode.mode : null);
+  if (mode !== "orchestrator") return null;
+  if (readEvidenceJudgeFile(cwd) !== null) return null;
+
+  out(`${EVIDENCE_JUDGE_EXPLANATION.join("\n")}\n\n`);
+  const answer = await prompter.confirm(EVIDENCE_JUDGE_QUESTION, { defaultAnswer: false });
+  out("\n");
+
+  if (answer === null || answer === undefined) return null;
+  return { value: answer ? "jev" : "none", explicit: false };
+}
+
+/**
+ * What the summary says about the judge: the choice, whether it was recorded,
+ * whether it takes effect in this mode, and whether its credential is set.
+ * Only the credential's presence is reported, never its value.
+ */
+function judgeOutcome({ selection, mode, env }) {
+  if (selection === null) return null;
+  const recorded = mode.errors.length === 0 && ["write", "replace", "up-to-date"].includes(mode.action);
+  return Object.freeze({
+    value: selection.value,
+    recorded,
+    orchestrator: mode.mode === "orchestrator",
+    credential: selection.value === "none" ? null : evidenceJudgeCredential(selection.value, env),
+  });
+}
+
 /**
  * Record the execution mode, or explain why not.
  *
@@ -589,13 +680,19 @@ async function selectExecutionMode({ findings, options, prompter, out }) {
  * four outcomes it was rather than celebrating a write that may not have
  * happened.
  */
-function recordExecutionMode({ plan, options, result, onProgress, onDone, theme }) {
+function recordExecutionMode({ plan, options, result, judgeOnly = false, onProgress, onDone, theme }) {
   const none = applyExecutionModePlan(null);
   if (plan === null) return none;
   if (result.errors.length > 0) return none;
 
   const applied = applyExecutionModePlan(plan, { dryRun: options.dryRun, onProgress });
   const mark = theme.glyph;
+
+  // A run that only chose a judge rewrote the file without changing the mode,
+  // and its mode line must not claim a change nobody asked for.
+  if (judgeOnly && applied.action === "replace" && applied.previousMode === applied.mode) {
+    applied.action = "up-to-date";
+  }
 
   switch (applied.action) {
     case "write":
@@ -799,6 +896,9 @@ const NO_OPTIONS = {
   // null means "not said" here too: the question is asked, or nothing is
   // recorded. A value is both the answer and permission to write it.
   mode: null,
+  // null means "not said": an existing choice is kept, and only an
+  // interactive orchestrator run with no recorded choice is asked.
+  evidenceJudge: null,
   error: null,
 };
 
@@ -858,6 +958,20 @@ function parseArguments(argv) {
       continue;
     }
 
+    if (argument === "--evidence-judge" || argument.startsWith("--evidence-judge=")) {
+      const equals = argument.indexOf("=");
+      const value = equals === -1 ? argv[++index] : argument.slice(equals + 1);
+      const parsed = parseEvidenceJudgeFlag(value);
+
+      if (parsed.error) {
+        options.error = parsed.error;
+        return options;
+      }
+
+      options.evidenceJudge = parsed.evidenceJudge;
+      continue;
+    }
+
     switch (argument) {
       case "--dry-run":
         options.dryRun = true;
@@ -869,6 +983,9 @@ function parseArguments(argv) {
       // reads every `case` label sees this flag documented like the others.
       case "--mode":
         options.error = parseExecutionModeFlag(undefined).error;
+        return options;
+      case "--evidence-judge":
+        options.error = parseEvidenceJudgeFlag(undefined).error;
         return options;
       case "--git-init":
         options.gitInit = true;
@@ -1286,6 +1403,7 @@ function contractReport({ outcome, harnesses, customTools, cwd, gitRoot, options
 
   lines.push(...contractAdapterLines({ outcome, options, theme }));
   lines.push(...contractModeLines({ outcome, options }));
+  lines.push(...judgeLines({ outcome, options }).map(({ text }) => `  ${text}`));
   lines.push(...customToolLines(customTools));
 
   if (skipped.length > 0) {
@@ -1393,6 +1511,35 @@ function expressiveModeLines({ outcome, options, theme }) {
     default:
       return [];
   }
+}
+
+/**
+ * The Evidence Judge, in either rendering: nothing unless this run chose one.
+ * Credential lines name the variable and whether it is set, never its value,
+ * and a missing key is setup to do later, not a failed install.
+ *
+ * @returns {{level: "ok"|"info"|"warn", text: string}[]}
+ */
+function judgeLines({ outcome, options }) {
+  const judge = outcome.judge;
+  if (!judge) return [];
+  if (!judge.recorded) {
+    return [{ level: "warn", text: `Evidence Judge not recorded: ${EXECUTION_MODE_PATH} was left untouched` }];
+  }
+  if (judge.value === "none") {
+    return [{ level: "info", text: `Evidence Judge: disabled; no external judge is used (${EXECUTION_MODE_PATH})` }];
+  }
+  const label = EVIDENCE_JUDGE_PROVIDERS[judge.value].label;
+  const lines = [{ level: "ok", text: `Evidence Judge: ${label} ${options.dryRun ? "to configure" : "configured"} (${EXECUTION_MODE_PATH})` }];
+  if (!judge.orchestrator) {
+    lines.push({ level: "info", text: "The Evidence Judge runs only in orchestrator mode; until then it is never asked" });
+  }
+  lines.push(
+    judge.credential.detected
+      ? { level: "info", text: `Credential: ${judge.credential.name} detected (its value is never printed or stored)` }
+      : { level: "warn", text: `Credential: ${judge.credential.name} not detected. Set it before using the Evidence Judge: ${judge.credential.setup}` },
+  );
+  return lines;
 }
 
 /** The mode conflict as a pasteable block, beside the adapter conflicts. */
@@ -1792,6 +1939,11 @@ function expressiveReport({ outcome, harnesses, customTools, cwd, gitRoot, optio
 
   lines.push(...expressiveAdapterLines({ outcome, options, theme }));
   lines.push(...expressiveModeLines({ outcome, options, theme }));
+  lines.push(
+    ...judgeLines({ outcome, options }).map(({ level, text }) =>
+      railed(theme, level === "warn" ? theme.warn(`${theme.glyph.warn} ${text}`) : level === "ok" ? theme.ok(`${theme.glyph.ok} ${text}`) : theme.dim(`${theme.glyph.info} ${text}`)),
+    ),
+  );
 
   if (skipped.length > 0) {
     lines.push(

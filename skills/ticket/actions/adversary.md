@@ -79,6 +79,18 @@ Each experiment has exactly these keys:
 - `verifier_instruction` — what Tester should independently check against the
   contract, including the reproduction and uncertainty.
 
+When `context/execution-mode.md` names an Evidence Judge, each experiment also
+has `judge`, the only part of it a judge provider may receive: exactly
+`contract_attacked`, `action_summary`, `expected_result` and
+`observation_summary`, each written as judge prose — one plain line of at most
+280 characters, using only letters, digits, spaces and `. , ; ( ) ' % -` —
+never a command, output, path, URL or value. The raw fields above keep their
+full evidence locally, `experiment_id` included: the judge names the N-th
+experiment `adversary:N`. The helper refuses invalid or missing judge prose,
+naming the field to rewrite, and writes nothing;
+`skills/orchestrate/evidence-judge.md` has the full rules. Without a judge,
+`judge` is optional and nothing changes.
+
 `steps` and `evidence` are arrays of 1–20 non-empty strings; other experiment
 fields are non-empty strings. Each string is at most 2048 characters and the
 JSON report is at most 32 KiB. Missing fields, malformed evidence, duplicate

@@ -276,6 +276,16 @@ describe("planning the write", () => {
     );
   });
 
+  it("keeps an evidence-judge marker when it rewrites the mode", () => {
+    const cwd = scratch();
+    writeModeFile(cwd, "# Execution Mode\n\n<!-- pathfinder:execution-mode orchestrator -->\n<!-- pathfinder:routing-policy static -->\n<!-- pathfinder:evidence-judge jev -->\n");
+
+    const item = planExecutionMode({ targetRoot: cwd, mode: "human-in-the-loop" });
+
+    assert.match(item.contents, /^<!-- pathfinder:routing-policy static -->\n<!-- pathfinder:evidence-judge jev -->$/m);
+    assert.doesNotMatch(renderExecutionMode("orchestrator"), /^<!-- pathfinder:evidence-judge/m, "no judge unless chosen");
+  });
+
   it("keeps a routing-policy name it does not judge, whatever its spelling", () => {
     const cwd = scratch();
     writeModeFile(cwd, "# Execution Mode\n\n<!-- pathfinder:execution-mode orchestrator -->\n<!-- pathfinder:routing-policy Fancy_One -->\n");
@@ -306,7 +316,7 @@ describe("planning the write", () => {
 describe("applying the plan", () => {
   it("applies nothing for a null plan, and says so with a null action", () => {
     const result = applyExecutionModePlan(null);
-    assert.deepEqual(result, { action: null, mode: null, relativePath: EXECUTION_MODE_PATH, errors: [] });
+    assert.deepEqual(result, { action: null, mode: null, relativePath: EXECUTION_MODE_PATH, errors: [], evidenceJudge: null, previousMode: null });
   });
 
   it("writes the file, creating context/ if it must", () => {
@@ -384,7 +394,10 @@ describe("the question, from a real run", () => {
       const { code, out } = await invoke([], { cwd, prompter: scriptedPrompter({ mode }) });
 
       assert.equal(code, 0);
-      assert.equal(readFileSync(modeFile(cwd), "utf8"), renderExecutionMode(mode));
+      // An orchestrator run is also asked about the optional Evidence Judge;
+      // this prompter declines, which is recorded as an explicit `none`.
+      const evidenceJudge = mode === "orchestrator" ? "none" : null;
+      assert.equal(readFileSync(modeFile(cwd), "utf8"), renderExecutionMode(mode, { evidenceJudge }));
       assert.ok(out.includes(`Execution mode recorded: ${mode} (${EXECUTION_MODE_PATH})`), out);
     }
   });

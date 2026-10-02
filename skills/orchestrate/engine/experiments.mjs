@@ -5,6 +5,8 @@ import { pathToFileURL } from "node:url";
 import { parseSource } from "../../../lib/evidence-references.mjs";
 import { claimFor } from "./claims.mjs";
 import { repositoryRoot } from "./git.mjs";
+import { EXPERIMENT_JUDGE_KEYS, experimentJudgeErrors, secretScopeProblem } from "./judge-prose.mjs";
+import { readEvidenceJudge } from "./mode.mjs";
 
 export const EXPERIMENT_HEADING = "## Adversary experiments";
 export const MAX_REPORT_BYTES = 32768;
@@ -21,7 +23,7 @@ export function validateExperimentReport(report) {
   if (!plainObject(report)) return { ok: false, errors: ["report must be an object"] };
   if (Buffer.byteLength(JSON.stringify(report, null, 2), "utf8") > MAX_REPORT_BYTES) errors.push("report exceeds 32 KiB");
   for (const key of Object.keys(report)) {
-    if (!["ticket", "pr", "head_sha", "experiments"].includes(key)) errors.push(`unknown report field: ${key}`);
+    if (!["ticket", "pr", "head_sha", "experiments"].includes(key)) errors.push(/^[a-z_]{1,32}$/.test(key) ? `unknown report field: ${key}` : "an unknown report field");
   }
   if (typeof report.ticket !== "string" || !/^\d+\.\d+$/.test(report.ticket)) errors.push("ticket must be a ticket key");
   if (!nonempty(report.pr) || !/^https:\/\/[^\s]+\/pull\/[1-9]\d*$/.test(report.pr)) errors.push("pr must be an exact pull request URL");
@@ -35,8 +37,12 @@ export function validateExperimentReport(report) {
     const prefix = `experiment ${index + 1}`;
     if (!plainObject(experiment)) { errors.push(`${prefix} must be an object`); continue; }
     for (const key of Object.keys(experiment)) {
-      if (!FIELDS.includes(key)) errors.push(`${prefix}: unknown field ${key}`);
+      if (!FIELDS.includes(key) && key !== "judge") errors.push(/^[a-z_]{1,32}$/.test(key) ? `${prefix}: unknown field ${key}` : `${prefix}: an unknown field`);
     }
+    // The optional judge-facing projection: shape only here; its prose,
+    // verdict words included, is checked at write time and again before any
+    // judge is asked.
+    if (experiment.judge !== undefined) errors.push(...experimentJudgeErrors(experiment, prefix, { prose: false }));
     for (const key of FIELDS) {
       const value = experiment[key];
       if (LISTS.has(key)) {
@@ -58,6 +64,27 @@ export function validateExperimentReport(report) {
     ids.add(experiment.experiment_id);
   }
   return { ok: errors.length === 0, errors };
+}
+
+/**
+ * Problems that refuse writing this checkpoint for an Evidence Judge: each
+ * experiment's projection prose, and its absence when the project names a
+ * judge. Each names the field to rewrite, never its value.
+ */
+export function judgeProjectionErrors(report, { judgeEnabled = false } = {}) {
+  return (Array.isArray(report?.experiments) ? report.experiments : []).flatMap((experiment, index) => {
+    const prefix = `experiment ${index + 1}`;
+    if (experiment?.judge === undefined) return judgeEnabled ? [`${prefix}: this project's Evidence Judge needs a judge-facing projection: add judge with contract_attacked, action_summary, expected_result and observation_summary`] : [];
+    return experimentJudgeErrors(experiment, prefix);
+  }).concat(acrossExperiments(report));
+}
+
+/** The secret-word window across experiments, in order, once each is valid on its own. */
+function acrossExperiments(report) {
+  const experiments = Array.isArray(report?.experiments) ? report.experiments : [];
+  if (!experiments.every((experiment, index) => experiment?.judge !== undefined && experimentJudgeErrors(experiment, `experiment ${index + 1}`).length === 0)) return [];
+  const problem = secretScopeProblem(experiments.flatMap((experiment) => EXPERIMENT_JUDGE_KEYS.map((key) => experiment.judge[key])));
+  return problem ? [`judge prose across experiments must be rewritten: ${problem}`] : [];
 }
 
 export function renderExperimentReport(report) {
@@ -107,7 +134,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     if (args.length !== (checkpoint ? 1 : 0)) throw new Error("usage: experiments.mjs [--checkpoint] < report.json");
     const input = readFileSync(0, "utf8");
     if (Buffer.byteLength(input, "utf8") > MAX_REPORT_BYTES) throw new Error("report exceeds 32 KiB");
-    const report = JSON.parse(input);
+    let report;
+    try { report = JSON.parse(input); } catch { throw new Error("stdin is not valid JSON; nothing was written"); }
     const section = renderExperimentReport(report);
     if (checkpoint) {
       const root = repositoryRoot(process.cwd());
@@ -116,6 +144,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       const path = join(process.cwd(), "context", "current-ticket.md");
       const text = readFileSync(path, "utf8");
       if (!new RegExp(`^- Ticket: ${report.ticket.replaceAll(".", "\\.")}(?:\\s|$)`, "m").test(text)) throw new Error("checkpoint ticket identity differs from report");
+      const judge = judgeProjectionErrors(report, { judgeEnabled: readEvidenceJudge(root).explicit });
+      if (judge.length) throw new Error(`judge-facing projection refused; nothing was written, and the raw evidence is unchanged: ${judge.join("; ")}`);
       writeFileSync(path, replaceExperimentReport(text, report), "utf8");
       console.log("Adversary experiments checkpoint written; State unchanged.");
     } else process.stdout.write(section);

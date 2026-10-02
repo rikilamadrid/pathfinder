@@ -180,6 +180,14 @@ project with no file defaults to human-in-the-loop. You can change it later
 with `npx create-pathfinder --mode orchestrator`.
 [Execution modes](/guides/execution-modes/) explains the choice.
 
+If you choose Orchestrator, one optional question follows: whether to enable
+the **Evidence Judge**, which asks Jev, TypeSafe's structured-decision model,
+whether recorded Tester evidence supports a ticket's verification items before
+you approve a merge. It defaults to no. Jev is a separate TypeSafe service with
+its own API key and credits — your coding tool does not include it — and
+Pathfinder works fully without it. A `TYPESAFE_API_KEY` in your environment
+never turns it on; only your answer, or `--evidence-judge jev`, does.
+
 The last two questions are conveniences: whether to copy that prompt to your
 clipboard, and whether to open the project in an editor already on your `PATH`.
 Say no to either and the install is unaffected.
@@ -291,6 +299,7 @@ Options worth knowing before you run it anywhere real:
 | `--force` | Overwrite files that already exist, and replace a file you wrote at a path an adapter would occupy. Off by default |
 | `--agents <ids>` | Generate adapters for `claude-code`, `codex`, or both, without being asked |
 | `--mode <mode>` | Record or change `human-in-the-loop` or `orchestrator` in the project’s mode file |
+| `--evidence-judge <judge>` | Optional, for orchestrator mode: `none` (the default) or `jev`, which needs its own TypeSafe API key |
 | `--git-init` | Run `git init` here if this is not a repository yet |
 | `--yes` | Take the defaults and ask nothing. It does not authorize `git init` or configure any tool |
 | `--no-clipboard`, `--no-open` | Skip the clipboard offer and the editor offer |

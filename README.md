@@ -107,6 +107,14 @@ native skill adapters for that tool. The installer also asks how Pathfinder
 should run the project. Choose human-in-the-loop or orchestrator, or set it
 explicitly with `npx create-pathfinder --mode orchestrator`.
 
+Your coding tool is the only service Pathfinder needs. An orchestrator project
+may also enable the optional **Evidence Judge**, which asks
+[Jev](https://docs.typesafe.ai/), TypeSafe's structured-decision model, whether
+recorded Tester evidence supports a ticket's verification items before you
+approve a merge. Jev is a separate service with its own account and API key:
+your Claude Code or Codex access does not include it, and Pathfinder works
+fully without it. It is off unless you choose it.
+
 Then start with:
 
 ```text
@@ -240,7 +248,10 @@ impact and uncertainty; Tester alone confirms PASS or findings. Human-in-the-loo
 `context/current-ticket.md`, tied to the exact PR head. Recovery resumes the
 recorded stage; confirmed repairs rerun Adversary then Tester. Integration-only
 refresh of unchanged behavior needs fresh Tester/CI without rerunning Adversary.
-Acceptance and final merge still require the human.
+Acceptance and final merge still require the human. An optional
+[Evidence Judge](skills/orchestrate/evidence-judge.md) can check the recorded
+evidence before that merge gate; it classifies, Pathfinder decides, and its
+absence or failure is never approval.
 
 
 A prototype is optional. Use one when an important assumption is cheaper to
