@@ -87,11 +87,13 @@ const okFetch = (options, calls = []) => async (url, init) => {
   return new Response(JSON.stringify(jevResponse(JSON.parse(init.body), options)), { status: 200 });
 };
 const ENV = { TYPESAFE_API_KEY: "ts-test-key-123456" };
-// Synthetic credentials in their real formats, assembled from parts so that no
-// source line matches a secret scanner; none is, or ever was, a live credential.
+// Synthetic/test-only credentials in their real formats, assembled from parts
+// so that no source line matches a secret scanner; never used to authenticate.
 const SYNTHETIC = Object.freeze({
   stripe: ["sk", "live", "0EXAMPLE0EXAMPLE0EXAMPLE0"].join("_"),
   slack: ["xoxb", "000000000000", "0000000000000", "EXAMPLEexampleEXAMPLEexam"].join("-"),
+  awsTemporary: ["AS", "IA", "Y34FZKBOKMUTVV7A"].join(""),
+  google: ["AI", "za", "SyA1234567890abcdefghijklmnopqrstuv"].join(""),
 });
 
 describe("the evidence bundle stays minimal and traceable", () => {
@@ -591,7 +593,7 @@ describe("A4: no credential leaves in an evidence bundle", () => {
     ["a JSON-style secret field", '{"client_secret": "', 'abcd1234efgh"}'],
     ["an AWS secret access key assignment", "aws_secret_access_key = ", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"],
     ["a bare AWS secret access key", "credentials file held ", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"],
-    ["an AWS temporary access key id", "session used ", "ASIAY34FZKBOKMUTVV7A"],
+    ["an AWS temporary access key id", "session used ", SYNTHETIC.awsTemporary],
     ["a Stripe live secret key", "charged with ", SYNTHETIC.stripe],
     ["a Stripe restricted key", "refunded with ", "rk_live_51H8aBcDeFgHiJkLmNoPq"],
     ["a JWT", "session cookie was ", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"],
@@ -1111,7 +1113,7 @@ describe("round 8: quoted -u values with spaces, container boundaries, JSON arra
 // and the leaks the last detector-only round still let through.
 const A4_ATTACKS = [
   "GITHUB_TOKEN=q7Zr2mLx9PvA4kTn", "export TYPESAFE_API_KEY=ts-some-other-key-77", 'DATABASE_PASSWORD="pw1"', '{"client_secret": "abcd1234efgh"}',
-  "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "session used ASIAY34FZKBOKMUTVV7A", `charged with ${SYNTHETIC.stripe}`,
+  "aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", `session used ${SYNTHETIC.awsTemporary}`, `charged with ${SYNTHETIC.stripe}`,
   "session cookie was eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U",
   "cloned https://deploy:s3cr3tpass@git.example.com/widgets.git", "pushed to https://ghs0123456789abcdefghij@github.com/acme/widgets",
   "Authorization: Basic dXNlcjpwYXNz", "curl -H 'Authorization: Basic YWRtaW46czNjcjN0' https://api.example.com", "Authorization: Token 9f8e7d6c5b4a",
@@ -1203,7 +1205,7 @@ describe("the judge-facing boundary: raw evidence stays local", () => {
   it("refuses the common credential formats as judge prose", () => {
     for (const value of [
       `ghp_${"a".repeat(36)}`, "github_pat_11ABCDEFG0123456789_abcdef", "glpat-abcdefghij0123456789", "sk-proj-abcdefghij0123456789", "AKIAIOSFODNN7EXAMPLE", SYNTHETIC.slack,
-      "AIzaSyA1234567890abcdefghijklmnopqrstuv", "npm_abcdefghijklmnopqrstuvwxyz0123456789", "-----BEGIN RSA PRIVATE KEY-----", "Bearer abc123def456ghi789jkl0", "Basic YWRtaW46aHVudGVyMg==",
+      SYNTHETIC.google, "npm_abcdefghijklmnopqrstuvwxyz0123456789", "-----BEGIN RSA PRIVATE KEY-----", "Bearer abc123def456ghi789jkl0", "Basic YWRtaW46aHVudGVyMg==",
       "the password is hunter2", "Password Hunter", "token ABCdef", "api key K3y", "user admin with secret S3cret", "4111111111111111", "d41d8cd98f00b204e9800998ecf8427e", "%61%64%6d%69%6e",
       "first line\nsecond line", "x".repeat(281), "export A=1", "run `whoami`", "see https://x.example", "ssh git@github.com", "{ok}", "[1, 2]", "a | b", "a && b", "C:\\Users",
     ]) assert.notEqual(judgeProseProblem(value), null, JSON.stringify(value));
