@@ -70,14 +70,14 @@ jobs:
           exit 1
 
       - name: Check out the release commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # Tags and origin/main, both of which the publish guard reads, and
           # which the validator's changelog rule needs.
           fetch-depth: 0
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           # Trusted publishing needs Node >= 22.14; 24 is the current line.
           node-version: 24
