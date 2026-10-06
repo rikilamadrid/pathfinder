@@ -33,6 +33,9 @@ jobs:
       - name: Validate kit structure
         run: python3 .github/scripts/validate-kit.py
 
+      - name: Test release confirmation
+        run: python3 -m unittest discover -s .github/tests -p 'test_*.py'
+
       - name: Test the installer
         # The installer runtime remains dependency-free. This install exposes
         # only the exact registry version of the generator used by the drift check;

@@ -213,36 +213,12 @@ jobs:
         # Read the release back from outside before anything advertises it. The
         # publish above can report success while the packument is still
         # propagating, and a Release pointing at a version npm 404s is the
-        # precise outcome this workflow exists to prevent.
+        # precise outcome this workflow exists to prevent. The tarball must also
+        # finish downloading within the bounded confirmation window.
         env:
           VERSION: ${{ steps.plan.outputs.version }}
         run: |
-          set -euo pipefail
-          for attempt in $(seq 1 12); do
-            if curl -fsS "https://registry.npmjs.org/create-pathfinder/$VERSION" -o packument.json; then
-              break
-            fi
-            echo "attempt $attempt: not visible yet, waiting"
-            sleep 10
-          done
-          if [ ! -s packument.json ]; then
-            echo "::error::create-pathfinder@$VERSION never appeared on the registry." \
-                 "Nothing was tagged or released. Investigate, then re-dispatch."
-            exit 1
-          fi
-
-          head="$(node -p 'require("./packument.json").gitHead || ""')"
-          echo "registry gitHead: ${head:-<absent>}"
-          if [ -z "$head" ]; then
-            echo "::warning::the registry recorded no gitHead, so the published" \
-                 "tree cannot be tied to a commit from here"
-          elif [ "$head" != "$GITHUB_SHA" ]; then
-            echo "::error::published gitHead $head is not the release commit $GITHUB_SHA." \
-                 "Do not tag this. A wrong version can only be superseded."
-            exit 1
-          fi
-          rm -f packument.json
-          echo "create-pathfinder@$VERSION is live and matches $GITHUB_SHA."
+          python3 .github/scripts/confirm-release.py "https://registry.npmjs.org/create-pathfinder/$VERSION"
 
       - name: Tag the release commit
         # Now, and not before: the package exists, so a tag naming it is a true
