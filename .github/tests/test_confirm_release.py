@@ -1,6 +1,7 @@
 """Repository-only release checks: fake clock/network, real confirmation logic."""
 
 from contextlib import redirect_stdout
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import importlib.util
 import io
 import json
@@ -9,6 +10,8 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -32,7 +35,7 @@ class ConfirmationTests(unittest.TestCase):
             self.sleeps.append(seconds)
             self.now += seconds
 
-        def run(args, *, timeout, check):
+        def run(args, *, timeout, check, stdout, text):
             self.calls.append(args)
             remaining = 900 - self.now
             self.assertGreater(timeout, 0)
@@ -45,13 +48,15 @@ class ConfirmationTests(unittest.TestCase):
             self.assertIn("--fail", args)
             self.assertNotIn("--head", args)
             self.assertNotIn("-I", args)
-            code, body, duration = next(responses, (22, "", 0))
+            response = next(responses, (22, "", 0))
+            code, body, duration = response[:3]
+            status = response[3] if len(response) == 4 else "200"
             Path(args[args.index("--output") + 1]).write_text(body)
             self.now += duration
             if code == "timeout":
                 self.now += timeout
                 raise subprocess.TimeoutExpired(args, timeout)
-            return subprocess.CompletedProcess(args, code)
+            return subprocess.CompletedProcess(args, code, stdout=status)
 
         output = io.StringIO()
         with patch.object(release.time, "monotonic", lambda: self.now), \
@@ -91,6 +96,20 @@ class ConfirmationTests(unittest.TestCase):
                 self.assertEqual(self.run_confirmation([(0, PACKUMENT, 0), (code, "partial", 0)]), 1)
                 self.assertNotIn("is live", self.output)
                 self.assertEqual(self.now, 900)
+
+    def test_partial_http_status_cannot_count_as_live(self):
+        self.assertEqual(self.run_confirmation([
+            (0, PACKUMENT, 0), (0, "partial", 0, "206"),
+        ]), 1)
+        self.assertNotIn("is live", self.output)
+
+    def test_metadata_retry_resets_pending_stage(self):
+        self.assertEqual(self.run_confirmation([
+            (0, '{"gitHead":"abc"}', 0), (0, '{broken', 0),
+            (0, PACKUMENT, 0), (0, "tarball", 0),
+        ]), 0)
+        self.assertIn("metadata pending: packument did not parse", self.output)
+        self.assertNotIn("tarball pending: retrieving version packument", self.output)
 
     def test_partial_download_can_recover(self):
         self.assertEqual(self.run_confirmation([
@@ -187,6 +206,49 @@ class ConfirmationTests(unittest.TestCase):
         self.assertNotRegex(confirmation, re.compile(r'^\s*if:', re.MULTILINE))
         self.assertIn('python3 .github/scripts/confirm-release.py', confirmation)
         self.assertEqual(self.run_confirmation([(0, PACKUMENT, 0), (0, 'tarball', 0)]), 0)
+
+
+class RealHttpTests(unittest.TestCase):
+    def test_complete_partial_truncated_and_redirected_gets(self):
+        requests = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                requests.append((self.command, self.path, self.headers.get("Range")))
+                if self.path == '/redirect':
+                    self.send_response(302)
+                    self.send_header('Location', '/complete')
+                    self.end_headers()
+                    return
+                self.send_response(206 if self.path == '/partial' else 200)
+                self.send_header('Content-Length', '100' if self.path == '/truncated' else '7')
+                if self.path == '/partial':
+                    self.send_header('Content-Range', 'bytes 0-6/100')
+                self.end_headers()
+                self.wfile.write(b'payload')
+
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                target = Path(tmp) / 'download'
+                for path, expected in [('/complete', True), ('/partial', False),
+                                       ('/truncated', False), ('/redirect', True)]:
+                    with self.subTest(path=path):
+                        url = f'http://127.0.0.1:{server.server_port}{path}'
+                        self.assertEqual(release.download(url, target, time.monotonic() + 5), expected)
+                self.assertEqual([p for _, p, _ in requests],
+                                 ['/complete', '/partial', '/truncated', '/redirect', '/complete'])
+                self.assertTrue(all(method == 'GET' and byte_range is None
+                                    for method, _, byte_range in requests))
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
 
 
 if __name__ == '__main__':

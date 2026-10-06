@@ -24,14 +24,17 @@ def download(url, destination, deadline):
         result = subprocess.run(
             ["curl", "--fail", "--silent", "--show-error", "--location",
              "--connect-timeout", str(min(CONNECT_SECONDS, limit)),
-             "--max-time", str(limit), "--output", str(destination), url],
-            timeout=remaining, check=False,
+             "--max-time", str(limit), "--write-out", "%{http_code}",
+             "--output", str(destination), url],
+            timeout=remaining, check=False, stdout=subprocess.PIPE, text=True,
         )
     except subprocess.TimeoutExpired:
         return False
     # curl rejects incomplete transfers (including a short Content-Length body).
+    # A successful 206 is still only a range, not the complete requested file.
     # Never infer success from a file left by a failed or interrupted request.
-    return (result.returncode == 0 and time.monotonic() < deadline
+    return (result.returncode == 0 and result.stdout == "200"
+            and time.monotonic() < deadline
             and destination.is_file() and destination.stat().st_size > 0)
 
 
@@ -51,6 +54,7 @@ def confirm(version, commit, metadata_url):
         tarball_url = None
         while time.monotonic() < deadline:
             if tarball_url is None:
+                pending = "metadata"
                 progress("retrieving version packument")
                 packument = None
                 if download(metadata_url, metadata, deadline):
