@@ -10,7 +10,8 @@
   "scripts": {
     "predev": "node scripts/sync-brand.mjs",
     "dev": "astro dev",
-    "prebuild": "node scripts/sync-brand.mjs",
+    "test": "node --test test/*.test.mjs",
+    "prebuild": "npm test && node scripts/sync-brand.mjs",
     "build": "astro build",
     "postbuild": "node scripts/check-manifest.mjs",
     "prepreview": "node scripts/sync-brand.mjs",
