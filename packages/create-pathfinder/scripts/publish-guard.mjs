@@ -39,7 +39,11 @@
  *
  * To publish a release by hand, when the workflow cannot be used:
  *
- *     PATHFINDER_PUBLISH=yes npm publish
+ *     PATHFINDER_PUBLISH=yes node packages/create-pathfinder/scripts/package-snapshot.mjs publish <commit>
+ *
+ * Run from the repository root. The snapshot command invokes this guard in the
+ * selected commit's temporary checkout; direct npm publish is not the safe
+ * manual fallback.
  */
 
 import { execFileSync } from "node:child_process";
@@ -80,7 +84,8 @@ if (process.env.PATHFINDER_PUBLISH !== "yes") {
   refuse(
     "no explicit intent to publish.",
     "Publishing is irreversible, so it is never the default. If you mean it:\n\n" +
-      "    PATHFINDER_PUBLISH=yes npm publish",
+      "    PATHFINDER_PUBLISH=yes node packages/create-pathfinder/scripts/package-snapshot.mjs publish <commit>\n" +
+      "    (from the repository root; see CONTRIBUTING.md)",
   );
 }
 
