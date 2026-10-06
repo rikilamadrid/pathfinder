@@ -1,6 +1,6 @@
 /** Actual offline tarballs from a committed kit, with local contamination. */
 import { strict as assert } from "node:assert";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -208,6 +208,47 @@ describe("committed snapshot packaging", () => {
     assert.equal(result.status, 1);
     assert.match(result.out, /missing AGENTS.md/);
     assert.equal(git(source, "status", "--porcelain"), "");
+  });
+
+  it("forwards parent-only cancellation to npm and removes the snapshot before exiting", async () => {
+    const bin = temporary();
+    const evidence = temporary();
+    const temp = temporary();
+    write(bin, "npm", `#!/usr/bin/env node
+const {writeFileSync}=require('node:fs');
+writeFileSync(process.env.SIGNAL_CWD,process.cwd());
+console.log('snapshot-child-ready');
+setTimeout(()=>{writeFileSync(process.env.SIGNAL_COMPLETED,'unexpected completion');process.exit(0);},3000);
+`);
+    execFileSync("chmod", ["+x", join(bin, "npm")]);
+    for (const signal of ["SIGTERM", "SIGINT"]) {
+      const cwdFile = join(evidence, signal + '-cwd');
+      const completed = join(evidence, signal + '-completed');
+      const processUnderTest = spawn(process.execPath, [join(root, SCRIPT), "pack", "HEAD", temporary()], {
+        cwd: root, env: { ...process.env, PATH: `${bin}:${process.env.PATH}`,
+          TMPDIR: temp, TMP: temp, TEMP: temp, SIGNAL_CWD: cwdFile, SIGNAL_COMPLETED: completed },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let output = '';
+      let sent = false;
+      processUnderTest.stdout.on('data', (data) => {
+        output += data;
+        if (!sent && output.includes('snapshot-child-ready')) {
+          sent = true;
+          processUnderTest.kill(signal);
+        }
+      });
+      processUnderTest.stderr.on('data', (data) => { output += data; });
+      const code = await new Promise((resolveExit, rejectExit) => {
+        processUnderTest.on('error', rejectExit);
+        processUnderTest.on('exit', resolveExit);
+      });
+      assert.equal(sent, true, output);
+      assert.equal(code, signal === 'SIGTERM' ? 143 : 130, output);
+      assert.equal(existsSync(completed), false, 'npm must not complete after cancellation');
+      assert.equal(existsSync(readFileSync(cwdFile, 'utf8')), false);
+      assert.deepEqual(readdirSync(temp).filter((name) => name.startsWith('pathfinder-package-')), []);
+    }
   });
 
   it("refuses invalid revisions and invalid arguments without source changes", () => {

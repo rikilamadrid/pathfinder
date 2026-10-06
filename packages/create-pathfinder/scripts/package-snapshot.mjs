@@ -4,7 +4,7 @@
  * Nothing is staged in the source checkout; npm and its lifecycle scripts run
  * in a private repository containing only committed files. No dependencies.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -24,15 +24,23 @@ function git(cwd, ...args) {
 }
 
 let scratch;
+let child;
+let interrupted;
 function clean() {
   if (scratch) rmSync(scratch, { recursive: true, force: true });
 }
-// Also clean on ordinary terminal interruption. SIGKILL/power loss cannot run
-// cleanup; any remnants are private OS-temp directories, never source staging.
+// Forward cancellation to npm and its lifecycle children, then wait for npm
+// to exit before removing its checkout. SIGKILL/power loss cannot run cleanup.
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => {
-    clean();
-    process.exit(signal === "SIGINT" ? 130 : 143);
+    interrupted = signal;
+    if (!child?.pid) return;
+    try {
+      if (process.platform === "win32") child.kill(signal);
+      else process.kill(-child.pid, signal);
+    } catch (error) {
+      if (error.code !== "ESRCH") console.error(`package-snapshot: ${error.message}`);
+    }
   });
 }
 
@@ -68,12 +76,20 @@ try {
   git(snapshot, "checkout", "--quiet", "--detach", commit);
   const packageRoot = join(snapshot, "packages", "create-pathfinder");
   if (output) mkdirSync(output, { recursive: true });
-  execFileSync(process.platform === "win32" ? "npm.cmd" : "npm",
-    [action, "--ignore-scripts=false", ...(output ? ["--pack-destination", output] : [])],
-    { cwd: packageRoot, env, stdio: "inherit" });
+  await new Promise((resolveChild, rejectChild) => {
+    child = spawn(process.platform === "win32" ? "npm.cmd" : "npm",
+      [action, "--ignore-scripts=false", ...(output ? ["--pack-destination", output] : [])],
+      { cwd: packageRoot, env, stdio: "inherit", detached: process.platform !== "win32" });
+    child.on("error", rejectChild);
+    child.on("exit", (code, signal) => {
+      child = undefined;
+      if (code === 0 && !interrupted) resolveChild();
+      else rejectChild(new Error(`npm ${action} stopped (${interrupted || signal || code})`));
+    });
+  });
 } catch (error) {
   console.error(`package-snapshot: ${error.message}`);
-  process.exitCode = 1;
+  process.exitCode = interrupted === "SIGINT" ? 130 : interrupted === "SIGTERM" ? 143 : 1;
 } finally {
   clean();
 }
