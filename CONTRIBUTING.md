@@ -96,15 +96,36 @@ The one thing to look at first is the `Plan the release` step, which prints what
 Only when GitHub Actions is unavailable, and knowing it needs an OTP:
 
 ```sh
-cd packages/create-pathfinder
-PATHFINDER_PUBLISH=yes npm publish
+node packages/create-pathfinder/scripts/package-snapshot.mjs pack HEAD /tmp/pathfinder-package
+# Inspect/test the tarball first, then paste the full SHA printed by pack:
+commit=PASTE_FULL_SHA_FROM_PACK
+PATHFINDER_PUBLISH=yes node packages/create-pathfinder/scripts/package-snapshot.mjs publish "$commit"
 # then, only after the registry serves it:
-git tag -a vX.Y.Z -m "vX.Y.Z — <summary>" && git push origin vX.Y.Z
+git tag -a vX.Y.Z "$commit" -m "vX.Y.Z — <summary>" && git push origin vX.Y.Z
 gh release create vX.Y.Z --verify-tag --title "Pathfinder vX.Y.Z" \
-  --notes-file <(python3 ../../.github/scripts/changelog-notes.py X.Y.Z)
+  --notes-file <(python3 .github/scripts/changelog-notes.py X.Y.Z)
 ```
 
-The order is the same and for the same reason. The publish guard refuses unless intent is explicit, the tree is clean, the changelog agrees, and the commit is contained in `main`. It no longer requires a tag at `HEAD` — under the workflow the tag does not exist yet — but it still refuses if a tag is there and names a different version.
+Run this from the repository root. The command resolves and prints the exact commit,
+creates a private temporary Git checkout of it, and runs the existing npm staging,
+packing or publishing lifecycle there. `pack` writes its tarball only to the explicit
+output directory. `publish` requires the existing intent flag and publish guard.
+Both remove the temporary checkout after success or failure; a killed process or
+power loss may leave a `pathfinder-package-*` directory in the OS temporary directory.
+Neither stages files in or cleans the maintainer's working tree. Local edits,
+untracked notes, ignored files and npm's automatic README inclusion cannot enter
+the snapshot. Use the same Node/npm toolchain when comparing package checksums.
+
+Use the full SHA printed by `pack` for `publish`, rather than a branch name that
+might move between commands. The package version comes from that commit unchanged;
+its real Git HEAD, tags and mainline ancestry remain available to npm and the guard.
+The guard checks the **snapshot's** cleanliness, changelog, version and release
+eligibility; a clean maintainer checkout is not the hermeticity boundary. Existing
+tag/version mismatch and mainline checks are unchanged.
+
+Direct `npm pack` and `npm publish` in a development checkout still operate on that
+working tree. They are not the supported safe manual fallback. The canonical
+GitHub release workflow is unchanged and still publishes before tagging/releasing.
 
 ### One-time setup, outside this repository
 
