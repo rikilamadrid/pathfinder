@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the kit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           # Tags are needed for the changelog-has-tag rule; the default
           # shallow fetch has none, and the rule would silently skip.
@@ -26,7 +26,7 @@ jobs:
         # asks its generator whether the committed adapters are current. Without
         # Node both skip themselves, which is the exact failure mode they exist
         # to prevent — so this step must stay ahead of the validator.
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
 
