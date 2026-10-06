@@ -101,9 +101,9 @@ export default defineConfig({
         },
       ],
       // Grouped by the five workflow loops the README defines. Built from what
-      // is on disk, so a new skill cannot go missing — see `src/nav.mjs`.
-      // Read at config load, so a skill added while the dev server is running
-      // reaches its page immediately but enters the sidebar on restart.
+      // is committed, so local files cannot add pages — see `src/nav.mjs`.
+      // Commit new page paths and restart the dev server to refresh both
+      // page membership and the sidebar.
       sidebar: buildSidebar({ skillsDir, contextDir }),
     }),
   ],

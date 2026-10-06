@@ -30,17 +30,15 @@
 //     layer's stable loader surface.
 //   - `parseFrontmatter` from `@astrojs/markdown-remark`, a direct dependency
 //     of `astro`, used rather than adding a YAML parser for four lines of it.
-//   - Starlight's `docsLoader()`, composed in below.
+//   - Astro's glob loader, with committed filenames and Starlight's extensions.
 
-import { readdir, readFile, stat } from 'node:fs/promises';
-import { extname, join, relative, resolve, sep } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseFrontmatter } from '@astrojs/markdown-remark';
-import { docsLoader } from '@astrojs/starlight/loaders';
+import { glob } from 'astro/loaders';
 import { WORKFLOW_LOOPS } from '../nav.mjs';
-import { isUnpublished } from '../unpublished.mjs';
-
-const SKILL_FILE = 'SKILL.md';
+import { canonicalPageInputs, literalGlob } from '../canonical-inputs.mjs';
 
 /** Where the generated skill index lands. `/skills/` — the index of the section. */
 const REFERENCE_ID = 'skills';
@@ -132,21 +130,8 @@ function leadingHeading(content) {
   return { text: match[1], rest: body.slice(match[0].length).replace(/^\n+/, '') };
 }
 
-/** Every `.md` file under a directory, depth-first, as paths relative to it. */
-async function markdownFiles(root, prefix = '') {
-  const entries = await readdir(join(root, prefix), { withFileTypes: true });
-  const found = [];
-  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (entry.name.startsWith('.')) continue;
-    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) found.push(...(await markdownFiles(root, path)));
-    else if (extname(entry.name) === '.md') found.push(path);
-  }
-  return found;
-}
-
 /**
- * Composes Starlight's own loader for site-local pages with the kit's two
+ * Composes Astro's glob loader for site-local pages with the kit's two
  * content sources: `skills/` and `context/`.
  *
  * Order matters and is not cosmetic: Astro's glob loader — which is what
@@ -159,7 +144,11 @@ async function markdownFiles(root, prefix = '') {
 export function kitDocsLoader({ skillsDir, contextDir }) {
   const skillsRoot = resolve(skillsDir);
   const contextRoot = resolve(contextDir);
-  const localPages = docsLoader();
+  const inputs = canonicalPageInputs(dirname(skillsRoot));
+  const localPages = glob({
+    base: join(dirname(skillsRoot), 'site/src/content/docs'),
+    pattern: inputs.docs.map(literalGlob),
+  });
 
   return {
     name: 'pathfinder-kit-loader',
@@ -223,22 +212,9 @@ export function kitDocsLoader({ skillsDir, contextDir }) {
         const present = new Set();
         const summaries = new Map();
 
-        const dirs = (await readdir(skillsRoot, { withFileTypes: true }))
-          .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
-          .map((entry) => entry.name)
-          .sort();
-
-        for (const dir of dirs) {
-          const file = join(skillsRoot, dir, SKILL_FILE);
-          try {
-            await stat(file);
-          } catch {
-            // A directory under `skills/` without a SKILL.md is not this
-            // loader's business to complain about — feature 02's validation
-            // owns that rule, and duplicating it here would let the two drift.
-            continue;
-          }
-
+        for (const path of inputs.skills) {
+          const dir = path.split('/')[0];
+          const file = join(skillsRoot, path);
           const raw = await readFile(file, 'utf8');
           const { frontmatter, content } = parseFrontmatter(raw);
 
@@ -305,13 +281,8 @@ export function kitDocsLoader({ skillsDir, contextDir }) {
       const syncContext = async () => {
         const present = new Set();
 
-        for (const path of await markdownFiles(contextRoot)) {
+        for (const path of inputs.context) {
           const id = `context/${path.replace(/\.md$/, '')}`;
-          // Read from `unpublished.mjs`, the one statement of what the site
-          // leaves alone, which `nav.mjs` reads too. Skipped before the file is
-          // opened: a page that is never published has no reason to be read.
-          if (isUnpublished(id)) continue;
-
           const file = join(contextRoot, path);
           const raw = await readFile(file, 'utf8');
           const heading = leadingHeading(raw);
@@ -328,6 +299,7 @@ export function kitDocsLoader({ skillsDir, contextDir }) {
         return retire('context', present);
       };
 
+      logger.info(`Canonical page membership from Git ${inputs.commit}; uncommitted additions excluded`);
       logger.info(`Loaded ${await syncSkills()} skills from ${fromRoot(skillsRoot)}`);
       logger.info(`Loaded ${await syncContext()} context pages from ${fromRoot(contextRoot)}`);
 
@@ -337,13 +309,18 @@ export function kitDocsLoader({ skillsDir, contextDir }) {
       // work. `watcher.add(root)` alone makes chokidar emit events for these
       // files, but nothing re-runs the loader: editing a skill changed nothing
       // and a newly added one 404'd. The handlers below are what actually
-      // rebuild the store. Astro's own glob watcher ignores anything relative
+      // rebuild the store for committed inputs. Commit new page paths and
+      // restart to refresh membership. Astro's own glob watcher ignores anything relative
       // to it that starts with `../`, so it never competes for these paths.
-      watcher.add(skillsRoot);
-      watcher.add(contextRoot);
+      const watched = new Set([
+        ...inputs.skills.map((path) => join(skillsRoot, path)),
+        ...inputs.context.map((path) => join(contextRoot, path)),
+      ]);
+      watcher.add([...watched]);
 
       const onChange = (path) => {
         const resolved = resolve(path);
+        if (!watched.has(resolved)) return;
         const source = resolved.startsWith(skillsRoot + sep)
           ? { name: 'skills', root: skillsRoot, sync: syncSkills }
           : resolved.startsWith(contextRoot + sep)

@@ -215,6 +215,21 @@ The first version of this rule did not have that restriction, and it published a
 
 `:/` anchors each path at the repository root, so the rule does not depend on the command's working directory.
 
+**Page counts use committed input membership.** The loader and sidebar select
+skill, context and site-local document paths from Git `HEAD`, then apply the
+site's existing publication exclusions. Ignored session files and untracked or
+staged-only additions cannot create pages. Missing Git metadata or missing
+committed inputs fail the build rather than yielding a local-only count. The
+loader prints the commit used for membership alongside its counts.
+
+Edits to existing committed files remain previewable in place; this rule pins
+which files are pages, not their working-tree contents. Commit new or removed
+page paths and restart the dev server to refresh membership and the sidebar.
+Use `npm run build` in `site/` for page-count evidence: its prebuild runs the
+canonical-input regressions, including clean/contaminated real Astro builds,
+and its postbuild validates the generated pages. Completed Feature history is
+not retroactively recounted.
+
 **The site is installable, and the build proves it before it deploys.** `npm run build` in `site/` ends with [`scripts/check-manifest.mjs`](site/scripts/check-manifest.mjs) as a `postbuild` step: it reads `dist/`, not the sources, and fails the build if the manifest is missing or unparseable, if any icon it declares does not resolve at its declared size and type, if the `any` or `maskable` purposes are unrepresented, if the landing page stops linking the manifest, or if `<meta name="theme-color">` and the manifest's `theme_color` disagree. It also checks **every** built page — not a sample — for the `apple-touch-icon` link and for `<meta name="apple-mobile-web-app-title">` agreeing with the manifest's `short_name`. It is deliberately dependency-free, so it runs on any install.
 
 Every page, because iOS names a Web Clip from the page it was added from: without that meta tag Safari falls back to the document title, so adding from a deep page proposes `Getting started | Pathfinder`. Fixing the landing page's `<title>` fixes only the landing page. This is a real defect that shipped to a preview and was caught by testing the actual Add to Home Screen flow rather than an HTTP response.

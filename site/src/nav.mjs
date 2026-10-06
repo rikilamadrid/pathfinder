@@ -7,16 +7,15 @@
 // mirrors that guide's loop names and order.
 //
 // What is *not* hardcoded is the set of skills. The groups list slugs, and
-// anything on disk that no group claims is collected into a final group
+// any committed skill that no group claims is collected into a final group
 // automatically, so a skill added later always reaches the sidebar — it just
 // arrives ungrouped, which is a visible prompt to place it deliberately rather
 // than a silent disappearance. `assertKnown` catches the opposite mistake: a
-// slug listed here that no longer exists on disk fails the build by name.
+// slug listed here that is not a committed skill fails the build by name.
 
-import { readdirSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, resolve } from 'node:path';
 
-import { isUnpublished } from './unpublished.mjs';
+import { canonicalPageInputs } from './canonical-inputs.mjs';
 
 /**
  * Mirrors README § "The complete workflow". Each entry is a loop heading and
@@ -184,35 +183,13 @@ const CONTEXT_ORDER = [
 
 const skillLink = (slug) => ({ label: slug, link: `/skills/${slug}/` });
 
-function skillSlugs(skillsDir) {
-  return readdirSync(skillsDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.'))
-    .filter((entry) => existsSync(join(skillsDir, entry.name, 'SKILL.md')))
-    .map((entry) => entry.name)
-    .sort();
-}
-
-function contextIds(contextDir, prefix = '') {
-  return readdirSync(join(contextDir, prefix), { withFileTypes: true })
-    .filter((entry) => !entry.name.startsWith('.'))
-    .flatMap((entry) => {
-      const path = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) return contextIds(contextDir, path);
-      if (!entry.name.endsWith('.md')) return [];
-      const id = path.replace(/\.md$/, '');
-      // The same statement the loader reads, so the sidebar cannot list a page
-      // that does not exist and cannot omit one that does.
-      return isUnpublished(`context/${id}`) ? [] : [id];
-    })
-    .sort();
-}
-
 /**
  * @param {{ skillsDir: string, contextDir: string }} dirs
  * @returns {import('@astrojs/starlight/types').StarlightUserConfig['sidebar']}
  */
 export function buildSidebar({ skillsDir, contextDir }) {
-  const onDisk = skillSlugs(skillsDir);
+  const inputs = canonicalPageInputs(dirname(resolve(skillsDir)));
+  const onDisk = inputs.skills.map((path) => path.split('/')[0]);
   const claimed = new Set(WORKFLOW_LOOPS.flatMap((loop) => loop.skills));
 
   const missing = [...claimed].filter((slug) => !onDisk.includes(slug));
@@ -233,7 +210,7 @@ export function buildSidebar({ skillsDir, contextDir }) {
     groups.push({ label: 'Ungrouped skills', items: unclaimed.map(skillLink) });
   }
 
-  const ids = contextIds(contextDir);
+  const ids = inputs.context.map((path) => path.replace(/\.md$/, ''));
   const ordered = [
     ...CONTEXT_ORDER.filter((id) => ids.includes(id)),
     ...ids.filter((id) => !CONTEXT_ORDER.includes(id)),
