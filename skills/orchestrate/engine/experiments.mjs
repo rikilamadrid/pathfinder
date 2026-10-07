@@ -1,3 +1,4 @@
+import { followupBindingErrors, followupReportErrors } from "./followup-record.mjs";
 import { replaceCheckpoint } from "./checkpoint-write.mjs";
 /** Bounded transient Adversary reports. No dispatch or lifecycle transitions. */
 import { readFileSync } from "node:fs";
@@ -21,10 +22,11 @@ const verdict = /\b(?:PASS|FAIL)\b|\bconfirmed\s+(?:findings?|defects?|failures?
 
 export function validateExperimentReport(report) {
   const errors = [];
+  if (report?.followup !== undefined) errors.push(...followupBindingErrors(report.followup));
   if (!plainObject(report)) return { ok: false, errors: ["report must be an object"] };
   if (Buffer.byteLength(JSON.stringify(report, null, 2), "utf8") > MAX_REPORT_BYTES) errors.push("report exceeds 32 KiB");
   for (const key of Object.keys(report)) {
-    if (!["ticket", "pr", "head_sha", "experiments"].includes(key)) errors.push(/^[a-z_]{1,32}$/.test(key) ? `unknown report field: ${key}` : "an unknown report field");
+    if (!["ticket", "pr", "head_sha", "experiments", "followup"].includes(key)) errors.push(/^[a-z_]{1,32}$/.test(key) ? `unknown report field: ${key}` : "an unknown report field");
   }
   if (typeof report.ticket !== "string" || !/^\d+\.\d+$/.test(report.ticket)) errors.push("ticket must be a ticket key");
   if (!nonempty(report.pr) || !/^https:\/\/[^\s]+\/pull\/[1-9]\d*$/.test(report.pr)) errors.push("pr must be an exact pull request URL");
@@ -108,11 +110,14 @@ export function readExperimentReport(text) {
   let report;
   try { report = JSON.parse(block[1]); } catch { return { ok: false, errors: ["report is not valid JSON"] }; }
   const checked = validateExperimentReport(report);
-  return checked.ok ? { ok: true, report } : checked;
+  if (checked.ok) checked.errors.push(...followupReportErrors(text, report, "adversary"));
+  return checked.ok && checked.errors.length === 0 ? { ok: true, report } : { ok: false, errors: checked.errors };
 }
 
 /** Replace only this section. Claim lines, profile and other notes are untouched. */
 export function replaceExperimentReport(text, report) {
+  const freshness = followupReportErrors(text, report, "adversary");
+  if (freshness.length) throw new Error(freshness.join("; "));
   const section = renderExperimentReport(report);
   const headings = [...text.matchAll(/^## Adversary experiments[ \t]*\r?$/gm)];
   if (headings.length > 1) throw new Error("duplicate Adversary experiments sections; resolve before replacing");

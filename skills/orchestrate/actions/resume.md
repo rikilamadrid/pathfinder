@@ -96,3 +96,55 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
   If that harness refuses the recorded model or effort, report it without
   changing the profile. No new claim, worktree, branch, or automatic failover
   is implied by harness substitution.
+
+### Explicit human-directed same-head follow-up
+
+A human request for more investigation is not an assessment recommendation and
+must not be recorded only in `Next`. Before resuming the stopped ordinary
+review/done claim, use `orchestrate followup <key> --request <file> --live <keys>`
+with the current live-worker inventory (an empty string when none). The file is
+an explicit human direction, not provider output:
+
+```json
+{
+  "schema": "pathfinder.human-followup/1",
+  "ticket": "57.5",
+  "pr": "https://github.com/owner/repo/pull/123",
+  "head_sha": "<exact current 40-character SHA>",
+  "target": "tester",
+  "concern": { "id": "boundary-input", "summary": "Investigate repeated boundary input" },
+  "checkpoint": "<SHA-256 of exact current-ticket.md bytes reviewed by the human direction>",
+  "authorization": {
+    "by": "human",
+    "kind": "review-follow-up",
+    "direction": "<the human's explicit follow-up direction>"
+  }
+}
+```
+
+`target` is only `tester` or `adversary`. Bind the direction to the checkpoint
+read for that concern with `checkpointDigest` from `engine/followup-record.mjs`.
+Changed bytes require refreshed direction; never automatically rewrite the
+request digest. The operation validates ownership, current PR/local head,
+complete reports, stopped ordinary review/done state and no conflicting live
+worker. An open human gate must be handled through its existing human process;
+this operation cannot resolve it. Confirmed Tester findings still use repair.
+
+One atomic checkpoint replacement records the concern/direction, retains the
+retired reports under historical headings, and sets the required pending role.
+No worker is spawned. Repeating the identical request is a no-op; interruption
+before replacement leaves the old checkpoint, and interruption after replacement
+retains the complete new obligation. A busy/interrupted checkpoint lock refuses;
+use the existing explicit checkpoint-lock recovery policy, never steal a live
+lock or infer that a partially observed request succeeded.
+
+Then use ordinary `stage --advance` and the selected worker brief. The brief
+carries the fresh cycle binding: `followup.id`, `concern` digest, bounded
+`response` describing actual concern verification, and `experiments_digest`.
+Tester binds the exact current experiment report and independently verifies it;
+Adversary binds the retired experiment baseline. Reports must contain fresh
+actual evidence, not renamed old evidence. Reader-side checks reject old,
+stale or relabeled reports even if copied back into active headings. These
+bindings enforce traceability, not semantic proof that a worker was honest.
+Adversary follow-up always returns through fresh independent Tester. The usual
+repair origins, two-round escalation, acceptance and merge gates still apply.
