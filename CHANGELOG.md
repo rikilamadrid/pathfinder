@@ -29,6 +29,8 @@ The heading of the most recent released section below is the single source of tr
 
 ### Added
 
+- Explicit routing-only Jev adapter with pinned typed choices, exact outbound transport guards, and bounded single-request failures; no coordinator activation or lifecycle authority.
+
 - Local routing-only preparation of restricted concern and evidence summaries,
   with exact local source bindings and conservative reuse checks. Works without
   Evidence Judge activation; adds no provider call or lifecycle changes.

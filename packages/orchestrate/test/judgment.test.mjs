@@ -542,7 +542,7 @@ describe("orchestrate judge, the seam between Tester evidence and the human gate
 });
 
 describe("Jev stays behind the generic provider boundary", () => {
-  it("names TypeSafe or Jev in no engine module except its own adapter", () => {
+  it("keeps TypeSafe and Jev inside the explicit Judge and routing provider boundaries", () => {
     const offenders = [];
     const walk = (dir) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -552,7 +552,7 @@ describe("Jev stays behind the generic provider boundary", () => {
       }
     };
     walk(ENGINE_ROOT);
-    assert.deepEqual(offenders, [join("judges", "jev.mjs")]);
+    assert.deepEqual(offenders, [join("judges", "jev.mjs"), "routing-provider.mjs", join("routing-providers", "jev.mjs")]);
     assert.deepEqual(shippedJudges(), ["jev"]);
   });
 
