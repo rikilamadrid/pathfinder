@@ -31,7 +31,7 @@
  */
 
 import { humanDirectedFollowup } from "../routing-followup.mjs";
-import { readFollowups, followupDigest, rawReport } from "../followup-record.mjs";
+import { readFollowups, followupDigest, rawReport, applicableFollowups } from "../followup-record.mjs";
 import { replaceCheckpoint } from "../checkpoint-write.mjs";
 import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
@@ -480,9 +480,11 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", s
   // brief never depends on anything the claim did not write down.
   let selection = found.profile.selection;
   let handoff = null;
+  let reviewIdentity = null;
   if (["adversary", "review", "repair"].includes(session)) {
     const identity = currentPr(root, found.branch, gh);
     if (!identity.ok) return fail(1, identity.message);
+    reviewIdentity = identity;
     handoff = selectStage({ claim: found, text: checkpointText(root, found), ...identity, live });
     if (!handoff.ok) return fail(1, handoff.message);
     if (handoff.session !== session) return fail(1, `recorded checkpoint requires ${handoff.session ?? "integration"}, not ${session}`);
@@ -512,8 +514,8 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", s
 
   if (["adversary", "review"].includes(session)) {
     const checkpoint = checkpointText(root, found);
-    const record = readFollowups(checkpoint).records?.at(-1);
-    if (record && record.request.head_sha === resolveRef(join(root, found.worktree), "HEAD")) {
+    const record = applicableFollowups(readFollowups(checkpoint).records ?? [], { ticket: key, pr: reviewIdentity.pr, head_sha: reviewIdentity.head }, session === "review" ? "tester" : "adversary").at(-1);
+    if (record) {
       const experiments = rawReport(checkpoint, "## Adversary experiments");
       built.brief.protocol.push(`Human-directed fresh review: ${JSON.stringify(record.request.concern)}; direction: ${record.request.authorization.direction}. Historical reports are not current authority. Perform fresh work addressing this concern, include new evidence and a followup object with id ${record.id}, concern ${followupDigest(record.request.concern)}, response (bounded description of actual concern verification), experiments_digest ${session === "review" ? followupDigest(experiments) : record.experiments_digest}. Tester must independently review the current experiments. Never relabel an old report.`);
     }

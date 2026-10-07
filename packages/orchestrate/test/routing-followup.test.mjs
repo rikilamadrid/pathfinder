@@ -7,7 +7,7 @@ import { after, describe, it } from "node:test";
 import { replaceExperimentReport, renderExperimentReport, readExperimentReport } from "../../../skills/orchestrate/engine/experiments.mjs";
 import { replaceFindingsReport, renderFindingsReport, readFindingsReport } from "../../../skills/orchestrate/engine/findings.mjs";
 import { updateStateFile } from "../../../skills/orchestrate/engine/statefile.mjs";
-import { checkpointDigest, followupDigest, readFollowups } from "../../../skills/orchestrate/engine/followup-record.mjs";
+import { checkpointDigest, followupDigest, readFollowups, applicableFollowups } from "../../../skills/orchestrate/engine/followup-record.mjs";
 import { mutateCheckpoint, recoverCheckpointLock } from "../../../skills/orchestrate/engine/checkpoint-write.mjs";
 import { humanDirectedFollowup } from "../../../skills/orchestrate/engine/routing-followup.mjs";
 import { cleanUpTemporaryDirectories, makeProject, orchestrate, prGh, json, runGit } from "../lib/harness.mjs";
@@ -30,7 +30,7 @@ function setup() {
   const direction = (target = "tester") => ({ schema: "pathfinder.human-followup/1", ticket: "1.1", pr: PR, head_sha: sha(), target, concern: { id: "boundary-one", summary: "Investigate repeated boundary input" }, checkpoint: checkpointDigest(text()), authorization: { by: "human", kind: "review-follow-up", direction: "Perform fresh investigation of this concern" } });
   const apply = (request = direction(), live = []) => humanDirectedFollowup({ root, request, live, gh });
   const bind = (report, role) => {
-    const record = readFollowups(text()).records.at(-1);
+    const record = applicableFollowups(readFollowups(text()).records, report, role).at(-1);
     if (role === "tester") report.verification.push("independently exercised repeated boundary input");
     else report.experiments[0].steps.push("repeat boundary input");
     return { ...report, followup: { id: record.id, concern: followupDigest(record.request.concern), response: "Repeated boundary input produced the expected restriction", experiments_digest: role === "tester" ? followupDigest(readExperimentReport(text()).report) : record.experiments_digest } };
@@ -47,7 +47,7 @@ describe("human-directed same-head follow-up", () => {
     assert.equal(s.apply().ok, true);
     assert.match(s.text(), /## Historical Tester findings/);
     assert.equal(s.stage().session, "review");
-    assert.throws(() => s.findings(old), /fresh report/);
+    assert.throws(() => s.findings(old), /retired report/);
     writeFileSync(s.path, s.text() + "\n" + renderFindingsReport(old));
     assert.equal(s.stage().session, "review", "direct replay is not active authority");
     assert.equal(readFindingsReport(s.text()).ok, false);
@@ -60,8 +60,8 @@ describe("human-directed same-head follow-up", () => {
     assert.equal(s.apply(s.direction("adversary")).ok, true);
     assert.equal(s.stage().session, "adversary");
     assert.match(s.text(), /Historical Adversary experiments/);
-    assert.throws(() => s.findings(oldT), /fresh report/);
-    assert.throws(() => s.experiments(oldE), /fresh report/);
+    assert.throws(() => s.findings(oldT), /retired report/);
+    assert.throws(() => s.experiments(oldE), /retired report/);
     writeFileSync(s.path, s.text() + "\n" + renderExperimentReport(oldE) + "\n" + renderFindingsReport(oldT));
     assert.equal(s.stage().session, "adversary");
     const fresh = s.bind(s.experiment(), "adversary"); s.experiments(fresh);
@@ -83,6 +83,41 @@ describe("human-directed same-head follow-up", () => {
     assert.equal(s.apply(second).ok, true);
     assert.equal(s.apply(request).ok, false);
     assert.equal(s.stage().session, "review");
+  });
+  it("keeps retired A reports inactive after follow-up at B and return to A", () => {
+    for (const firstTarget of ["tester", "adversary"]) {
+      const s = setup(), a = s.sha(), oldT = s.review(), oldE = s.experiment();
+      assert.equal(s.apply(s.direction(firstTarget)).ok, true);
+      const aRecord = readFollowups(s.text()).records.at(-1);
+      if (firstTarget === "adversary") { s.experiments(s.bind(s.experiment(), "adversary")); s.stage("--advance"); }
+      s.findings(s.bind(s.review(), "tester")); s.stage("--advance");
+      writeFileSync(join(s.worktree, "head-b.txt"), "new code");
+      runGit(["add", "head-b.txt"], s.worktree); runGit(["commit", "-qm", "new head B"], s.worktree);
+      s.set({ State: "adversary" });
+      s.experiments(s.experiment()); s.stage("--advance"); s.findings(s.review());
+      assert.equal(s.stage("--advance").state, "done", "genuinely new head keeps ordinary report behavior");
+      const bRequest = s.direction("adversary"); bRequest.concern.id = "head-b-concern";
+      assert.equal(s.apply(bRequest).ok, true);
+      runGit(["reset", "--hard", a], s.worktree); // isolated fixture, never the ticket branch
+      assert.throws(() => s.findings(oldT), /retired report/);
+      if (firstTarget === "adversary") assert.throws(() => s.experiments(oldE), /retired report/);
+      writeFileSync(s.path, s.text() + "\n" + renderExperimentReport(oldE) + "\n" + renderFindingsReport(oldT));
+      assert.equal(readFindingsReport(s.text()).ok, false);
+      if (firstTarget === "adversary") {
+        assert.equal(readExperimentReport(s.text()).ok, false);
+        assert.equal(s.stage().session, "adversary");
+        const brief = s.run("brief", "1.1", "--session", "adversary", "--harness", "manual");
+        assert.equal(brief.status, 0, brief.stderr); assert.match(brief.stdout, new RegExp(aRecord.id));
+        assert.doesNotMatch(brief.stdout, /head-b-concern/);
+        s.experiments(s.bind(s.experiment(), "adversary"));
+      }
+      assert.equal(s.stage("--advance").session, "review");
+      const brief = s.run("brief", "1.1", "--session", "review", "--harness", "manual");
+      assert.equal(brief.status, 0, brief.stderr); assert.match(brief.stdout, new RegExp(aRecord.id));
+      assert.doesNotMatch(brief.stdout, /head-b-concern/);
+      s.findings(s.bind(s.review(), "tester"));
+      assert.equal(s.stage("--advance").state, "done", "fresh applicable A concern evidence remains usable");
+    }
   });
   it("requires exact human authorization and rejects provider/cached/Judge-only direction", () => {
     const s = setup(), before = s.text();

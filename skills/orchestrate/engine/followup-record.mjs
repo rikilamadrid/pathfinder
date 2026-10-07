@@ -46,21 +46,26 @@ export function rawReport(text, heading) {
   const rest = text.slice(sections[0].index + sections[0][0].length).split(/^## /m)[0];
   try { return JSON.parse(/^\s*```json\r?\n([\s\S]*?)\r?\n```\s*$/.exec(rest)[1]); } catch { return null; }
 }
+/** Select only actual retirements for this report identity and role. A later
+ * follow-up at another head never cancels an earlier head's obligation. */
+export function applicableFollowups(records, identity, role) {
+  return records.filter(({ request }) => request.ticket === identity.ticket && request.pr === identity.pr && request.head_sha === identity.head_sha && (role === "tester" || request.target === "adversary"));
+}
 /** Reader-side enforcement also rejects direct historical section replay. */
 export function followupReportErrors(text, report, role) {
   const ledger = readFollowups(text);
   if (!ledger.ok) return ledger.errors;
-  const r = ledger.records.at(-1);
-  if (!r || r.request.head_sha !== report.head_sha || r.request.pr !== report.pr || r.request.ticket !== report.ticket) return report.followup ? ["orphan follow-up binding"] : [];
-  if (role === "adversary" && r.request.target === "tester") return [];
+  const applicable = applicableFollowups(ledger.records, report, role);
+  const { followup, ...content } = report;
+  if (applicable.some(retired => followupDigest(content) === (role === "tester" ? retired.tester_digest : retired.experiments_digest))) return ["retired report cannot regain authority by relabeling"];
+  const r = applicable.at(-1);
+  if (!r) return report.followup ? ["orphan follow-up binding"] : [];
   const binding = report.followup;
   if (followupBindingErrors(binding).length || binding.id !== r.id || binding.concern !== followupDigest(r.request.concern)) return ["fresh report must address current human-directed concern"];
-  const { followup, ...content } = report;
-  if (ledger.records.some(retired => followupDigest(content) === (role === "tester" ? retired.tester_digest : retired.experiments_digest))) return ["retired report cannot regain authority by relabeling"];
   if (role === "tester") {
     const experiments = rawReport(text, "## Adversary experiments");
     if (!experiments || binding.experiments_digest !== followupDigest(experiments)) return ["Tester must independently review current experiment evidence"];
-    if (r.request.target === "adversary" && followupReportErrors(text, experiments, "adversary").length) return ["fresh Adversary evidence required before Tester"];
+    if (followupReportErrors(text, experiments, "adversary").length) return ["fresh Adversary evidence required before Tester"];
   } else if (binding.experiments_digest !== r.experiments_digest) return ["Adversary follow-up baseline differs"];
   return [];
 }
