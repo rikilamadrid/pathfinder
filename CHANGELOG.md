@@ -29,6 +29,10 @@ The heading of the most recent released section below is the single source of tr
 
 ### Added
 
+- Pure local routing-assessment validation and conservative, human-mediated
+  recommendations, with separate preparation/provenance interfaces. This adds
+  no provider calls, dispatch, repair authority, or lifecycle changes.
+
 - Optional `/ticket adversary` and a bounded Adversary role: reproducible
   experiments for independent Tester verification, with a transient head-bound
   report in orchestrator claims. This action grants no verdict, repair, or
