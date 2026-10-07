@@ -55,6 +55,65 @@ test("changing property reads are snapshotted once and adapter receives immutabl
   assert.equal(result.ok, true); assert.equal(calls, 1); assert.equal(reads, 1);
 });
 
+test("adapter result serialization substitution is refused after its single guarded request", async () => {
+  for (const wrap of [
+    value => new Proxy(value, { get(target, key, receiver) { return key === "toJSON" ? () => ({ ...target, likely_route: "developer", dispatch: true }) : Reflect.get(target, key, receiver); } }),
+    value => ({ ...value, toJSON() { return { ...value, likely_route: "continue", merge: true }; } }),
+  ]) {
+    let calls = 0;
+    const adapter = { ...jev, async assess(p, o) {
+      const result = await jev.assess(p, o);
+      return { model: result.model, assessment: wrap(result.assessment) };
+    } };
+    assert.deepEqual(await run(async () => { calls++; return response(reply()); }, {}, adapter), { ok: false, failure: "malformed" });
+    assert.equal(calls, 1);
+  }
+});
+
+test("complete adapter result getters are read once before model and assessment validation", async () => {
+  for (const validFirst of [true, false]) {
+    let modelReads = 0; let assessmentReads = 0;
+    const good = jev.toAssessment(reply(), projection());
+    const bad = { ...good.assessment, likely_route: "developer", dispatch: true };
+    const adapter = { ...jev, async assess(p, o) {
+      await jev.assess(p, o);
+      return {
+        get model() { return (++modelReads === 1) === validFirst ? jev.model : "wrong-model"; },
+        get assessment() { return (++assessmentReads === 1) === validFirst ? good.assessment : bad; },
+      };
+    } };
+    const result = await run(async () => response(reply()), {}, adapter);
+    if (validFirst) assert.deepEqual(result, { ok: true, ...good });
+    else assert.deepEqual(result, { ok: false, failure: "malformed" });
+    assert.equal(modelReads, 1); assert.equal(assessmentReads, 1);
+  }
+});
+
+test("adapter result snapshots reject forbidden routes and authority fields", async () => {
+  for (const change of [
+    ...["developer", "continue", "PASS", "FAIL", "accept", "merge"].map(route => r => { r.assessment.likely_route = route; }),
+    ...["next_state", "dispatch", "accept", "merge", "PASS", "FAIL"].flatMap(field => [
+      r => { r[field] = true; }, r => { r.assessment[field] = true; },
+    ]),
+  ]) {
+    const adapter = { ...jev, async assess(p, o) { const result = await jev.assess(p, o); change(result); return result; } };
+    assert.deepEqual(await run(async () => response(reply()), {}, adapter), { ok: false, failure: "malformed" });
+  }
+});
+
+test("valid ordinary adapter assessment returns an immutable independent snapshot", async () => {
+  let supplied;
+  const adapter = { ...jev, async assess(p, o) { supplied = await jev.assess(p, o); return supplied; } };
+  const result = await run(async () => response(reply()), {}, adapter);
+  assert.deepEqual(result, { ok: true, ...jev.toAssessment(reply(), projection()) });
+  assert.notEqual(result.assessment, supplied.assessment);
+  supplied.assessment.likely_route = "developer"; supplied.assessment.evidence_refs.push("invalid");
+  assert.equal(result.assessment.likely_route, "tester"); assert.deepEqual(result.assessment.evidence_refs, ["e1"]);
+  assert.ok(Object.isFrozen(result)); assert.ok(Object.isFrozen(result.assessment)); assert.ok(Object.isFrozen(result.assessment.evidence_refs));
+  assert.throws(() => { result.assessment.dispatch = true; }, TypeError);
+  assert.throws(() => result.assessment.evidence_refs.push("invalid"), TypeError);
+});
+
 test("all allowed routes and conservative concern choices remain bounded assessments", async () => {
   for (const picks of [{}, { route: "adversary", rationale: "untested_assumption" }, { route: "human", rationale: "insufficient_context", evidence: "none" }, ...["security", "high_risk", "scope"].map((concern) => ({ route: "human", rationale: "security_or_high_risk", concern }))]) {
     const result = await run(async () => response(reply(projection(), picks))); assert.equal(result.ok, true); assert.equal(result.assessment.likely_route, picks.route ?? "tester");

@@ -50,10 +50,14 @@ export async function assessRouting({ projection, env = {}, fetch = globalThis.f
     });
     const work = (async () => {
       try {
-        const result = await adapter.assess(view, { env: safeEnv, fetch: guarded, signal: controller.signal });
+        const supplied = await adapter.assess(view, { env: safeEnv, fetch: guarded, signal: controller.signal });
         if (violation || !used) return failure("outbound");
+        // Validate and return the same detached result, including model identity.
+        // Adapter getters or serialization hooks must never change checked data.
+        let result;
+        try { result = freeze(structuredClone(supplied)); } catch { return failure("malformed"); }
         if (!exactObject(result, ["model", "assessment"]) || result.model !== jev.model || !validateRoutingAssessment(result.assessment, view.evidence.map(({ id }) => id)).ok) return failure("malformed");
-        return { ok: true, model: jev.model, assessment: JSON.parse(JSON.stringify(result.assessment)) };
+        return freeze({ ok: true, model: result.model, assessment: result.assessment });
       } catch (error) { return failure(violation ? "outbound" : kinds.includes(error?.kind) ? error.kind : "provider-error"); }
     })();
     return await Promise.race([work, timeout]);
