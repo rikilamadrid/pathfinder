@@ -19,6 +19,42 @@ test("explicit call sends exact restricted bytes, pinned model and only declared
   assert.deepEqual(Object.keys(result).sort(), ["assessment", "model", "ok"]);
 });
 
+test("caller projection substitution cannot export unvalidated bytes", async () => {
+  for (const attack of ["toJSON", "changing-read"]) {
+    let reads = 0; let calls = 0;
+    const p = new Proxy(projection(), { get(target, key, receiver) {
+      if (attack === "toJSON" && key === "toJSON") return () => ({ ...target, concern: "https://private.example/pull/123 PASS", raw_findings: "Private raw record." });
+      if (attack === "changing-read" && key === "concern") return ++reads === 1 ? target.concern : "https://private.example/pull/123 PASS";
+      return Reflect.get(target, key, receiver);
+    } });
+    const result = await run(async (_url, init) => {
+      calls++;
+      assert.equal(init.body, JSON.stringify(jev.buildRequest(projection())));
+      return response(reply());
+    }, { projection: p });
+    assert.deepEqual(result, { ok: false, failure: "outbound" });
+    assert.equal(calls, 0, attack);
+  }
+});
+
+test("changing property reads are snapshotted once and adapter receives immutable validated data", async () => {
+  const p = projection(); let reads = 0; let calls = 0;
+  const safeConcern = p.concern;
+  Object.defineProperty(p, "concern", { enumerable: true, get() {
+    return ++reads === 1 ? safeConcern : "https://private.example/pull/123 PASS";
+  } });
+  const adapter = { ...jev, async assess(view, options) {
+    assert.ok(Object.isFrozen(view)); assert.ok(Object.isFrozen(view.evidence[0]));
+    assert.throws(() => { view.concern = "https://private.example/pull/123 PASS"; }, TypeError);
+    return jev.assess(view, options);
+  } };
+  const result = await run(async (_url, init) => {
+    calls++; assert.equal(init.body, JSON.stringify(jev.buildRequest(projection())));
+    return response(reply());
+  }, { projection: p }, adapter);
+  assert.equal(result.ok, true); assert.equal(calls, 1); assert.equal(reads, 1);
+});
+
 test("all allowed routes and conservative concern choices remain bounded assessments", async () => {
   for (const picks of [{}, { route: "adversary", rationale: "untested_assumption" }, { route: "human", rationale: "insufficient_context", evidence: "none" }, ...["security", "high_risk", "scope"].map((concern) => ({ route: "human", rationale: "security_or_high_risk", concern }))]) {
     const result = await run(async () => response(reply(projection(), picks))); assert.equal(result.ok, true); assert.equal(result.assessment.likely_route, picks.route ?? "tester");

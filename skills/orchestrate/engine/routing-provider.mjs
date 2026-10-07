@@ -29,8 +29,12 @@ export async function assessRouting({ projection, env = {}, fetch = globalThis.f
     const secrets = [safeEnv.TYPESAFE_API_KEY].filter((v) => typeof v === "string");
     const declared = freeze(jev.transport(safeEnv));
     if (declaredTransportProblem(declared, secrets)) return failure("configuration");
-    if (!validateRoutingProjection(projection, secrets).ok) return failure("outbound");
-    const view = freeze(JSON.parse(JSON.stringify(projection)));
+    // Clone before validation: never validate one read of caller-controlled
+    // data and then serialize another. structuredClone refuses proxies and
+    // functions; validation and transmission share only this inert snapshot.
+    let view;
+    try { view = freeze(structuredClone(projection)); } catch { return failure("outbound"); }
+    if (!validateRoutingProjection(view, secrets).ok) return failure("outbound");
     const body = JSON.stringify(jev.buildRequest(view));
     if (credentialIn(body, secrets)) return failure("outbound");
     const guarded = (url, init = {}) => {
