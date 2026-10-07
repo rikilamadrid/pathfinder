@@ -29,6 +29,10 @@ The heading of the most recent released section below is the single source of tr
 
 ### Added
 
+- Local routing-only preparation of restricted concern and evidence summaries,
+  with exact local source bindings and conservative reuse checks. Works without
+  Evidence Judge activation; adds no provider call or lifecycle changes.
+
 - Pure local routing-assessment validation and conservative, human-mediated
   recommendations, with separate preparation/provenance interfaces. This adds
   no provider calls, dispatch, repair authority, or lifecycle changes.
