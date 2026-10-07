@@ -1,5 +1,6 @@
+import { replaceCheckpoint } from "./checkpoint-write.mjs";
 /** Independent Tester's bounded transient review handoff; no lifecycle writes. */
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseSource } from "../../../lib/evidence-references.mjs";
@@ -106,7 +107,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
         if (problem) throw new Error(`judge-facing projection refused; nothing was written, and the raw evidence is unchanged: ${problem}`);
       }
     }
-    writeFileSync(path, replaceFindingsReport(text, report));
+    replaceCheckpoint(path, text, (latest) => replaceFindingsReport(latest, report));
     console.log("Tester findings checkpoint written; State unchanged.");
   } catch (error) { console.error(`findings: ${error.message}`); process.exitCode = 1; }
 }

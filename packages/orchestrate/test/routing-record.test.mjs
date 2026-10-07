@@ -93,8 +93,8 @@ test("interruption before reservation costs nothing; in-flight failure remains c
   let unblock;
   const active = attemptRoutingAssessment({ ...f.args, assess: () => new Promise((resolve) => { unblock = resolve; }) });
   assert.equal(f.record().attempts.length, 1); assert.equal(f.record().attempts[0].status, "reserved");
-  assert.equal((await attemptRoutingAssessment(f.args)).reason, "routing-busy-or-interrupted");
-  assert.equal(authorizeRoutingAllowance(f.auth("extend", { additional: 1 })).reason, "routing-busy-or-interrupted");
+  assert.equal((await attemptRoutingAssessment(f.args)).reason, "attempt-in-flight-or-interrupted");
+  assert.equal(authorizeRoutingAllowance(f.auth("extend", { additional: 1 })).reason, "attempt-in-flight-or-unknown");
   unblock({ ok: false, failure: "timeout" });
   assert.equal((await active).reason, "timeout"); assert.equal(f.record().attempts.length, 1);
 });
@@ -106,12 +106,12 @@ test("killed process leaves reservation consumed and requires explicit dead-lock
   t.after(() => child.kill("SIGKILL"));
   await new Promise((resolve, reject) => { child.stdout.once("data", resolve); child.once("error", reject); child.once("exit", (code) => { if (code !== null) reject(new Error(`child exited ${code}`)); }); });
   const recovery = f.auth("recover-lock");
-  assert.equal(recoverRoutingLock(recovery).reason, "live-lock-owner");
+  assert.equal(recoverRoutingLock(recovery).reason, "live-or-unknown-attempt-owner");
   child.kill("SIGKILL"); await new Promise((resolve) => child.once("exit", resolve));
-  assert.equal((await attemptRoutingAssessment(f.args)).reason, "routing-busy-or-interrupted");
+  assert.equal((await attemptRoutingAssessment(f.args)).reason, "attempt-in-flight-or-interrupted");
   assert.equal(f.record().attempts[0].status, "reserved");
   assert.equal(recoverRoutingLock(recovery).ok, true);
-  assert.equal((await attemptRoutingAssessment(f.args)).reason, "interrupted-attempt-requires-reconciliation");
+  assert.equal((await attemptRoutingAssessment(f.args)).reason, "attempt-in-flight-or-interrupted");
   assert.equal(authorizeRoutingAllowance(f.auth("reconcile", { allowance: 2, consumed: 0 })).reason, "reconciliation-cannot-refund");
   assert.equal(authorizeRoutingAllowance(f.auth("reconcile", { allowance: 2, consumed: 1 })).ok, true);
   assert.equal(f.record().attempts[0].failure, "interrupted");
@@ -121,9 +121,9 @@ test("killed process leaves reservation consumed and requires explicit dead-lock
 test("independent processes cannot reserve concurrently", async (t) => {
   const f = fixture(t); f.init(); let done;
   const active = attemptRoutingAssessment({ ...f.args, assess: () => new Promise((resolve) => { done = resolve; }) });
-  const code = `import { attemptRoutingAssessment } from ${JSON.stringify(moduleURL)}; console.log(JSON.stringify(await attemptRoutingAssessment({worktree:${JSON.stringify(f.worktree)},ticket:'57.4'})));`;
+  const code = `import { attemptRoutingAssessment } from ${JSON.stringify(moduleURL)}; console.log(JSON.stringify(await attemptRoutingAssessment({worktree:${JSON.stringify(f.worktree)},ticket:'57.4',readCurrent:()=>(${JSON.stringify(f.current)})})));`;
   const child = spawnSync(process.execPath, ["--input-type=module", "-e", code], { encoding: "utf8" });
-  assert.equal(child.status, 0, child.stderr); assert.equal(JSON.parse(child.stdout).reason, "routing-busy-or-interrupted");
+  assert.equal(child.status, 0, child.stderr); assert.equal(JSON.parse(child.stdout).reason, "attempt-in-flight-or-interrupted");
   assert.equal(f.record().attempts.length, 1);
   done({ ok: true, model: f.current.model, assessment: assessment() }); assert.equal((await active).ok, true);
 });
@@ -251,4 +251,152 @@ test("a budget and marker copied from another ticket cannot fund this claim", as
   assert.equal((await attemptRoutingAssessment(f.args)).reason, "reconciliation-required");
   assert.equal(authorizeRoutingAllowance(f.auth("extend", { additional: 1 })).ok, false);
   assert.equal(f.calls(), 0);
+});
+
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import { mutateCheckpoint, recoverCheckpointLock, replaceCheckpoint } from "../../../skills/orchestrate/engine/checkpoint-write.mjs";
+import { updateStateFile } from "../../../skills/orchestrate/engine/statefile.mjs";
+import { replaceFindingsReport } from "../../../skills/orchestrate/engine/findings.mjs";
+import { replaceExperimentReport } from "../../../skills/orchestrate/engine/experiments.mjs";
+import { judgmentRecord, replaceJudgment } from "../../../skills/orchestrate/engine/judgment.mjs";
+
+function writerData(f) {
+  return {
+    findings: { ...f.current.input.findings, limits: "Fresh independent writer observation." },
+    experiments: { ...f.current.input.identity, experiments: [{ experiment_id: "edge", contract: "Empty input clarity", hypothesis: "Empty input may confuse", setup: "Local fixture", steps: ["Exercise empty input"], expected_result: "Useful error", observed_result: "Useful error", evidence: ["cmd:node test.mjs"], reproducibility: "Repeated", potential_impact: "Input clarity", verifier_instruction: "Repeat independently" }] },
+    judgment: judgmentRecord({ ticket, pr: f.current.input.identity.pr, head: f.current.input.identity.head_sha, judge: { name: "double", model: "pinned" }, outcome: { status: "failed", failure: { kind: "provider-error", message: "Synthetic failure" } } }),
+  };
+}
+function writeOther(kind, f) {
+  if (kind === "state") return updateStateFile(f.worktree, { set: { State: "failed", Gate: "Independent newer human gate" } });
+  const replace = { findings: replaceFindingsReport, experiments: replaceExperimentReport, judgment: replaceJudgment }[kind];
+  replaceCheckpoint(f.path, readFileSync(f.path, "utf8"), (source) => replace(source, writerData(f)[kind]));
+  return { ok: true };
+}
+function childWriter(kind, f) {
+  const url = (name) => JSON.stringify(new URL(name, moduleURL).href);
+  const program = `import {readFileSync} from 'node:fs';
+    import {updateStateFile} from ${url('statefile.mjs')};
+    import {replaceCheckpoint} from ${url('checkpoint-write.mjs')};
+    import {replaceFindingsReport} from ${url('findings.mjs')};
+    import {replaceExperimentReport} from ${url('experiments.mjs')};
+    import {replaceJudgment} from ${url('judgment.mjs')};
+    const kind=${JSON.stringify(kind)}, path=${JSON.stringify(f.path)}, data=${JSON.stringify(writerData(f))};
+    try { if(kind==='state') console.log(JSON.stringify(updateStateFile(${JSON.stringify(f.worktree)},{set:{State:'failed',Gate:'Independent newer human gate'}})));
+    else {const replace={findings:replaceFindingsReport,experiments:replaceExperimentReport,judgment:replaceJudgment}[kind]; replaceCheckpoint(path,readFileSync(path,'utf8'),text=>replace(text,data[kind])); console.log('{"ok":true}');} }
+    catch(error){console.log(JSON.stringify({ok:false,message:error.message}));}`;
+  const result = spawnSync(process.execPath, ["--input-type=module", "-e", program], { encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+const writerMarker = (kind) => ({ state: "- Gate: Independent newer human gate", findings: "Fresh independent writer observation.", experiments: "## Adversary experiments", judgment: "## Evidence judgment" })[kind];
+
+test("every section writer and routing mutually exclude the final-read/rename race, with explicit retry preserving both", (t) => {
+  for (const kind of ["state", "findings", "experiments", "judgment"]) {
+    const f = fixture(t); f.init();
+    const originalRename = fs.renameSync; let child, reverse;
+    try {
+      fs.renameSync = (from, to) => {
+        if (to === fs.realpathSync(f.path) && child === undefined) { child = childWriter(kind, f); assert.equal(child.ok, false); }
+        return originalRename(from, to);
+      }; syncBuiltinESMExports();
+      assert.equal(checkpointRoutingPreparation(f.args).ok, true);
+    } finally { fs.renameSync = originalRename; syncBuiltinESMExports(); }
+    assert.equal(child.ok, false); assert.equal(childWriter(kind, f).ok, true);
+    const saved = f.record();
+    assert.ok(readFileSync(f.path, "utf8").includes(writerMarker(kind)));
+    try {
+      fs.renameSync = (from, to) => {
+        if (to === fs.realpathSync(f.path) && reverse === undefined) { reverse = checkpointRoutingPreparation(f.args); assert.equal(reverse.ok, false); }
+        return originalRename(from, to);
+      }; syncBuiltinESMExports();
+      // Change the value again so atomic replacement is actually necessary.
+      if (kind === "state") assert.equal(updateStateFile(f.worktree, { set: { Gate: "Another writer update" } }).ok, true);
+      else { const data = writerData(f)[kind]; if (kind === "findings") data.limits += " Changed."; else if (kind === "experiments") data.experiments[0].setup += " Changed."; else data.failure.message += " Changed.";
+        replaceCheckpoint(f.path, readFileSync(f.path, "utf8"), (s) => ({ findings: replaceFindingsReport, experiments: replaceExperimentReport, judgment: replaceJudgment })[kind](s, data)); }
+    } finally { fs.renameSync = originalRename; syncBuiltinESMExports(); }
+    assert.equal(reverse.ok, false); assert.deepEqual(f.record(), saved);
+    assert.equal(checkpointRoutingPreparation(f.args).ok, true); assert.equal(f.record().attempts.length, 0);
+  }
+});
+
+test("assessment and fresh reader run outside shared lock; intervening evidence invalidates outcome", async (t) => {
+  for (const kind of ["state", "findings", "experiments", "judgment"]) {
+    const f = fixture(t); f.init();
+    const result = await attemptRoutingAssessment({ ...f.args, assess: async () => {
+      assert.equal(childWriter(kind, f).ok, true);
+      return { ok: true, model: f.current.model, assessment: assessment() };
+    } });
+    assert.equal(result.reason, "stale-state"); assert.equal(f.record().attempts.length, 1);
+    assert.equal(f.record().attempts[0].failure, "stale-state");
+    assert.ok(readFileSync(f.path, "utf8").includes(writerMarker(kind)));
+  }
+  const f = fixture(t); f.init();
+  const result = await attemptRoutingAssessment({ ...f.args, readCurrent: () => {
+    assert.equal(updateStateFile(f.worktree, { set: { Gate: "Changed by fresh reader" } }).ok, true);
+    return f.current;
+  } });
+  assert.equal(result.reason, "stale-state"); assert.equal(f.record().attempts.length, 0);
+});
+
+test("shared lock rejects accidental nesting, async mutations and live/ambiguous recovery without retry", (t) => {
+  const f = fixture(t); f.init();
+  const auth = { by: "human", kind: "recover-checkpoint-lock", direction: "Explicit recovery" };
+  mutateCheckpoint(f.path, (latest) => {
+    assert.equal(updateStateFile(f.worktree, { set: { State: "failed" } }).ok, false);
+    assert.equal(checkpointRoutingPreparation(f.args).ok, false);
+    assert.equal(recoverCheckpointLock(f.path, auth).reason, "live-lock-owner");
+    return { text: latest + "\n## Notes\nOuter transaction survived.\n" };
+  });
+  let ran = false;
+  assert.throws(() => mutateCheckpoint(f.path, async () => { ran = true; }), /synchronous/);
+  assert.equal(ran, false); assert.match(readFileSync(f.path, "utf8"), /Outer transaction survived/);
+  const area = join(f.worktree, ".pathfinder/checkpoint-writes");
+  mutateCheckpoint(f.path, (latest) => {
+    const lock = readdirSync(area).find((name) => name.endsWith(".lock"));
+    writeFileSync(join(area, lock, "owner.json"), "{}");
+    assert.equal(recoverCheckpointLock(f.path, auth).reason, "unknown-lock-owner");
+    return { text: latest };
+  });
+});
+
+test("interrupted shared writer needs explicit dead-owner recovery and preserves routing consumption", async (t) => {
+  const f = fixture(t); f.init(); await attemptRoutingAssessment(f.args);
+  const checkpointURL = JSON.stringify(new URL("checkpoint-write.mjs", moduleURL).href);
+  const code = `import {mutateCheckpoint} from ${checkpointURL}; mutateCheckpoint(${JSON.stringify(f.path)},()=>{process.stdout.write('locked'); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0);});`;
+  const child = spawn(process.execPath, ["--input-type=module", "-e", code], { stdio: ["ignore", "pipe", "pipe"] });
+  t.after(() => child.kill("SIGKILL"));
+  await new Promise((resolve, reject) => { child.stdout.once("data", resolve); child.once("error", reject); child.once("exit", (code) => { if (code !== null) reject(new Error(`child exited ${code}`)); }); });
+  assert.equal(updateStateFile(f.worktree, { set: { Gate: "Should refuse" } }).ok, false);
+  child.kill("SIGKILL"); await new Promise((resolve) => child.once("exit", resolve));
+  assert.equal(updateStateFile(f.worktree, { set: { Gate: "Still refuses" } }).ok, false);
+  assert.equal(recoverCheckpointLock(f.path, {}).ok, false);
+  assert.equal(recoverCheckpointLock(f.path, { by: "human", kind: "recover-checkpoint-lock", direction: "Owner termination verified" }).ok, true);
+  assert.equal(updateStateFile(f.worktree, { set: { Gate: "Explicitly recovered" } }).ok, true);
+  assert.equal(f.record().attempts.length, 1);
+});
+
+test("isolated valid-shaped changes to every assessment field invalidate integrity; ordering alone does not", async (t) => {
+  const changes = [
+    (a) => a.confidence = 0.99, (a) => a.likely_route = "human",
+    (a) => a.rationale = "insufficient_context", (a) => a.evidence_refs = ["e2"],
+    (a) => a.concern = "security", (a) => { a.likely_route = "adversary"; a.rationale = "untested_assumption"; },
+  ];
+  for (const change of changes) {
+    const f = fixture(t); f.init();
+    f.current.input.findings.verification.push("cmd:node second.mjs; PASS");
+    f.current.input.evidence.push({ role: "tester", index: 2, action: "Exercised populated input.", observation: "A useful error appeared." });
+    const low = { ...assessment(), confidence: 0.79 };
+    assert.equal((await attemptRoutingAssessment({ ...f.args, assess: () => ({ ok: true, model: f.current.model, assessment: low }) })).recommendation.recommendation, "human");
+    const source = readFileSync(f.path, "utf8"), record = f.record(); change(record.attempts[0].assessment);
+    writeFileSync(f.path, source.replace(/(## Routing assessments\n\n```json\n)[^\n]+/, (_, prefix) => prefix + JSON.stringify(record)));
+    assert.equal((await attemptRoutingAssessment({ ...f.args, consent: undefined, assess: undefined })).ok, false);
+    assert.equal(f.calls(), 0);
+  }
+  const f = fixture(t); f.init(); await attemptRoutingAssessment(f.args);
+  const source = readFileSync(f.path, "utf8"), record = f.record();
+  record.attempts[0].assessment = Object.fromEntries(Object.entries(record.attempts[0].assessment).reverse());
+  writeFileSync(f.path, source.replace(/(## Routing assessments\n\n```json\n)[^\n]+/, (_, prefix) => prefix + JSON.stringify(record)));
+  assert.equal((await attemptRoutingAssessment(f.args)).from, "cache"); assert.equal(f.calls(), 1);
 });

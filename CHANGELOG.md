@@ -29,7 +29,7 @@ The heading of the most recent released section below is the single source of tr
 
 ### Added
 
-- Routing-specific local allowance, durable attempt accounting and provenance-bound cache transactions, with separate human initialization and call consent; no provider integration or lifecycle changes.
+- Routing-specific local allowance, durable attempt accounting and provenance-bound cache transactions, with separate human initialization and call consent. Shared atomic checkpoint writes preserve concurrent sections; cached assessments carry local integrity checks. No provider integration or lifecycle authority.
 
 - Explicit routing-only Jev adapter with pinned typed choices, exact outbound transport guards, and bounded single-request failures; no coordinator activation or lifecycle authority.
 
