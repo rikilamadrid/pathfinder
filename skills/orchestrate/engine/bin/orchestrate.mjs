@@ -30,6 +30,7 @@
  * from git, the worktrees' state files, and the ticket store on every call.
  */
 
+import { prepareRoutingInvocation, authorizeRoutingInvocation, assessRoutingInvocation } from "../routing-invocation.mjs";
 import { humanDirectedFollowup } from "../routing-followup.mjs";
 import { readFollowups, followupDigest, rawReport, applicableFollowups } from "../followup-record.mjs";
 import { replaceCheckpoint } from "../checkpoint-write.mjs";
@@ -61,6 +62,8 @@ import { describeStore, readTickets, resolveStore } from "../store.mjs";
 
 const USAGE = `orchestrate
 
+  routing <key> prepare|allowance|assess --request <local.json> --live <keys-or-empty> [--consent <consent.json> --invocation <id>] [--json]
+      Explicit optional routing only; assessment never authorizes follow-up.
   followup <key> --request <human-direction.json> --live <keys-or-empty> [--json]
       Retire same-head review authority under explicit human direction; no dispatch.
   stage <key> [--live a,b] [--adopt | --advance | --begin-repair] [--guidance <human answer>] [--json]
@@ -157,6 +160,19 @@ async function main(argv) {
   const common = { root, store: flags.store ?? null, gh: flags.gh ?? "gh" };
 
   switch (command) {
+    case "routing": {
+      if (!isKey(positional[0]) || !["prepare", "allowance", "assess"].includes(positional[1]) || !flags.request || flags.live === undefined) return fail(2, "routing needs key, prepare|allowance|assess, --request and explicit --live inventory");
+      const readRequest = () => { const text = readFileSync(flags.request, "utf8"); if (Buffer.byteLength(text) > 262144) throw Error("routing request too large"); return JSON.parse(text); };
+      const options = { ...common, ticket: positional[0], invocation: flags.invocation, readRequest, readLive: () => listOf(flags.live), env: { PATHFINDER_ROUTING_API_KEY: process.env.PATHFINDER_ROUTING_API_KEY, PATHFINDER_ROUTING_BASE_URL: process.env.PATHFINDER_ROUTING_BASE_URL } };
+      let result;
+      try {
+        if (positional[1] === "allowance") result = authorizeRoutingInvocation({ ...options, authorization: readRequest() });
+        else if (positional[1] === "prepare") result = prepareRoutingInvocation(options);
+        else { const consent = flags.consent ? JSON.parse(readFileSync(flags.consent, "utf8")) : null; result = await assessRoutingInvocation({ ...options, consent }); }
+      } catch { return fail(1, "invalid routing input; Human direction required, no advancement"); }
+      process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+      return result.ok ? 0 : 1;
+    }
     case "followup": {
       const refusal = orchestratorRefusal(root);
       if (refusal) return fail(1, refusal);
@@ -725,7 +741,7 @@ function parse(argv) {
   let command = null;
   const valued = new Set([
     "root", "store", "gh", "feature", "slug", "now", "live", "risk", "reason", "harness", "session", "approval",
-    "request", "workers", "question", "answer", "set", "gate", "last", "next", "comment-blocked", "comment-unblocked", "by", "guidance", "timeout-ms",
+    "request", "consent", "invocation", "workers", "question", "answer", "set", "gate", "last", "next", "comment-blocked", "comment-unblocked", "by", "guidance", "timeout-ms",
   ]);
 
   for (let index = 0; index < argv.length; index += 1) {

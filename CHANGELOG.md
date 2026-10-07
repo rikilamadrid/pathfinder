@@ -27,6 +27,8 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+- Explicit, opt-in orchestrator routing preparation and assessment with independent configuration, scoped consent, fresh-state checks and human-mediated presentation. Assessment and human-directed follow-up remain separate operations.
+
 - Human-directed same-head follow-ups atomically retain historical reports while requiring fresh concern-bound Adversary/Tester evidence; no automatic dispatch or provider authority.
 
 ### Added

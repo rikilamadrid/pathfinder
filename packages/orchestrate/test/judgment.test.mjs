@@ -552,7 +552,7 @@ describe("Jev stays behind the generic provider boundary", () => {
       }
     };
     walk(ENGINE_ROOT);
-    assert.deepEqual(offenders, [join("judges", "jev.mjs"), "routing-provider.mjs", join("routing-providers", "jev.mjs")]);
+    assert.deepEqual(offenders, [join("judges", "jev.mjs"), "routing-invocation.mjs", "routing-provider.mjs", join("routing-providers", "jev.mjs")]);
     assert.deepEqual(shippedJudges(), ["jev"]);
   });
 

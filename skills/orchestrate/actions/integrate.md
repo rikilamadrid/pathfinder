@@ -134,3 +134,12 @@ A full bounded Tester findings checkpoint precedes Developer repair; partial
 repair retains its reviewed origin, then returns through Adversary on the new head.
 A compatible
 replacement harness is permitted only after the old writer has stopped.
+
+## Optional unresolved-concern assessment
+
+Only when explicitly requested at a complete ordinary review boundary, use
+[`routing-assessment.md`](../routing-assessment.md). It is off by default and
+requires separate routing consent for the concern/provider/invocation. Never
+automatically invoke it from this action. Present its recommendation to the
+human; any human-directed follow-up is a second, separately authorized operation,
+never a provider instruction or automatic dispatch.
