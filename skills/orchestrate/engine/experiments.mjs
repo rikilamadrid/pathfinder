@@ -1,5 +1,6 @@
+import { replaceCheckpoint } from "./checkpoint-write.mjs";
 /** Bounded transient Adversary reports. No dispatch or lifecycle transitions. */
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseSource } from "../../../lib/evidence-references.mjs";
@@ -146,7 +147,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       if (!new RegExp(`^- Ticket: ${report.ticket.replaceAll(".", "\\.")}(?:\\s|$)`, "m").test(text)) throw new Error("checkpoint ticket identity differs from report");
       const judge = judgeProjectionErrors(report, { judgeEnabled: readEvidenceJudge(root).explicit });
       if (judge.length) throw new Error(`judge-facing projection refused; nothing was written, and the raw evidence is unchanged: ${judge.join("; ")}`);
-      writeFileSync(path, replaceExperimentReport(text, report), "utf8");
+      replaceCheckpoint(path, text, (latest) => replaceExperimentReport(latest, report));
       console.log("Adversary experiments checkpoint written; State unchanged.");
     } else process.stdout.write(section);
   } catch (error) {

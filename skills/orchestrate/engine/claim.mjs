@@ -23,7 +23,8 @@
  * can show the claim before a session has loaded the ticket.
  */
 
-import { existsSync, mkdirSync, rmdirSync, writeFileSync } from "node:fs";
+import { mutateCheckpoint } from "./checkpoint-write.mjs";
+import { existsSync, mkdirSync, rmdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { computeBoard } from "./board.mjs";
@@ -167,7 +168,10 @@ export async function claim({
     profile: routed.profile,
   });
   mkdirSync(join(path, "context"), { recursive: true });
-  writeFileSync(join(path, "context", "current-ticket.md"), state, "utf8");
+  mutateCheckpoint(join(path, "context", "current-ticket.md"), (latest) => {
+    if (latest !== null) throw new Error("claim checkpoint already exists");
+    return { text: state };
+  });
 
   return { ok: true, key, worktree, branch, path, base, profile: routed.profile };
 }

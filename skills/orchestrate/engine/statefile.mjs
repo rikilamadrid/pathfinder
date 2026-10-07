@@ -9,8 +9,10 @@
  * byte.
  */
 
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
+
+import { mutateCheckpoint } from "./checkpoint-write.mjs";
 
 import { CLAIM_STATES } from "./claims.mjs";
 
@@ -65,6 +67,10 @@ export function updateStateFile(worktreePath, { set = {}, unset = [] }) {
 
   const path = join(worktreePath, "context", "current-ticket.md");
   if (!existsSync(path)) return { ok: false, message: `${path} does not exist; the claim has no state file` };
-  writeFileSync(path, updateStateText(readFileSync(path, "utf8"), { set, unset }), "utf8");
-  return { ok: true, path };
+  try {
+    return mutateCheckpoint(path, (latest) => {
+      if (latest === null) throw new Error("the claim has no state file");
+      return { text: updateStateText(latest, { set, unset }), value: { ok: true, path } };
+    });
+  } catch (error) { return { ok: false, message: error.message }; }
 }

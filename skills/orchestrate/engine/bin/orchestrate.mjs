@@ -30,7 +30,8 @@
  * from git, the worktrees' state files, and the ticket store on every call.
  */
 
-import { readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { replaceCheckpoint } from "../checkpoint-write.mjs";
+import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 
 import { checkIntegration, formatCheck, releaseClaim } from "../integration.mjs";
@@ -425,7 +426,9 @@ async function judge({ root, store: storeOverride, gh, key, timeoutMs, json }) {
     : { record: judgmentRecord({ ticket: key, pr: identity.pr, head: identity.head, judge: provider, outcome: { status: "refused", reason: built.reason } }), from: "policy" };
   if (from !== "checkpoint") {
     const path = join(root, ...found.worktree.split("/"), "context", "current-ticket.md");
-    writeFileSync(path, replaceJudgment(readFileSync(path, "utf8"), record), "utf8");
+    try {
+      replaceCheckpoint(path, checkpoint, (latest) => replaceJudgment(latest, record));
+    } catch (error) { return fail(1, error.message); }
   }
   // The human sees which criteria the judge read as the Tester's restatement.
   const summarized = built.ok ? summarizedOf(built.bundle) : [];
