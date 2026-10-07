@@ -30,6 +30,8 @@
  * from git, the worktrees' state files, and the ticket store on every call.
  */
 
+import { humanDirectedFollowup } from "../routing-followup.mjs";
+import { readFollowups, followupDigest, rawReport, applicableFollowups } from "../followup-record.mjs";
 import { replaceCheckpoint } from "../checkpoint-write.mjs";
 import { readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
@@ -44,7 +46,7 @@ import { readFindingsReport } from "../findings.mjs";
 import { buildBundle, criteriaNeedingSummary, decide, summarizedOf, DEFAULT_TIMEOUT_MS, duplicateJudgment, evaluate, JUDGMENT_HEADING, judgmentRecord, replaceJudgment } from "../judgment.mjs";
 import { loadJudge } from "../judges/registry.mjs";
 import { computePlan, formatPlan } from "../plan.mjs";
-import { updateStateFile } from "../statefile.mjs";
+import { updateStateFile, updateStateText } from "../statefile.mjs";
 import { postNote, setGateLabel } from "../tracker.mjs";
 import { renderProfile } from "../profile.mjs";
 import { loadPolicy, runPolicy } from "../policies/registry.mjs";
@@ -59,6 +61,8 @@ import { describeStore, readTickets, resolveStore } from "../store.mjs";
 
 const USAGE = `orchestrate
 
+  followup <key> --request <human-direction.json> --live <keys-or-empty> [--json]
+      Retire same-head review authority under explicit human direction; no dispatch.
   stage <key> [--live a,b] [--adopt | --advance | --begin-repair] [--guidance <human answer>] [--json]
       Select the recoverable session from the exact current PR and checkpoint.
       --adopt classifies an old claim once at a stopped session boundary.
@@ -153,6 +157,17 @@ async function main(argv) {
   const common = { root, store: flags.store ?? null, gh: flags.gh ?? "gh" };
 
   switch (command) {
+    case "followup": {
+      const refusal = orchestratorRefusal(root);
+      if (refusal) return fail(1, refusal);
+      if (!isKey(positional[0]) || !flags.request || flags.live === undefined) return fail(2, "followup needs ticket, --request and explicit --live inventory");
+      let request; try { request = JSON.parse(readFileSync(flags.request, "utf8")); } catch { return fail(2, "invalid human direction file"); }
+      if (request.ticket !== positional[0]) return fail(1, "direction ticket differs");
+      const result = humanDirectedFollowup({ root, request, live: listOf(flags.live), gh: common.gh });
+      if (!result.ok) return fail(1, result.message);
+      process.stdout.write(JSON.stringify(result) + "\n");
+      return 0;
+    }
     case "stage": {
       if (!isKey(positional[0])) return fail(2, "stage needs a ticket key");
       return stage({ root, key: positional[0], gh: common.gh, live: listOf(flags.live), adopt: Boolean(flags.adopt), advance: Boolean(flags.advance), beginRepair: Boolean(flags["begin-repair"]), guidance: flags.guidance, json: Boolean(flags.json) });
@@ -353,13 +368,14 @@ function stage({ root, key, gh, live, adopt, advance, beginRepair, guidance, jso
   }
   const identity = found.state === "working" ? { ok: true } : currentPr(root, found.branch, gh);
   if (!identity.ok) return fail(1, identity.message);
-  const result = selectStage({ claim: found, text: checkpointText(root, found), ...identity, live: beginRepair ? live.filter((entry) => entry !== key) : live });
+  const stageCheckpoint = checkpointText(root, found);
+  const result = selectStage({ claim: found, text: stageCheckpoint, ...identity, live: beginRepair ? live.filter((entry) => entry !== key) : live });
   if (!result.ok) return fail(1, result.message);
   if (beginRepair) {
     if (result.session !== "repair") return fail(1, "repair start requires complete confirmed findings and recorded repair phase");
     if (!result.started && resolveRef(worktree, "HEAD") !== identity.head) return fail(1, "first repair worker checkout differs from current reviewed PR head");
-    const updated = updateStateFile(worktree, { set: { Repair: `started:${result.repair}`, Updated: new Date().toISOString() } });
-    if (!updated.ok) return fail(1, updated.message);
+    try { replaceCheckpoint(join(worktree, "context/current-ticket.md"), stageCheckpoint, latest => updateStateText(latest, { set: { Repair: `started:${result.repair}`, Updated: new Date().toISOString() } })); }
+    catch (error) { return fail(1, error.message); }
     result.started = true;
   }
   if (advance) {
@@ -371,8 +387,8 @@ function stage({ root, key, gh, live, adopt, advance, beginRepair, guidance, jso
     }
     if (result.state === "adversary") { set.Adversary = "required"; set.Review = "ordinary"; }
     if (guidance) set.Last = `human failure-resume guidance: ${oneLine(guidance)}`;
-    const updated = updateStateFile(worktree, { set, unset: guidance ? ["Failed stage"] : [] });
-    if (!updated.ok) return fail(1, updated.message);
+    try { replaceCheckpoint(join(worktree, "context/current-ticket.md"), stageCheckpoint, latest => updateStateText(latest, { set, unset: guidance ? ["Failed stage"] : [] })); }
+    catch (error) { return fail(1, error.message); }
   }
   process.stdout.write(json ? JSON.stringify(result, null, 2) + "\n" : `${key}: ${result.session ?? "integration"} (${result.state})\n`);
   return 0;
@@ -464,9 +480,11 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", s
   // brief never depends on anything the claim did not write down.
   let selection = found.profile.selection;
   let handoff = null;
+  let reviewIdentity = null;
   if (["adversary", "review", "repair"].includes(session)) {
     const identity = currentPr(root, found.branch, gh);
     if (!identity.ok) return fail(1, identity.message);
+    reviewIdentity = identity;
     handoff = selectStage({ claim: found, text: checkpointText(root, found), ...identity, live });
     if (!handoff.ok) return fail(1, handoff.message);
     if (handoff.session !== session) return fail(1, `recorded checkpoint requires ${handoff.session ?? "integration"}, not ${session}`);
@@ -494,6 +512,14 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", s
   });
   if (!built.ok) return fail(built.usage ? 2 : 1, built.message);
 
+  if (["adversary", "review"].includes(session)) {
+    const checkpoint = checkpointText(root, found);
+    const record = applicableFollowups(readFollowups(checkpoint).records ?? [], { ticket: key, pr: reviewIdentity.pr, head_sha: reviewIdentity.head }, session === "review" ? "tester" : "adversary").at(-1);
+    if (record) {
+      const experiments = rawReport(checkpoint, "## Adversary experiments");
+      built.brief.protocol.push(`Human-directed fresh review: ${JSON.stringify(record.request.concern)}; direction: ${record.request.authorization.direction}. Historical reports are not current authority. Perform fresh work addressing this concern, include new evidence and a followup object with id ${record.id}, concern ${followupDigest(record.request.concern)}, response (bounded description of actual concern verification), experiments_digest ${session === "review" ? followupDigest(experiments) : record.experiments_digest}. Tester must independently review the current experiments. Never relabel an old report.`);
+    }
+  }
   if (handoff?.experiments) built.brief.protocol.push(`Adversary experiments to independently verify: ${JSON.stringify(handoff.experiments)}`);
   if (handoff?.report) built.brief.protocol.push(`Confirmed Tester findings at the original reviewed head; repair only these, not unverified experiments: ${JSON.stringify(handoff.report)}`);
   // Only a project that names a judge asks for the judge-facing projection.
@@ -699,7 +725,7 @@ function parse(argv) {
   let command = null;
   const valued = new Set([
     "root", "store", "gh", "feature", "slug", "now", "live", "risk", "reason", "harness", "session", "approval",
-    "workers", "question", "answer", "set", "gate", "last", "next", "comment-blocked", "comment-unblocked", "by", "guidance", "timeout-ms",
+    "request", "workers", "question", "answer", "set", "gate", "last", "next", "comment-blocked", "comment-unblocked", "by", "guidance", "timeout-ms",
   ]);
 
   for (let index = 0; index < argv.length; index += 1) {

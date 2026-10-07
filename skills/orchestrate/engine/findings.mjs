@@ -1,3 +1,4 @@
+import { followupBindingErrors, followupReportErrors } from "./followup-record.mjs";
 import { replaceCheckpoint } from "./checkpoint-write.mjs";
 /** Independent Tester's bounded transient review handoff; no lifecycle writes. */
 import { readFileSync } from "node:fs";
@@ -18,9 +19,10 @@ const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const list = (v) => Array.isArray(v) && v.length >= 1 && v.length <= 20 && v.every(nonempty);
 export function validateFindingsReport(report) {
   const errors = [];
+  if (report?.followup !== undefined) errors.push(...followupBindingErrors(report.followup));
   if (!object(report)) return { ok: false, errors: ["review must be an object"] };
   if (Buffer.byteLength(JSON.stringify(report, null, 2)) > 32768) errors.push("review exceeds 32 KiB");
-  for (const key of Object.keys(report)) if (!["ticket", "pr", "head_sha", "result", "findings", "verification", "limits", "judge"].includes(key)) errors.push(/^[a-z_]{1,32}$/.test(key) ? `unknown review field: ${key}` : "an unknown review field");
+  for (const key of Object.keys(report)) if (!["ticket", "pr", "head_sha", "result", "findings", "verification", "limits", "judge", "followup"].includes(key)) errors.push(/^[a-z_]{1,32}$/.test(key) ? `unknown review field: ${key}` : "an unknown review field");
   if (typeof report.ticket !== "string" || !/^\d+\.\d+$/.test(report.ticket)) errors.push("invalid ticket");
   if (typeof report.pr !== "string" || !/^https:\/\/[^\s]+\/pull\/[1-9]\d*$/.test(report.pr ?? "")) errors.push("invalid PR URL");
   if (typeof report.head_sha !== "string" || !/^[a-f0-9]{40}$/i.test(report.head_sha)) errors.push("invalid reviewed SHA");
@@ -64,9 +66,12 @@ export function readFindingsReport(text) {
   if (!block || block[0].length !== section.length || Buffer.byteLength(block[1]) > 32768) return { ok: false, errors: ["incomplete bounded JSON review"] };
   let report; try { report = JSON.parse(block[1]); } catch { return { ok: false, errors: ["invalid JSON review"] }; }
   const checked = validateFindingsReport(report);
-  return checked.ok ? { ok: true, report } : checked;
+  if (checked.ok) checked.errors.push(...followupReportErrors(text, report, "tester"));
+  return checked.ok && checked.errors.length === 0 ? { ok: true, report } : { ok: false, errors: checked.errors };
 }
 export function replaceFindingsReport(text, report) {
+  const freshness = followupReportErrors(text, report, "tester");
+  if (freshness.length) throw new Error(freshness.join("; "));
   const section = renderFindingsReport(report);
   const headings = [...text.matchAll(/^## Tester findings[ \t]*\r?$/gm)];
   if (headings.length > 1) throw new Error("duplicate Tester findings sections");

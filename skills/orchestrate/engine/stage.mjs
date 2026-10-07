@@ -1,3 +1,4 @@
+import { readFollowups } from "./followup-record.mjs";
 /** Recovery from the existing transient checkpoint, never Last or a live prompt. */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -48,6 +49,8 @@ export function selectStage({ claim, text, pr, head, live = [] }) {
   if (claim.state === "failed") return refuse("failed claim needs human guidance");
   const legacy = /^legacy-review:([a-f0-9]{40})$/i.exec(claim.adversary ?? "");
   if (claim.adversary !== "required" && !legacy) return refuse("missing/unreadable Adversary compatibility marker; explicit safe-boundary adoption required");
+  const followups = readFollowups(text);
+  if (!followups.ok) return refuse(followups.errors.join("; "));
   if (claim.state === "working") {
     const refresh = /\b(merge-and-reverify|rebase-and-reverify|resolve-conflict)\b/.exec(claim.next ?? "");
     return selected(refresh ? refresh[1] : "resume", "working");

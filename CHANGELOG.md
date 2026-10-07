@@ -27,6 +27,8 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+- Human-directed same-head follow-ups atomically retain historical reports while requiring fresh concern-bound Adversary/Tester evidence; no automatic dispatch or provider authority.
+
 ### Added
 
 - Routing-specific local allowance, durable attempt accounting and provenance-bound cache transactions, with separate human initialization and call consent. Shared atomic checkpoint writes preserve concurrent sections; cached assessments carry local integrity checks. No provider integration or lifecycle authority.
