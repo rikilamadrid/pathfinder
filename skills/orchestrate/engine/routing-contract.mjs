@@ -20,10 +20,19 @@ const text = (value, max = 2048) => typeof value === "string" && value.trim().le
 const digest = (value) => typeof value === "string" && /^sha256:[a-f0-9]{64}$/.test(value);
 const id = (value) => typeof value === "string" && /^e[1-9]\d{0,3}$/.test(value);
 const result = (errors) => ({ ok: errors.length === 0, errors });
-const refsValid = (refs) => Array.isArray(refs) && refs.length <= MAX_EVIDENCE &&
-  Reflect.ownKeys(refs).length === refs.length + 1 &&
-  Array.from({ length: refs.length }, (_, index) => Object.getOwnPropertyDescriptor(refs, String(index)))
-    .every((entry) => entry && Object.hasOwn(entry, "value") && id(entry.value)) && new Set(refs).size === refs.length;
+// Check the complete array shape before reading members or invoking iteration.
+// Frozen JSON arrays are valid; subclasses, holes, accessors and extra keys are not.
+function jsonArray(value) {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) return false;
+  if (Reflect.ownKeys(value).length !== value.length + 1) return false;
+  for (let index = 0; index < value.length; index++) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    if (!descriptor?.enumerable || !Object.hasOwn(descriptor, "value")) return false;
+  }
+  return true;
+}
+const refsValid = (refs) => jsonArray(refs) && refs.length <= MAX_EVIDENCE &&
+  refs.every(id) && new Set(refs).size === refs.length;
 
 /** Validate against generated IDs from a locally prepared bundle, never provider IDs. */
 export function validateRoutingAssessment(value, evidenceIds) {
@@ -76,7 +85,7 @@ export function validatePreparation(value) {
   errors.push(...validateWorkflowFacts(value.workflow).errors);
   if (!exactObject(value.concern, ["source", "source_digest", "summary"]) || !text(value.concern.source) || !digest(value.concern.source_digest) || !text(value.concern.summary)) errors.push("invalid concern provenance");
   const rows = (items, keys, prefix, check) => {
-    if (!Array.isArray(items) || items.length === 0 || items.length > MAX_EVIDENCE) return false;
+    if (!jsonArray(items) || items.length === 0 || items.length > MAX_EVIDENCE) return false;
     const seen = new Set();
     for (const entry of items) {
       if (!exactObject(entry, keys) || typeof entry.id !== "string" || !new RegExp(`^${prefix}[1-9]\\d{0,3}$`).test(entry.id) || seen.has(entry.id) || !check(entry)) return false;
@@ -112,7 +121,7 @@ export function serializeRoutingFingerprintInput(value) {
     ancestors.add(entry);
     let output;
     if (Array.isArray(entry)) {
-      if (Reflect.ownKeys(entry).length !== entry.length + 1) throw new Error("invalid JSON array");
+      if (!jsonArray(entry)) throw new Error("invalid JSON array");
       const values = Array.from({ length: entry.length }, (_, index) => {
         const descriptor = Object.getOwnPropertyDescriptor(entry, String(index));
         if (!descriptor || !Object.hasOwn(descriptor, "value")) throw new Error("invalid JSON array member");

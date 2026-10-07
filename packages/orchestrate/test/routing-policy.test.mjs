@@ -136,3 +136,53 @@ test("canonical fingerprint fixture is stable under object order and binds all i
   const cycle = fingerprintInput(); cycle.projection.cycle = cycle;
   assert.throws(() => serializeRoutingFingerprintInput(cycle));
 });
+
+test("inherited iteration cannot disguise duplicate references or execute during validation", () => {
+  let calls = 0;
+  const refs = ["e1", "e1"];
+  Object.setPrototypeOf(refs, Object.assign(Object.create(Array.prototype), {
+    *[Symbol.iterator]() { calls++; yield "e1"; yield "e2"; },
+  }));
+  const value = assessment({ evidence_refs: refs });
+  assert.equal(validateRoutingAssessment(value, ["e1", "e2"]).ok, false);
+  assert.equal(recommend(value).recommendation, "human");
+  assert.equal(validateRoutingAssessment(assessment(), refs).ok, false);
+  assert.equal(calls, 0);
+});
+
+test("all array boundaries reject accessors, holes, extra keys and nonstandard prototypes", () => {
+  let calls = 0;
+  const malformed = [
+    (items) => { Object.setPrototypeOf(items, null); },
+    (items) => { Object.setPrototypeOf(items, Object.create(Array.prototype)); },
+    (items) => { items.dispatch = true; },
+    (items) => { Object.defineProperty(items, "dispatch", { value: true }); },
+    (items) => { items[Symbol("dispatch")] = true; },
+    (items) => { delete items[0]; },
+    (items) => { Object.defineProperty(items, "0", { enumerable: false }); },
+    (items) => { Object.defineProperty(items, "0", { get() { calls++; throw new Error("getter executed"); } }); },
+    (items) => { items[Symbol.iterator] = function* () { calls++; }; },
+  ];
+  for (const mutate of malformed) {
+    const refs = ["e1"]; mutate(refs);
+    assert.equal(validateRoutingAssessment(assessment({ evidence_refs: refs }), ["e1"]).ok, false);
+    assert.equal(validateRoutingAssessment(assessment(), refs).ok, false);
+    assert.equal(recommend(assessment({ evidence_refs: refs })).recommendation, "human");
+    for (const field of ["requirements", "evidence"]) {
+      const value = preparation(); mutate(value[field]);
+      assert.equal(validatePreparation(value).ok, false);
+      assert.throws(() => serializeRoutingFingerprintInput({ ...fingerprintInput(), preparation: value }));
+    }
+    const value = fingerprintInput(); mutate(value.projection.evidence);
+    assert.throws(() => serializeRoutingFingerprintInput(value));
+  }
+  assert.equal(calls, 0);
+  // Ordinary immutable JSON data remains accepted at every boundary.
+  assert.equal(validateRoutingAssessment(assessment({ evidence_refs: Object.freeze(["e1"]) }), Object.freeze(["e1"])).ok, true);
+  const value = fingerprintInput();
+  Object.freeze(value.preparation.requirements);
+  Object.freeze(value.preparation.evidence);
+  Object.freeze(value.projection.evidence);
+  assert.equal(validatePreparation(value.preparation).ok, true);
+  assert.deepEqual(JSON.parse(serializeRoutingFingerprintInput(value)), value);
+});
