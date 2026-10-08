@@ -148,3 +148,12 @@ stale or relabeled reports even if copied back into active headings. These
 bindings enforce traceability, not semantic proof that a worker was honest.
 Adversary follow-up always returns through fresh independent Tester. The usual
 repair origins, two-round escalation, acceptance and merge gates still apply.
+
+## Optional unresolved-concern assessment
+
+Only when explicitly requested at a complete ordinary review boundary, use
+[`routing-assessment.md`](../routing-assessment.md). It is off by default and
+requires separate routing consent for the concern/provider/invocation. Never
+automatically invoke it from this action. Present its recommendation to the
+human; any human-directed follow-up is a second, separately authorized operation,
+never a provider instruction or automatic dispatch.

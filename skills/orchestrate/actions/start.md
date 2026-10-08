@@ -204,3 +204,12 @@ the final `orchestrate status`.
 - Never change a ticket's substance. Status moves only through the worker's
   own `/ticket load` and `/ticket start`.
 - A worker at a human gate never stops unrelated workers.
+
+## Optional unresolved-concern assessment
+
+Only when explicitly requested at a complete ordinary review boundary, use
+[`routing-assessment.md`](../routing-assessment.md). It is off by default and
+requires separate routing consent for the concern/provider/invocation. Never
+automatically invoke it from this action. Present its recommendation to the
+human; any human-directed follow-up is a second, separately authorized operation,
+never a provider instruction or automatic dispatch.
