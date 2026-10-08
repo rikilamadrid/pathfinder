@@ -148,6 +148,22 @@ changed. Codex dispatch uses the native `collaboration.spawn_agent` capability;
 if it is unavailable, dispatch stops. Manual translation prints a brief for a
 human-started session rather than pretending one was launched.
 
+## Optional unresolved-concern routing assessment
+
+Routing assessment is off by default and independent of Evidence Judge. In
+orchestrator mode, explicitly prepare one concern, authorize the initial two
+fresh attempts, obtain routing-specific service consent, and request one
+assessment. Configuration, credential availability and allowance are separate
+from consent. A validated Tester, Adversary or Human recommendation never
+supplies PASS/FAIL, authorizes dispatch or resolves a human gate.
+
+Follow the [supported command/configuration reference](https://github.com/rikilamadrid/pathfinder/blob/main/skills/orchestrate/routing-assessment.md)
+and [synthetic acceptance evidence](https://github.com/rikilamadrid/pathfinder/blob/main/skills/orchestrate/routing-acceptance.md).
+The human separately directs any follow-up; same-head reports are retained as
+history while fresh Tester or Adversary → independent Tester evidence is required.
+Existing coordinator controls govern later dispatch. This does not change the
+static execution-profile model/effort policy above.
+
 ## Optionally ask an Evidence Judge before the merge gate
 
 The Evidence Judge is an optional capability, not a harness. Before presenting

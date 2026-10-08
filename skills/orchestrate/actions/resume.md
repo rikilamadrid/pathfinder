@@ -146,6 +146,10 @@ Adversary binds the retired experiment baseline. Reports must contain fresh
 actual evidence, not renamed old evidence. Reader-side checks reject old,
 stale or relabeled reports even if copied back into active headings. These
 bindings enforce traceability, not semantic proof that a worker was honest.
+Historical evidence is not active authority, even after an A → B → A head
+sequence. For routing allowance/cache interruption, use the separate
+[routing recovery rules](../routing-assessment.md#cache-and-interrupted-accounting);
+resuming never retries an assessment or reapplies a follow-up automatically.
 Adversary follow-up always returns through fresh independent Tester. The usual
 repair origins, two-round escalation, acceptance and merge gates still apply.
 
