@@ -251,7 +251,11 @@ refresh of unchanged behavior needs fresh Tester/CI without rerunning Adversary.
 Acceptance and final merge still require the human. An optional
 [Evidence Judge](skills/orchestrate/evidence-judge.md) can check the recorded
 evidence before that merge gate; it classifies, Pathfinder decides, and its
-absence or failure is never approval.
+absence or failure is never approval. Separately, optional
+[routing assessment](skills/orchestrate/routing-assessment.md) can recommend
+Tester, Adversary or Human for one unresolved concern. It is off by default,
+requires its own invocation-scoped consent, and leaves follow-up and dispatch
+under separate human/coordinator control.
 
 
 A prototype is optional. Use one when an important assumption is cheaper to
