@@ -1,7 +1,9 @@
 # Orchestrate: Start
 
 Run approved tickets concurrently: plan, ask once, claim, dispatch, review,
-surface gates, and keep going until nothing more can run.
+surface gates, and stop at the round boundary. A run spans as many rounds as
+it needs; each round is one coordinating session, and a new session continues
+the run from engine state, never from the previous conversation.
 
 ## Assumed role
 
@@ -32,21 +34,40 @@ Act on the plan's outcome:
   act with its own human approval. Never plan and dispatch in one invocation.
 - **`plan-features`**: the store is empty. Name `to-tickets`, `to-specs`, or
   `kickstart-pathfinder` as the plan says, and **stop**.
-- **`nothing-eligible`**: report the blocked, deferred, and stale lists, and
-  **stop**. For a ticket blocked by a planning question (a Cancelled or
-  Superseded blocker) the question is the human's.
-- **`dispatch`**: continue.
+- **`nothing-eligible`**: report the blocked, deferred, and stale lists. If the
+  stale list names pending claims as §Continuing a run defines them, continue
+  there; otherwise **stop**. For a ticket blocked by a planning question (a
+  Cancelled or Superseded blocker) the question is the human's.
+- **`dispatch`**: continue. If the stale list also names pending claims, they
+  join this round as §Continuing a run says, ahead of new claims.
 
-Stale claims are never dispatched again. List them and say each can be resumed
-deliberately with `/orchestrate resume <key>`.
+A stale claim is never claimed again and never dispatched without a person
+confirming its old session has stopped. Pending claims from a previous round
+are continued under this round's one approval (§Continuing a run); any other
+stale claim is listed, and each can be resumed deliberately with
+`/orchestrate resume <key>`.
 
 ## 2. Ask once
 
 Print the plan exactly as the engine produced it, including every profile and
 the approval scope. Then ask the human one question: approve this run as scoped?
 
-- An approval covers every ticket in scope as it becomes eligible during this
-  run, up to the worker limit, and nothing the scope statement excludes.
+- An approval covers the pending claims this round continues and the tickets
+  this round's plan offers to claim now, up to the worker limit, and nothing
+  the scope statement excludes. Nothing is claimed after the dispatch wave: a
+  ticket that becomes eligible during the round waits for the next round. A
+  later round asks again: approval is not carried between sessions, because
+  nothing from a previous conversation is.
+- When the round continues pending claims from a previous round, the same
+  question states them by key and adds one sentence: the human confirms that no
+  session from the previous round is still running. Without that confirmation,
+  continue nothing; `/orchestrate resume <key>` remains available per claim.
+- For each pending claim whose selection is `repair`, the same question also
+  asks for that claim's confirmed-findings repair count, as the previous
+  round-boundary report stated it. The engine does not hold the count and a
+  missing answer is not zero: an unknown count, or a count of two or more,
+  opens the human gate instead of dispatching another repair (§Continuing a
+  run step 4).
 - The approval does not cover merging. Each merge is presented separately, under
   the project's merge policy.
 - If the human declines or narrows the scope, stop or re-plan with the narrower
@@ -102,7 +123,7 @@ For each ticket the plan says to claim now, in order:
      those keys as live once the human confirms. Claims, gates, review, and
      status work exactly the same.
 
-After the first round, run `orchestrate status --live <live keys>` and print it.
+After the first dispatch wave, run `orchestrate status --live <live keys>` and print it.
 
 ## 4. Run the round
 
@@ -179,28 +200,100 @@ are invalid and require coordination; never grant legacy status implicitly.
 Legacy findings use the same Tester checkpoint and convert to required flow
 before repair. Changed heads cannot inherit the legacy exception.
 
-## 5. Refresh eligibility
+## 5. Round boundary
 
-Re-plan whenever the running set changes. A worker reaches `done`, `failed`,
-or `human-gate` and frees its slot, or a ticket in scope becomes Complete
-because it was integrated or completed by the human:
+A round is one dispatch wave and the handling of every report it produces. The
+claims this session dispatched continue through their phases as step 4 says,
+each phase a new worker session, until none of them has a live session: every
+claim this round touched is `done`, `human-gate`, `failed`, or checkpointed at
+a pending phase with no worker running. That is the round boundary, and the
+coordinating session ends there. It does not re-plan into new claims.
 
-1. For a Complete ticket, run
-   `orchestrate board --comment-unblocked <key> --by <completed key>` for each
-   ticket it was the last blocker of.
-2. Re-run `orchestrate plan` with the current live keys, and claim and dispatch
-   what it offers **under the approval already given**, within its scope and
-   worker limit.
+While the round runs, a ticket in scope may become Complete because it was
+integrated or completed by the human. For each ticket it was the last blocker
+of, run `orchestrate board --comment-unblocked <key> --by <completed key>`. The
+newly eligible ticket is reported at the boundary and claimed by the next
+round.
 
-Stop when every worker has finished and the plan is `nothing-eligible`. Report
-the final `orchestrate status`.
+At the boundary:
+
+1. Run `orchestrate status` with this round's `--feature` scope and no live
+   keys, and print it. Pending claims show as `stale`; that is the engine's
+   word for "no live session", and it is expected here. The recorded `State`
+   behind a `stale` row is `recordedState` in `status --json`.
+2. Run `orchestrate plan` with the same scope and no live keys and print it: it
+   names what the next round would continue and what it would claim.
+3. Report, one line per claim with a worktree: its recorded `State`, the
+   session `stage <key> --json` would select next or its refusal, and its
+   confirmed-findings repair count: the count the human stated at this round's
+   approval, or zero for a claim this round first claimed, plus every repair
+   this round dispatched for it. The engine does not hold that count; the next
+   round asks the human for it (§2) to apply the two-round rule.
+4. Stop. The human starts the next round with `/orchestrate start` in a new
+   session, which continues as §Continuing a run says.
+
+Never end the coordinating session while a worker session it started is still
+live. A worker whose coordinator ended before the boundary is continued only
+after the human confirms its session has stopped: as a pending claim under
+§Continuing a run, or through `resume`. In Claude Code a worker is a subagent
+of the coordinating session and ends with it. In Codex, and in a harness with
+no background sessions, a worker session can outlive a coordinator that ended
+abnormally; the engine holds no process handle, liveness is what the caller
+declares with `--live`, and the human's confirmation is the only guard, as it
+already is for `resume`. This change does not add one.
+
+## Continuing a run
+
+A new session holds no live set, so the engine shows every claim the previous
+round left mid-flight as `stale`. Nothing is reconstructed from the previous
+conversation. Scope, worker limit, harness, and approval come from this
+invocation; everything else comes from the store, Git, and the claims' own
+state files, which is where the engine has always read it.
+
+A **pending claim** is a `stale` row with a worktree whose recorded `State` is
+`working`, `adversary`, `review`, or `repair`. `human-gate`, `failed`, and
+`done` rows keep their existing handling: `resume` with the human's answer or
+guidance, and `integrate`.
+
+1. Run `orchestrate status` with this invocation's `--feature` scope and no
+   live keys. List the pending claims by key with their recorded `State`
+   (`recordedState` in `status --json`). A stale claim outside this scope is
+   not a pending claim of this round; it is listed and left to `resume`. For
+   each pending claim, run `orchestrate stage <key> --json` without `--advance`
+   and note the session it would select, or its refusal.
+2. Run `orchestrate plan` with the same scope and no live keys. This round's
+   scope is the pending claims first, then what the plan would claim, within
+   the worker limit.
+3. Ask once, as §2 says, with the confirmation sentence and, for each pending
+   claim whose selection is `repair`, the confirmed-findings repair count.
+4. For each pending claim, in key order:
+   - If its selection is `repair` and the human stated a count of zero or one,
+     continue. If the count is unknown, or two or more, run
+     `orchestrate gate <key> open --question "<the exact findings summary and
+     the count as stated>"`, report it, and continue with the next claim. Never
+     dispatch another repair for it, and never infer zero from a missing count.
+   - Run `orchestrate stage <key> --advance --json` with no live keys and
+     dispatch its returned `session` exactly as §3 does: `brief <key> --harness
+     <harness> --session <returned session> --approval "<approved scope>" --json`
+     and the harness translation. The selector reads the checkpoint, the
+     current PR head and the reports, and refuses anything incomplete or stale;
+     a refusal preserves the claim and is reported, never worked around. Record
+     the key as live.
+5. Claim and dispatch new tickets from the plan into the slots the worker
+   limit leaves after the pending claims, as §3 says.
+6. Run the round as §4 and end it as §5.
 
 ## Rules
 
-- One approval per run, asked after the plan is shown and before any claim.
+- One approval per round, asked after the plan is shown and before any claim
+  or continuation.
 - Never implement, review, accept, merge, or answer a gate.
 - Never dispatch a ticket the plan did not offer, one that already has a claim,
-  or a stale claim.
+  or a stale claim, except a pending claim continued under §Continuing a run
+  after the human's confirmation.
+- Never end the coordinating session while a worker session it started is live.
+- Never dispatch a repair for a pending claim without the human's stated
+  confirmed-findings repair count; unknown, or two or more, opens the gate.
 - Never change a ticket's substance. Status moves only through the worker's
   own `/ticket load` and `/ticket start`.
 - A worker at a human gate never stops unrelated workers.

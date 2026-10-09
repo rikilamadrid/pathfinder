@@ -1,0 +1,2582 @@
+{
+  "generatedAt": "2026-10-09T15:21:30.790Z",
+  "window": {
+    "since": "2026-09-15T00:00:00.000Z",
+    "until": "2026-10-09T00:00:00Z"
+  },
+  "coverage": {
+    "otherPathfinderProjects": {
+      "sessions": 93,
+      "byProject": {
+        "other:forge": 7,
+        "other:global-educa-improvement-app": 13,
+        "other:lorekeeper": 1,
+        "other:portfolio-domain": 14,
+        "other:fesd": 23,
+        "other:oto_": 29,
+        "other:atelier": 6
+      },
+      "inputAll": 1141530546
+    },
+    "claudeFilesScanned": 731,
+    "codexFilesScanned": 501,
+    "claudeSessionsParsed": 689,
+    "codexSessionsParsed": 424,
+    "pathfinderRelated": 343,
+    "autoReviewThreads": 103,
+    "excludedNonPathfinder": 677,
+    "attribution": {
+      "ticketSource": {
+        "none": 45,
+        "initial-brief-branch": 21,
+        "worktree-cwd": 95,
+        "initial-brief": 70,
+        "initial-brief-issue-or-pr": 7,
+        "worktree-path-in-text": 2
+      },
+      "roleSource": {
+        "pathfinder-mention": 13,
+        "initial-brief": 86,
+        "orchestrate-commands": 17,
+        "none": 38,
+        "ticket-actions:developer": 5,
+        "spawned-pathfinder-workers": 5,
+        "ticket-actions:coordinator": 2,
+        "ticket-actions:other-skill": 14,
+        "ticket-actions:tester": 2,
+        "ticket-actions:planner": 1,
+        "codex-task-name": 57
+      },
+      "unknownTicket": 45,
+      "unknownRole": 38,
+      "byProject": {
+        "pathfinder": 137,
+        "lorebox": 54,
+        "mine": 49
+      }
+    }
+  },
+  "totalsCore": {
+    "sessions": 240,
+    "calls": 10526,
+    "fresh_input": 13593799,
+    "cache_read": 1437575428,
+    "cache_create": 24262392,
+    "output": 6460944,
+    "inputAll": 1475431619
+  },
+  "totalsAllIncludingAutoReview": {
+    "sessions": 343,
+    "calls": 11834,
+    "fresh_input": 23863871,
+    "cache_read": 1524273412,
+    "cache_create": 24262392,
+    "output": 6584524,
+    "inputAll": 1572399675
+  },
+  "byRole": {
+    "developer": {
+      "sessions": 46,
+      "calls": 1891,
+      "fresh_input": 3089733,
+      "cache_read": 208428298,
+      "cache_create": 3367200,
+      "output": 787780,
+      "minutes": 2981,
+      "models": {
+        "claude-opus-5-5": 15,
+        "claude-opus-5": 3,
+        "gpt-6-astra": 19,
+        "gpt-5.6-sol": 6,
+        "gpt-6-sol": 1,
+        "gpt-6.1-sol": 3
+      },
+      "efforts": {
+        "not-recorded(claude)": 18,
+        "medium": 21,
+        "high": 7
+      },
+      "harness": {
+        "claude-code": 18,
+        "codex": 28
+      },
+      "fullSuiteRuns": 124
+    },
+    "adversary": {
+      "sessions": 29,
+      "calls": 642,
+      "fresh_input": 704845,
+      "cache_read": 42784647,
+      "cache_create": 1817622,
+      "output": 66753,
+      "minutes": 1084,
+      "models": {
+        "claude-opus-5-5": 19,
+        "gpt-6.1-sol": 1,
+        "gpt-6-astra": 9
+      },
+      "efforts": {
+        "not-recorded(claude)": 19,
+        "medium": 10
+      },
+      "harness": {
+        "claude-code": 19,
+        "codex": 10
+      },
+      "fullSuiteRuns": 14
+    },
+    "tester": {
+      "sessions": 68,
+      "calls": 1592,
+      "fresh_input": 1494272,
+      "cache_read": 116309935,
+      "cache_create": 4667623,
+      "output": 618064,
+      "minutes": 2507,
+      "models": {
+        "claude-opus-5-5": 31,
+        "claude-fable-5-1": 7,
+        "claude-opus-5": 8,
+        "gpt-6-astra": 13,
+        "gpt-5.6-sol": 7,
+        "gpt-6.1-sol": 2
+      },
+      "efforts": {
+        "not-recorded(claude)": 46,
+        "medium": 14,
+        "high": 8
+      },
+      "harness": {
+        "claude-code": 46,
+        "codex": 22
+      },
+      "fullSuiteRuns": 111
+    },
+    "coordinator": {
+      "sessions": 22,
+      "calls": 4349,
+      "fresh_input": 6432320,
+      "cache_read": 717790063,
+      "cache_create": 8792670,
+      "output": 3177227,
+      "minutes": 19018,
+      "models": {
+        "claude-opus-5-5": 5,
+        "claude-fable-5-1": 8,
+        "claude-opus-5": 3,
+        "gpt-6-astra": 5,
+        "gpt-5.6-sol": 2,
+        "gpt-6-sol": 2,
+        "gpt-6.1-sol": 2
+      },
+      "efforts": {
+        "not-recorded(claude)": 14,
+        "high": 3,
+        "medium": 5
+      },
+      "harness": {
+        "claude-code": 14,
+        "codex": 8
+      },
+      "fullSuiteRuns": 189
+    },
+    "human-session": {
+      "sessions": 37,
+      "calls": 1295,
+      "fresh_input": 470746,
+      "cache_read": 238561615,
+      "cache_create": 4710171,
+      "output": 1564400,
+      "minutes": 3897,
+      "models": {
+        "claude-opus-5-5": 3,
+        "claude-opus-5": 23,
+        "claude-fable-5-1": 3,
+        "gpt-6-astra": 1,
+        "gpt-5.6-luna": 1,
+        "gpt-5.6-sol": 1,
+        "gpt-6-sol": 2
+      },
+      "efforts": {
+        "not-recorded(claude)": 33,
+        "medium": 3,
+        "high": 1
+      },
+      "harness": {
+        "claude-code": 33,
+        "codex": 4
+      },
+      "fullSuiteRuns": 63
+    },
+    "unknown": {
+      "sessions": 38,
+      "calls": 757,
+      "fresh_input": 1401883,
+      "cache_read": 113700870,
+      "cache_create": 907106,
+      "output": 246720,
+      "minutes": 3075,
+      "models": {
+        "claude-opus-5": 2,
+        "claude-haiku-4-5-20251001": 1,
+        "claude-opus-5-5": 12,
+        "gpt-6-astra": 17,
+        "gpt-5.6-sol": 4,
+        "gpt-6.1-sol": 2
+      },
+      "efforts": {
+        "not-recorded(claude)": 15,
+        "medium": 19,
+        "high": 4
+      },
+      "harness": {
+        "claude-code": 15,
+        "codex": 23
+      },
+      "fullSuiteRuns": 49
+    }
+  },
+  "phaseTable": {
+    "human-session:unlabelled": {
+      "calls": 1104,
+      "fresh_input": 449131,
+      "cache_read": 206393326,
+      "cache_create": 3170664,
+      "output": 1267854
+    },
+    "developer": {
+      "calls": 2268,
+      "fresh_input": 3090521,
+      "cache_read": 300174210,
+      "cache_create": 5031225,
+      "output": 1176895
+    },
+    "tester": {
+      "calls": 1644,
+      "fresh_input": 1494376,
+      "cache_read": 121737567,
+      "cache_create": 4847207,
+      "output": 683049
+    },
+    "coordinator:unlabelled": {
+      "calls": 2967,
+      "fresh_input": 5101741,
+      "cache_read": 449664230,
+      "cache_create": 5223695,
+      "output": 2046938
+    },
+    "unknown": {
+      "calls": 757,
+      "fresh_input": 1401883,
+      "cache_read": 113700870,
+      "cache_create": 907106,
+      "output": 246720
+    },
+    "other-skill": {
+      "calls": 628,
+      "fresh_input": 46079,
+      "cache_read": 124186392,
+      "cache_create": 3010849,
+      "output": 792952
+    },
+    "adversary": {
+      "calls": 752,
+      "fresh_input": 1111979,
+      "cache_read": 72811697,
+      "cache_create": 1941403,
+      "output": 145289
+    },
+    "coordinator": {
+      "calls": 405,
+      "fresh_input": 898087,
+      "cache_read": 48907136,
+      "cache_create": 71025,
+      "output": 90384
+    },
+    "planner": {
+      "calls": 1,
+      "fresh_input": 2,
+      "cache_read": 0,
+      "cache_create": 59218,
+      "output": 10863
+    }
+  },
+  "tickets": [
+    {
+      "project": "lorebox",
+      "ticket": "03.2",
+      "sessions": 1,
+      "calls": 32,
+      "fresh_input": 62,
+      "cache_read": 2616739,
+      "cache_create": 106703,
+      "output": 9409,
+      "minutes": 7,
+      "roles": {
+        "developer": 1
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 1
+      },
+      "models": {
+        "claude-opus-5-5": 1
+      },
+      "efforts": {}
+    },
+    {
+      "project": "lorebox",
+      "ticket": "02.1",
+      "sessions": 2,
+      "calls": 68,
+      "fresh_input": 138,
+      "cache_read": 5108861,
+      "cache_create": 359254,
+      "output": 10826,
+      "minutes": 160,
+      "roles": {
+        "developer": 1,
+        "tester": 1
+      },
+      "fullSuite": 6,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 1,
+      "repeatedSameHeadWithinSession": 4,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "lorebox",
+      "ticket": "01.3",
+      "sessions": 3,
+      "calls": 249,
+      "fresh_input": 558,
+      "cache_read": 37287771,
+      "cache_create": 1158751,
+      "output": 135326,
+      "minutes": 515,
+      "roles": {
+        "developer": 1,
+        "tester": 1,
+        "coordinator": 1
+      },
+      "fullSuite": 10,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 11,
+      "repeatedSameHeadWithinSession": 6,
+      "harness": {
+        "claude-code": 3
+      },
+      "models": {
+        "claude-opus-5-5": 3
+      },
+      "efforts": {}
+    },
+    {
+      "project": "lorebox",
+      "ticket": "04.2",
+      "sessions": 2,
+      "calls": 55,
+      "fresh_input": 108,
+      "cache_read": 6854840,
+      "cache_create": 356344,
+      "output": 29330,
+      "minutes": 12,
+      "roles": {
+        "tester": 1,
+        "developer": 1
+      },
+      "fullSuite": 4,
+      "focusedSuite": 3,
+      "kitRuns": 0,
+      "commits": 1,
+      "repeatedSameHeadWithinSession": 3,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "lorebox",
+      "ticket": "04.1",
+      "sessions": 2,
+      "calls": 67,
+      "fresh_input": 134,
+      "cache_read": 6117030,
+      "cache_create": 405715,
+      "output": 30518,
+      "minutes": 19,
+      "roles": {
+        "tester": 1,
+        "developer": 1
+      },
+      "fullSuite": 2,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 1,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "lorebox",
+      "ticket": "01.2",
+      "sessions": 2,
+      "calls": 80,
+      "fresh_input": 164,
+      "cache_read": 6660769,
+      "cache_create": 347016,
+      "output": 27974,
+      "minutes": 18,
+      "roles": {
+        "tester": 1,
+        "developer": 1
+      },
+      "fullSuite": 7,
+      "focusedSuite": 4,
+      "kitRuns": 0,
+      "commits": 2,
+      "repeatedSameHeadWithinSession": 4,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "lorebox",
+      "ticket": "01.1",
+      "sessions": 4,
+      "calls": 53,
+      "fresh_input": 104,
+      "cache_read": 3255119,
+      "cache_create": 314547,
+      "output": 19658,
+      "minutes": 8,
+      "roles": {
+        "tester": 1,
+        "developer": 1,
+        "human-session": 2
+      },
+      "fullSuite": 4,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 1,
+      "repeatedSameHeadWithinSession": 2,
+      "harness": {
+        "claude-code": 4
+      },
+      "models": {
+        "claude-opus-5-5": 2,
+        "claude-opus-5": 1
+      },
+      "efforts": {}
+    },
+    {
+      "project": "lorebox",
+      "ticket": "02.3",
+      "sessions": 2,
+      "calls": 122,
+      "fresh_input": 248,
+      "cache_read": 11735672,
+      "cache_create": 576768,
+      "output": 16834,
+      "minutes": 48,
+      "roles": {
+        "developer": 1,
+        "tester": 1
+      },
+      "fullSuite": 6,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 2,
+      "repeatedSameHeadWithinSession": 3,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "lorebox",
+      "ticket": "03.1",
+      "sessions": 2,
+      "calls": 86,
+      "fresh_input": 176,
+      "cache_read": 8847902,
+      "cache_create": 587017,
+      "output": 28814,
+      "minutes": 37,
+      "roles": {
+        "developer": 1,
+        "tester": 1
+      },
+      "fullSuite": 5,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 2,
+      "repeatedSameHeadWithinSession": 2,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "lorebox",
+      "ticket": "02.2",
+      "sessions": 2,
+      "calls": 98,
+      "fresh_input": 198,
+      "cache_read": 7685416,
+      "cache_create": 560347,
+      "output": 13159,
+      "minutes": 206,
+      "roles": {
+        "tester": 1,
+        "developer": 1
+      },
+      "fullSuite": 9,
+      "focusedSuite": 1,
+      "kitRuns": 0,
+      "commits": 4,
+      "repeatedSameHeadWithinSession": 4,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "lorebox",
+      "ticket": "05.2",
+      "sessions": 2,
+      "calls": 45,
+      "fresh_input": 90,
+      "cache_read": 2568643,
+      "cache_create": 205855,
+      "output": 6430,
+      "minutes": 7,
+      "roles": {
+        "tester": 1,
+        "developer": 1
+      },
+      "fullSuite": 2,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 1,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "52.4",
+      "sessions": 2,
+      "calls": 224,
+      "fresh_input": 448,
+      "cache_read": 46057279,
+      "cache_create": 597283,
+      "output": 163725,
+      "minutes": 297,
+      "roles": {
+        "human-session": 2
+      },
+      "fullSuite": 12,
+      "focusedSuite": 2,
+      "kitRuns": 8,
+      "commits": 5,
+      "repeatedSameHeadWithinSession": 10,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "53.1",
+      "sessions": 5,
+      "calls": 55,
+      "fresh_input": 1548,
+      "cache_read": 4263934,
+      "cache_create": 490628,
+      "output": 164254,
+      "minutes": 50,
+      "roles": {
+        "tester": 4,
+        "human-session": 1
+      },
+      "fullSuite": 10,
+      "focusedSuite": 0,
+      "kitRuns": 6,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 6,
+      "harness": {
+        "claude-code": 5
+      },
+      "models": {
+        "claude-fable-5-1": 4
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "53.7",
+      "sessions": 2,
+      "calls": 46,
+      "fresh_input": 92,
+      "cache_read": 3295878,
+      "cache_create": 187609,
+      "output": 40168,
+      "minutes": 8,
+      "roles": {
+        "tester": 1,
+        "developer": 1
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 2,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "53.3",
+      "sessions": 11,
+      "calls": 61,
+      "fresh_input": 114,
+      "cache_read": 4898356,
+      "cache_create": 537067,
+      "output": 98626,
+      "minutes": 9,
+      "roles": {
+        "tester": 2,
+        "human-session": 9
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 2,
+      "commits": 1,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 11
+      },
+      "models": {
+        "claude-opus-5": 8
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "53.2",
+      "sessions": 2,
+      "calls": 46,
+      "fresh_input": 92,
+      "cache_read": 3332645,
+      "cache_create": 178147,
+      "output": 33935,
+      "minutes": 7,
+      "roles": {
+        "tester": 2
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 2,
+      "commits": 1,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "54.3",
+      "sessions": 2,
+      "calls": 196,
+      "fresh_input": 388,
+      "cache_read": 25302415,
+      "cache_create": 539001,
+      "output": 83256,
+      "minutes": 457,
+      "roles": {
+        "tester": 1,
+        "coordinator": 1
+      },
+      "fullSuite": 6,
+      "focusedSuite": 0,
+      "kitRuns": 6,
+      "commits": 2,
+      "repeatedSameHeadWithinSession": 3,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "04.2",
+      "sessions": 1,
+      "calls": 1,
+      "fresh_input": 2,
+      "cache_read": 0,
+      "cache_create": 60961,
+      "output": 8460,
+      "minutes": 0,
+      "roles": {
+        "human-session": 1
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 1
+      },
+      "models": {
+        "claude-opus-5": 1
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "52.2",
+      "sessions": 1,
+      "calls": 1,
+      "fresh_input": 2,
+      "cache_read": 0,
+      "cache_create": 52547,
+      "output": 9429,
+      "minutes": 0,
+      "roles": {
+        "human-session": 1
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 1
+      },
+      "models": {
+        "claude-opus-5": 1
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "52.1",
+      "sessions": 1,
+      "calls": 1,
+      "fresh_input": 2,
+      "cache_read": 0,
+      "cache_create": 56065,
+      "output": 14241,
+      "minutes": 0,
+      "roles": {
+        "human-session": 1
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 1
+      },
+      "models": {
+        "claude-opus-5": 1
+      },
+      "efforts": {}
+    },
+    {
+      "project": "lorebox",
+      "ticket": "05.4",
+      "sessions": 1,
+      "calls": 1,
+      "fresh_input": 2,
+      "cache_read": 9254,
+      "cache_create": 43353,
+      "output": 6363,
+      "minutes": 0,
+      "roles": {
+        "human-session": 1
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 1
+      },
+      "models": {
+        "claude-opus-5": 1
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "53.9",
+      "sessions": 5,
+      "calls": 98,
+      "fresh_input": 37647,
+      "cache_read": 8892462,
+      "cache_create": 480854,
+      "output": 117508,
+      "minutes": 162,
+      "roles": {
+        "human-session": 1,
+        "coordinator": 2,
+        "tester": 1,
+        "developer": 1
+      },
+      "fullSuite": 11,
+      "focusedSuite": 5,
+      "kitRuns": 8,
+      "commits": 1,
+      "repeatedSameHeadWithinSession": 7,
+      "harness": {
+        "claude-code": 4,
+        "codex": 1
+      },
+      "models": {
+        "claude-fable-5-1": 3,
+        "gpt-6-astra": 1
+      },
+      "efforts": {
+        "medium": 1
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "51.3",
+      "sessions": 1,
+      "calls": 1,
+      "fresh_input": 2,
+      "cache_read": 0,
+      "cache_create": 57952,
+      "output": 11509,
+      "minutes": 0,
+      "roles": {
+        "human-session": 1
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 1
+      },
+      "models": {
+        "claude-opus-5": 1
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "49.1",
+      "sessions": 1,
+      "calls": 1,
+      "fresh_input": 2,
+      "cache_read": 0,
+      "cache_create": 57629,
+      "output": 9456,
+      "minutes": 2,
+      "roles": {
+        "human-session": 1
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 1
+      },
+      "models": {
+        "claude-opus-5": 1
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "51.6",
+      "sessions": 1,
+      "calls": 1,
+      "fresh_input": 2,
+      "cache_read": 0,
+      "cache_create": 59218,
+      "output": 10863,
+      "minutes": 0,
+      "roles": {
+        "human-session": 1
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 1
+      },
+      "models": {
+        "claude-opus-5": 1
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "#94",
+      "sessions": 4,
+      "calls": 18,
+      "fresh_input": 65550,
+      "cache_read": 611626,
+      "cache_create": 87559,
+      "output": 22671,
+      "minutes": 5,
+      "roles": {
+        "human-session": 2,
+        "tester": 2
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 11,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 2,
+        "codex": 2
+      },
+      "models": {
+        "claude-opus-5": 1,
+        "claude-fable-5-1": 1,
+        "gpt-6-astra": 2,
+        "gpt-5.6-luna": 1
+      },
+      "efforts": {
+        "medium": 1,
+        "high": 1
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "54.1",
+      "sessions": 3,
+      "calls": 283,
+      "fresh_input": 2184,
+      "cache_read": 66079421,
+      "cache_create": 1672154,
+      "output": 450373,
+      "minutes": 1276,
+      "roles": {
+        "coordinator": 2,
+        "tester": 1
+      },
+      "fullSuite": 22,
+      "focusedSuite": 15,
+      "kitRuns": 40,
+      "commits": 6,
+      "repeatedSameHeadWithinSession": 17,
+      "harness": {
+        "claude-code": 3
+      },
+      "models": {
+        "claude-fable-5-1": 2,
+        "claude-opus-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "53.8",
+      "sessions": 1,
+      "calls": 10,
+      "fresh_input": 290,
+      "cache_read": 540126,
+      "cache_create": 93020,
+      "output": 23681,
+      "minutes": 5,
+      "roles": {
+        "tester": 1
+      },
+      "fullSuite": 2,
+      "focusedSuite": 1,
+      "kitRuns": 1,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 1,
+      "harness": {
+        "claude-code": 1
+      },
+      "models": {
+        "claude-fable-5-1": 1
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "54.2",
+      "sessions": 1,
+      "calls": 97,
+      "fresh_input": 194,
+      "cache_read": 12171299,
+      "cache_create": 203792,
+      "output": 77270,
+      "minutes": 20,
+      "roles": {
+        "tester": 1
+      },
+      "fullSuite": 5,
+      "focusedSuite": 0,
+      "kitRuns": 1,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 4,
+      "harness": {
+        "claude-code": 1
+      },
+      "models": {
+        "claude-opus-5": 1
+      },
+      "efforts": {}
+    },
+    {
+      "project": "lorebox",
+      "ticket": "lorebox-ux-pass",
+      "sessions": 8,
+      "calls": 845,
+      "fresh_input": 1061737,
+      "cache_read": 141610148,
+      "cache_create": 1483190,
+      "output": 789118,
+      "minutes": 4796,
+      "roles": {
+        "human-session": 4,
+        "coordinator": 1,
+        "unknown": 3
+      },
+      "fullSuite": 33,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 4,
+      "repeatedSameHeadWithinSession": 30,
+      "harness": {
+        "claude-code": 2,
+        "codex": 6
+      },
+      "models": {
+        "claude-fable-5-1": 2,
+        "claude-opus-5-5": 1,
+        "gpt-6-sol": 2,
+        "gpt-6-astra": 4
+      },
+      "efforts": {
+        "medium": 6
+      }
+    },
+    {
+      "project": "mine",
+      "ticket": "01.03",
+      "sessions": 4,
+      "calls": 92,
+      "fresh_input": 190,
+      "cache_read": 19862680,
+      "cache_create": 271126,
+      "output": 8795,
+      "minutes": 20,
+      "roles": {
+        "tester": 1,
+        "developer": 1,
+        "adversary": 1,
+        "unknown": 1
+      },
+      "fullSuite": 6,
+      "focusedSuite": 2,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 3,
+      "harness": {
+        "claude-code": 4
+      },
+      "models": {
+        "claude-opus-5-5": 4
+      },
+      "efforts": {}
+    },
+    {
+      "project": "mine",
+      "ticket": "01.01",
+      "sessions": 16,
+      "calls": 346,
+      "fresh_input": 714,
+      "cache_read": 52188439,
+      "cache_create": 1185315,
+      "output": 31968,
+      "minutes": 85,
+      "roles": {
+        "adversary": 5,
+        "unknown": 6,
+        "tester": 4,
+        "developer": 1
+      },
+      "fullSuite": 37,
+      "focusedSuite": 3,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 23,
+      "harness": {
+        "claude-code": 16
+      },
+      "models": {
+        "claude-opus-5-5": 16
+      },
+      "efforts": {}
+    },
+    {
+      "project": "mine",
+      "ticket": "01.04",
+      "sessions": 3,
+      "calls": 86,
+      "fresh_input": 174,
+      "cache_read": 22117221,
+      "cache_create": 242144,
+      "output": 7943,
+      "minutes": 18,
+      "roles": {
+        "developer": 1,
+        "adversary": 1,
+        "tester": 1
+      },
+      "fullSuite": 4,
+      "focusedSuite": 6,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 2,
+      "harness": {
+        "claude-code": 3
+      },
+      "models": {
+        "claude-opus-5-5": 3
+      },
+      "efforts": {}
+    },
+    {
+      "project": "mine",
+      "ticket": "01.02",
+      "sessions": 6,
+      "calls": 149,
+      "fresh_input": 310,
+      "cache_read": 40303232,
+      "cache_create": 373153,
+      "output": 16100,
+      "minutes": 30,
+      "roles": {
+        "adversary": 1,
+        "unknown": 3,
+        "developer": 1,
+        "tester": 1
+      },
+      "fullSuite": 10,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 4,
+      "harness": {
+        "claude-code": 6
+      },
+      "models": {
+        "claude-opus-5-5": 6
+      },
+      "efforts": {}
+    },
+    {
+      "project": "mine",
+      "ticket": "01.06",
+      "sessions": 2,
+      "calls": 26,
+      "fresh_input": 52,
+      "cache_read": 1257181,
+      "cache_create": 131919,
+      "output": 202,
+      "minutes": 6,
+      "roles": {
+        "adversary": 1,
+        "tester": 1
+      },
+      "fullSuite": 2,
+      "focusedSuite": 4,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "mine",
+      "ticket": "01.05",
+      "sessions": 2,
+      "calls": 601,
+      "fresh_input": 1242,
+      "cache_read": 116894994,
+      "cache_create": 1940624,
+      "output": 580234,
+      "minutes": 3460,
+      "roles": {
+        "adversary": 1,
+        "coordinator": 1
+      },
+      "fullSuite": 53,
+      "focusedSuite": 9,
+      "kitRuns": 0,
+      "commits": 21,
+      "repeatedSameHeadWithinSession": 34,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "mine",
+      "ticket": "02.01+02.02",
+      "sessions": 2,
+      "calls": 57,
+      "fresh_input": 114,
+      "cache_read": 5126460,
+      "cache_create": 231190,
+      "output": 1652,
+      "minutes": 9,
+      "roles": {
+        "tester": 1,
+        "adversary": 1
+      },
+      "fullSuite": 2,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5-5": 2
+      },
+      "efforts": {}
+    },
+    {
+      "project": "mine",
+      "ticket": "02.04",
+      "sessions": 1,
+      "calls": 15,
+      "fresh_input": 30,
+      "cache_read": 734923,
+      "cache_create": 44935,
+      "output": 128,
+      "minutes": 2,
+      "roles": {
+        "tester": 1
+      },
+      "fullSuite": 1,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "claude-code": 1
+      },
+      "models": {
+        "claude-opus-5-5": 1
+      },
+      "efforts": {}
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "53.4",
+      "sessions": 5,
+      "calls": 310,
+      "fresh_input": 969518,
+      "cache_read": 33867008,
+      "cache_create": 0,
+      "output": 93965,
+      "minutes": 1337,
+      "roles": {
+        "coordinator": 1,
+        "developer": 2,
+        "tester": 1,
+        "unknown": 1
+      },
+      "fullSuite": 17,
+      "focusedSuite": 3,
+      "kitRuns": 34,
+      "commits": 4,
+      "repeatedSameHeadWithinSession": 11,
+      "harness": {
+        "codex": 5
+      },
+      "models": {
+        "gpt-6-astra": 5,
+        "gpt-5.6-sol": 1
+      },
+      "efforts": {
+        "high": 1,
+        "medium": 4
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "53.6",
+      "sessions": 4,
+      "calls": 70,
+      "fresh_input": 246632,
+      "cache_read": 3943936,
+      "cache_create": 0,
+      "output": 23255,
+      "minutes": 106,
+      "roles": {
+        "developer": 3,
+        "tester": 1
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 13,
+      "commits": 1,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "codex": 4
+      },
+      "models": {
+        "gpt-6-astra": 4,
+        "gpt-5.6-sol": 1
+      },
+      "efforts": {
+        "medium": 3,
+        "high": 1
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "53.5",
+      "sessions": 2,
+      "calls": 50,
+      "fresh_input": 147034,
+      "cache_read": 3904384,
+      "cache_create": 0,
+      "output": 21971,
+      "minutes": 10,
+      "roles": {
+        "developer": 1,
+        "tester": 1
+      },
+      "fullSuite": 8,
+      "focusedSuite": 0,
+      "kitRuns": 10,
+      "commits": 2,
+      "repeatedSameHeadWithinSession": 6,
+      "harness": {
+        "codex": 2
+      },
+      "models": {
+        "gpt-5.6-sol": 2
+      },
+      "efforts": {
+        "high": 2
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "54.4",
+      "sessions": 3,
+      "calls": 29,
+      "fresh_input": 136044,
+      "cache_read": 1341568,
+      "cache_create": 0,
+      "output": 8586,
+      "minutes": 2694,
+      "roles": {
+        "human-session": 1,
+        "adversary": 1,
+        "tester": 1
+      },
+      "fullSuite": 0,
+      "focusedSuite": 1,
+      "kitRuns": 4,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "codex": 3
+      },
+      "models": {
+        "gpt-5.6-sol": 1,
+        "gpt-6-astra": 2
+      },
+      "efforts": {
+        "high": 1,
+        "medium": 2
+      }
+    },
+    {
+      "project": "lorebox",
+      "ticket": "06.1",
+      "sessions": 13,
+      "calls": 980,
+      "fresh_input": 2499725,
+      "cache_read": 90841600,
+      "cache_create": 0,
+      "output": 364041,
+      "minutes": 1094,
+      "roles": {
+        "coordinator": 2,
+        "developer": 5,
+        "unknown": 2,
+        "tester": 4
+      },
+      "fullSuite": 57,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 29,
+      "repeatedSameHeadWithinSession": 42,
+      "harness": {
+        "codex": 13
+      },
+      "models": {
+        "gpt-6-sol": 2,
+        "gpt-5.6-sol": 11
+      },
+      "efforts": {
+        "high": 13
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "55.1",
+      "sessions": 5,
+      "calls": 594,
+      "fresh_input": 1739923,
+      "cache_read": 67697536,
+      "cache_create": 0,
+      "output": 163200,
+      "minutes": 2052,
+      "roles": {
+        "coordinator": 1,
+        "developer": 2,
+        "tester": 1,
+        "unknown": 1
+      },
+      "fullSuite": 13,
+      "focusedSuite": 11,
+      "kitRuns": 65,
+      "commits": 8,
+      "repeatedSameHeadWithinSession": 9,
+      "harness": {
+        "codex": 5
+      },
+      "models": {
+        "gpt-6-sol": 1,
+        "gpt-6.1-sol": 5
+      },
+      "efforts": {
+        "medium": 5
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "integration-refresh-policy",
+      "sessions": 1,
+      "calls": 16,
+      "fresh_input": 49094,
+      "cache_read": 889216,
+      "cache_create": 0,
+      "output": 2496,
+      "minutes": 3,
+      "roles": {
+        "unknown": 1
+      },
+      "fullSuite": 0,
+      "focusedSuite": 2,
+      "kitRuns": 4,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "codex": 1
+      },
+      "models": {
+        "gpt-6.1-sol": 1
+      },
+      "efforts": {
+        "medium": 1
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "55.2",
+      "sessions": 3,
+      "calls": 159,
+      "fresh_input": 529784,
+      "cache_read": 17912448,
+      "cache_create": 0,
+      "output": 83473,
+      "minutes": 901,
+      "roles": {
+        "developer": 1,
+        "adversary": 1,
+        "tester": 1
+      },
+      "fullSuite": 8,
+      "focusedSuite": 13,
+      "kitRuns": 31,
+      "commits": 6,
+      "repeatedSameHeadWithinSession": 4,
+      "harness": {
+        "codex": 3
+      },
+      "models": {
+        "gpt-6.1-sol": 3
+      },
+      "efforts": {
+        "medium": 3
+      }
+    },
+    {
+      "project": "lorebox",
+      "ticket": "09.1",
+      "sessions": 7,
+      "calls": 338,
+      "fresh_input": 1169560,
+      "cache_read": 28289920,
+      "cache_create": 0,
+      "output": 106039,
+      "minutes": 5198,
+      "roles": {
+        "developer": 3,
+        "coordinator": 1,
+        "tester": 1,
+        "unknown": 2
+      },
+      "fullSuite": 1,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "codex": 7
+      },
+      "models": {
+        "gpt-6-astra": 7
+      },
+      "efforts": {
+        "medium": 7
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "#138",
+      "sessions": 1,
+      "calls": 20,
+      "fresh_input": 75480,
+      "cache_read": 1214720,
+      "cache_create": 0,
+      "output": 12058,
+      "minutes": 4,
+      "roles": {
+        "unknown": 1
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 2,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "codex": 1
+      },
+      "models": {
+        "gpt-5.6-sol": 1
+      },
+      "efforts": {
+        "high": 1
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "feature-56-secret-fixtures",
+      "sessions": 1,
+      "calls": 198,
+      "fresh_input": 848322,
+      "cache_read": 27090560,
+      "cache_create": 0,
+      "output": 78582,
+      "minutes": 1334,
+      "roles": {
+        "coordinator": 1
+      },
+      "fullSuite": 10,
+      "focusedSuite": 2,
+      "kitRuns": 28,
+      "commits": 8,
+      "repeatedSameHeadWithinSession": 8,
+      "harness": {
+        "codex": 1
+      },
+      "models": {
+        "gpt-6.1-sol": 1,
+        "gpt-6-astra": 1
+      },
+      "efforts": {
+        "medium": 1
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "maintenance-96",
+      "sessions": 2,
+      "calls": 18,
+      "fresh_input": 72272,
+      "cache_read": 681600,
+      "cache_create": 0,
+      "output": 5285,
+      "minutes": 4,
+      "roles": {
+        "unknown": 2
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 8,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "codex": 2
+      },
+      "models": {
+        "gpt-6-astra": 2
+      },
+      "efforts": {
+        "medium": 2
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "maintenance-127",
+      "sessions": 3,
+      "calls": 917,
+      "fresh_input": 1744607,
+      "cache_read": 118999936,
+      "cache_create": 0,
+      "output": 201673,
+      "minutes": 2775,
+      "roles": {
+        "coordinator": 1,
+        "unknown": 2
+      },
+      "fullSuite": 11,
+      "focusedSuite": 8,
+      "kitRuns": 62,
+      "commits": 12,
+      "repeatedSameHeadWithinSession": 7,
+      "harness": {
+        "codex": 3
+      },
+      "models": {
+        "gpt-6-astra": 3
+      },
+      "efforts": {
+        "medium": 3
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "maintenance-93",
+      "sessions": 2,
+      "calls": 37,
+      "fresh_input": 54113,
+      "cache_read": 1284352,
+      "cache_create": 0,
+      "output": 9838,
+      "minutes": 18,
+      "roles": {
+        "unknown": 2
+      },
+      "fullSuite": 0,
+      "focusedSuite": 10,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "codex": 2
+      },
+      "models": {
+        "gpt-6-astra": 2
+      },
+      "efforts": {
+        "medium": 2
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "maintenance-95",
+      "sessions": 2,
+      "calls": 30,
+      "fresh_input": 86886,
+      "cache_read": 1046272,
+      "cache_create": 0,
+      "output": 8030,
+      "minutes": 7,
+      "roles": {
+        "unknown": 2
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 4,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "codex": 2
+      },
+      "models": {
+        "gpt-6-astra": 2
+      },
+      "efforts": {
+        "medium": 2
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "#159",
+      "sessions": 2,
+      "calls": 18,
+      "fresh_input": 55857,
+      "cache_read": 765184,
+      "cache_create": 0,
+      "output": 3414,
+      "minutes": 3,
+      "roles": {
+        "unknown": 2
+      },
+      "fullSuite": 0,
+      "focusedSuite": 0,
+      "kitRuns": 0,
+      "commits": 0,
+      "repeatedSameHeadWithinSession": 0,
+      "harness": {
+        "codex": 2
+      },
+      "models": {
+        "gpt-6-astra": 2
+      },
+      "efforts": {
+        "medium": 2
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "57.1",
+      "sessions": 4,
+      "calls": 86,
+      "fresh_input": 199256,
+      "cache_read": 4990976,
+      "cache_create": 0,
+      "output": 25784,
+      "minutes": 36,
+      "roles": {
+        "developer": 2,
+        "adversary": 1,
+        "tester": 1
+      },
+      "fullSuite": 10,
+      "focusedSuite": 7,
+      "kitRuns": 4,
+      "commits": 3,
+      "repeatedSameHeadWithinSession": 7,
+      "harness": {
+        "codex": 4
+      },
+      "models": {
+        "gpt-6-astra": 4
+      },
+      "efforts": {
+        "medium": 4
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "57.2",
+      "sessions": 3,
+      "calls": 65,
+      "fresh_input": 150056,
+      "cache_read": 4271616,
+      "cache_create": 0,
+      "output": 21703,
+      "minutes": 22,
+      "roles": {
+        "developer": 1,
+        "adversary": 1,
+        "tester": 1
+      },
+      "fullSuite": 6,
+      "focusedSuite": 4,
+      "kitRuns": 6,
+      "commits": 2,
+      "repeatedSameHeadWithinSession": 4,
+      "harness": {
+        "codex": 3
+      },
+      "models": {
+        "gpt-6-astra": 3
+      },
+      "efforts": {
+        "medium": 3
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "57.3",
+      "sessions": 4,
+      "calls": 133,
+      "fresh_input": 224722,
+      "cache_read": 8804992,
+      "cache_create": 0,
+      "output": 33539,
+      "minutes": 86,
+      "roles": {
+        "developer": 2,
+        "adversary": 1,
+        "tester": 1
+      },
+      "fullSuite": 4,
+      "focusedSuite": 23,
+      "kitRuns": 18,
+      "commits": 5,
+      "repeatedSameHeadWithinSession": 3,
+      "harness": {
+        "codex": 4
+      },
+      "models": {
+        "gpt-6-astra": 4
+      },
+      "efforts": {
+        "medium": 4
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "57.4",
+      "sessions": 3,
+      "calls": 110,
+      "fresh_input": 385972,
+      "cache_read": 9220352,
+      "cache_create": 0,
+      "output": 55101,
+      "minutes": 297,
+      "roles": {
+        "developer": 1,
+        "adversary": 1,
+        "tester": 1
+      },
+      "fullSuite": 8,
+      "focusedSuite": 13,
+      "kitRuns": 16,
+      "commits": 4,
+      "repeatedSameHeadWithinSession": 5,
+      "harness": {
+        "codex": 3
+      },
+      "models": {
+        "gpt-6-astra": 3
+      },
+      "efforts": {
+        "medium": 3
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "57.5",
+      "sessions": 3,
+      "calls": 102,
+      "fresh_input": 214198,
+      "cache_read": 7647104,
+      "cache_create": 0,
+      "output": 35657,
+      "minutes": 68,
+      "roles": {
+        "developer": 1,
+        "adversary": 1,
+        "tester": 1
+      },
+      "fullSuite": 8,
+      "focusedSuite": 13,
+      "kitRuns": 12,
+      "commits": 4,
+      "repeatedSameHeadWithinSession": 4,
+      "harness": {
+        "codex": 3
+      },
+      "models": {
+        "gpt-6-astra": 3
+      },
+      "efforts": {
+        "medium": 3
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "57.6",
+      "sessions": 3,
+      "calls": 68,
+      "fresh_input": 184210,
+      "cache_read": 4845824,
+      "cache_create": 0,
+      "output": 27442,
+      "minutes": 21,
+      "roles": {
+        "developer": 1,
+        "adversary": 1,
+        "tester": 1
+      },
+      "fullSuite": 3,
+      "focusedSuite": 5,
+      "kitRuns": 8,
+      "commits": 1,
+      "repeatedSameHeadWithinSession": 1,
+      "harness": {
+        "codex": 3
+      },
+      "models": {
+        "gpt-6-astra": 3
+      },
+      "efforts": {
+        "medium": 3
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "57.7",
+      "sessions": 3,
+      "calls": 132,
+      "fresh_input": 267981,
+      "cache_read": 10844288,
+      "cache_create": 0,
+      "output": 32444,
+      "minutes": 43,
+      "roles": {
+        "developer": 1,
+        "adversary": 1,
+        "tester": 1
+      },
+      "fullSuite": 11,
+      "focusedSuite": 7,
+      "kitRuns": 8,
+      "commits": 1,
+      "repeatedSameHeadWithinSession": 8,
+      "harness": {
+        "codex": 3
+      },
+      "models": {
+        "gpt-6-astra": 3
+      },
+      "efforts": {
+        "medium": 3
+      }
+    },
+    {
+      "project": "pathfinder",
+      "ticket": "57.8",
+      "sessions": 3,
+      "calls": 58,
+      "fresh_input": 150814,
+      "cache_read": 3926400,
+      "cache_create": 0,
+      "output": 16023,
+      "minutes": 14,
+      "roles": {
+        "developer": 1,
+        "adversary": 1,
+        "tester": 1
+      },
+      "fullSuite": 4,
+      "focusedSuite": 2,
+      "kitRuns": 10,
+      "commits": 2,
+      "repeatedSameHeadWithinSession": 2,
+      "harness": {
+        "codex": 3
+      },
+      "models": {
+        "gpt-6-astra": 3
+      },
+      "efforts": {
+        "medium": 3
+      }
+    }
+  ],
+  "runs": {
+    "lorebox:F01+02+03+04+05": {
+      "sessions": 1,
+      "calls": 138,
+      "cache_read": 26635704,
+      "cache_create": 583439,
+      "output": 113067,
+      "minutes": 481,
+      "harness": {
+        "claude-code": 1
+      },
+      "models": {
+        "claude-opus-5-5": 1
+      }
+    },
+    "pathfinder:unattributed": {
+      "sessions": 6,
+      "calls": 441,
+      "cache_read": 129434921,
+      "cache_create": 3289589,
+      "output": 1044851,
+      "minutes": 1755,
+      "harness": {
+        "claude-code": 6
+      },
+      "models": {
+        "claude-fable-5-1": 4,
+        "claude-opus-5": 1,
+        "claude-opus-5-5": 2
+      }
+    },
+    "pathfinder:F54": {
+      "sessions": 4,
+      "calls": 573,
+      "cache_read": 109596346,
+      "cache_create": 1946526,
+      "output": 563934,
+      "minutes": 3048,
+      "harness": {
+        "claude-code": 3,
+        "codex": 1
+      },
+      "models": {
+        "claude-opus-5": 2,
+        "claude-fable-5-1": 2,
+        "gpt-6.1-sol": 1,
+        "gpt-6-astra": 1
+      }
+    },
+    "pathfinder:F53": {
+      "sessions": 3,
+      "calls": 327,
+      "cache_read": 38498452,
+      "cache_create": 374190,
+      "output": 158262,
+      "minutes": 1465,
+      "harness": {
+        "claude-code": 2,
+        "codex": 1
+      },
+      "models": {
+        "claude-fable-5-1": 2,
+        "gpt-6-astra": 1,
+        "gpt-5.6-sol": 1
+      }
+    },
+    "mine:unattributed": {
+      "sessions": 2,
+      "calls": 744,
+      "cache_read": 159712064,
+      "cache_create": 2598926,
+      "output": 758800,
+      "minutes": 3782,
+      "harness": {
+        "claude-code": 2
+      },
+      "models": {
+        "claude-opus-5-5": 2
+      }
+    },
+    "lorebox:F06": {
+      "sessions": 1,
+      "calls": 154,
+      "cache_read": 15784576,
+      "cache_create": 0,
+      "output": 66457,
+      "minutes": 48,
+      "harness": {
+        "codex": 1
+      },
+      "models": {
+        "gpt-6-sol": 1
+      }
+    },
+    "pathfinder:F55": {
+      "sessions": 1,
+      "calls": 467,
+      "cache_read": 58063232,
+      "cache_create": 0,
+      "output": 118945,
+      "minutes": 1422,
+      "harness": {
+        "codex": 1
+      },
+      "models": {
+        "gpt-6-sol": 1,
+        "gpt-6.1-sol": 1
+      }
+    },
+    "lorebox:F09": {
+      "sessions": 2,
+      "calls": 286,
+      "cache_read": 24225792,
+      "cache_create": 0,
+      "output": 44021,
+      "minutes": 3331,
+      "harness": {
+        "codex": 2
+      },
+      "models": {
+        "gpt-6-astra": 2
+      }
+    },
+    "lorebox:F06+07+08": {
+      "sessions": 1,
+      "calls": 336,
+      "cache_read": 37957248,
+      "cache_create": 0,
+      "output": 117851,
+      "minutes": 929,
+      "harness": {
+        "codex": 1
+      },
+      "models": {
+        "gpt-5.6-sol": 1
+      }
+    },
+    "pathfinder:F57": {
+      "sessions": 1,
+      "calls": 883,
+      "cache_read": 117881728,
+      "cache_create": 0,
+      "output": 191039,
+      "minutes": 2757,
+      "harness": {
+        "codex": 1
+      },
+      "models": {
+        "gpt-6-astra": 1
+      }
+    }
+  },
+  "archives": [
+    {
+      "key": "57.1",
+      "heads": [
+        "cfe0c7c6",
+        "3b9b3821"
+      ],
+      "adversaryReports": [
+        {
+          "head": "cfe0c7c6",
+          "n": 3,
+          "suspected": 3,
+          "file": "evidence/adversary-57.1/repaired-report.json"
+        },
+        {
+          "head": "3b9b3821",
+          "n": 3,
+          "suspected": 3,
+          "file": "evidence/adversary-57.1/report.json"
+        }
+      ],
+      "testerReports": [
+        {
+          "head": "cfe0c7c6",
+          "result": "PASS",
+          "n": 0,
+          "citesAdversary": false,
+          "file": "evidence/tester-57.1/repaired-report.json"
+        },
+        {
+          "head": "3b9b3821",
+          "result": "findings",
+          "n": 1,
+          "citesAdversary": true,
+          "file": "evidence/tester-57.1/report.json"
+        }
+      ],
+      "suiteLogs": [
+        "evidence/57.1/orchestrate-test.log",
+        "evidence/57.1/repair-tests.log",
+        "evidence/adversary-57.1/repaired-tests.log",
+        "evidence/tester-57.1/repaired-suite.log",
+        "evidence/tester-57.1-tests.log",
+        "postmerge-tests.log"
+      ],
+      "repair": "completed:3b9b3821818268256b88cf07b75f5a"
+    },
+    {
+      "key": "57.2",
+      "heads": [
+        "b13bf31a"
+      ],
+      "adversaryReports": [
+        {
+          "head": "b13bf31a",
+          "n": 3,
+          "suspected": 3,
+          "file": "evidence/adversary-57.2/report.json"
+        }
+      ],
+      "testerReports": [
+        {
+          "head": "b13bf31a",
+          "result": "PASS",
+          "n": 0,
+          "citesAdversary": false,
+          "file": "evidence/tester-57.2/report.json"
+        }
+      ],
+      "suiteLogs": [
+        "evidence/tester-57.2/full-suite.log",
+        "postmerge-tests.log"
+      ],
+      "repair": null
+    },
+    {
+      "key": "57.3",
+      "heads": [
+        "54355fa0",
+        "5e0c222b",
+        "c9a9c3fc"
+      ],
+      "adversaryReports": [
+        {
+          "head": "54355fa0",
+          "n": 3,
+          "suspected": 1,
+          "file": "evidence/adversary-57-3/report-final.json"
+        },
+        {
+          "head": "5e0c222b",
+          "n": 3,
+          "suspected": 1,
+          "file": "evidence/adversary-57-3/report-repaired.json"
+        },
+        {
+          "head": "c9a9c3fc",
+          "n": 2,
+          "suspected": 1,
+          "file": "evidence/adversary-57-3/report.json"
+        }
+      ],
+      "testerReports": [
+        {
+          "head": "c9a9c3fc",
+          "result": "findings",
+          "n": 1,
+          "citesAdversary": true,
+          "file": "evidence/tester-57-3/findings.json"
+        },
+        {
+          "head": "5e0c222b",
+          "result": "findings",
+          "n": 1,
+          "citesAdversary": true,
+          "file": "evidence/tester-57-3/round2/findings.json"
+        },
+        {
+          "head": "54355fa0",
+          "result": "PASS",
+          "n": 0,
+          "citesAdversary": false,
+          "file": "evidence/tester-57-3/round3/findings.json"
+        }
+      ],
+      "suiteLogs": [
+        "evidence/adversary-57-3/final-suite.log",
+        "evidence/adversary-57-3/repaired-suite.log",
+        "evidence/adversary-57-3/transport-suite.log",
+        "evidence/tester-57-3/round2/suite.log",
+        "evidence/tester-57-3/round3/suite.log",
+        "evidence/tester-57-3/suite.log",
+        "evidence/verification/final-suite.log",
+        "evidence/verification/first-suite.log",
+        "evidence/verification/repair-suite.log",
+        "evidence/verification/repair2-final-suite.log",
+        "evidence/verification/repair2-suite.log",
+        "evidence/verification/suite.log"
+      ],
+      "repair": "completed:5e0c222b833a9bc4b45ea1bf43abde"
+    },
+    {
+      "key": "57.4",
+      "heads": [
+        "8e4717df",
+        "48143975"
+      ],
+      "adversaryReports": [
+        {
+          "head": "8e4717df",
+          "n": 3,
+          "suspected": 2,
+          "file": "evidence/adversary-57-4/report.json"
+        },
+        {
+          "head": "48143975",
+          "n": 4,
+          "suspected": 0,
+          "file": "evidence/adversary-57-4/round2/report.json"
+        }
+      ],
+      "testerReports": [
+        {
+          "head": "8e4717df",
+          "result": "findings",
+          "n": 2,
+          "citesAdversary": false,
+          "file": "evidence/tester-57-4/findings.json"
+        },
+        {
+          "head": "48143975",
+          "result": "PASS",
+          "n": 0,
+          "citesAdversary": false,
+          "file": "evidence/tester-57-4/round2/findings.json"
+        }
+      ],
+      "suiteLogs": [
+        "evidence/57-4-tests.log",
+        "evidence/adversary-57-4/round2/tests.log",
+        "evidence/adversary-57-4/tests.log",
+        "evidence/tester-57-4/focused-tests.log",
+        "evidence/tester-57-4/full-tests.log",
+        "evidence/tester-57-4/round2/focused-tests.log",
+        "evidence/tester-57-4/round2/full-tests.log"
+      ],
+      "repair": "completed:8e4717df5139eeec73d4ee4aa28dec"
+    },
+    {
+      "key": "57.5",
+      "heads": [
+        "ace0125d",
+        "182dd8a4"
+      ],
+      "adversaryReports": [
+        {
+          "head": "ace0125d",
+          "n": 3,
+          "suspected": 1,
+          "file": "evidence/adversary-57-5/report.json"
+        },
+        {
+          "head": "182dd8a4",
+          "n": 3,
+          "suspected": 0,
+          "file": "evidence/adversary-57-5/round2/report.json"
+        }
+      ],
+      "testerReports": [
+        {
+          "head": "ace0125d",
+          "result": "findings",
+          "n": 1,
+          "citesAdversary": false,
+          "file": "evidence/tester-57-5/findings.json"
+        },
+        {
+          "head": "182dd8a4",
+          "result": "PASS",
+          "n": 0,
+          "citesAdversary": false,
+          "file": "evidence/tester-57-5/round2/findings.json"
+        }
+      ],
+      "suiteLogs": [],
+      "repair": "completed:ace0125dc7a1695703ee3c42b3f0c4"
+    },
+    {
+      "key": "57.6",
+      "heads": [
+        "f5ecd7ff"
+      ],
+      "adversaryReports": [
+        {
+          "head": "f5ecd7ff",
+          "n": 6,
+          "suspected": 0,
+          "file": "evidence/adversary-57-6/report.json"
+        }
+      ],
+      "testerReports": [
+        {
+          "head": "f5ecd7ff",
+          "result": "PASS",
+          "n": 0,
+          "citesAdversary": false,
+          "file": "evidence/tester-57-6/findings.json"
+        }
+      ],
+      "suiteLogs": [
+        "evidence/verification/developer-full-tests.log"
+      ],
+      "repair": null
+    },
+    {
+      "key": "57.7",
+      "heads": [
+        "accf428a"
+      ],
+      "adversaryReports": [
+        {
+          "head": "accf428a",
+          "n": 3,
+          "suspected": 3,
+          "file": "evidence/adversary-57-7/report.json"
+        }
+      ],
+      "testerReports": [
+        {
+          "head": "accf428a",
+          "result": "PASS",
+          "n": 0,
+          "citesAdversary": false,
+          "file": "evidence/tester-57-7/findings.json"
+        }
+      ],
+      "suiteLogs": [
+        "evidence/developer-57-7/full-suite.log"
+      ],
+      "repair": null
+    },
+    {
+      "key": "57.8",
+      "heads": [
+        "1619e719"
+      ],
+      "adversaryReports": [
+        {
+          "head": "1619e719",
+          "n": 4,
+          "suspected": 4,
+          "file": "evidence/adversary-57-8/report.json"
+        }
+      ],
+      "testerReports": [
+        {
+          "head": "1619e719",
+          "result": "PASS",
+          "n": 0,
+          "citesAdversary": false,
+          "file": "evidence/tester-57-8-findings.json"
+        }
+      ],
+      "suiteLogs": [
+        "evidence/tester-57-8-suite.log"
+      ],
+      "repair": null
+    },
+    {
+      "key": "feature-57-completion",
+      "heads": [],
+      "adversaryReports": [],
+      "testerReports": [],
+      "suiteLogs": [
+        "orchestration-tests.log"
+      ],
+      "repair": null
+    },
+    {
+      "key": "maintenance-127",
+      "heads": [
+        "1589e138",
+        "1e4f1931"
+      ],
+      "adversaryReports": [
+        {
+          "head": "1589e138",
+          "n": 4,
+          "suspected": 4,
+          "file": "evidence/adversary-127/report-1589e138.json"
+        },
+        {
+          "head": "1e4f1931",
+          "n": 4,
+          "suspected": 4,
+          "file": "evidence/adversary-127/report-1e4f193.json"
+        },
+        {
+          "head": "1589e138",
+          "n": 4,
+          "suspected": 4,
+          "file": "evidence/adversary-127/report.json"
+        }
+      ],
+      "testerReports": [
+        {
+          "head": "1e4f1931",
+          "result": "findings",
+          "n": 2,
+          "citesAdversary": true,
+          "file": "evidence/tester-127/report-1e4f193.json"
+        },
+        {
+          "head": "1589e138",
+          "result": "PASS",
+          "n": 0,
+          "citesAdversary": false,
+          "file": "evidence/tester-127/report.json"
+        }
+      ],
+      "suiteLogs": [],
+      "repair": null
+    }
+  ]
+}
