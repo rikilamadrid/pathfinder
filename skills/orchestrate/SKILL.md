@@ -39,7 +39,8 @@ names the file and the two values, and changes nothing.
   execution state, branch and worktree, gate or blocker, and last recorded
   result. Reads only.
 - `start` — plan the scope, ask the human once, then claim, dispatch, review,
-  surface gates, and refresh eligibility until nothing more can run.
+  and surface gates for one round, and stop at the round boundary. A new
+  session continues the run from engine state.
 - `resume` — continue one existing claim deliberately: a stale worker, or one
   whose human gate was resolved.
 
@@ -61,9 +62,11 @@ names the file and the two values, and changes nothing.
   unregistered directory at its worktree path. There is no lock file, database,
   daemon, or server, and the claim ref is not sent by a normal push.
 - **Claims outlive sessions.** A session that dies leaves its worktree, branch,
-  and state file behind. Any claim the current run did not start is `stale`
-  until it is resumed deliberately, and a stale claim is never dispatched a
-  second time.
+  and state file behind. Any claim this session did not start is `stale`
+  until a person confirms its old session has stopped. It is then continued
+  deliberately, through `resume` or as a pending claim under `start`
+  §Continuing a run, and never dispatched while another session may still
+  own it.
 - **`.pathfinder/` is machine-local and ignored.** The project's `.gitignore`
   must carry `/.pathfinder/`; the engine refuses to claim until it does and
   never edits the file itself.

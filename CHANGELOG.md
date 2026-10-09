@@ -27,6 +27,15 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+- Bound the orchestrator's coordinating session to one round: `start` ends at
+  the round boundary instead of re-planning into new claims, and a new session
+  continues the run from the store, Git and the claims' state files. Approval
+  is asked once per round; pending claims from a previous round are continued
+  only after the human confirms no earlier session is still running, and a
+  pending repair only with the confirmed-findings repair count the human read
+  at the previous round boundary; an unknown count, or two or more, opens the
+  human gate. No engine change; the stage selector is unchanged, and `resume`
+  changes only by naming the round's approval it inherits.
 - Document the supported on-demand routing workflow and reproducible synthetic acceptance evidence, including consent, recovery and same-head authority boundaries.
 
 - Explicit, opt-in orchestrator routing preparation and assessment with independent configuration, scoped consent, fresh-state checks and human-mediated presentation. Assessment and human-directed follow-up remain separate operations.

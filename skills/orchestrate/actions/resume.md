@@ -34,7 +34,8 @@ The engine is `node skills/orchestrate/engine/bin/orchestrate.mjs`, written
      is a separate human decision: preserve the worktree, branch, claim, and
      profile until the human explicitly authorises their release.
 3. Confirm the run's approval. A resume inside a running `/orchestrate start`
-   uses that run's approval. A resume on its own asks the human once, stating
+   uses that round's approval, including a pending claim continued under
+   `start` §Continuing a run. A resume on its own asks the human once, stating
    the same scope for this one ticket.
 4. Select from the existing checkpoint, never unconditionally resume Developer:
 
