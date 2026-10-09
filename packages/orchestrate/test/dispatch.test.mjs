@@ -33,6 +33,9 @@ import {
 
 after(cleanUpTemporaryDirectories);
 
+/** Every brief needs the human approval scope the run was granted; the engine never defaults it. */
+const APPROVAL = "execution of this Feature's tickets in this round; no merges";
+
 const NOW = "2026-09-17T12:00:00.000Z";
 const TRACKER = "# Ticket Store\n\n<!-- pathfinder:ticket-store github-issues acme/widgets -->\n";
 
@@ -309,7 +312,7 @@ describe("repairs from the 53.3 review", () => {
     orchestrate(["claim", "1.1", "--now", NOW], { root });
     for (const session of ["implementation", "resume", "review"]) {
       const extra = session === "review" ? ["--gh", prepareIntegrationReview(root)] : [];
-      const text = orchestrate(["brief", "1.1", "--harness", "manual", "--session", session, ...extra], { root }).stdout;
+      const text = orchestrate(["brief", "1.1", "--approval", APPROVAL, "--harness", "manual", "--session", session, ...extra], { root }).stdout;
       assert.match(text, /^Main: {6}\/.+$/m, session);
       assert.equal(/^Main: {6}(.+)$/m.exec(text)[1].endsWith(/^Worktree: {2}(.+)$/m.exec(text)[1].replace(/\/\.pathfinder\/worktrees\/1\.1$/, "")), true, session);
       assert.match(text, /Read context\/tracker\.md and the Feature spec from the main checkout named above whenever the worktree has no copy/, session);
@@ -483,8 +486,8 @@ describe("briefs for dispatch", () => {
     orchestrate(["claim", "1.1", "--now", NOW], { root });
     orchestrate(["claim", "1.2", "--now", NOW], { root });
 
-    const a = orchestrate(["brief", "1.1", "--harness", "claude-code"], { root }).stdout;
-    const b = orchestrate(["brief", "1.2", "--harness", "claude-code"], { root }).stdout;
+    const a = orchestrate(["brief", "1.1", "--approval", APPROVAL, "--harness", "claude-code"], { root }).stdout;
+    const b = orchestrate(["brief", "1.2", "--approval", APPROVAL, "--harness", "claude-code"], { root }).stdout;
     for (const [text, key] of [[a, "1.1"], [b, "1.2"]]) {
       assert.match(text, /^Role: {6}developer$/m);
       assert.match(text, /^Model: {5}inherited$/m);
@@ -495,16 +498,71 @@ describe("briefs for dispatch", () => {
     }
     assert.notEqual(/^Worktree: .*$/m.exec(a)[0], /^Worktree: .*$/m.exec(b)[0]);
 
-    const resume = orchestrate(["brief", "1.1", "--harness", "manual", "--session", "resume"], { root }).stdout;
+    const resume = orchestrate(["brief", "1.1", "--approval", APPROVAL, "--harness", "manual", "--session", "resume"], { root }).stdout;
     assert.match(resume, /Read context\/current-ticket\.md first\. Continue from its Next line/);
     assert.match(resume, /^Role: {6}developer$/m, "resume runs as the implementation role");
+  });
+
+  it("requires --approval with non-empty text, and builds nothing without it", () => {
+    const root = abc();
+    orchestrate(["claim", "1.1", "--now", NOW], { root });
+    const statePath = join(root, ".pathfinder", "worktrees", "1.1", "context", "current-ticket.md");
+    const before = readFileSync(statePath, "utf8");
+    const cases = [
+      ["missing", ["brief", "1.1", "--harness", "manual"]],
+      ["missing, json", ["brief", "1.1", "--harness", "claude-code", "--json"]],
+      ["empty", ["brief", "1.1", "--harness", "manual", "--approval", ""]],
+      ["empty, codex", ["brief", "1.1", "--harness", "codex", "--approval", "", "--json"]],
+      ["whitespace", ["brief", "1.1", "--harness", "manual", "--approval", " \t "]],
+      ["empty, resume", ["brief", "1.1", "--harness", "manual", "--session", "resume", "--approval", ""]],
+    ];
+    for (const [name, args] of cases) {
+      const result = orchestrate(args, { root });
+      assert.equal(result.status, 2, `${name}: a usage error, not a refusal`);
+      assert.equal(result.stdout, "", `${name}: prints nothing on stdout`);
+      assert.match(result.stderr, /brief needs --approval/, name);
+    }
+    assert.equal(readFileSync(statePath, "utf8"), before, "the claim's state file is untouched");
+    assert.equal(runGit(["status", "--porcelain"], root), "");
+
+    // The flag is checked before the claim is looked up, so an unclaimed key
+    // fails the same way: nothing is built or read on its behalf.
+    const unclaimed = orchestrate(["brief", "1.3", "--harness", "manual"], { root });
+    assert.equal(unclaimed.status, 2);
+    assert.match(unclaimed.stderr, /brief needs --approval/);
+    assert.doesNotMatch(unclaimed.stderr, /no registered claim/);
+  });
+
+  it("carries the approval text into the brief and every harness invocation unchanged", () => {
+    const root = abc();
+    orchestrate(["claim", "1.1", "--now", NOW], { root });
+    const approval = "Round 2 of Feature 1: tickets 1.1 and 1.2; commits and a draft PR each; no merges — \"as approved\"";
+    const line = `Approval:  ${approval}`;
+
+    const manual = json(orchestrate(["brief", "1.1", "--harness", "manual", "--approval", approval, "--json"], { root }));
+    assert.equal(manual.brief.approval, approval);
+    assert.ok(manual.translation.invocation.prompt.includes(line), "manual prompt");
+
+    const claude = json(orchestrate(["brief", "1.1", "--harness", "claude-code", "--approval", approval, "--json"], { root }));
+    assert.equal(claude.brief.approval, approval);
+    assert.ok(claude.translation.invocation.prompt.includes(line), "claude-code prompt");
+
+    const codex = json(orchestrate(["brief", "1.1", "--harness", "codex", "--approval", approval, "--json"], { root }));
+    assert.equal(codex.brief.approval, approval);
+    assert.ok(codex.translation.invocation.arguments.message.includes(line), "codex message");
+
+    for (const output of [manual, claude, codex]) {
+      assert.doesNotMatch(JSON.stringify(output), /as granted by the orchestration run/, "no default text survives");
+    }
+    const text = orchestrate(["brief", "1.1", "--harness", "manual", "--approval", approval], { root }).stdout;
+    assert.ok(text.includes(line), "the printed brief carries it too");
   });
 
   it("says Closes #N for a GitHub ticket", () => {
     const gh = statefulGh([issue({ number: 41, key: "1.1", title: "A", labels: ["status: proposed"] })]);
     const root = makeProject({ tracker: TRACKER });
     orchestrate(["claim", "1.1", "--gh", gh.path], { root });
-    assert.match(orchestrate(["brief", "1.1", "--harness", "manual", "--gh", gh.path], { root }).stdout, /whose body says Closes #41\./);
+    assert.match(orchestrate(["brief", "1.1", "--approval", APPROVAL, "--harness", "manual", "--gh", gh.path], { root }).stdout, /whose body says Closes #41\./);
   });
 });
 

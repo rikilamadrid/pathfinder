@@ -27,6 +27,14 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+- **Breaking for callers outside the documented procedures: `orchestrate
+  brief` now requires `--approval <text>`.** A missing, empty, or
+  whitespace-only value is a usage error (exit 2) that names the flag and
+  builds no brief, and the default text the engine used to substitute is
+  gone. Every documented procedure — `start`, `resume`, `integrate`, and the
+  integration repair briefs — already passes the round's approval, so
+  nothing documented changes; any caller outside those procedures must now
+  pass the approved scope explicitly.
 - Bound the orchestrator's coordinating session to one round: `start` ends at
   the round boundary instead of re-planning into new claims, and a new session
   continues the run from the store, Git and the claims' state files. Approval

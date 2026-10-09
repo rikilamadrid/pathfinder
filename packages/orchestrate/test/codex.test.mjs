@@ -9,6 +9,9 @@ import { cleanUpTemporaryDirectories, json, makeProject, orchestrate, runGit } f
 
 after(cleanUpTemporaryDirectories);
 
+/** Every brief needs the human approval scope the run was granted; the engine never defaults it. */
+const APPROVAL = "execution of this Feature's tickets in this round; no merges";
+
 function brief(selection = {}, overrides = {}) {
   const built = buildBrief({
     ticket: "53.4",
@@ -196,7 +199,7 @@ describe("Codex harness translation", () => {
       ["merge-and-reverify", "pathfinder_53_6_merge_and_reverify"],
       ["resolve-conflict", "pathfinder_53_6_resolve_conflict"],
     ]) {
-      const result = run("brief", "53.6", "--harness", "codex", "--session", session, "--json");
+      const result = run("brief", "53.6", "--approval", APPROVAL, "--harness", "codex", "--session", session, "--json");
       assert.equal(result.status, 0, result.stderr);
       const output = json(result);
       assert.equal(output.brief.session, session);
@@ -214,8 +217,8 @@ describe("Codex harness translation", () => {
     assert.deepEqual(plan.dispatch.map((item) => item.key), ["1.1", "1.2"]);
     assert.deepEqual(plan.blocked[0].waiting, ["1.1", "1.2"]);
     for (const key of ["1.1", "1.2"]) assert.equal(run("claim", key).status, 0);
-    const original = json(run("brief", "1.1", "--harness", "claude-code", "--json"));
-    const other = json(run("brief", "1.2", "--harness", "codex", "--json"));
+    const original = json(run("brief", "1.1", "--approval", APPROVAL, "--harness", "claude-code", "--json"));
+    const other = json(run("brief", "1.2", "--approval", APPROVAL, "--harness", "codex", "--json"));
     assert.notEqual(original.brief.worktree, other.brief.worktree);
     const owner = run("owner", "1.1", "--json").stdout;
     const statePath = join(original.brief.worktree, "context", "current-ticket.md");
@@ -225,7 +228,7 @@ describe("Codex harness translation", () => {
     const status = json(run("status", "--json"));
     assert.equal(status.rows.find((row) => row.key === "1.1").state, "stale");
 
-    const resumed = json(run("brief", "1.1", "--harness", "codex", "--session", "resume", "--json"));
+    const resumed = json(run("brief", "1.1", "--approval", APPROVAL, "--harness", "codex", "--session", "resume", "--json"));
     for (const field of ["ticket", "branch", "worktree", "role", "model", "effort"]) {
       assert.equal(resumed.brief[field], original.brief[field], field);
     }

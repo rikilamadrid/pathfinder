@@ -3,7 +3,7 @@
 What the orchestrator hands a worker, and how each harness honours it.
 
 ```sh
-node skills/orchestrate/engine/bin/orchestrate.mjs brief <key> --harness claude-code|codex|manual [--session implementation|resume|adversary|review|repair|rebase-and-reverify|merge-and-reverify|resolve-conflict] [--approval <text>] [--json]
+node skills/orchestrate/engine/bin/orchestrate.mjs brief <key> --harness claude-code|codex|manual --approval <text> [--session implementation|resume|adversary|review|repair|rebase-and-reverify|merge-and-reverify|resolve-conflict] [--json]
 ```
 
 ## Output
@@ -21,6 +21,13 @@ inspects programmatically asks for `--json`:
 
 A refusal exits non-zero with its reason on stderr and prints no brief.
 
+`--approval` is required, with non-empty text: it is the scope the human
+granted the orchestration run, and the documented procedures pass it on every
+invocation. A missing, empty, or whitespace-only value is a usage error (exit
+2) that names the flag, prints nothing on stdout, and builds no brief. No
+default is ever substituted. The text reaches `brief.approval`, and every
+harness invocation, exactly as written.
+
 ## Fields
 
 Every brief carries all of these. None is optional, and none is defaulted when
@@ -35,7 +42,7 @@ missing: a brief that lacks one is refused.
 | `role` | the role contract the session assumes, from the routing policy |
 | `model` | the model the session runs on, from the routing policy |
 | `effort` | the reasoning effort the session runs at, from the routing policy |
-| `approval` | the scope of the human approval the orchestration run was granted |
+| `approval` | the scope of the human approval the orchestration run was granted, exactly as `--approval` gave it. Required; never defaulted |
 | `protocol` | the ordered steps for the session. Implementation loads, starts, and reports a gate, done, or failure. Resume reads the worktree's state file first and continues rather than restarting. Review runs `/ticket review`, changes nothing, and reports PASS or findings. Rebase-and-reverify, merge-and-reverify and resolve-conflict are the integration repair sessions `integration-brief.md` states |
 
 `role`, `model`, and `effort` are first-class fields whatever their values.

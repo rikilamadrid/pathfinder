@@ -12,6 +12,9 @@ import { mutateCheckpoint, recoverCheckpointLock } from "../../../skills/orchest
 import { humanDirectedFollowup } from "../../../skills/orchestrate/engine/routing-followup.mjs";
 import { cleanUpTemporaryDirectories, makeProject, orchestrate, prGh, json, runGit } from "../lib/harness.mjs";
 after(cleanUpTemporaryDirectories);
+
+/** Every brief needs the human approval scope the run was granted; the engine never defaults it. */
+const APPROVAL = "execution of this Feature's tickets in this round; no merges";
 const PR = "https://github.com/acme/widgets/pull/7";
 function setup() {
   const root = makeProject({ tickets: { "1.1": { title: "A" } } });
@@ -106,13 +109,13 @@ describe("human-directed same-head follow-up", () => {
       if (firstTarget === "adversary") {
         assert.equal(readExperimentReport(s.text()).ok, false);
         assert.equal(s.stage().session, "adversary");
-        const brief = s.run("brief", "1.1", "--session", "adversary", "--harness", "manual");
+        const brief = s.run("brief", "1.1", "--approval", APPROVAL, "--session", "adversary", "--harness", "manual");
         assert.equal(brief.status, 0, brief.stderr); assert.match(brief.stdout, new RegExp(aRecord.id));
         assert.doesNotMatch(brief.stdout, /head-b-concern/);
         s.experiments(s.bind(s.experiment(), "adversary"));
       }
       assert.equal(s.stage("--advance").session, "review");
-      const brief = s.run("brief", "1.1", "--session", "review", "--harness", "manual");
+      const brief = s.run("brief", "1.1", "--approval", APPROVAL, "--session", "review", "--harness", "manual");
       assert.equal(brief.status, 0, brief.stderr); assert.match(brief.stdout, new RegExp(aRecord.id));
       assert.doesNotMatch(brief.stdout, /head-b-concern/);
       s.findings(s.bind(s.review(), "tester"));
@@ -209,7 +212,7 @@ describe("human-directed same-head follow-up", () => {
     assert.notEqual(s.run("followup", "1.1", "--request", input).status, 0);
     const result = s.run("followup", "1.1", "--request", input, "--live", "", "--json"); assert.equal(result.status, 0, result.stderr);
     assert.equal(json(result).ok, true);
-    const brief = s.run("brief", "1.1", "--session", "adversary", "--harness", "manual"); assert.equal(brief.status, 0, brief.stderr);
+    const brief = s.run("brief", "1.1", "--approval", APPROVAL, "--session", "adversary", "--harness", "manual"); assert.equal(brief.status, 0, brief.stderr);
     assert.match(brief.stdout, /Human-directed fresh review/);
     assert.equal(runGit(["rev-parse", "HEAD"], s.worktree), branch); assert.equal(runGit(["rev-parse", "refs/pathfinder/claims/1.1"], s.root), claim);
     assert.equal(s.stage().session, "adversary"); assert.doesNotMatch(s.text(), /^- Gate:/m);
