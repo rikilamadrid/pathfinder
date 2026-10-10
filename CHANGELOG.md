@@ -35,6 +35,18 @@ The heading of the most recent released section below is the single source of tr
   integration repair briefs — already passes the round's approval, so
   nothing documented changes; any caller outside those procedures must now
   pass the approved scope explicitly.
+- The note `orchestrate board --comment-unblocked` posts on a newly eligible
+  ticket now says the next orchestration round may claim it under its own
+  approval, matching the round boundary in `start` §5; it no longer implies
+  the running orchestration dispatches it mid-round. The marker line, and so
+  the note's idempotency, is unchanged.
+- `orchestrate plan` text output describes stale claims the way `start`
+  §Continuing a run defines them: no live session; a pending claim (worktree
+  present, recorded state `working`, `adversary`, `review` or `repair`) is
+  continued by `start` only after the human confirms its old session has
+  stopped; any other stale claim is resumed with `resume <key>`. Each stale
+  line shows its recorded state, or `no state` for an orphan. `plan --json` is
+  unchanged.
 - Bound the orchestrator's coordinating session to one round: `start` ends at
   the round boundary instead of re-planning into new claims, and a new session
   continues the run from the store, Git and the claims' state files. Approval
