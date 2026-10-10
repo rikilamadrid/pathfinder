@@ -27,6 +27,11 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+- The note `orchestrate board --comment-unblocked` posts on a newly eligible
+  ticket now says the next orchestration round may claim it under its own
+  approval, matching the round boundary in `start` §5; it no longer implies
+  the running orchestration dispatches it mid-round. The marker line, and so
+  the note's idempotency, is unchanged.
 - `orchestrate plan` text output describes stale claims the way `start`
   §Continuing a run defines them: no live session; a pending claim (worktree
   present, recorded state `working`, `adversary`, `review` or `repair`) is

@@ -113,7 +113,7 @@ export function unblockedNote({ key, by }) {
     body: [
       marker("unblocked", key, by),
       `**Now eligible:** ${by} is Complete, which was the last blocker of ${key}. ` +
-        "The running orchestration may dispatch it under the approval it already holds.",
+        "The next orchestration round may claim it under its own approval.",
     ].join("\n"),
   };
 }

@@ -307,6 +307,8 @@ describe("tracker notes and gates on GitHub Issues", () => {
     }
     assert.equal(comments(gh, 13).length, 2);
     assert.match(comments(gh, 13)[1], /\*\*Now eligible:\*\* 1\.1 is Complete, which was the last blocker of 1\.3\./);
+    assert.match(comments(gh, 13)[1], /The next orchestration round may claim it under its own approval\./);
+    assert.doesNotMatch(comments(gh, 13)[1], /running orchestration may dispatch/);
 
     assert.equal(orchestrate(["board", "--comment-unblocked", "1.3", "--by", "1.2", "--gh", gh.path], { root }).status, 1, "1.2 is not a blocker of 1.3");
   });
