@@ -8,6 +8,9 @@ import { readFindingsReport, renderFindingsReport, replaceFindingsReport, valida
 import { updateStateText } from "../../../skills/orchestrate/engine/statefile.mjs";
 import { cleanUpTemporaryDirectories, ENGINE_ROOT, makeProject, orchestrate, prGh, json, runGit } from "../lib/harness.mjs";
 after(cleanUpTemporaryDirectories);
+
+/** Every brief needs the human approval scope the run was granted; the engine never defaults it. */
+const APPROVAL = "execution of this Feature's tickets in this round; no merges";
 const PR = "https://github.com/acme/widgets/pull/7";
 function setup() {
   const root = makeProject({ tickets: { "1.1": { title: "A" }, "1.2": { title: "B" } } });
@@ -36,7 +39,7 @@ describe("recoverable Adversary and Tester delivery", () => {
     s.set({ State: "adversary", Review: "ordinary" });
     assert.equal(s.stage().session, "adversary", "stop after Developer never exposes done");
     for (const harness of ["manual", "claude-code", "codex"]) {
-      const r = s.run("brief", "1.1", "--session", "adversary", "--harness", harness, "--json");
+      const r = s.run("brief", "1.1", "--approval", APPROVAL, "--session", "adversary", "--harness", harness, "--json");
       assert.equal(r.status, 0, r.stderr); assert.equal(json(r).brief.role, "adversary");
       assert.match(JSON.stringify(json(r).translation), /EXPERIMENTS/);
     }
@@ -46,7 +49,7 @@ describe("recoverable Adversary and Tester delivery", () => {
     assert.equal(s.stage().session, "review", "complete report before state transition survives stop");
     assert.equal(s.stage("--advance").state, "review");
     for (const harness of ["manual", "claude-code", "codex"]) {
-      const r = s.run("brief", "1.1", "--session", "review", "--harness", harness, "--json");
+      const r = s.run("brief", "1.1", "--approval", APPROVAL, "--session", "review", "--harness", harness, "--json");
       assert.equal(r.status, 0, r.stderr);
       const brief = json(r); assert.equal(brief.brief.role, "tester");
       assert.match(JSON.stringify(brief.translation), /edge1/);
@@ -58,7 +61,7 @@ describe("recoverable Adversary and Tester delivery", () => {
     assert.equal(s.begin().status, 0);
     const reviewed = s.sha(); s.commit();
     assert.equal(s.stage().session, "repair", "partial repair uses original findings, not current verification");
-    const repair = json(s.run("brief", "1.1", "--session", "repair", "--harness", "codex", "--json"));
+    const repair = json(s.run("brief", "1.1", "--approval", APPROVAL, "--session", "repair", "--harness", "codex", "--json"));
     assert.match(repair.translation.invocation.arguments.message, new RegExp(reviewed));
     s.set({ State: "adversary", Review: "ordinary", Repair: `completed:${reviewed}` });
     assert.equal(s.stage().session, "adversary", "new head invalidates previous experiment report");
@@ -75,7 +78,7 @@ describe("recoverable Adversary and Tester delivery", () => {
     for (const field of ["ticket", "pr", "head_sha"]) {
       const report = s.experiment(); report[field] = field === "ticket" ? "1.2" : field === "pr" ? PR.replace("7", "8") : "a".repeat(40);
       s.experiments(report); assert.equal(s.stage().session, "adversary");
-      assert.equal(s.run("brief", "1.1", "--session", "review", "--harness", "manual").status, 1);
+      assert.equal(s.run("brief", "1.1", "--approval", APPROVAL, "--session", "review", "--harness", "manual").status, 1);
     }
     s.experiments(); s.stage("--advance"); s.findings(); s.commit();
     assert.match(s.run("stage", "1.1").stderr, /stale Tester findings|SHA-matching Adversary/g);
@@ -109,7 +112,7 @@ describe("recoverable Adversary and Tester delivery", () => {
     for (const session of ["merge-and-reverify", "rebase-and-reverify"]) {
       const s = setup(); s.set({ Next: `${session} target ${s.sha()}; full verification pending; future Tester` });
       assert.equal(s.stage().session, session);
-      const text = s.run("brief", "1.1", "--session", session, "--harness", "manual").stdout;
+      const text = s.run("brief", "1.1", "--approval", APPROVAL, "--session", session, "--harness", "manual").stdout;
       assert.match(text, /rerun every check|rerun every check/);
       assert.match(text, /If behavior changed/); assert.match(text, /never set done before fresh Tester/);
       s.set({ State: "review", Review: `integration:${s.sha()}`, Next: `verification and push complete at ${s.sha()}; Tester pending` });
@@ -143,7 +146,7 @@ describe("recoverable Adversary and Tester delivery", () => {
     pending.commit(); const checkpoint = readFileSync(pending.path, "utf8");
     assert.match(pending.run("stage", "1.1", "--advance").stderr, /stale Tester findings/);
     assert.notEqual(pending.begin().status, 0, "undispatched worker cannot waive changed-head freshness");
-    for (const harness of ["manual", "claude-code", "codex"]) assert.equal(pending.run("brief", "1.1", "--session", "repair", "--harness", harness).status, 1);
+    for (const harness of ["manual", "claude-code", "codex"]) assert.equal(pending.run("brief", "1.1", "--approval", APPROVAL, "--session", "repair", "--harness", harness).status, 1);
     assert.equal(readFileSync(pending.path, "utf8"), checkpoint);
     const started = setup(); started.set({ State: "adversary", Review: "ordinary" });
     started.experiments(); started.stage("--advance"); started.findings(); started.stage("--advance");
@@ -181,7 +184,7 @@ describe("recoverable Adversary and Tester delivery", () => {
       assert.equal(s.stage().report.head_sha, origin);
       assert.equal(s.begin().status, 0, "owning resumed repair is idempotent after progress update");
       for (const harness of ["manual", "claude-code", "codex"]) {
-        const brief = s.run("brief", "1.1", "--session", "repair", "--harness", harness, "--json");
+        const brief = s.run("brief", "1.1", "--approval", APPROVAL, "--session", "repair", "--harness", harness, "--json");
         assert.equal(brief.status, 0, brief.stderr);
         assert.match(JSON.stringify(json(brief).translation), new RegExp(origin));
       }
@@ -217,7 +220,7 @@ describe("recoverable Adversary and Tester delivery", () => {
       assert.equal(resumed.session, expected);
       assert.doesNotMatch(readFileSync(s.path, "utf8"), /^- Failed stage:/m);
       assert.ok(readFileSync(s.path, "utf8").includes("## Execution" + profile));
-      const brief = s.run("brief", "1.1", "--session", resumed.session, "--harness", "codex", "--json");
+      const brief = s.run("brief", "1.1", "--approval", APPROVAL, "--session", resumed.session, "--harness", "codex", "--json");
       assert.equal(brief.status, 0, brief.stderr);
     }
     const unknown = setup(); unknown.set({ State: "failed", Last: "review failed; human says retry", Next: "resume Tester" });

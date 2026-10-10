@@ -7,7 +7,7 @@
  *   node bin/orchestrate.mjs owner  <key> [--json]
  *   node bin/orchestrate.mjs status [--feature NN] [--live a,b] [--json]
  *   node bin/orchestrate.mjs estimate <key> [--risk <v> --reason <text>] [--json]
- *   node bin/orchestrate.mjs brief <key> --harness <id> [--session <s>] [--approval <text>] [--json]
+ *   node bin/orchestrate.mjs brief <key> --harness <id> --approval <text> [--session <s>] [--json]
  *   node bin/orchestrate.mjs plan [--feature NN] [--workers N] [--live a,b] [--json]
  *   node bin/orchestrate.mjs announce <key> [--now <iso>]
  *   node bin/orchestrate.mjs gate <key> open --question <text> | resolve [--answer <text>] [--now <iso>]
@@ -135,11 +135,13 @@ const USAGE = `orchestrate
   board ... [--comment-blocked <key>] [--comment-unblocked <key> --by <key>]
       Also post why a ticket waits, or that a completion unblocked it.
 
-  brief <key> --harness claude-code|codex|manual [--session implementation|resume|adversary|review|repair|rebase-and-reverify|merge-and-reverify|resolve-conflict]
-        [--approval <text>] [--json]
+  brief <key> --harness claude-code|codex|manual --approval <text>
+        [--session implementation|resume|adversary|review|repair|rebase-and-reverify|merge-and-reverify|resolve-conflict] [--json]
       The worker brief for a claimed ticket, from the profile its claim
-      recorded, and how that harness would honour it. Refuses a model or
-      effort the harness cannot honour, by name. Reads only.
+      recorded, and how that harness would honour it. --approval is the
+      scope the human granted the run, and is required: a missing or empty
+      value is a usage error, and no default is substituted. Refuses a
+      model or effort the harness cannot honour, by name. Reads only.
 
   Common: --root <dir>  --store local|github-issues:owner/repo  --gh <path>
 `;
@@ -274,6 +276,12 @@ async function main(argv) {
     case "brief":
       if (!isKey(positional[0])) return fail(2, `brief needs a ticket key such as 53.2\n\n${USAGE}`);
       if (!flags.harness) return fail(2, `brief needs --harness\n\n${USAGE}`);
+      // The approval is the human authority the session runs under. It is
+      // never defaulted: a brief without it would start a session nobody
+      // approved, and nothing would say so.
+      if (typeof flags.approval !== "string" || flags.approval.trim() === "") {
+        return fail(2, `brief needs --approval <text>: the non-empty scope the human approved for this run\n\n${USAGE}`);
+      }
       return brief({
         root,
         key: positional[0],
@@ -282,7 +290,7 @@ async function main(argv) {
         gh: common.gh,
         store: common.store,
         live: listOf(flags.live),
-        approval: flags.approval ?? "as granted by the orchestration run that dispatches this worker",
+        approval: flags.approval,
         json: Boolean(flags.json),
       });
     case "owner":

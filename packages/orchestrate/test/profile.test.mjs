@@ -41,6 +41,9 @@ import {
 
 after(cleanUpTemporaryDirectories);
 
+/** Every brief needs the human approval scope the run was granted; the engine never defaults it. */
+const APPROVAL = "execution of this Feature's tickets in this round; no merges";
+
 const NOW = "2026-09-17T12:00:00.000Z";
 
 /** A ticket body with `changes` bullets, `paths` Context paths, and a Relevant area. */
@@ -426,17 +429,17 @@ describe("the seam: adding a policy changes nothing else", () => {
     const row = JSON.parse(run(engine, ["status", "--json", "--live", "1.1"], root).stdout).rows[0];
     assert.equal(row.worker, "1.1 developer");
 
-    const manual = JSON.parse(run(engine, ["brief", "1.1", "--harness", "manual", "--json"], root).stdout);
+    const manual = JSON.parse(run(engine, ["brief", "1.1", "--approval", APPROVAL, "--harness", "manual", "--json"], root).stdout);
     assert.deepEqual(
       { model: manual.brief.model, effort: manual.brief.effort, invocation: manual.translation.invocation.effort },
       { model: "haiku", effort: "high", invocation: "high" },
     );
 
-    const claude = run(engine, ["brief", "1.1", "--harness", "claude-code"], root);
+    const claude = run(engine, ["brief", "1.1", "--approval", APPROVAL, "--harness", "claude-code"], root);
     assert.equal(claude.status, 1, "Claude Code subagents take no effort, so effort: high is refused");
     assert.match(claude.stderr, /cannot honour effort `high`: the subagent call takes no reasoning-effort setting/);
 
-    const review = JSON.parse(run(engine, ["brief", "1.1", "--harness", "manual", "--session", "review", "--gh", prepareIntegrationReview(root), "--json"], root).stdout);
+    const review = JSON.parse(run(engine, ["brief", "1.1", "--approval", APPROVAL, "--harness", "manual", "--session", "review", "--gh", prepareIntegrationReview(root), "--json"], root).stdout);
     assert.deepEqual(
       { role: review.brief.role, model: review.brief.model, session: review.brief.session },
       { role: "tester", model: "sonnet", session: "review" },
@@ -655,7 +658,7 @@ describe("repairs from the 53.7 re-review", () => {
     const row = json(orchestrate(["status", "--json", "--live", "1.1"], { root })).rows[0];
     assert.equal(row.gate, "—");
     assert.equal(row.role, "developer");
-    assert.equal(orchestrate(["brief", "1.1", "--harness", "manual"], { root }).status, 0);
+    assert.equal(orchestrate(["brief", "1.1", "--approval", APPROVAL, "--harness", "manual"], { root }).status, 0);
   });
 
   it("has a review worker at a gate set State: human-gate, as status expects", () => {

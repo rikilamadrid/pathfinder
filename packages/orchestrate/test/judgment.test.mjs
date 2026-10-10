@@ -25,6 +25,9 @@ import { cleanUpTemporaryDirectories, ENGINE_BIN, ENGINE_ROOT, gitEnv, makeProje
 
 after(cleanUpTemporaryDirectories);
 
+/** Every brief needs the human approval scope the run was granted; the engine never defaults it. */
+const APPROVAL = "execution of this Feature's tickets in this round; no merges";
+
 const PR = "https://github.com/acme/widgets/pull/7";
 const HEAD = "a".repeat(40);
 const VERIFICATION = ["`npm test` passes", "an empty input is rejected with a clear error"];
@@ -1337,7 +1340,7 @@ describe("worker briefs ask for the projection only where a judge is named", () 
       const s = doneClaim({ judge });
       const text = readFileSync(s.path, "utf8");
       writeFileSync(s.path, updateStateText(text.slice(0, text.indexOf("## Tester findings")), { set: { State: "review" } }));
-      const result = orchestrate(["brief", "1.1", "--harness", "manual", "--session", "review", "--json", "--gh", s.gh], { root: s.root });
+      const result = orchestrate(["brief", "1.1", "--approval", APPROVAL, "--harness", "manual", "--session", "review", "--json", "--gh", s.gh], { root: s.root });
       assert.equal(result.status, 0, result.stderr);
       const protocol = JSON.parse(result.stdout).brief.protocol.join("\n");
       assert.equal(/names an Evidence Judge.*limits_summary/.test(protocol), Boolean(judge));
@@ -1531,7 +1534,7 @@ describe("the whole outbound request: every field generated or judge prose", () 
     assert.equal(JSON.stringify(server.hits[0].request).includes("--prefix"), false);
     const text = readFileSync(s.path, "utf8");
     writeFileSync(s.path, updateStateText(text.slice(0, text.indexOf("## Tester findings")), { set: { State: "review" } }));
-    const brief = orchestrate(["brief", "1.1", "--harness", "manual", "--session", "review", "--json", "--gh", s.gh], { root: s.root });
+    const brief = orchestrate(["brief", "1.1", "--approval", APPROVAL, "--harness", "manual", "--session", "review", "--json", "--gh", s.gh], { root: s.root });
     assert.equal(brief.status, 0, brief.stderr);
     assert.match(JSON.parse(brief.stdout).brief.protocol.join("\n"), /cannot be sent to the judge as written: verification:1\./);
   });

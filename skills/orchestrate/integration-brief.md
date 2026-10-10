@@ -1,16 +1,16 @@
 # Integration repair briefs
 
-`orchestrate brief <key> --harness <harness> --session rebase-and-reverify`
+`orchestrate brief <key> --harness <harness> --session rebase-and-reverify --approval "<approved scope>"`
 resumes a done worker whose branch fell behind the default branch when the
 repository permits rewriting and the required approval exists.
 
-`orchestrate brief <key> --harness <harness> --session merge-and-reverify`
+`orchestrate brief <key> --harness <harness> --session merge-and-reverify --approval "<approved scope>"`
 merges the synchronized default-branch head into the existing ticket branch and
 pushes normally, preserving published ancestry. Use it when rewriting published
 history or force-pushing is prohibited and ticket-branch merges are allowed.
 Missing, ambiguous or contradictory policy opens a gate before mutation.
 
-`orchestrate brief <key> --harness <harness> --session resolve-conflict`
+`orchestrate brief <key> --harness <harness> --session resolve-conflict --approval "<approved scope>"`
 returns the conflicting paths and current heads to the same worker for repair.
 
 All use the claim's existing role, model, effort, branch, worktree, and ticket.

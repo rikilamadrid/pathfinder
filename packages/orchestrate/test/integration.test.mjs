@@ -5,6 +5,9 @@ import { after, describe, it } from "node:test";
 import { prepareIntegrationReview, cleanUpTemporaryDirectories, makeProject, orchestrate, json, runGit, temporaryDirectory } from "../lib/harness.mjs";
 
 after(cleanUpTemporaryDirectories);
+
+/** Every brief needs the human approval scope the run was granted; the engine never defaults it. */
+const APPROVAL = "execution of this Feature's tickets in this round; no merges";
 function project() { return makeProject({ tickets: { "1.1": { title: "Alpha" }, "1.2": { title: "Beta" } } }); }
 function call(root, ...args) {
   const result = orchestrate(args, { root });
@@ -92,7 +95,7 @@ describe("integration evidence from real Git branches", () => {
     assert.equal(recovered.state, "stale");
     assert.match(recovered.next, /update complete; verification and independent review pending/);
     assert.equal(orchestrate(["check", "1.1"], { root }).status, 1, "old review cannot authorise integration while revalidation is pending");
-    const resumed = json(call(root, "brief", "1.1", "--harness", "codex", "--session", "merge-and-reverify", "--json"));
+    const resumed = json(call(root, "brief", "1.1", "--approval", APPROVAL, "--harness", "codex", "--session", "merge-and-reverify", "--json"));
     assert.equal(resumed.brief.branch, claim.branch);
     assert.match(resumed.translation.invocation.arguments.message, /skip an already incorporated target/);
     assert.equal(runGit(["rev-parse", "HEAD"], worktree).trim(), updated, "brief generation never repeats a merge");
@@ -101,7 +104,7 @@ describe("integration evidence from real Git branches", () => {
     const ready = json(call(root, "status", "--json")).rows[0];
     assert.equal(ready.recordedState, "review");
     assert.equal(ready.next, `verification and push complete at ${updated}; Tester pending`);
-    const tester = json(call(root, "brief", "1.1", "--harness", "codex", "--session", "review", "--gh", prepareIntegrationReview(root), "--json"));
+    const tester = json(call(root, "brief", "1.1", "--approval", APPROVAL, "--harness", "codex", "--session", "review", "--gh", prepareIntegrationReview(root), "--json"));
     assert.equal(tester.brief.role, "tester");
     assert.equal(runGit(["rev-parse", "HEAD"], worktree).trim(), updated);
     done(root, "1.1"); // Coordinator records the new independent PASS.
@@ -239,7 +242,7 @@ describe("recovery and integration briefs", () => {
     const root = project(); worker(root, "1.1"); done(root, "1.1");
     for (const session of ["rebase-and-reverify", "merge-and-reverify"]) {
       const before = runGit(["rev-parse", "HEAD"], path(root, "1.1"));
-      const brief = json(call(root, "brief", "1.1", "--harness", "manual", "--session", session, "--json"));
+      const brief = json(call(root, "brief", "1.1", "--approval", APPROVAL, "--harness", "manual", "--session", session, "--json"));
       assert.match(brief.translation.invocation.prompt, /Missing, ambiguous or contradictory policy requires GATE/);
       assert.match(brief.translation.invocation.prompt, /documented repository Git policy/);
       assert.match(brief.translation.invocation.prompt, /checkpoint Review: integration:<exact head SHA>, State: review and Next: verification and push complete at <exact head SHA>; Tester pending/);
@@ -263,7 +266,7 @@ describe("recovery and integration briefs", () => {
     assert.equal(row.state, "stale"); assert.equal(row.recordedState, "working");
     assert.equal(row.updated, "2026-09-17T12:00:00Z"); assert.equal(row.next, "verify completed increment");
     assert.equal(orchestrate(["claim", "1.1"], { root }).status, 1);
-    const resumed = json(call(root, "brief", "1.1", "--harness", "codex", "--session", "resume", "--json"));
+    const resumed = json(call(root, "brief", "1.1", "--approval", APPROVAL, "--harness", "codex", "--session", "resume", "--json"));
     assert.equal(resumed.brief.branch, claim.branch);
     assert.equal(resumed.brief.model, claim.profile.selection.model);
     assert.match(resumed.translation.invocation.arguments.message, /Continue from its Next line/);
@@ -274,7 +277,7 @@ describe("recovery and integration briefs", () => {
   for (const session of ["rebase-and-reverify", "merge-and-reverify", "resolve-conflict"]) {
     it(`${session} uses the existing profile and returns work to developer`, () => {
       const root = project(); const claim = worker(root, "1.1"); done(root, "1.1");
-      const result = json(call(root, "brief", "1.1", "--harness", "codex", "--session", session, "--json"));
+      const result = json(call(root, "brief", "1.1", "--approval", APPROVAL, "--harness", "codex", "--session", session, "--json"));
       assert.equal(result.brief.session, session);
       assert.equal(result.brief.branch, claim.branch);
       assert.equal(result.brief.role, "developer");
