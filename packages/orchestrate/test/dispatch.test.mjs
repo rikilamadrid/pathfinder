@@ -110,6 +110,41 @@ describe("the dispatch plan", () => {
     assert.deepEqual(inherited.stale.map((entry) => entry.key), ["1.1"], "and is listed, never re-dispatched");
   });
 
+  it("describes stale claims as start §Continuing a run does, with each recorded state", () => {
+    const root = abc();
+    orchestrate(["claim", "1.1", "--now", NOW], { root });
+    assert.equal(orchestrate(["state", "1.1", "--set", "adversary", "--now", NOW], { root }).status, 0);
+    runGit(["branch", "ticket/1.3-orphan"], root);
+
+    const text = orchestrate(["plan", "--workers", "3"], { root });
+    assert.equal(text.status, 0, text.stderr);
+    const lines = text.stdout.split("\n");
+
+    assert.match(text.stdout, /Stale claims — no live session; never re-dispatched:/);
+    assert.match(
+      text.stdout,
+      /A pending claim \(worktree present, recorded state working, adversary, review or repair\)\n\s+is continued by start only after the human confirms its old session has stopped\./,
+    );
+    assert.match(text.stdout, /Any other stale claim is resumed with: resume <key>/);
+
+    const pending = lines.find((line) => /^\s+1\.1\s/.test(line));
+    assert.match(pending, /^  1\.1  pending — recorded state adversary$/, "a pending claim shows its recorded state");
+    assert.match(lines[lines.indexOf(pending) + 1], /ticket\/1\.1-\S+ @ \.pathfinder\/worktrees\/1\.1$/);
+
+    const orphan = lines.find((line) => /^\s+1\.3\s/.test(line));
+    assert.match(orphan, /^  1\.3  resume 1\.3 — no state$/, "an orphan is left to resume and has no recorded state");
+    assert.match(lines[lines.indexOf(orphan) + 1], /ticket\/1\.3-orphan \(no worktree\)$/);
+
+    const plan = planOf(root, ["--workers", "3"]);
+    assert.deepEqual(
+      plan.stale.map((entry) => Object.keys(entry)),
+      [["key", "branch", "worktree", "orphan", "state"], ["key", "branch", "worktree", "orphan", "state"]],
+      "plan --json keeps its shape: rendering adds no field",
+    );
+    assert.deepEqual(plan.stale.map((entry) => [entry.key, entry.orphan, entry.state]), [["1.1", false, "adversary"], ["1.3", true, null]]);
+    assert.deepEqual(plan.dispatch.map((entry) => entry.key), ["1.2"], "neither stale claim is dispatched");
+  });
+
   it("never puts two tickets that name the same file in one round", () => {
     const root = makeProject({ tickets: {} });
     writeFileSync(join(root, "context", "tickets", "1.1-one.md"), areaTicket("One", ["src/app.mjs"]));

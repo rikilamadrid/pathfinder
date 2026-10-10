@@ -141,9 +141,23 @@ export function formatPlan(plan) {
     for (const entry of plan.blocked) lines.push(`  ${entry.key}  ${entry.reason}`);
   }
   if (plan.stale.length > 0) {
-    lines.push("", "Stale claims — never re-dispatched; resume deliberately:");
+    // Wording follows `start` §Continuing a run. A pending claim has a
+    // worktree and a recorded ACTIVE state; everything else — an orphan, or a
+    // worktree with no state file — is left to `resume`.
+    lines.push(
+      "",
+      "Stale claims — no live session; never re-dispatched:",
+      "  A pending claim (worktree present, recorded state working, adversary, review or repair)",
+      "  is continued by start only after the human confirms its old session has stopped.",
+      "  Any other stale claim is resumed with: resume <key>",
+    );
     for (const entry of plan.stale) {
-      lines.push(`  ${entry.key}  ${entry.orphan ? `${entry.branch ?? "claim ref"} (no worktree)` : `${entry.branch} @ ${entry.worktree}`}`);
+      const pending = !entry.orphan && ACTIVE.has(entry.state);
+      const recorded = entry.state ? `recorded state ${entry.state}` : "no state";
+      lines.push(
+        `  ${entry.key}  ${pending ? "pending" : `resume ${entry.key}`} — ${recorded}`,
+        `        ${entry.orphan ? `${entry.branch ?? "claim ref"} (no worktree)` : `${entry.branch} @ ${entry.worktree}`}`,
+      );
     }
   }
   return lines.join("\n") + "\n";
