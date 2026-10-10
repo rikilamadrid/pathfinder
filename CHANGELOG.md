@@ -35,6 +35,13 @@ The heading of the most recent released section below is the single source of tr
   integration repair briefs — already passes the round's approval, so
   nothing documented changes; any caller outside those procedures must now
   pass the approved scope explicitly.
+- `orchestrate brief` refuses every session — `implementation`, `resume`,
+  `adversary`, `review`, `repair` and the integration refreshes — on any
+  harness while the claim's recorded state is `human-gate`, exiting 1 with the
+  same `human gate: <question>` message `stage --advance` uses, before
+  anything session-specific is read. The claim and its files are untouched,
+  and `gate <key> resolve` remains the only way past it; after that, `brief`
+  behaves exactly as before.
 - The note `orchestrate board --comment-unblocked` posts on a newly eligible
   ticket now says the next orchestration round may claim it under its own
   approval, matching the round boundary in `start` §5; it no longer implies

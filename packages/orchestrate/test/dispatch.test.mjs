@@ -17,6 +17,7 @@ import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
 import { approvalScope, blockedNote, claimedNote, gateOpenedNote, marker } from "../../../skills/orchestrate/engine/comments.mjs";
+import { selectStage } from "../../../skills/orchestrate/engine/stage.mjs";
 import { updateStateText } from "../../../skills/orchestrate/engine/statefile.mjs";
 import { appendUnderNotes } from "../../../skills/orchestrate/engine/tracker.mjs";
 import {
@@ -568,6 +569,55 @@ describe("briefs for dispatch", () => {
     assert.equal(unclaimed.status, 2);
     assert.match(unclaimed.stderr, /brief needs --approval/);
     assert.doesNotMatch(unclaimed.stderr, /no registered claim/);
+  });
+
+  it("refuses every session on every harness while the claim is at a human gate, and builds again once it is resolved", () => {
+    const root = abc();
+    orchestrate(["claim", "1.1", "--now", NOW], { root });
+    const statePath = join(root, ".pathfinder", "worktrees", "1.1", "context", "current-ticket.md");
+    const question = "Which schema version ships?";
+    assert.equal(orchestrate(["gate", "1.1", "open", "--question", question, "--now", NOW], { root }).status, 0);
+    const gated = readFileSync(statePath, "utf8");
+    assert.match(gated, /^- State: human-gate$/m);
+
+    // The message is the one `stage --advance` refuses with, read from the
+    // same claim: the selector is pure, so it says what it would say.
+    const claim = json(orchestrate(["owner", "1.1", "--json"], { root })).claim;
+    const refusal = selectStage({ claim, text: gated, pr: null, head: null });
+    assert.equal(refusal.ok, false);
+    assert.equal(refusal.message, `human gate: ${question}`);
+
+    // No --gh is given on purpose: `review`, `repair` and the integration
+    // refresh would otherwise consult the pull request, and the refusal must
+    // come before any of that is read.
+    const sessions = ["implementation", "resume", "repair", "review", "merge-and-reverify"];
+    for (const harness of ["manual", "codex"]) {
+      for (const session of sessions) {
+        for (const extra of [[], ["--json"]]) {
+          const name = `${harness} ${session}${extra.length ? " --json" : ""}`;
+          const result = orchestrate(["brief", "1.1", "--harness", harness, "--session", session, "--approval", APPROVAL, ...extra], { root });
+          assert.equal(result.status, 1, `${name}: a refusal, not a usage error`);
+          assert.equal(result.stdout, "", `${name}: no brief is built`);
+          assert.equal(result.stderr, `orchestrate: ${refusal.message}\n`, `${name}: names the open question, and nothing else`);
+        }
+      }
+    }
+    assert.equal(readFileSync(statePath, "utf8"), gated, "the state file is byte-identical across the refusals");
+    assert.equal(runGit(["status", "--porcelain"], root), "");
+
+    assert.equal(orchestrate(["gate", "1.1", "resolve", "--answer", "Version 2.", "--now", NOW], { root }).status, 0);
+    for (const harness of ["manual", "codex"]) {
+      for (const session of ["implementation", "resume"]) {
+        const result = orchestrate(["brief", "1.1", "--harness", harness, "--session", session, "--approval", APPROVAL], { root });
+        assert.equal(result.status, 0, `${harness} ${session} after resolve: ${result.stderr}`);
+        assert.doesNotMatch(result.stderr, /human gate/);
+        assert.match(result.stdout, /^Role: {6}developer$/m, `${harness} ${session} after resolve`);
+      }
+    }
+    // Sessions that need a pull request fail for that reason now, never the gate.
+    const review = orchestrate(["brief", "1.1", "--harness", "manual", "--session", "review", "--approval", APPROVAL], { root });
+    assert.equal(review.status, 1);
+    assert.doesNotMatch(review.stderr, /human gate/);
   });
 
   it("carries the approval text into the brief and every harness invocation unchanged", () => {

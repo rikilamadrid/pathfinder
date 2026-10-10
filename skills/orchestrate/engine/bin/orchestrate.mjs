@@ -140,8 +140,10 @@ const USAGE = `orchestrate
       The worker brief for a claimed ticket, from the profile its claim
       recorded, and how that harness would honour it. --approval is the
       scope the human granted the run, and is required: a missing or empty
-      value is a usage error, and no default is substituted. Refuses a
-      model or effort the harness cannot honour, by name. Reads only.
+      value is a usage error, and no default is substituted. Refuses every
+      session while the claim is at a human gate, naming the open question;
+      gate <key> resolve is the only way past it. Refuses a model or effort
+      the harness cannot honour, by name. Reads only.
 
   Common: --root <dir>  --store local|github-issues:owner/repo  --gh <path>
 `;
@@ -495,6 +497,13 @@ function criteriaGuidance(root, key, { store: storeOverride, gh }) {
 async function brief({ root, key, harness, session, approval, json, gh = "gh", store: storeOverride, live = [] }) {
   const found = claimFor(root, key);
   if (!found || found.orphan) return fail(1, `${key} has no registered claim to brief`);
+  // A worker at a human gate stopped for a decision nobody has made yet. No
+  // session is built past it — implementation, resume, repair, review, or an
+  // integration refresh, on any harness — before anything session-specific
+  // is read, so the refusal names the open question and nothing else.
+  // `gate <key> resolve` is the only way on. The wording is the one
+  // `stage --advance` refuses with (`selectStage` in stage.mjs).
+  if (found.state === "human-gate") return fail(1, `human gate: ${found.gate}`);
   if (!found.profile) {
     return fail(1, `${key}'s state file carries no valid execution profile${found.profileError ? `: ${found.profileError}` : ""}`);
   }
