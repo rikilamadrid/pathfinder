@@ -44,12 +44,27 @@ const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 
 const TRANSIENT = new Set(["EPERM", "EBUSY", "EACCES", "ENOTEMPTY"]);
 
 /**
- * Run npm. On Windows `npm` is a .cmd shim, which Node starts only through a
- * shell; the arguments here are fixed words, and the program path is quoted.
+ * The program and leading arguments that run npm, never through a shell.
+ *
+ * A `.js`/`.cjs`/`.mjs` path runs under this Node. On Windows, plain `npm` is
+ * a .cmd shim that Node starts only through cmd.exe — which would make the
+ * path shell syntax and search the current directory, the reviewed tree,
+ * first — so it resolves to the npm-cli.js installed beside this Node instead,
+ * and any other Windows value must name a script.
  */
+export function npmCommand(npm = "npm", platform = process.platform, execPath = process.execPath) {
+  if (/\.(?:c|m)?js$/i.test(npm)) return { ok: true, file: execPath, args: [npm] };
+  if (platform !== "win32") return { ok: true, file: npm, args: [] };
+  if (npm !== "npm") return refuse(`on Windows --npm must name npm's npm-cli.js (or another .js entry point), not ${npm}; shims run only through cmd.exe`);
+  const cli = join(dirname(execPath), "node_modules", "npm", "bin", "npm-cli.js");
+  if (!existsSync(cli)) return refuse(`cannot find npm beside this Node at ${cli}; pass --npm <path to npm-cli.js>`);
+  return { ok: true, file: execPath, args: [cli] };
+}
+
 export function runNpm(npm, args, options = {}) {
-  if (process.platform !== "win32") return spawnSync(npm, args, { encoding: "utf8", ...options });
-  return spawnSync(/[\s"]/.test(npm) ? `"${npm.replace(/"/g, "")}"` : npm, args, { encoding: "utf8", shell: true, windowsHide: true, ...options });
+  const command = npmCommand(npm);
+  if (!command.ok) return { status: null, stdout: "", stderr: command.message, error: new Error(command.message) };
+  return spawnSync(command.file, [...command.args, ...args], { encoding: "utf8", windowsHide: true, ...options });
 }
 
 /** Rename, retrying the transient sharing violations Windows reports while a scanner holds a file open. */
@@ -67,13 +82,28 @@ function renameRetrying(from, to, attempts = process.platform === "win32" ? 8 : 
  * Every machine-dependent input can be overridden so the key is testable.
  */
 /**
- * A hash of the configuration npm reads besides the project: NODE_ENV, every
- * npm_config_* variable, and the user .npmrc. NODE_ENV=production alone
+ * A hash of the configuration npm reads besides the project: NODE_ENV, the
+ * install-affecting npm_config_* variables, and the user .npmrc. NODE_ENV=production alone
  * changes what `npm ci` installs. Values are hashed, never stored: they can
  * hold registry tokens.
  */
+const INSTALL_SETTINGS = new Set([
+  "omit", "include", "production", "only", "also", "dev", "optional", "registry", "ignore_scripts", "legacy_peer_deps",
+  "strict_peer_deps", "install_links", "install_strategy", "global_style", "legacy_bundling", "engine_strict", "force",
+  "os", "cpu", "libc", "arch", "platform", "target", "target_arch", "target_platform", "runtime", "disturl",
+  "build_from_source", "python", "msvs_version", "script_shell", "node_gyp", "sharp_binary_host", "sharp_libvips_binary_host",
+]);
+const installSetting = (name) => {
+  const match = /^npm_config_(.+)$/i.exec(name);
+  if (!match) return false;
+  const setting = match[1].toLowerCase().replace(/-/g, "_");
+  return INSTALL_SETTINGS.has(setting) || setting.endsWith(":registry") || setting.endsWith("_registry");
+};
+
 export function npmEnvironment(env = process.env) {
-  const names = Object.keys(env).filter((name) => /^npm_config_/i.test(name) || name === "NODE_ENV").sort();
+  // Only settings that change what gets installed: npm also sets per-run
+  // variables (prefix, user agent, cache) that would split one key per tree.
+  const names = Object.keys(env).filter((name) => installSetting(name) || name === "NODE_ENV").sort();
   const userconfig = env.npm_config_userconfig || env.NPM_CONFIG_USERCONFIG || join(env.HOME || env.USERPROFILE || homedir(), ".npmrc");
   let user = null;
   try { user = sha256(readFileSync(userconfig)); } catch { user = null; }
@@ -222,12 +252,41 @@ function acquire(lock, { entry, key, timeoutMs, pollMs, orphanMs, shortcut = tru
       try { stale = Date.now() - statSync(lock).mtimeMs > orphanMs; } catch { stale = false; }
     }
     if (stale) {
-      const retired = `${lock}.stale-${randomUUID()}`;
-      try { renameSync(lock, retired); rmSync(retired, { recursive: true, force: true }); } catch { /* another waiter retired it */ }
+      breakStale(lock, owner, orphanMs);
       continue;
     }
     if (Date.now() > deadline) return refuse(`timed out after ${timeoutMs} ms waiting for the install holding ${lock}`);
     sleep(pollMs);
+  }
+}
+
+const sameOwner = (a, b) => Boolean(a && b && a.pid === b.pid && a.host === b.host && a.platform === b.platform);
+
+/**
+ * Retire a stale lock, one breaker at a time. Without the breaker, two waiters
+ * that both saw the same dead owner could race: the first retires it, a third
+ * process takes a fresh lock, and the second retires that live lock. Under the
+ * breaker the lock is re-read and retired only if it still has the dead owner
+ * (or is still an old ownerless directory). A breaker left by a crash expires.
+ */
+function breakStale(lock, observed, orphanMs) {
+  const breaker = `${lock}.break`;
+  try {
+    mkdirSync(breaker);
+  } catch {
+    try { if (Date.now() - statSync(breaker).mtimeMs > orphanMs) rmdirSync(breaker); } catch { /* gone already */ }
+    return;
+  }
+  try {
+    const current = lockOwner(lock);
+    let still = false;
+    if (observed) still = sameOwner(current, observed);
+    else { try { still = !current && Date.now() - statSync(lock).mtimeMs > orphanMs; } catch { still = false; } }
+    if (!still) return;
+    const retired = `${lock}.stale-${randomUUID()}`;
+    try { renameSync(lock, retired); rmSync(retired, { recursive: true, force: true }); } catch { /* already retired */ }
+  } finally {
+    try { rmdirSync(breaker); } catch { /* expires */ }
   }
 }
 
@@ -381,7 +440,9 @@ export function materialize({ entry, tree, platform = process.platform, cp = "cp
   try { lstatSync(target); } catch { exists = false; }
   if (exists) return refuse(`${target} already exists; materialize only into a tree without dependencies`);
   let strategy = null;
-  if (!isComplete(entry, JSON.parse(readFileSync(join(entry, "entry.json"), "utf8")).key)) return refuse(`${entry} is not a complete entry`);
+  let record;
+  try { record = JSON.parse(readFileSync(join(entry, "entry.json"), "utf8")); } catch { record = null; }
+  if (!record || !isComplete(entry, record.key)) return refuse(`${entry} is no longer a complete entry; nothing was materialized`);
   for (const candidate of strategies) {
     const result = spawnSync(cp, [...candidate.args, source, target], { encoding: "utf8", windowsHide: true });
     if (result.status === 0) { strategy = candidate.name; break; }
@@ -390,7 +451,6 @@ export function materialize({ entry, tree, platform = process.platform, cp = "cp
   }
   let warning = null;
   if (!strategy) {
-    const record = JSON.parse(readFileSync(join(entry, "entry.json"), "utf8"));
     const bytes = Number.isFinite(record.bytes) ? record.bytes : treeBytes(source);
     if (beforeCopy) {
       const verdict = beforeCopy(bytes);

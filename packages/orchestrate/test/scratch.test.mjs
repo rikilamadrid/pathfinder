@@ -6,12 +6,15 @@ import { pathToFileURL } from "node:url";
 import { after, describe, it } from "node:test";
 import { cleanUpTemporaryDirectories, ENGINE_BIN, ENGINE_ROOT, gitEnv, json, makeProject, orchestrate, temporaryDirectory } from "../lib/harness.mjs";
 
-const { cacheInputs, ensureEntry, escapingLinks, holdKey, materialize } = await import(pathToFileURL(join(ENGINE_ROOT, "deps.mjs")));
+const { cacheInputs, ensureEntry, escapingLinks, holdKey, materialize, npmCommand, unpublish } = await import(pathToFileURL(join(ENGINE_ROOT, "deps.mjs")));
 const { diskCheck, freeBytes, readDiskPolicy, roomFor } = await import(pathToFileURL(join(ENGINE_ROOT, "disk.mjs")));
-const { reclaimAfterCheckpoint, runStatus, within } = await import(pathToFileURL(join(ENGINE_ROOT, "scratch.mjs")));
+const { real, reclaimAfterCheckpoint, runStatus, within } = await import(pathToFileURL(join(ENGINE_ROOT, "scratch.mjs")));
 const { findOwner, liveness, ownerRecord, processChain } = await import(pathToFileURL(join(ENGINE_ROOT, "process.mjs")));
 
 const WINDOWS = process.platform === "win32";
+/** Tests not about disk run with no thresholds, so a nearly full CI runner cannot fail them. */
+const QUIET = { PATHFINDER_DISK_WARN_GB: "0", PATHFINDER_DISK_FLOOR_GB: "0" };
+const cli = (args, { env = {}, ...options } = {}) => orchestrate(args, { ...options, env: { ...QUIET, ...env } });
 /** A directory link any user can make: a junction on Windows, a symlink elsewhere. */
 const linkDir = (target, path) => symlinkSync(target, path, WINDOWS ? "junction" : "dir");
 /** A process that stays alive until killed, without POSIX `sleep`. */
@@ -58,12 +61,7 @@ const delay = Number(process.env.FAKE_NPM_DELAY_MS || 0);
 if (delay) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay);
 fs.writeFileSync("node_modules/.package-lock.json", lock);
 `);
-  if (WINDOWS) {
-    const shim = join(dir, "npm.cmd");
-    writeFileSync(shim, `@"${process.execPath}" "${script}" %*\r\n`);
-    return shim;
-  }
-  chmodSync(script, 0o755);
+  // A .js entry runs under Node on every platform, never through a shell.
   return script;
 }
 
@@ -72,7 +70,7 @@ function deadPid() {
 }
 
 function newRun(root, { extra = [], env = {}, ticket = "1.1" } = {}) {
-  const result = orchestrate(["scratch", "new", ticket, "--role", "tester", "--head", HEAD, "--json", ...extra], { root, env });
+  const result = cli(["scratch", "new", ticket, "--role", "tester", "--head", HEAD, "--json", ...extra], { root, env });
   assert.equal(result.status, 0, result.stderr);
   return json(result).path;
 }
@@ -84,8 +82,8 @@ function tree(run, name, lock = LOCK) {
   return join(run, name);
 }
 
-function deps(root, run, name, npm, env = {}) {
-  return orchestrate(["scratch", "deps", run, "--tree", name, "--npm", npm, "--json"], { root, env });
+function deps(root, run, name, npm, env = {}, extra = []) {
+  return cli(["scratch", "deps", run, "--tree", name, "--npm", npm, "--json", ...extra], { root, env });
 }
 
 function installs(log) {
@@ -166,7 +164,7 @@ describe("concurrency and crash recovery", () => {
     const run = newRun(root);
     tree(run, "a"); tree(run, "b");
     const launch = (name) => new Promise((resolve) => {
-      const child = spawn(process.execPath, [ENGINE_BIN, "scratch", "deps", run, "--tree", name, "--npm", npm, "--json"], { cwd: root, env: gitEnv({ FAKE_NPM_LOG: log, FAKE_NPM_DELAY_MS: "1500" }) });
+      const child = spawn(process.execPath, [ENGINE_BIN, "scratch", "deps", run, "--tree", name, "--npm", npm, "--json"], { cwd: root, env: gitEnv({ ...QUIET, FAKE_NPM_LOG: log, FAKE_NPM_DELAY_MS: "1500" }) });
       let stderr = "";
       child.stderr.on("data", (chunk) => { stderr += chunk; });
       child.on("close", (status) => resolve({ status, stderr }));
@@ -214,7 +212,7 @@ describe("concurrency and crash recovery", () => {
     const npm = fakeNpm();
     const run = newRun(root);
     const head = tree(run, "head");
-    const child = spawn(process.execPath, [ENGINE_BIN, "scratch", "deps", run, "--tree", "head", "--npm", npm], { cwd: root, env: gitEnv({ FAKE_NPM_DELAY_MS: "20000" }) });
+    const child = spawn(process.execPath, [ENGINE_BIN, "scratch", "deps", run, "--tree", "head", "--npm", npm], { cwd: root, env: gitEnv({ ...QUIET, FAKE_NPM_DELAY_MS: "20000" }) });
     const deadline = Date.now() + 10_000;
     while (!(existsSync(depsDir(root)) && readdirSync(depsDir(root)).some((n) => n.startsWith(".tmp-")))) {
       assert.ok(Date.now() < deadline, "install never started");
@@ -226,11 +224,11 @@ describe("concurrency and crash recovery", () => {
     assert.equal(existsSync(join(depsDir(root), keyFor(head))), false, "a partial entry was published");
     const recovered = deps(root, run, "head", npm);
     assert.equal(recovered.status, 0, recovered.stderr);
-    const dry = orchestrate(["scratch", "prune", "--json"], { root });
+    const dry = cli(["scratch", "prune", "--json"], { root });
     const planned = json(dry).actions.filter((a) => a.kind === "abandoned install");
     assert.equal(planned.length, 1);
     assert.ok(existsSync(planned[0].path), "dry run removed something");
-    assert.equal(orchestrate(["scratch", "prune", "--execute"], { root }).status, 0);
+    assert.equal(cli(["scratch", "prune", "--execute"], { root }).status, 0);
     assert.equal(existsSync(planned[0].path), false);
     assert.equal(existsSync(join(depsDir(root), keyFor(head), "node_modules", ".package-lock.json")), true);
   });
@@ -333,7 +331,7 @@ describe("scratch lifecycle", () => {
   it("done reclaims only rebuildable directories and keeps every piece of evidence", () => {
     const root = makeProject();
     const { run, outside } = evidenceRun(root);
-    const result = json(orchestrate(["scratch", "done", run, "--json"], { root }));
+    const result = json(cli(["scratch", "done", run, "--json"], { root }));
     assert.deepEqual(result.removed.sort(), ["head/.next", "head/node_modules"]);
     for (const kept of ["report.json", "mutant/src/a.js", "head/out/index.html", "vendor/node_modules/patched/index.js", "head/package-lock.json"]) {
       assert.equal(existsSync(join(run, kept)), true, `${kept} was removed`);
@@ -350,13 +348,13 @@ describe("scratch lifecycle", () => {
     try {
       const run = newRun(root, { extra: ["--owner-pid", String(other.pid)] });
       tree(run, "head");
-      const refused = orchestrate(["scratch", "done", run], { root });
+      const refused = cli(["scratch", "done", run], { root });
       assert.equal(refused.status, 1);
       assert.match(refused.stderr, /belongs to live process/);
-      assert.equal(orchestrate(["scratch", "done", temporaryDirectory("elsewhere-")], { root }).status, 1);
+      assert.equal(cli(["scratch", "done", temporaryDirectory("elsewhere-")], { root }).status, 1);
       const alias = join(temporaryDirectory("alias-"), "run");
       linkDir(run, alias);
-      assert.equal(orchestrate(["scratch", "done", alias], { root }).status, 1);
+      assert.equal(cli(["scratch", "done", alias], { root }).status, 1);
     } finally { other.kill(); }
   });
 
@@ -380,17 +378,17 @@ describe("scratch lifecycle", () => {
     tree(active, "head");
     assert.equal(deps(root, active, "head", npm).status, 0);
     const finished = evidenceRun(root).run;
-    assert.equal(orchestrate(["scratch", "done", finished], { root }).status, 0);
+    assert.equal(cli(["scratch", "done", finished], { root }).status, 0);
     const record = JSON.parse(readFileSync(join(finished, "run.json"), "utf8"));
     writeFileSync(join(finished, "run.json"), JSON.stringify({ ...record, owner: ownerRecord(deadPid()) }));
     mkdirSync(join(finished, "late", "node_modules"), { recursive: true });
     writeFileSync(join(finished, "late", "node_modules", ".package-lock.json"), "{}\n");
     writeFileSync(join(finished, "late", "package.json"), "{}\n");
-    const dry = json(orchestrate(["scratch", "prune", "--older-than", "0", "--json"], { root }));
+    const dry = json(cli(["scratch", "prune", "--older-than", "0", "--json"], { root }));
     assert.equal(dry.execute, false);
     assert.equal(existsSync(join(finished, "late", "node_modules")), true);
     assert.ok(dry.kept.some((item) => item.path === active && /alive/.test(item.reason)));
-    assert.equal(orchestrate(["scratch", "prune", "--older-than", "0", "--execute"], { root }).status, 0);
+    assert.equal(cli(["scratch", "prune", "--older-than", "0", "--execute"], { root }).status, 0);
     assert.equal(existsSync(join(finished, "late", "node_modules")), false);
     assert.equal(existsSync(join(active, "head", "node_modules", "left-pad", "index.js")), true, "an active run was pruned");
   });
@@ -405,14 +403,14 @@ describe("scratch lifecycle", () => {
     const failed = newRun(root, { extra: ["--owner-pid", String(deadPid())] });
     tree(failed, "head");
     assert.equal(deps(root, failed, "head", npm).status, 0);
-    assert.equal(orchestrate(["scratch", "fail", failed], { root }).status, 0);
-    const listed = json(orchestrate(["scratch", "list", "--json"], { root })).runs;
+    assert.equal(cli(["scratch", "fail", failed], { root }).status, 0);
+    const listed = json(cli(["scratch", "list", "--json"], { root })).runs;
     assert.deepEqual(listed.map((r) => r.status).sort(), ["failed", "interrupted"]);
-    assert.equal(orchestrate(["scratch", "prune", "--older-than", "0", "--execute"], { root }).status, 0);
+    assert.equal(cli(["scratch", "prune", "--older-than", "0", "--execute"], { root }).status, 0);
     for (const run of [interrupted, failed]) assert.equal(existsSync(join(run, "head", "node_modules")), true, "preserved run pruned");
-    const young = json(orchestrate(["scratch", "prune", "--include-preserved", "--older-than", "1d", "--execute", "--json"], { root }));
+    const young = json(cli(["scratch", "prune", "--include-preserved", "--older-than", "1d", "--execute", "--json"], { root }));
     assert.equal(young.actions.length, 0);
-    assert.equal(orchestrate(["scratch", "prune", "--include-preserved", "--older-than", "0", "--execute"], { root }).status, 0);
+    assert.equal(cli(["scratch", "prune", "--include-preserved", "--older-than", "0", "--execute"], { root }).status, 0);
     for (const run of [interrupted, failed]) {
       assert.equal(existsSync(join(run, "head", "node_modules")), false);
       assert.equal(existsSync(join(run, "head", "package-lock.json")), true);
@@ -429,17 +427,17 @@ describe("scratch lifecycle", () => {
     const old = newRun(root);
     const other = tree(old, "head", LOCK.replace("1.3.0", "9.9.9"));
     assert.equal(deps(root, old, "head", npm).status, 0);
-    assert.equal(orchestrate(["scratch", "done", old], { root }).status, 0);
-    assert.equal(orchestrate(["scratch", "prune", "--older-than", "0", "--execute"], { root }).status, 0);
+    assert.equal(cli(["scratch", "done", old], { root }).status, 0);
+    assert.equal(cli(["scratch", "prune", "--older-than", "0", "--execute"], { root }).status, 0);
     assert.equal(existsSync(join(depsDir(root), keyFor(other))), true, "removed a cache entry without --cache");
-    assert.equal(orchestrate(["scratch", "prune", "--older-than", "0", "--cache", "--execute"], { root }).status, 0);
+    assert.equal(cli(["scratch", "prune", "--older-than", "0", "--cache", "--execute"], { root }).status, 0);
     assert.equal(existsSync(join(depsDir(root), keyFor(other))), false);
     assert.equal(existsSync(join(depsDir(root), keyFor(head))), true, "removed an entry an active run uses");
   });
 
   it("refuses scratch runs when .pathfinder/ is not ignored", () => {
     const root = makeProject({ ignorePathfinder: false });
-    const result = orchestrate(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD], { root });
+    const result = cli(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD], { root });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /not ignored/);
   });
@@ -450,11 +448,11 @@ describe("disk safeguards", () => {
 
   it("refuse new runs and new dependency trees below the floor without explicit approval", () => {
     const root = makeProject();
-    const refused = orchestrate(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD], { root, env: LOW });
+    const refused = cli(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD], { root, env: LOW });
     assert.equal(refused.status, 1);
     assert.match(refused.stderr, /below the .* floor.*--allow-low-disk/);
     assert.equal(existsSync(join(root, ".pathfinder", "scratch")), false);
-    const blank = orchestrate(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD, "--allow-low-disk", "  "], { root, env: LOW });
+    const blank = cli(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD, "--allow-low-disk", "  "], { root, env: LOW });
     assert.equal(blank.status, 1);
     const run = newRun(root, { env: LOW, extra: ["--allow-low-disk", "owner approved a low-disk run"] });
     assert.equal(JSON.parse(readFileSync(join(run, "run.json"), "utf8")).diskOverride, "owner approved a low-disk run");
@@ -476,11 +474,11 @@ describe("disk safeguards", () => {
   it("status names a crossed threshold without changing figures; disk reports physical free space", () => {
     const root = makeProject({ tickets: { "1.1": { title: "Alpha" } } });
     const HIGH = { PATHFINDER_DISK_WARN_GB: "0", PATHFINDER_DISK_FLOOR_GB: "0" };
-    assert.doesNotMatch(orchestrate(["status"], { root, env: HIGH }).stdout, /disk:/);
-    assert.match(orchestrate(["status"], { root, env: LOW }).stdout, /^disk: BELOW the 999999\.0 GB floor — new review runs refused; run `orchestrate disk` for figures$/m);
-    assert.deepEqual(json(orchestrate(["status", "--json"], { root, env: LOW })).disk, { level: "below-floor", warnBytes: 999999e9, floorBytes: 999999e9 });
+    assert.doesNotMatch(cli(["status"], { root, env: HIGH }).stdout, /disk:/);
+    assert.match(cli(["status"], { root, env: LOW }).stdout, /^disk: BELOW the 999999\.0 GB floor — new review runs refused; run `orchestrate disk` for figures$/m);
+    assert.deepEqual(json(cli(["status", "--json"], { root, env: LOW })).disk, { level: "below-floor", warnBytes: 999999e9, floorBytes: 999999e9 });
     assert.match(orchestrate(["disk"], { root }).stdout, /^disk: \d+\.\d GB free \(warn 25\.0 GB, floor 10\.0 GB, default\)/m);
-    const report = orchestrate(["disk"], { root, env: LOW });
+    const report = cli(["disk"], { root, env: LOW });
     assert.equal(report.status, 0);
     assert.match(report.stdout, /BELOW FLOOR/);
     assert.match(report.stdout, /counted in full/);
@@ -550,18 +548,28 @@ describe("cross-platform safety", () => {
     assert.equal(deps(root, run, "head", fakeNpm()).status, 0);
     const record = JSON.parse(readFileSync(join(run, "run.json"), "utf8"));
     writeFileSync(join(run, "run.json"), JSON.stringify({ ...record, owner: { ...here, platform: "elsewhere" } }));
-    assert.equal(orchestrate(["scratch", "prune", "--include-preserved", "--older-than", "0", "--execute"], { root }).status, 0);
+    assert.equal(cli(["scratch", "prune", "--include-preserved", "--older-than", "0", "--execute"], { root }).status, 0);
     assert.equal(existsSync(join(run, "head", "node_modules")), true, "pruned a run whose owner cannot be checked");
   });
 
-  it("compares paths case-insensitively on Windows and macOS, with drive letters and either separator", () => {
-    assert.equal(within("C:\\Repo\\.pathfinder\\scratch", "c:\\repo\\.PATHFINDER\\scratch\\1.1\\run", "win32"), "1.1\\run");
+  it("contains canonical paths exactly, with Windows drive letters and either separator", () => {
+    assert.equal(within("C:\\Repo\\scratch", "C:\\Repo\\scratch\\1.1\\run", "win32"), "1.1\\run");
     assert.equal(within("C:\\Repo\\scratch", "C:/Repo/scratch/1.1/run", "win32"), "1.1\\run");
     assert.equal(within("C:\\Repo\\scratch", "D:\\Repo\\scratch\\1.1", "win32"), null);
     assert.equal(within("C:\\Repo\\scratch", "C:\\Repo\\scratch-other\\x", "win32"), null);
-    assert.equal(within("/Users/a/Repo", "/users/A/repo/run", "darwin"), "run");
+    assert.equal(within("/Users/a/Repo", "/Users/a/Repo/run", "darwin"), "run");
+    assert.equal(within("/Users/a/Repo", "/users/A/repo/run", "darwin"), null, "case is the filesystem's call, made by real()");
     assert.equal(within("/home/a/repo", "/home/a/Repo/run", "linux"), null);
     assert.equal(within("/home/a/repo", "/home/a/repo", "linux"), null);
+  });
+
+  it("real() spells a case-variant path the filesystem's way where the volume ignores case", () => {
+    const dir = temporaryDirectory("case-");
+    mkdirSync(join(dir, "Mixed"));
+    const variant = join(dir, "MIXED");
+    if (!existsSync(variant)) return; // a case-sensitive volume: nothing to fold
+    assert.equal(real(variant), real(join(dir, "Mixed")));
+    assert.equal(within(real(dir), real(variant)), "Mixed");
   });
 
   it("finds a live, non-shell owner for this process on this platform", () => {
@@ -588,17 +596,16 @@ describe("Windows native", { skip: !WINDOWS && "runs only on Windows" }, () => {
     assert.notEqual(lstatSync(copy, { bigint: true }).ino, lstatSync(cache, { bigint: true }).ino);
     writeFileSync(copy, "mutant\n");
     assert.notEqual(readFileSync(cache, "utf8"), "mutant\n");
-    assert.equal(orchestrate(["scratch", "done", run], { root }).status, 0);
+    assert.equal(cli(["scratch", "done", run], { root }).status, 0);
     assert.equal(existsSync(join(run, "mut", "node_modules")), false);
   });
 
-  it("runs npm through its .cmd shim and reports free space for the drive", () => {
-    const dir = temporaryDirectory("win-npm-");
-    const t = tree(dir, "t");
-    const inputs = cacheInputs({ tree: t, npm: fakeNpm() });
-    assert.equal(inputs.ok, true, inputs.message);
-    assert.equal(inputs.inputs.npm, "10.9.9");
-    assert.ok(freeBytes(dir) > 0);
+  it("resolves npm to the npm-cli.js beside Node and reports free space for the drive", () => {
+    const resolved = npmCommand("npm");
+    assert.equal(resolved.ok, true, resolved.message);
+    assert.equal(resolved.file, process.execPath);
+    assert.match(resolved.args[0], /npm-cli\.js$/);
+    assert.ok(freeBytes(temporaryDirectory("win-free-")) > 0);
   });
 });
 
@@ -611,13 +618,13 @@ describe("adversary regressions", () => {
       const run = newRun(root, { extra: ["--owner-pid", String(other.pid)] });
       tree(run, "head");
       assert.match(deps(root, run, "head", npm).stderr, /belongs to live process/);
-      assert.match(orchestrate(["scratch", "fail", run], { root }).stderr, /belongs to live process/);
+      assert.match(cli(["scratch", "fail", run], { root }).stderr, /belongs to live process/);
       const record = JSON.parse(readFileSync(join(run, "run.json"), "utf8"));
       mkdirSync(join(run, "head", "node_modules"));
       writeFileSync(join(run, "head", "node_modules", ".package-lock.json"), "{}\n");
       for (const state of ["checkpointed", "failed"]) {
         writeFileSync(join(run, "run.json"), JSON.stringify({ ...record, state }));
-        assert.equal(orchestrate(["scratch", "prune", "--older-than", "0", "--include-preserved", "--cache", "--execute"], { root }).status, 0);
+        assert.equal(cli(["scratch", "prune", "--older-than", "0", "--include-preserved", "--cache", "--execute"], { root }).status, 0);
         assert.equal(existsSync(join(run, "head", "node_modules")), true, `pruned a live owner's ${state} run`);
       }
     } finally { other.kill(); }
@@ -629,7 +636,7 @@ describe("adversary regressions", () => {
     const run = newRun(root);
     tree(run, "head"); tree(run, "round2");
     assert.equal(deps(root, run, "head", npm).status, 0);
-    assert.equal(orchestrate(["scratch", "done", run], { root }).status, 0);
+    assert.equal(cli(["scratch", "done", run], { root }).status, 0);
     const again = deps(root, run, "round2", npm);
     assert.equal(again.status, 1);
     assert.match(again.stderr, /checkpointed; start a new run/);
@@ -639,9 +646,9 @@ describe("adversary regressions", () => {
     const root = makeProject();
     const run = newRun(root, { extra: ["--session", "tester-a"] });
     tree(run, "head");
-    assert.match(deps(root, run, "head", fakeNpm()).stderr, /belongs to session tester-a/);
-    assert.match(orchestrate(["scratch", "done", run, "--session", "tester-b"], { root }).stderr, /belongs to session tester-a/);
-    assert.equal(orchestrate(["scratch", "done", run, "--session", "tester-a"], { root }).status, 0);
+    assert.match(deps(root, run, "head", fakeNpm()).stderr, /started for another session/);
+    assert.match(cli(["scratch", "done", run, "--session", "tester-b"], { root }).stderr, /started for another session/);
+    assert.equal(cli(["scratch", "done", run, "--session", "tester-a"], { root }).status, 0);
   });
 
   it("E4: prune never follows a link planted in the cache directory", { skip: WINDOWS && "POSIX permission bits" }, () => {
@@ -651,7 +658,7 @@ describe("adversary regressions", () => {
     chmodSync(join(outside, "readonly.txt"), 0o444);
     mkdirSync(join(root, ".pathfinder", "deps"), { recursive: true });
     for (const name of [".tmp-planted", "planted.lock", "0123456789abcdef0123456789abcdef"]) linkDir(outside, join(root, ".pathfinder", "deps", name));
-    assert.equal(orchestrate(["scratch", "prune", "--older-than", "0", "--cache", "--execute"], { root }).status, 0);
+    assert.equal(cli(["scratch", "prune", "--older-than", "0", "--cache", "--execute"], { root }).status, 0);
     assert.equal(statSync(join(outside, "readonly.txt")).mode & 0o777, 0o444);
     assert.equal(existsSync(join(outside, "readonly.txt")), true);
   });
@@ -690,11 +697,11 @@ describe("adversary regressions", () => {
     const held = holdKey({ root, key });
     assert.equal(held.ok, true, held.message);
     try {
-      const busy = json(orchestrate(["scratch", "prune", "--older-than", "0", "--cache", "--execute", "--json"], { root }));
+      const busy = json(cli(["scratch", "prune", "--older-than", "0", "--cache", "--execute", "--json"], { root }));
       assert.ok(busy.results.some((r) => /in use/.test(r.skipped ?? "")), JSON.stringify(busy.results));
       assert.equal(existsSync(join(depsDir(root), key, "entry.json")), true);
     } finally { held.release(); }
-    assert.equal(orchestrate(["scratch", "prune", "--older-than", "0", "--cache", "--execute"], { root }).status, 0);
+    assert.equal(cli(["scratch", "prune", "--older-than", "0", "--cache", "--execute"], { root }).status, 0);
     assert.deepEqual(readdirSync(depsDir(root)).filter((n) => n.includes(key)), []);
   });
 
@@ -718,11 +725,109 @@ describe("adversary regressions", () => {
     const git = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
     symlinkSync(git, join(bin, "git"));
     symlinkSync(process.execPath, join(bin, "node"));
-    const result = orchestrate(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD], { root, env: { PATH: bin } });
+    const result = cli(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD], { root, env: { PATH: bin } });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /pass --owner-pid/);
-    const explicit = orchestrate(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD, "--owner-pid", String(process.pid)], { root, env: { PATH: bin } });
+    const explicit = cli(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD, "--owner-pid", String(process.pid), "--session", "s1"], { root, env: { PATH: bin } });
     assert.equal(explicit.status, 0, explicit.stderr);
+  });
+});
+
+describe("follow-up adversary regressions", () => {
+  it("N2: npm never runs through a shell; Windows refuses shims and shell syntax", () => {
+    assert.deepEqual(npmCommand("/x/npm-cli.js", "linux", "/node"), { ok: true, file: "/node", args: ["/x/npm-cli.js"] });
+    assert.deepEqual(npmCommand("npm", "linux"), { ok: true, file: "npm", args: [] });
+    for (const value of ["npm&calc.exe", "C:\\tools\\npm.cmd|whoami", "%COMSPEC%", "C:\\Program Files\\nodejs\\npm.cmd"]) {
+      assert.equal(npmCommand(value, "win32", "C:\\node\\node.exe").ok, false, value);
+    }
+    assert.deepEqual(npmCommand("C:\\npm\\bin\\npm-cli.js", "win32", "C:\\node\\node.exe"), { ok: true, file: "C:\\node\\node.exe", args: ["C:\\npm\\bin\\npm-cli.js"] });
+    const dir = temporaryDirectory("npm-js-");
+    const inputs = cacheInputs({ tree: tree(dir, "t"), npm: fakeNpm() });
+    assert.equal(inputs.ok, true, inputs.message);
+    assert.equal(inputs.inputs.npm, "10.9.9");
+  });
+
+  it("N3: the checkpoint hook honours the run's session", () => {
+    const root = makeProject();
+    const run = newRun(root, { extra: ["--session", "session-alpha-7"] });
+    tree(run, "head");
+    assert.equal(deps(root, run, "head", fakeNpm(), {}, ["--session", "session-alpha-7"]).status, 0);
+    const refused = reclaimAfterCheckpoint(root, "1.1", run);
+    assert.equal(refused.ok, false);
+    assert.doesNotMatch(refused.message, /session-alpha-7/, "the refusal names the session it expects");
+    assert.equal(existsSync(join(run, "head", "node_modules")), true);
+    process.env.PATHFINDER_SCRATCH_SESSION = "session-alpha-7";
+    try { assert.equal(reclaimAfterCheckpoint(root, "1.1", run).ok, true); } finally { delete process.env.PATHFINDER_SCRATCH_SESSION; }
+    assert.equal(existsSync(join(run, "head", "node_modules")), false);
+  });
+
+  it("N9: without readable ancestry, an owner with --session can use and reclaim its own run", { skip: WINDOWS && "POSIX PATH" }, () => {
+    const root = makeProject();
+    const bin = temporaryDirectory("no-ps-");
+    symlinkSync(spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim(), join(bin, "git"));
+    const env = { PATH: bin };
+    const base = ["scratch", "new", "1.1", "--role", "tester", "--head", HEAD, "--owner-pid", String(process.pid)];
+    assert.match(cli(base, { root, env }).stderr, /pass --session/);
+    const created = cli([...base, "--session", "s1", "--json"], { root, env });
+    assert.equal(created.status, 0, created.stderr);
+    const run = json(created).path;
+    tree(run, "head");
+    assert.equal(deps(root, run, "head", fakeNpm(), env).status, 1);
+    assert.equal(deps(root, run, "head", fakeNpm(), env, ["--session", "s1"]).status, 0);
+    assert.equal(cli(["scratch", "done", run], { root, env }).status, 1);
+    assert.equal(cli(["scratch", "done", run, "--session", "s1"], { root, env }).status, 0);
+    assert.equal(existsSync(join(run, "head", "node_modules")), false);
+  });
+
+  it("N1: prune reports what it removed and what it skipped, not what it planned", () => {
+    const root = makeProject();
+    const run = newRun(root, { extra: ["--owner-pid", String(deadPid())] });
+    const head = tree(run, "head");
+    assert.equal(deps(root, run, "head", fakeNpm()).status, 0);
+    const held = holdKey({ root, key: keyFor(head) });
+    try {
+      const out = cli(["scratch", "prune", "--older-than", "0", "--cache", "--execute"], { root }).stdout;
+      assert.match(out, /skipped .*in use/);
+      assert.doesNotMatch(out, new RegExp(`removed .*deps.${keyFor(head)}$`, "m"));
+    } finally { held.release(); }
+  });
+
+  it("N1b: copying from an entry that was removed refuses instead of throwing", () => {
+    const root = makeProject();
+    const dir = temporaryDirectory("gone-");
+    const t = tree(dir, "src");
+    const entry = ensureEntry({ root, tree: t, npm: fakeNpm(), env: gitEnv() });
+    assert.equal(entry.ok, true, entry.message);
+    assert.equal(unpublish({ root, key: entry.key }).ok, true);
+    const result = materialize({ entry: entry.path, tree: tree(dir, "copy") });
+    assert.equal(result.ok, false);
+    assert.match(result.message, /no longer a complete entry/);
+  });
+
+  it("N8: npm's per-run variables do not split the cache; install settings do", () => {
+    const dir = temporaryDirectory("deps-run-env-");
+    const t = tree(dir, "t");
+    const base = { tree: t, npmVersion: "1", node: "v1", platform: "linux", arch: "x64" };
+    const plain = cacheInputs({ ...base, env: { HOME: dir } }).key;
+    const npmRun = { HOME: dir, npm_config_local_prefix: dir, npm_config_user_agent: "npm/11", npm_config_cache: "/c", npm_config_loglevel: "warn" };
+    assert.equal(cacheInputs({ ...base, env: npmRun }).key, plain);
+    assert.notEqual(cacheInputs({ ...base, env: { ...npmRun, npm_config_omit: "dev" } }).key, plain);
+    assert.notEqual(cacheInputs({ ...base, env: { ...npmRun, "npm_config_@acme:registry": "https://r" } }).key, plain);
+  });
+
+  it("never breaks a lock whose owner is alive, however long it is held", () => {
+    const root = makeProject();
+    const dir = temporaryDirectory("live-lock-");
+    const t = tree(dir, "t");
+    const inputs = cacheInputs({ tree: t, npmVersion: "10.9.9", env: gitEnv() });
+    const lock = join(depsDir(root), `${inputs.key}.lock`);
+    mkdirSync(lock, { recursive: true });
+    const owner = JSON.stringify(ownerRecord(process.pid));
+    writeFileSync(join(lock, "owner.json"), owner);
+    const result = ensureEntry({ root, tree: t, npm: fakeNpm(), inputs, timeoutMs: 300, pollMs: 50, orphanMs: 0 });
+    assert.equal(result.ok, false);
+    assert.match(result.message, /timed out/);
+    assert.equal(readFileSync(join(lock, "owner.json"), "utf8"), owner);
   });
 });
 

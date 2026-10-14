@@ -146,8 +146,13 @@ Only a run's owner process — or anyone, once that process is provably dead —
 may add trees to it, finish it or fail it, and prune never touches a run whose
 owner is alive or cannot be checked. One harness process can host several
 sessions, so pass `--session` to `scratch new` and repeat it on `deps`, `done`
-and `fail`. Where ancestry cannot be read (no `ps`), `scratch new` needs
-`--owner-pid`. Clean-ups that remove a cache entry take its lock and rename it
+and `fail` (and as `PATHFINDER_SCRATCH_SESSION` beside `PATHFINDER_SCRATCH_RUN`
+for the checkpoint hook). Where ancestry cannot be read (no `ps`), `scratch
+new` needs `--owner-pid` and `--session`, and the session then stands as the
+proof of ownership. npm never runs through a shell: on Windows the engine runs
+the `npm-cli.js` beside Node, and `--npm` must name a `.js` entry point. A
+reviewer killed mid-copy can leave an orphaned clone finishing in the
+background; a retry into that tree refuses, and `scratch done` reclaims it. Clean-ups that remove a cache entry take its lock and rename it
 out of place first, so a copy in progress is never left without its source.
 New runs are refused below the disk floor — `<!-- pathfinder:disk warn=25
 floor=10 -->` in `context/execution-mode.md`, in GB, or

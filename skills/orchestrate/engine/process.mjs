@@ -86,8 +86,13 @@ export function findOwner(start = process.ppid) {
   return owner ? ownerRecord(owner.pid, owner.command) : null;
 }
 
-/** Is `owner` this process or one of its ancestors? Unknown is no. */
+/**
+ * Is `owner` this process or one of its ancestors? true, false, or null when
+ * this process's ancestry cannot be read here.
+ */
 export function callerOwns(owner, start = process.pid) {
   if (!owner || owner.host !== hostname() || owner.platform !== platformId()) return false;
-  return processChain(start).some((entry) => entry.pid === owner.pid);
+  const chain = processChain(start);
+  if (chain.length === 0) return null;
+  return chain.some((entry) => entry.pid === owner.pid);
 }

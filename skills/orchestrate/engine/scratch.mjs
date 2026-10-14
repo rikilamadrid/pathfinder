@@ -44,16 +44,15 @@ export function scratchRefusal(root) {
 
 /**
  * `child` relative to `parent` when it lies strictly inside it, else null.
- * Windows and macOS compare case-insensitively; Windows paths may differ in
- * drive-letter case and separators.
+ * Both must be canonical (`real`): the filesystem, not the platform, decides
+ * case, so a case-sensitive APFS or Windows directory keeps distinct names
+ * distinct. Windows separators and drive letters go through path.win32.
  */
 export function within(parent, child, platform = process.platform) {
   const p = platform === "win32" ? path.win32 : path.posix;
-  const fold = (text) => (platform === "win32" || platform === "darwin" ? text.toLowerCase() : text);
-  const rel = p.relative(fold(parent), fold(child));
+  const rel = p.relative(parent, child);
   if (!rel || rel.startsWith("..") || p.isAbsolute(rel)) return null;
-  const tail = p.normalize(child).slice(-rel.length);
-  return fold(tail) === rel ? tail : rel;
+  return rel;
 }
 
 /** The canonical spelling of an existing path, in the filesystem's own case. */
@@ -103,9 +102,13 @@ export function runStatus(run) {
  */
 export function ownerRefusal(found, session) {
   const { run, path } = found;
-  if (run.session && session !== run.session) return `run ${path} belongs to session ${run.session}; pass --session ${run.session} to act on it`;
-  if (liveness(run.owner) !== false && !callerOwns(run.owner)) return `run ${path} belongs to live process ${run.owner?.pid}, not this session; nothing was changed`;
-  return null;
+  if (run.session && session !== run.session) return `run ${path} was started for another session; pass the --session it was created with`;
+  if (liveness(run.owner) === false) return null;
+  const owns = callerOwns(run.owner);
+  // Without readable ancestry here, the session recorded at creation is the
+  // only evidence of ownership; a run created that way always records one.
+  if (owns === true || (owns === null && run.session)) return null;
+  return `run ${path} belongs to live process ${run.owner?.pid}, not this session; nothing was changed`;
 }
 
 /**
@@ -121,7 +124,8 @@ export function createRun({ root, ticket, role, head, session = null, ownerPid =
   const gate = floorGate(diskCheck({ root, env }), approval);
   if (!gate.ok) return refuse(gate.message);
   const owner = ownerPid ? ownerRecord(ownerPid, processChain(ownerPid, { depth: 1 })[0]?.command ?? null) : findOwner();
-  if (!owner) return refuse("cannot read this process's ancestry here (no `ps` or PowerShell answer); pass --owner-pid naming the long-lived session process that owns the run");
+  if (!owner) return refuse("cannot read this process's ancestry here (no `ps` or PowerShell answer); pass --owner-pid naming the long-lived session process that owns the run, and --session");
+  if (ownerPid && !session && processChain(process.pid).length === 0) return refuse("without readable ancestry, the session is the only proof of ownership; pass --session with --owner-pid");
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
   const dir = join(scratchBase(root), ticket, `${role}-${head.slice(0, 7)}-${stamp}-${randomUUID().slice(0, 4)}`);
   mkdirSync(dir, { recursive: true });
@@ -196,25 +200,26 @@ function reclaim(dir, run, reason, now) {
  * The run's owner recorded its checkpoint: reclaim its rebuildable trees and
  * keep everything else. `ticket`, when given, must be the run's ticket.
  */
-export function finishRun({ root, runDir, ticket = null, session = null, sessionFromRun = false, now = new Date() }) {
+export function finishRun({ root, runDir, ticket = null, session = null, now = new Date() }) {
   const found = resolveRun(root, runDir);
   if (!found.ok) return found;
   if (ticket && found.run.ticket !== ticket) return refuse(`run ${found.path} is for ${found.run.ticket}, not ${ticket}; nothing was reclaimed`);
   if (found.run.state === "failed") return refuse(`run ${found.path} is marked failed and is preserved`);
-  const refusal = ownerRefusal(found, sessionFromRun ? found.run.session : session);
+  const refusal = ownerRefusal(found, session);
   if (refusal) return refuse(refusal);
   return { ok: true, path: found.path, ...reclaim(found.path, found.run, "checkpoint", now) };
 }
 
 /**
  * After a checkpoint is written, reclaim the review run named by
- * PATHFINDER_SCRATCH_RUN. The checkpoint already stands; a refusal here is
+ * PATHFINDER_SCRATCH_RUN, for the session in PATHFINDER_SCRATCH_SESSION when
+ * the run recorded one. The checkpoint already stands; a refusal here is
  * reported and changes nothing else.
  */
 export function reclaimAfterCheckpoint(root, ticket, runDir = process.env.PATHFINDER_SCRATCH_RUN) {
   if (!runDir) return null;
   let result;
-  try { result = finishRun({ root, runDir, ticket, sessionFromRun: true }); } catch (error) { result = refuse(`reclaim failed after the checkpoint was written: ${error.message}`); }
+  try { result = finishRun({ root, runDir, ticket, session: process.env.PATHFINDER_SCRATCH_SESSION || null }); } catch (error) { result = refuse(`reclaim failed after the checkpoint was written: ${error.message}`); }
   if (result.ok) console.log(`Scratch run reclaimed: ${result.removed.length} rebuildable director${result.removed.length === 1 ? "y" : "ies"}; evidence kept.`);
   else console.error(`scratch: ${result.message}`);
   return result;

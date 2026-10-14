@@ -63,8 +63,9 @@ attached JSON fence using
 `node skills/orchestrate/engine/findings.mjs --checkpoint < <scratch-review.json>`.
 Use an ignored scratch file in this claim. Build any review trees in a
 `scratch new` run with `scratch deps`, never a separate `npm ci` per tree, and
-set `PATHFINDER_SCRATCH_RUN=<run-dir>` so a written checkpoint reclaims that
-run's dependencies and keeps its evidence. Preserve all other sections and
+set `PATHFINDER_SCRATCH_RUN=<run-dir>` (and `PATHFINDER_SCRATCH_SESSION` when
+the run records a session) so a written checkpoint reclaims that run's
+dependencies and keeps its evidence. Preserve all other sections and
 fields, including the profile and previous head identifiers. The report has
 exactly `ticket`, `pr`, `head_sha`, `result` (`PASS` or `findings`), `findings`,
 `verification` (1–20 non-empty actual check descriptions), and `limits`.

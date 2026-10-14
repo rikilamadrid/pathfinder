@@ -60,7 +60,7 @@ import { canonical, checkoutRoot, repositoryRoot, resolveRef } from "../git.mjs"
 import { isKey } from "../keys.mjs";
 import { orchestratorRefusal, readEvidenceJudge } from "../mode.mjs";
 import { computeStatus, formatStatus } from "../status.mjs";
-import { ensureEntry, holdKey, materialize } from "../deps.mjs";
+import { ensureEntry, holdKey, isComplete, materialize } from "../deps.mjs";
 import { diskCheck, diskLevelLine, floorGate, formatDisk, formatGb, roomFor } from "../disk.mjs";
 import { createRun, failRun, finishRun, listRuns, logicalBytes, ownerRefusal, parseDuration, pruneScratch, real, recordTree, resolveRun, scratchRefusal, within } from "../scratch.mjs";
 import { describeStore, readTickets, resolveStore } from "../store.mjs";
@@ -164,7 +164,9 @@ const USAGE = `orchestrate
       The run's checkpoint was recorded: reclaim its rebuildable dependency
       and build directories; logs, reports and sources stay. deps, done and
       fail act only for the run's owner process (or once it is dead), and
-      need --session when the run recorded one.
+      need --session when the run recorded one. A checkpoint written with
+      PATHFINDER_SCRATCH_RUN reclaims that run, given PATHFINDER_SCRATCH_SESSION
+      when it recorded a session.
   scratch fail <run-dir> [--session <s>] [--json]
       Preserve a run whose checkpoint failed; nothing is reclaimed for it.
   scratch list [--json]
@@ -691,7 +693,13 @@ function scratch({ root, sub, args, flags }) {
       const hold = holdKey({ root, key: entry.key });
       if (!hold.ok) return fail(1, hold.message);
       let copy;
-      try { copy = materialize({ entry: entry.path, tree, beforeCopy: (bytes) => roomFor(diskCheck({ root }), bytes, approval) }); } finally { hold.release(); }
+      try {
+        copy = isComplete(entry.path, entry.key)
+          ? materialize({ entry: entry.path, tree, beforeCopy: (bytes) => roomFor(diskCheck({ root }), bytes, approval) })
+          : { ok: false, message: `${entry.key} was removed before it could be copied; run scratch deps again` };
+      } catch (error) {
+        copy = { ok: false, message: `copy into ${tree} failed: ${error.message}` };
+      } finally { hold.release(); }
       if (!copy.ok) return fail(1, copy.message);
       if (copy.warning) process.stderr.write(`orchestrate: ${copy.warning}\n`);
       recordTree(found.path, { tree: rel, key: entry.key, strategy: copy.strategy, installed: entry.installed, at: new Date().toISOString() });
@@ -719,8 +727,17 @@ function scratch({ root, sub, args, flags }) {
       const result = pruneScratch({ root, olderThanMs, includePreserved: Boolean(flags["include-preserved"]), cache: Boolean(flags.cache), execute: Boolean(flags.execute) });
       if (!result.ok) return fail(1, result.message);
       const lines = [result.execute ? "Pruned:" : "Dry run — nothing removed; pass --execute to reclaim:"];
-      for (const action of result.actions) for (const target of action.targets) lines.push(`  ${action.kind === "run" ? `${action.status} run` : action.kind}: ${target}`);
-      if (!result.actions.length) lines.push("  nothing to reclaim");
+      if (result.execute) {
+        for (const item of result.results) {
+          for (const removed of item.removed ?? []) lines.push(`  removed ${removed.startsWith(item.path) ? removed : join(item.path, removed)}`);
+          if (item.skipped) lines.push(`  skipped ${item.path}: ${item.skipped}`);
+          for (const failure of item.failed ?? []) lines.push(`  failed ${failure.path}: ${failure.reason}`);
+        }
+        if (!result.results.some((item) => item.removed?.length)) lines.push("  nothing removed");
+      } else {
+        for (const action of result.actions) for (const target of action.targets) lines.push(`  ${action.kind === "run" ? `${action.status} run` : action.kind}: ${target}`);
+        if (!result.actions.length) lines.push("  nothing to reclaim");
+      }
       for (const item of result.kept) lines.push(`  kept ${item.path}: ${item.reason}`);
       return out(result, lines.join("\n") + "\n");
     }

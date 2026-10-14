@@ -50,8 +50,9 @@ Even under an override, this action grants no repair, verdict or acceptance.
 
    `node skills/orchestrate/engine/experiments.mjs --checkpoint < <scratch-report.json>`
 
-   With `PATHFINDER_SCRATCH_RUN=<run-dir>` set, a written checkpoint also
-   reclaims that run's rebuildable dependencies and keeps its evidence.
+   With `PATHFINDER_SCRATCH_RUN=<run-dir>` set (and `PATHFINDER_SCRATCH_SESSION`
+   when the run records a session), a written checkpoint also reclaims that
+   run's rebuildable dependencies and keeps its evidence.
 
    Keep the scratch report inside the claimed worktree's ignored scratch area.
    Preserve all other claim fields, execution profile and notes. Re-query the
