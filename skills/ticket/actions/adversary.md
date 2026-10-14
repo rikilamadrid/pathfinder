@@ -30,7 +30,10 @@ Even under an override, this action grants no repair, verdict or acceptance.
    states or old/new behavior when relevant. State the attacked contract and
    hypothesis before running each. Use controlled, reversible experiments
    within existing project authorization. Do not change production code or
-   tests; use isolated scratch inputs and existing tools. Do not run a
+   tests; use isolated scratch inputs and existing tools. In orchestrator mode,
+   build trees in a `scratch new` run and give them dependencies with
+   `scratch deps`, never a separate `npm ci` per tree (see the orchestrate
+   skill's Review scratch). Do not run a
    destructive or externally consequential experiment without authorization.
 4. Run the experiments and collect observations and evidence. Keep raw command
    output distinguishable from interpretation. Report inability to reproduce
@@ -46,6 +49,9 @@ Even under an override, this action grants no repair, verdict or acceptance.
    completeness and evidence grammar and replaces only this section:
 
    `node skills/orchestrate/engine/experiments.mjs --checkpoint < <scratch-report.json>`
+
+   With `PATHFINDER_SCRATCH_RUN=<run-dir>` set, a written checkpoint also
+   reclaims that run's rebuildable dependencies and keeps its evidence.
 
    Keep the scratch report inside the claimed worktree's ignored scratch area.
    Preserve all other claim fields, execution profile and notes. Re-query the

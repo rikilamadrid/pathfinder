@@ -1,5 +1,6 @@
 import { followupBindingErrors, followupReportErrors } from "./followup-record.mjs";
 import { replaceCheckpoint } from "./checkpoint-write.mjs";
+import { reclaimAfterCheckpoint } from "./scratch.mjs";
 /** Independent Tester's bounded transient review handoff; no lifecycle writes. */
 import { readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
@@ -114,5 +115,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     }
     replaceCheckpoint(path, text, (latest) => replaceFindingsReport(latest, report));
     console.log("Tester findings checkpoint written; State unchanged.");
+    reclaimAfterCheckpoint(root, report.ticket);
   } catch (error) { console.error(`findings: ${error.message}`); process.exitCode = 1; }
 }

@@ -13,6 +13,8 @@
  *   node bin/orchestrate.mjs gate <key> open --question <text> | resolve [--answer <text>] [--now <iso>]
  *   node bin/orchestrate.mjs state <key> --set <state> [--gate <text>] [--last <text>] [--next <text>] [--now <iso>]
  *   node bin/orchestrate.mjs judge <key> [--timeout-ms N] [--json]
+ *   node bin/orchestrate.mjs scratch new|deps|done|fail|list|prune ... [--json]
+ *   node bin/orchestrate.mjs disk [--json]
  *
  * Every command takes `--root <dir>` (default: the repository containing the
  * working directory), `--store <spec>` to override `context/tracker.md`
@@ -35,7 +37,7 @@ import { humanDirectedFollowup } from "../routing-followup.mjs";
 import { readFollowups, followupDigest, rawReport, applicableFollowups } from "../followup-record.mjs";
 import { replaceCheckpoint } from "../checkpoint-write.mjs";
 import { readFileSync, realpathSync } from "node:fs";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 
 import { checkIntegration, formatCheck, releaseClaim } from "../integration.mjs";
 import { computeBoard, formatBoard } from "../board.mjs";
@@ -58,6 +60,9 @@ import { canonical, checkoutRoot, repositoryRoot, resolveRef } from "../git.mjs"
 import { isKey } from "../keys.mjs";
 import { orchestratorRefusal, readEvidenceJudge } from "../mode.mjs";
 import { computeStatus, formatStatus } from "../status.mjs";
+import { ensureEntry, materialize } from "../deps.mjs";
+import { diskCheck, floorGate, formatDisk, formatGb } from "../disk.mjs";
+import { createRun, failRun, finishRun, listRuns, logicalBytes, parseDuration, pruneScratch, recordTree, resolveRun, scratchRefusal } from "../scratch.mjs";
 import { describeStore, readTickets, resolveStore } from "../store.mjs";
 
 const USAGE = `orchestrate
@@ -145,6 +150,32 @@ const USAGE = `orchestrate
       gate <key> resolve is the only way past it. Refuses a model or effort
       the harness cannot honour, by name. Reads only.
 
+  scratch new <key> --role developer|adversary|tester|integrator --head <sha>
+        [--session <s>] [--owner-pid N] [--allow-low-disk <human approval>] [--json]
+      Start a review run under .pathfinder/scratch/<key>/, recording the owner
+      process, ticket, role and head. Refused below the disk floor unless the
+      human's explicit approval is passed.
+  scratch deps <run-dir> --tree <dir-in-run> [--npm <path>] [--allow-low-disk <approval>] [--json]
+      Give one tree in the run its own node_modules from the dependency cache:
+      installed once per lockfile, Node, npm, platform and architecture, then
+      cloned copy-on-write (APFS clone or reflink; a full copy, with a
+      warning, where neither exists). Never a hard link or a shared tree.
+  scratch done <run-dir> [--json]
+      The run's checkpoint was recorded: reclaim its rebuildable dependency
+      and build directories; logs, reports and sources stay.
+  scratch fail <run-dir> [--json]
+      Preserve a run whose checkpoint failed; nothing is reclaimed for it.
+  scratch list [--json]
+      Every run with its state: active, interrupted, checkpointed or failed.
+  scratch prune [--older-than 24h] [--include-preserved] [--cache] [--execute] [--json]
+      A dry run unless --execute. Reclaims checkpointed runs' leftovers and
+      abandoned cache installs and locks; interrupted and failed runs only with
+      --include-preserved; unused cache entries only with --cache. Never a run
+      whose owner is alive.
+  disk [--json]
+      Physical free space against the warning and floor thresholds, and the
+      scratch area's runs and dependency cache.
+
   Common: --root <dir>  --store local|github-issues:owner/repo  --gh <path>
 `;
 
@@ -205,6 +236,10 @@ async function main(argv) {
       if (!Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 120000) return fail(2, "--timeout-ms must be a whole number from 100 to 120000");
       return judge({ ...common, key: positional[0], timeoutMs, json: Boolean(flags.json) });
     }
+    case "scratch":
+      return scratch({ root, sub: positional[0], args: positional.slice(1), flags });
+    case "disk":
+      return disk({ root, json: Boolean(flags.json) });
     case "release": {
       if (!isKey(positional[0])) return fail(2, "release needs a ticket key");
       const result = releaseClaim({ root, key: positional[0], force: Boolean(flags.force), approval: flags.approval });
@@ -613,8 +648,90 @@ function status({ root, store, gh, feature, live, json }) {
   if (refusal) return fail(1, `refusing to show orchestration status: ${refusal}`);
   const result = computeStatus({ root, live, feature, store, gh });
   if (!result.ok) return fail(1, result.message);
-  process.stdout.write(json ? JSON.stringify(result, null, 2) + "\n" : formatStatus(result));
+  const check = diskCheck({ root });
+  result.disk = check.ok ? { freeBytes: check.freeBytes, warnBytes: check.warnBytes, floorBytes: check.floorBytes, level: check.level } : { error: check.message };
+  process.stdout.write(json ? JSON.stringify(result, null, 2) + "\n" : `${formatStatus(result)}${formatDisk(check)}\n`);
   return 0;
+}
+
+/** Review scratch runs and the dependency cache. Not tied to orchestrator mode: any reviewer may use them. */
+function scratch({ root, sub, args, flags }) {
+  const out = (value, text) => { process.stdout.write(flags.json ? JSON.stringify(value, null, 2) + "\n" : text); return 0; };
+  switch (sub) {
+    case "new": {
+      if (!isKey(args[0]) || !flags.role || !flags.head) return fail(2, "scratch new needs <key> --role <role> --head <sha>");
+      const ownerPid = flags["owner-pid"] === undefined ? null : Number(flags["owner-pid"]);
+      if (ownerPid !== null && !(Number.isSafeInteger(ownerPid) && ownerPid > 1)) return fail(2, "--owner-pid must be a process id");
+      const result = createRun({ root, ticket: args[0], role: flags.role, head: flags.head, session: flags.session ?? null, ownerPid, approval: flags["allow-low-disk"] ?? null });
+      if (!result.ok) return fail(1, result.message);
+      const warn = result.disk.level === "ok" ? "" : `${formatDisk(result.disk)}\n`;
+      if (warn) process.stderr.write(`orchestrate: ${warn}`);
+      return out({ ok: true, path: result.path, run: result.run }, `${result.path}\n`);
+    }
+    case "deps": {
+      if (!args[0] || !flags.tree) return fail(2, "scratch deps needs <run-dir> --tree <dir-in-run>");
+      const found = resolveRun(root, args[0]);
+      if (!found.ok) return fail(1, found.message);
+      const tree = canonical(join(found.path, flags.tree));
+      if (!tree.startsWith(found.path + sep) || tree.slice(found.path.length + 1).split(sep).includes("node_modules")) return fail(1, `--tree must name a directory inside ${found.path}`);
+      const gate = floorGate(diskCheck({ root }), flags["allow-low-disk"] ?? null);
+      if (!gate.ok) return fail(1, gate.message);
+      const entry = ensureEntry({ root, tree, npm: flags.npm ?? "npm" });
+      if (!entry.ok) return fail(1, entry.message);
+      const copy = materialize({ entry: entry.path, tree });
+      if (!copy.ok) return fail(1, copy.message);
+      if (copy.warning) process.stderr.write(`orchestrate: ${copy.warning}\n`);
+      recordTree(found.path, { tree: tree.slice(found.path.length + 1), key: entry.key, strategy: copy.strategy, installed: entry.installed, at: new Date().toISOString() });
+      return out({ ok: true, key: entry.key, installed: entry.installed, strategy: copy.strategy, warning: copy.warning }, `${entry.installed ? "installed" : "reused"} ${entry.key}; ${copy.strategy} into ${tree}/node_modules\n`);
+    }
+    case "done": {
+      if (!args[0]) return fail(2, "scratch done needs <run-dir>");
+      const result = finishRun({ root, runDir: args[0] });
+      if (!result.ok) return fail(1, result.message);
+      return out(result, `reclaimed ${result.removed.length} rebuildable director${result.removed.length === 1 ? "y" : "ies"} in ${result.path}; evidence kept\n` + result.preserved.map((item) => `  preserved ${item.path}: ${item.reason}\n`).join(""));
+    }
+    case "fail": {
+      if (!args[0]) return fail(2, "scratch fail needs <run-dir>");
+      const result = failRun({ root, runDir: args[0] });
+      if (!result.ok) return fail(1, result.message);
+      return out(result, `preserved ${result.path}\n`);
+    }
+    case "list": {
+      const runs = listRuns(root).map((entry) => ({ path: entry.path, status: entry.status, ticket: entry.run?.ticket ?? null, role: entry.run?.role ?? null, head: entry.run?.head ?? null, owner: entry.run?.owner ?? null }));
+      return out({ ok: true, runs }, runs.map((run) => `${run.status.padEnd(12)} ${run.ticket ?? "?"} ${run.role ?? "?"} ${run.head?.slice(0, 7) ?? "?"}  ${run.path}\n`).join("") || "No scratch runs.\n");
+    }
+    case "prune": {
+      const olderThanMs = parseDuration(flags["older-than"] ?? "24h");
+      if (olderThanMs === null) return fail(2, "--older-than takes a duration such as 24h, 30m, 2d or 0");
+      const result = pruneScratch({ root, olderThanMs, includePreserved: Boolean(flags["include-preserved"]), cache: Boolean(flags.cache), execute: Boolean(flags.execute) });
+      if (!result.ok) return fail(1, result.message);
+      const lines = [result.execute ? "Pruned:" : "Dry run — nothing removed; pass --execute to reclaim:"];
+      for (const action of result.actions) for (const target of action.targets) lines.push(`  ${action.kind === "run" ? `${action.status} run` : action.kind}: ${target}`);
+      if (!result.actions.length) lines.push("  nothing to reclaim");
+      for (const item of result.kept) lines.push(`  kept ${item.path}: ${item.reason}`);
+      return out(result, lines.join("\n") + "\n");
+    }
+    default:
+      return fail(2, "scratch needs new, deps, done, fail, list or prune");
+  }
+}
+
+function disk({ root, json }) {
+  const check = diskCheck({ root });
+  const refusal = scratchRefusal(root);
+  const runs = refusal ? [] : listRuns(root);
+  const counts = {};
+  for (const entry of runs) counts[entry.status] = (counts[entry.status] ?? 0) + 1;
+  const scratchBytes = logicalBytes(join(root, ".pathfinder", "scratch"));
+  const cacheBytes = logicalBytes(join(root, ".pathfinder", "deps"));
+  const value = { ok: check.ok, disk: check, runs: counts, scratchLogicalBytes: scratchBytes, cacheLogicalBytes: cacheBytes };
+  const text = [
+    formatDisk(check),
+    `scratch runs: ${Object.entries(counts).map(([state, n]) => `${n} ${state}`).join(", ") || "none"}`,
+    `scratch ${formatGb(scratchBytes)}, dependency cache ${formatGb(cacheBytes)} logical — clones are counted in full, so physical use is lower`,
+  ].join("\n") + "\n";
+  process.stdout.write(json ? JSON.stringify(value, null, 2) + "\n" : text);
+  return check.ok ? 0 : 1;
 }
 
 /** Two paths name the same directory, symlinks (macOS /var → /private/var) included. */
@@ -759,6 +876,7 @@ function parse(argv) {
   const valued = new Set([
     "root", "store", "gh", "feature", "slug", "now", "live", "risk", "reason", "harness", "session", "approval",
     "request", "consent", "invocation", "workers", "question", "answer", "set", "gate", "last", "next", "comment-blocked", "comment-unblocked", "by", "guidance", "timeout-ms",
+    "role", "head", "owner-pid", "allow-low-disk", "tree", "npm", "older-than",
   ]);
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -770,7 +888,7 @@ function parse(argv) {
         const value = equals === -1 ? argv[++index] : argument.slice(equals + 1);
         if (value === undefined || value.startsWith("--")) return { error: `--${name} needs a value` };
         flags[name] = value;
-      } else if (name === "json" || name === "help" || name === "announce" || name === "force" || name === "adopt" || name === "advance" || name === "begin-repair") {
+      } else if (name === "json" || name === "help" || name === "announce" || name === "force" || name === "adopt" || name === "advance" || name === "begin-repair" || name === "execute" || name === "include-preserved" || name === "cache") {
         flags[name] = true;
       } else {
         return { error: `unknown option \`${argument}\`` };

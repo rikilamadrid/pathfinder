@@ -83,7 +83,7 @@ and, for a GitHub Issues store, the `gh` CLI. It holds no state of its own:
 every call re-derives its answer from Git, the worktrees, and the store.
 
 ```
-engine/bin/orchestrate.mjs   board | claim | owner | status | estimate | brief | check | judge | release
+engine/bin/orchestrate.mjs   board | claim | owner | status | estimate | brief | check | judge | release | scratch | disk
 engine/store.mjs             reads the configured ticket store
 engine/board.mjs             eligibility
 engine/claims.mjs            claims, from git worktrees and state files
@@ -105,12 +105,42 @@ engine/experiments.mjs       bounded transient Adversary experiments
 engine/findings.mjs          bounded transient independent Tester review
 engine/judgment.mjs          optional Evidence Judge: bundle, validation, policy, checkpoint
 engine/judges/              Evidence Judge providers; jev is the first
+engine/scratch.mjs           review scratch runs: owner, ticket, role, head; reclaim and prune
+engine/deps.mjs              content-addressed dependency cache and copy-on-write trees
+engine/disk.mjs              physical free space, warning and floor thresholds
 ```
 
 `profile.md` documents the profile, its thresholds, and routing policies.
 `brief.md` documents the brief and the harness translation table.
 `worker-brief.md` and `resume-brief.md` state what each brief asks a worker to do.
 `evidence-judge.md` documents the optional Evidence Judge and its trust boundary.
+
+### Review scratch
+
+Adversary and Tester rounds build their trees — base, head, mutants — in a
+run under `.pathfinder/scratch/<key>/`, never in a harness's private temporary
+area, and never with a fresh `npm ci` per tree:
+
+```
+node skills/orchestrate/engine/bin/orchestrate.mjs scratch new <key> --role tester --head <sha>
+node skills/orchestrate/engine/bin/orchestrate.mjs scratch deps <run-dir> --tree head
+PATHFINDER_SCRATCH_RUN=<run-dir> node skills/orchestrate/engine/findings.mjs --checkpoint < report.json
+```
+
+`scratch deps` installs each lockfile once into `.pathfinder/deps/<key>/`,
+keyed by lockfile, package.json, Node, npm, platform and architecture, and
+gives the tree its own copy-on-write clone: an APFS clone on macOS, a reflink
+on Linux, a full copy with a warning elsewhere. A mutant's edits stay in its
+own tree. A container keys its own Linux entry. A checkpoint written with
+`PATHFINDER_SCRATCH_RUN`, or `scratch done`, reclaims the run's `node_modules`
+and `.next` and keeps every log, report, patch and source. A failed or
+interrupted run is preserved; `scratch prune` is a dry run until `--execute`,
+and reclaims a preserved run's dependencies only with `--include-preserved`.
+New runs are refused below the disk floor — `<!-- pathfinder:disk warn=25
+floor=10 -->` in `context/execution-mode.md`, in GB, or
+`PATHFINDER_DISK_WARN_GB` / `PATHFINDER_DISK_FLOOR_GB` — unless
+`--allow-low-disk` names the human's explicit approval. `disk` and `status`
+report physical free space; per-file totals overstate clones.
 
 A store other than local Markdown needs one machine-readable line in
 `context/tracker.md`, described in `skills/ticket/store.md`.
