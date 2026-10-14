@@ -31,7 +31,7 @@ import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, rmdirSync, statfsSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, win32 } from "node:path";
+import { dirname, isAbsolute, join, posix, relative, resolve, win32 } from "node:path";
 import { formatGb } from "./disk.mjs";
 import { isWsl, liveness, ownerRecord } from "./process.mjs";
 
@@ -55,7 +55,7 @@ const TRANSIENT = new Set(["EPERM", "EBUSY", "EACCES", "ENOTEMPTY"]);
 export function npmCommand(npm = "npm", platform = process.platform, execPath = process.execPath) {
   // A path is made absolute once, so `--version` and `ci` (run in another
   // directory) name the same program.
-  const named = /[\\/]/.test(npm) || /\.(?:c|m)?js$/i.test(npm) ? (platform === "win32" ? win32.resolve(npm) : resolve(npm)) : npm;
+  const named = /[\\/]/.test(npm) || /\.(?:c|m)?js$/i.test(npm) ? (platform === "win32" ? win32 : posix).resolve(npm) : npm;
   if (/\.(?:c|m)?js$/i.test(named)) return { ok: true, file: execPath, args: [named] };
   if (platform !== "win32") return { ok: true, file: named, args: [] };
   if (npm !== "npm") return refuse(`on Windows --npm must name npm's npm-cli.js (or another .js entry point), not ${npm}; shims run only through cmd.exe`);

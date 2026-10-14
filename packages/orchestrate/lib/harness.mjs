@@ -39,8 +39,13 @@ export function cleanUpTemporaryDirectories() {
 }
 
 /** A deterministic Git environment: no user config, fixed identity and dates. */
+/** Variables Windows itself needs in every child: without them CIM, temp files and node fail. */
+const WINDOWS_ESSENTIALS = ["SystemRoot", "SYSTEMROOT", "windir", "ComSpec", "PATHEXT", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "ProgramData", "ProgramFiles", "PSModulePath"];
+
 export function gitEnv(extra = {}) {
+  const windows = process.platform === "win32" ? Object.fromEntries(WINDOWS_ESSENTIALS.filter((name) => process.env[name] !== undefined).map((name) => [name, process.env[name]])) : {};
   return {
+    ...windows,
     PATH: process.env.PATH ?? "/usr/bin:/bin",
     HOME: tmpdir(),
     GIT_CONFIG_NOSYSTEM: "1",

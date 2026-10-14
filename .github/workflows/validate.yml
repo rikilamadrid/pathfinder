@@ -134,7 +134,7 @@ jobs:
       - name: Measure the full orchestrate suite on Windows
         # Informational until the wider suite is portable: its harness
         # predates Windows support. The result is reported, not hidden.
-        if: runner.os == 'Windows'
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
         continue-on-error: true
         working-directory: packages/orchestrate
         run: node --test

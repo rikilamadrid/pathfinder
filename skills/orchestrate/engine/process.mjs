@@ -31,14 +31,42 @@ const commandName = (text) => basename(String(text).trim().replace(/\\/g, "/")).
  * The process and its ancestors, nearest first: [{pid, ppid, command}].
  * Empty when this system cannot say.
  */
+let snapshot = null;
+
+/**
+ * Every Windows process as pid → {ppid, command}, from one CIM query. One
+ * query per ancestor costs seconds each; the table is reused for a moment so
+ * one engine command asks once. The script travels as -EncodedCommand, so no
+ * quoting of the command line can alter it, and SystemRoot is always passed:
+ * CIM fails without it.
+ */
+function windowsProcesses() {
+  if (snapshot && Date.now() - snapshot.at < 2000) return snapshot.table;
+  const script = "Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,Name | ForEach-Object { \"$($_.ProcessId) $($_.ParentProcessId) $($_.Name)\" }";
+  const env = { ...process.env, SystemRoot: process.env.SystemRoot || process.env.SYSTEMROOT || process.env.windir || "C:\\Windows" };
+  const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], { encoding: "utf8", windowsHide: true, timeout: 20_000, env });
+  if (result.status !== 0) return null;
+  const table = new Map();
+  for (const line of result.stdout.split(/\r?\n/)) {
+    const m = /^(\d+)\s+(\d+)\s+(.+)$/.exec(line.trim());
+    if (m) table.set(Number(m[1]), { ppid: Number(m[2]), command: commandName(m[3]) });
+  }
+  snapshot = { at: Date.now(), table };
+  return table;
+}
+
 export function processChain(start, { depth = 16, platform = process.platform } = {}) {
   if (!Number.isSafeInteger(start) || start < 1) return [];
   if (platform === "win32") {
-    const script = `$i=${start}; for($n=0;$n -lt ${depth};$n++){ $p=Get-CimInstance Win32_Process -Filter "ProcessId=$i" -ErrorAction SilentlyContinue; if(-not $p){break}; "$($p.ProcessId) $($p.ParentProcessId) $($p.Name)"; if($p.ParentProcessId -eq $i -or $p.ParentProcessId -eq 0){break}; $i=$p.ParentProcessId }`;
-    const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { encoding: "utf8", windowsHide: true, timeout: 30_000 });
-    if (result.status !== 0) return [];
-    return result.stdout.split(/\r?\n/).map((line) => /^(\d+)\s+(\d+)\s+(.+)$/.exec(line.trim())).filter(Boolean)
-      .map((m) => ({ pid: Number(m[1]), ppid: Number(m[2]), command: commandName(m[3]) }));
+    const table = windowsProcesses();
+    const chain = [];
+    for (let pid = start, n = 0; table && n < depth && table.has(pid); n += 1) {
+      const { ppid, command } = table.get(pid);
+      chain.push({ pid, ppid, command });
+      if (ppid === pid || ppid === 0) break;
+      pid = ppid;
+    }
+    return chain;
   }
   const chain = [];
   let pid = start;
