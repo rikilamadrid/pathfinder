@@ -35,7 +35,8 @@ The heading of the most recent released section below is the single source of tr
   keyed by lockfile, package.json, `.npmrc`, Node, npm, platform and
   architecture; atomic publication under a lock, stale locks reclaimed, a
   partial install never published) and gives every tree a private
-  copy-on-write clone — APFS on macOS, reflink on Linux, a warned full copy
+  copy-on-write clone — APFS on macOS (proven by volume type and device, as
+  `cp -c` silently copies elsewhere), reflink on Linux, a warned full copy
   otherwise (always on Windows), checked against the disk floor first; never a
   hard link, a shared writable tree, or a link out of the tree. Owners are
   identified by pid, host and platform, so a WSL or Windows owner is never

@@ -25,7 +25,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import path, { join } from "node:path";
 import { atomicCheckpointWrite } from "./checkpoint-write.mjs";
-import { DEPS_DIR, removeTree, unpublish } from "./deps.mjs";
+import { DEPS_DIR, removeTree, retireStaleLock, unpublish } from "./deps.mjs";
 import { diskCheck, floorGate } from "./disk.mjs";
 import { isIgnored } from "./git.mjs";
 import { isKey } from "./keys.mjs";
@@ -316,6 +316,8 @@ export function pruneScratch({ root, olderThanMs = 24 * 3_600_000, includePreser
         const run = readRun(action.path);
         if (!run || liveness(run.owner) !== false) { results.push({ path: action.path, skipped: "owner alive or unknown at execution" }); continue; }
         results.push({ path: action.path, ...reclaim(action.path, run, `prune:${action.status}`, new Date(now)) });
+      } else if (action.kind === "stale lock") {
+        results.push(retireStaleLock(action.path) ? { path: action.path, removed: [action.path] } : { path: action.path, skipped: "no longer stale at execution" });
       } else if (action.key) {
         const removed = unpublish({ root, key: action.key });
         results.push(removed.ok ? { path: action.path, removed: [action.path] } : { path: action.path, skipped: removed.message });

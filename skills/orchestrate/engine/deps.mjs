@@ -29,7 +29,7 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, rmdirSync, statfsSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, win32 } from "node:path";
 import { formatGb } from "./disk.mjs";
@@ -413,6 +413,34 @@ export function unpublish({ root, key }) {
   return { ok: true };
 }
 
+const APFS = 0x1a;
+
+/**
+ * Whether a clone is possible from `source` into `treeDir`. macOS `cp -c`
+ * silently falls back to an ordinary copy off APFS or across volumes and
+ * still exits 0, so its exit status proves nothing: both ends must be on one
+ * APFS volume. Linux `--reflink=always` fails loudly, so it is simply tried.
+ */
+export function cloneable(source, treeDir, platform = process.platform) {
+  if (platform !== "darwin") return platform === "linux";
+  try {
+    return statfsSync(source).type === APFS && statfsSync(treeDir).type === APFS && lstatSync(source).dev === lstatSync(treeDir).dev;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Retire `lock` only if it is still stale now: a dead owner, or ownerless and
+ * old. Prune plans first and acts later, so it re-checks under the breaker
+ * rather than trusting its plan.
+ */
+export function retireStaleLock(lock, orphanMs = 60_000) {
+  const owner = lockOwner(lock);
+  if (owner ? liveness(owner) !== false : (() => { try { return Date.now() - statSync(lock).mtimeMs <= orphanMs; } catch { return true; } })()) return false;
+  return breakStale(lock, owner, orphanMs) && !existsSync(lock);
+}
+
 /** The copy strategies to try, best first. */
 function defaultStrategies(platform) {
   if (platform === "darwin") return [{ name: "clone", args: ["-cR"] }];
@@ -447,7 +475,7 @@ function sharesInode(source, copy, limit = 500) {
  *
  * @returns {{ok: true, strategy: "clone"|"reflink"|"copy", warning: string|null} | {ok: false, message: string}}
  */
-export function materialize({ entry, tree, platform = process.platform, cp = "cp", strategies = defaultStrategies(platform), beforeCopy = null }) {
+export function materialize({ entry, tree, platform = process.platform, cp = "cp", strategies = defaultStrategies(platform), beforeCopy = null, canClone = cloneable }) {
   const source = join(entry, "node_modules");
   const target = join(tree, "node_modules");
   let exists = true;
@@ -457,7 +485,7 @@ export function materialize({ entry, tree, platform = process.platform, cp = "cp
   let record;
   try { record = JSON.parse(readFileSync(join(entry, "entry.json"), "utf8")); } catch { record = null; }
   if (!record || !isComplete(entry, record.key)) return refuse(`${entry} is no longer a complete entry; nothing was materialized`);
-  for (const candidate of strategies) {
+  for (const candidate of canClone(source, tree, platform) ? strategies : []) {
     const result = spawnSync(cp, [...candidate.args, source, target], { encoding: "utf8", windowsHide: true });
     if (result.status === 0) { strategy = candidate.name; break; }
     removeTree(target);

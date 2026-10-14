@@ -132,7 +132,9 @@ PATHFINDER_SCRATCH_RUN=<run-dir> PATHFINDER_SCRATCH_SESSION=<s> \
 
 `scratch deps` installs each lockfile once into `.pathfinder/deps/<key>/`,
 keyed by lockfile, package.json, Node, npm, platform and architecture, and
-gives the tree its own copy-on-write clone: an APFS clone on macOS, a reflink
+gives the tree its own copy-on-write clone: an APFS clone on macOS (only when
+the cache and the tree share one APFS volume — `cp -c` silently copies
+anywhere else), a reflink
 on Linux filesystems that support it (Btrfs, XFS), otherwise a full,
 independent copy with a warning — always on Windows, and on ext4, overlay or a
 WSL `/mnt/<drive>` path. A full copy is checked against the disk floor first.

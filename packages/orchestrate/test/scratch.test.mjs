@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { after, describe, it } from "node:test";
 import { cleanUpTemporaryDirectories, ENGINE_BIN, ENGINE_ROOT, gitEnv, json, makeProject, orchestrate, temporaryDirectory } from "../lib/harness.mjs";
 
-const { cacheInputs, ensureEntry, escapingLinks, holdKey, materialize, npmCommand, unpublish } = await import(pathToFileURL(join(ENGINE_ROOT, "deps.mjs")));
+const { cacheInputs, cloneable, ensureEntry, escapingLinks, holdKey, materialize, npmCommand, retireStaleLock, unpublish } = await import(pathToFileURL(join(ENGINE_ROOT, "deps.mjs")));
 const { diskCheck, freeBytes, readDiskPolicy, roomFor } = await import(pathToFileURL(join(ENGINE_ROOT, "disk.mjs")));
 const { real, reclaimAfterCheckpoint, runStatus, within } = await import(pathToFileURL(join(ENGINE_ROOT, "scratch.mjs")));
 const { findOwner, liveness, ownerRecord, processChain } = await import(pathToFileURL(join(ENGINE_ROOT, "process.mjs")));
@@ -921,6 +921,55 @@ describe("final adversary pass regressions", () => {
     utimesSync(breaker, old, old);
     assert.equal(cli(["scratch", "prune", "--execute"], { root }).status, 0);
     assert.equal(existsSync(breaker), false);
+  });
+});
+
+describe("tester regressions", () => {
+  it("F1: where cloning cannot be proven, a copy is warned, floor-checked and recorded as a copy", () => {
+    const root = makeProject();
+    const dir = temporaryDirectory("deps-noclone-");
+    const t = tree(dir, "src");
+    const entry = ensureEntry({ root, tree: t, npm: fakeNpm(), env: gitEnv() });
+    assert.equal(entry.ok, true, entry.message);
+    let asked = 0;
+    const result = materialize({ entry: entry.path, tree: tree(dir, "copy"), platform: "darwin", canClone: () => false, beforeCopy: (bytes) => { asked = bytes; return { ok: true }; } });
+    assert.equal(result.ok, true, result.message);
+    assert.equal(result.strategy, "copy");
+    assert.match(result.warning, /fully copied/);
+    assert.ok(asked > 0, "the floor was not consulted");
+    assert.equal(cloneable("/x", "/y", "win32"), false);
+  });
+
+  it("F1: a non-APFS macOS volume never reports a clone", { skip: process.platform !== "darwin" && "macOS disk images" }, (t) => {
+    const dir = temporaryDirectory("hfs-");
+    const image = join(dir, "v.dmg");
+    const mount = join(dir, "mnt");
+    if (spawnSync("hdiutil", ["create", "-quiet", "-size", "20m", "-fs", "HFS+", "-volname", "pfhfs", image]).status !== 0 ||
+        spawnSync("hdiutil", ["attach", "-quiet", "-nobrowse", "-mountpoint", mount, image]).status !== 0) { t.skip("hdiutil cannot create or attach an HFS+ image here"); return; }
+    try {
+      const root = makeProject();
+      const src = tree(dir, "src");
+      const entry = ensureEntry({ root, tree: src, npm: fakeNpm(), env: gitEnv() });
+      assert.equal(entry.ok, true, entry.message);
+      assert.equal(cloneable(join(entry.path, "node_modules"), mount), false);
+      const target = tree(mount, "t");
+      const result = materialize({ entry: entry.path, tree: target, beforeCopy: () => ({ ok: false, message: "floor" }) });
+      assert.equal(result.ok, false);
+      assert.match(result.message, /floor/);
+      assert.equal(existsSync(join(target, "node_modules")), false);
+    } finally { spawnSync("hdiutil", ["detach", "-quiet", "-force", mount]); }
+  });
+
+  it("prune re-checks a stale lock when it acts, never retiring one that came alive", () => {
+    const root = makeProject();
+    const lock = join(depsDir(root), "0123456789abcdef0123456789abcdef.lock");
+    mkdirSync(lock, { recursive: true });
+    writeFileSync(join(lock, "owner.json"), JSON.stringify(ownerRecord(process.pid)));
+    assert.equal(retireStaleLock(lock), false);
+    assert.equal(existsSync(lock), true);
+    writeFileSync(join(lock, "owner.json"), JSON.stringify(ownerRecord(deadPid())));
+    assert.equal(retireStaleLock(lock), true);
+    assert.equal(existsSync(lock), false);
   });
 });
 
