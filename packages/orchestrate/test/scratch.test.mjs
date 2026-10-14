@@ -285,7 +285,8 @@ describe("clone isolation", () => {
     chmodSync(failingCp, 0o755);
     for (const [platform, flag] of [["darwin", "-cR"], ["linux", "--reflink=always"], ["win32", null]]) {
       const target = tree(dir, `t-${platform}`);
-      const result = materialize({ entry: entry.path, tree: target, platform, cp: failingCp });
+      // Cloning is possible as far as the volume goes; it is cp that fails.
+      const result = materialize({ entry: entry.path, tree: target, platform, cp: failingCp, canClone: () => platform !== "win32" });
       assert.equal(result.ok, true, result.message);
       assert.equal(result.strategy, "copy");
       assert.match(result.warning, /fully copied/);
