@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { spawn, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, describe, it } from "node:test";
@@ -893,6 +893,34 @@ describe("third adversary pass regressions", () => {
     assert.match(bare(["scratch", "deps", a.path, "--tree", "head", "--npm", fakeNpm()], { root }).stderr, /started for another session/);
     assert.match(bare(["scratch", "done", a.path, "--session", b.session], { root }).stderr, /started for another session/);
     assert.match(bare(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD], { root }).stdout, /^session s-[0-9a-f]{16}$/m);
+  });
+});
+
+describe("final adversary pass regressions", () => {
+  it("C1: a bare relative .js --npm is made absolute too", () => {
+    assert.equal(npmCommand("npm.js", "linux", "/node").args[0], join(process.cwd(), "npm.js"));
+  });
+
+  it("A1: a run without a recorded session changes only once its owner has exited", () => {
+    const root = makeProject();
+    const run = newRun(root);
+    tree(run, "head");
+    const record = JSON.parse(readFileSync(join(run, "run.json"), "utf8"));
+    delete record.session;
+    writeFileSync(join(run, "run.json"), JSON.stringify(record));
+    assert.match(bare(["scratch", "deps", run, "--tree", "head", "--npm", fakeNpm()], { root }).stderr, /records no session/);
+    writeFileSync(join(run, "run.json"), JSON.stringify({ ...record, owner: ownerRecord(deadPid()) }));
+    assert.equal(bare(["scratch", "done", run], { root }).status, 0);
+  });
+
+  it("B1: prune clears an abandoned lock breaker", () => {
+    const root = makeProject();
+    const breaker = join(depsDir(root), "0123456789abcdef0123456789abcdef.lock.break");
+    mkdirSync(breaker, { recursive: true });
+    const old = new Date(Date.now() - 120_000);
+    utimesSync(breaker, old, old);
+    assert.equal(cli(["scratch", "prune", "--execute"], { root }).status, 0);
+    assert.equal(existsSync(breaker), false);
   });
 });
 

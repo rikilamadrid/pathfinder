@@ -104,6 +104,7 @@ export function ownerRefusal(found, session) {
   const { run, path } = found;
   if (run.session && session !== run.session) return `run ${path} was started for another session; pass the --session it was created with`;
   if (liveness(run.owner) === false) return null;
+  if (!run.session) return `run ${path} records no session; it can be changed only once its owner has exited`;
   const owns = callerOwns(run.owner);
   // Without readable ancestry here, the session matched above is the only
   // evidence of ownership; every run records one.
@@ -267,6 +268,7 @@ function cachePlan(root, { cache, olderThanMs, now, liveKeys }) {
     if (stats.isSymbolicLink()) continue;
     const age = now - stats.mtimeMs;
     if (name.includes(".lock.stale-")) plan.push({ path, kind: "retired lock" });
+    else if (name.endsWith(".lock.break") && age > 60_000) plan.push({ path, kind: "abandoned lock breaker" });
     else if (name.startsWith(".trash-")) plan.push({ path, kind: "unpublished entry" });
     else if (name.startsWith(".tmp-") || name.endsWith(".lock")) {
       const owner = ownerOf(join(path, "owner.json"));

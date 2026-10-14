@@ -55,7 +55,7 @@ const TRANSIENT = new Set(["EPERM", "EBUSY", "EACCES", "ENOTEMPTY"]);
 export function npmCommand(npm = "npm", platform = process.platform, execPath = process.execPath) {
   // A path is made absolute once, so `--version` and `ci` (run in another
   // directory) name the same program.
-  const named = /[\\/]/.test(npm) ? (platform === "win32" ? win32.resolve(npm) : resolve(npm)) : npm;
+  const named = /[\\/]/.test(npm) || /\.(?:c|m)?js$/i.test(npm) ? (platform === "win32" ? win32.resolve(npm) : resolve(npm)) : npm;
   if (/\.(?:c|m)?js$/i.test(named)) return { ok: true, file: execPath, args: [named] };
   if (platform !== "win32") return { ok: true, file: named, args: [] };
   if (npm !== "npm") return refuse(`on Windows --npm must name npm's npm-cli.js (or another .js entry point), not ${npm}; shims run only through cmd.exe`);
@@ -266,7 +266,7 @@ function acquire(lock, { entry, key, timeoutMs, pollMs, orphanMs, shortcut = tru
       try { stale = Date.now() - statSync(lock).mtimeMs > orphanMs; } catch { stale = false; }
     }
     if (stale && breakStale(lock, owner, orphanMs)) continue;
-    if (Date.now() > deadline) return refuse(`timed out after ${timeoutMs} ms waiting for the install holding ${lock}`);
+    if (Date.now() > deadline) return refuse(`timed out after ${timeoutMs} ms waiting for ${lock}${stale ? " (its owner is gone; another process is retiring it)" : ", held by a live install or copy"}`);
     sleep(pollMs);
   }
 }
