@@ -14,7 +14,19 @@ const { findOwner, liveness, ownerRecord, processChain } = await import(pathToFi
 const WINDOWS = process.platform === "win32";
 /** Tests not about disk run with no thresholds, so a nearly full CI runner cannot fail them. */
 const QUIET = { PATHFINDER_DISK_WARN_GB: "0", PATHFINDER_DISK_FLOOR_GB: "0" };
-const cli = (args, { env = {}, ...options } = {}) => orchestrate(args, { ...options, env: { ...QUIET, ...env } });
+/** The session each run minted; deps, done and fail carry it unless a test passes its own. */
+const sessions = new Map();
+const cli = (args, { env = {}, ...options } = {}) => {
+  const withSession = args[0] === "scratch" && ["deps", "done", "fail"].includes(args[1]) && !args.includes("--session") && sessions.has(args[2]) ? [...args, "--session", sessions.get(args[2])] : args;
+  const result = orchestrate(withSession, { ...options, env: { ...QUIET, ...env } });
+  if (args[0] === "scratch" && args[1] === "new" && result.status === 0 && args.includes("--json")) {
+    const created = JSON.parse(result.stdout);
+    sessions.set(created.path, created.session);
+  }
+  return result;
+};
+/** The raw CLI, for tests that must omit the session. */
+const bare = (args, { env = {}, ...options } = {}) => orchestrate(args, { ...options, env: { ...QUIET, ...env } });
 /** A directory link any user can make: a junction on Windows, a symlink elsewhere. */
 const linkDir = (target, path) => symlinkSync(target, path, WINDOWS ? "junction" : "dir");
 /** A process that stays alive until killed, without POSIX `sleep`. */
@@ -164,7 +176,7 @@ describe("concurrency and crash recovery", () => {
     const run = newRun(root);
     tree(run, "a"); tree(run, "b");
     const launch = (name) => new Promise((resolve) => {
-      const child = spawn(process.execPath, [ENGINE_BIN, "scratch", "deps", run, "--tree", name, "--npm", npm, "--json"], { cwd: root, env: gitEnv({ ...QUIET, FAKE_NPM_LOG: log, FAKE_NPM_DELAY_MS: "1500" }) });
+      const child = spawn(process.execPath, [ENGINE_BIN, "scratch", "deps", run, "--tree", name, "--npm", npm, "--json", "--session", sessions.get(run)], { cwd: root, env: gitEnv({ ...QUIET, FAKE_NPM_LOG: log, FAKE_NPM_DELAY_MS: "1500" }) });
       let stderr = "";
       child.stderr.on("data", (chunk) => { stderr += chunk; });
       child.on("close", (status) => resolve({ status, stderr }));
@@ -212,7 +224,7 @@ describe("concurrency and crash recovery", () => {
     const npm = fakeNpm();
     const run = newRun(root);
     const head = tree(run, "head");
-    const child = spawn(process.execPath, [ENGINE_BIN, "scratch", "deps", run, "--tree", "head", "--npm", npm], { cwd: root, env: gitEnv({ ...QUIET, FAKE_NPM_DELAY_MS: "20000" }) });
+    const child = spawn(process.execPath, [ENGINE_BIN, "scratch", "deps", run, "--tree", "head", "--npm", npm, "--session", sessions.get(run)], { cwd: root, env: gitEnv({ ...QUIET, FAKE_NPM_DELAY_MS: "20000" }) });
     const deadline = Date.now() + 10_000;
     while (!(existsSync(depsDir(root)) && readdirSync(depsDir(root)).some((n) => n.startsWith(".tmp-")))) {
       assert.ok(Date.now() < deadline, "install never started");
@@ -364,7 +376,9 @@ describe("scratch lifecycle", () => {
     const wrong = reclaimAfterCheckpoint(root, "2.1", run);
     assert.equal(wrong.ok, false);
     assert.equal(existsSync(join(run, "head", "node_modules")), true);
-    const right = reclaimAfterCheckpoint(root, "1.1", run);
+    process.env.PATHFINDER_SCRATCH_SESSION = sessions.get(run);
+    let right;
+    try { right = reclaimAfterCheckpoint(root, "1.1", run); } finally { delete process.env.PATHFINDER_SCRATCH_SESSION; }
     assert.equal(right.ok, true, right.message);
     assert.equal(existsSync(join(run, "head", "node_modules")), false);
     assert.equal(existsSync(join(run, "report.json")), true);
@@ -646,7 +660,7 @@ describe("adversary regressions", () => {
     const root = makeProject();
     const run = newRun(root, { extra: ["--session", "tester-a"] });
     tree(run, "head");
-    assert.match(deps(root, run, "head", fakeNpm()).stderr, /started for another session/);
+    assert.match(bare(["scratch", "deps", run, "--tree", "head", "--npm", fakeNpm()], { root }).stderr, /started for another session/);
     assert.match(cli(["scratch", "done", run, "--session", "tester-b"], { root }).stderr, /started for another session/);
     assert.equal(cli(["scratch", "done", run, "--session", "tester-a"], { root }).status, 0);
   });
@@ -668,11 +682,12 @@ describe("adversary regressions", () => {
     const run = newRun(root);
     mkdirSync(join(run, "evidence", "locked"), { recursive: true });
     chmodSync(join(run, "evidence", "locked"), 0o000);
+    process.env.PATHFINDER_SCRATCH_SESSION = sessions.get(run);
     try {
       const result = reclaimAfterCheckpoint(root, "1.1", run);
       assert.equal(result.ok, false);
       assert.match(result.message, /after the checkpoint was written/);
-    } finally { chmodSync(join(run, "evidence", "locked"), 0o755); }
+    } finally { chmodSync(join(run, "evidence", "locked"), 0o755); delete process.env.PATHFINDER_SCRATCH_SESSION; }
   });
 
   it("E6: npm's environment and user config are part of the cache key", () => {
@@ -728,7 +743,7 @@ describe("adversary regressions", () => {
     const result = cli(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD], { root, env: { PATH: bin } });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /pass --owner-pid/);
-    const explicit = cli(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD, "--owner-pid", String(process.pid), "--session", "s1"], { root, env: { PATH: bin } });
+    const explicit = cli(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD, "--owner-pid", String(process.pid)], { root, env: { PATH: bin } });
     assert.equal(explicit.status, 0, explicit.stderr);
   });
 });
@@ -766,16 +781,15 @@ describe("follow-up adversary regressions", () => {
     const bin = temporaryDirectory("no-ps-");
     symlinkSync(spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim(), join(bin, "git"));
     const env = { PATH: bin };
-    const base = ["scratch", "new", "1.1", "--role", "tester", "--head", HEAD, "--owner-pid", String(process.pid)];
-    assert.match(cli(base, { root, env }).stderr, /pass --session/);
-    const created = cli([...base, "--session", "s1", "--json"], { root, env });
+    const created = bare(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD, "--owner-pid", String(process.pid), "--json"], { root, env });
     assert.equal(created.status, 0, created.stderr);
-    const run = json(created).path;
+    const { path: run, session } = json(created);
+    assert.match(session, /^s-[0-9a-f]{16}$/);
     tree(run, "head");
-    assert.equal(deps(root, run, "head", fakeNpm(), env).status, 1);
-    assert.equal(deps(root, run, "head", fakeNpm(), env, ["--session", "s1"]).status, 0);
-    assert.equal(cli(["scratch", "done", run], { root, env }).status, 1);
-    assert.equal(cli(["scratch", "done", run, "--session", "s1"], { root, env }).status, 0);
+    assert.equal(bare(["scratch", "deps", run, "--tree", "head", "--npm", fakeNpm()], { root, env }).status, 1);
+    assert.equal(bare(["scratch", "deps", run, "--tree", "head", "--npm", fakeNpm(), "--session", session], { root, env }).status, 0);
+    assert.equal(bare(["scratch", "done", run], { root, env }).status, 1);
+    assert.equal(bare(["scratch", "done", run, "--session", session], { root, env }).status, 0);
     assert.equal(existsSync(join(run, "head", "node_modules")), false);
   });
 
@@ -828,6 +842,57 @@ describe("follow-up adversary regressions", () => {
     assert.equal(result.ok, false);
     assert.match(result.message, /timed out/);
     assert.equal(readFileSync(join(lock, "owner.json"), "utf8"), owner);
+  });
+});
+
+describe("third adversary pass regressions", () => {
+  it("X1: a crashed breaker never makes a waiter ignore its timeout", () => {
+    const root = makeProject();
+    const dir = temporaryDirectory("breaker-");
+    const t = tree(dir, "t");
+    const inputs = cacheInputs({ tree: t, npmVersion: "10.9.9", env: gitEnv() });
+    const lock = join(depsDir(root), `${inputs.key}.lock`);
+    mkdirSync(lock, { recursive: true });
+    writeFileSync(join(lock, "owner.json"), JSON.stringify(ownerRecord(deadPid())));
+    mkdirSync(`${lock}.break`);
+    const started = Date.now();
+    const held = holdKey({ root, key: inputs.key, timeoutMs: 300, pollMs: 50 });
+    assert.equal(held.ok, false);
+    assert.ok(Date.now() - started < 3000, `waited ${Date.now() - started} ms past a 300 ms timeout`);
+  });
+
+  it("X2: npm's global config and workspace and link settings change the key", () => {
+    const dir = temporaryDirectory("deps-global-");
+    const t = tree(dir, "t");
+    const base = { tree: t, npmVersion: "1", node: "v1", platform: "linux", arch: "x64" };
+    const plain = cacheInputs({ ...base, env: { HOME: dir } }).key;
+    writeFileSync(join(dir, "global-npmrc"), "omit=dev\n");
+    for (const extra of [{ npm_config_globalconfig: join(dir, "global-npmrc") }, { npm_config_bin_links: "false" }, { npm_config_workspaces: "true" }, { npm_config_include_workspace_root: "true" }, { npm_config_nodedir: "/n" }]) {
+      assert.notEqual(cacheInputs({ ...base, env: { HOME: dir, ...extra } }).key, plain, JSON.stringify(extra));
+    }
+    assert.equal(cacheInputs({ ...base, env: { HOME: dir, npm_config_node_gyp: "/x/node-gyp.js" } }).key, plain);
+  });
+
+  it("X3: a relative --npm names the same program for --version and ci", () => {
+    const root = makeProject();
+    const run = newRun(root);
+    tree(run, "head");
+    const tools = join(root, "tools");
+    mkdirSync(tools);
+    writeFileSync(join(tools, "npm.js"), readFileSync(fakeNpm()));
+    const result = cli(["scratch", "deps", run, "--tree", "head", "--npm", join("tools", "npm.js"), "--json"], { root });
+    assert.equal(result.status, 0, result.stderr);
+  });
+
+  it("X4: every run gets a unique session, which deps, done and fail require", () => {
+    const root = makeProject();
+    const a = json(bare(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD, "--json"], { root }));
+    const b = json(bare(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD, "--json"], { root }));
+    assert.notEqual(a.session, b.session);
+    tree(a.path, "head");
+    assert.match(bare(["scratch", "deps", a.path, "--tree", "head", "--npm", fakeNpm()], { root }).stderr, /started for another session/);
+    assert.match(bare(["scratch", "done", a.path, "--session", b.session], { root }).stderr, /started for another session/);
+    assert.match(bare(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD], { root }).stdout, /^session s-[0-9a-f]{16}$/m);
   });
 });
 

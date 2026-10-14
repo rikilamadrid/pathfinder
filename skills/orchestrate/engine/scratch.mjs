@@ -105,8 +105,8 @@ export function ownerRefusal(found, session) {
   if (run.session && session !== run.session) return `run ${path} was started for another session; pass the --session it was created with`;
   if (liveness(run.owner) === false) return null;
   const owns = callerOwns(run.owner);
-  // Without readable ancestry here, the session recorded at creation is the
-  // only evidence of ownership; a run created that way always records one.
+  // Without readable ancestry here, the session matched above is the only
+  // evidence of ownership; every run records one.
   if (owns === true || (owns === null && run.session)) return null;
   return `run ${path} belongs to live process ${run.owner?.pid}, not this session; nothing was changed`;
 }
@@ -124,12 +124,14 @@ export function createRun({ root, ticket, role, head, session = null, ownerPid =
   const gate = floorGate(diskCheck({ root, env }), approval);
   if (!gate.ok) return refuse(gate.message);
   const owner = ownerPid ? ownerRecord(ownerPid, processChain(ownerPid, { depth: 1 })[0]?.command ?? null) : findOwner();
-  if (!owner) return refuse("cannot read this process's ancestry here (no `ps` or PowerShell answer); pass --owner-pid naming the long-lived session process that owns the run, and --session");
-  if (ownerPid && !session && processChain(process.pid).length === 0) return refuse("without readable ancestry, the session is the only proof of ownership; pass --session with --owner-pid");
+  if (!owner) return refuse("cannot read this process's ancestry here (no `ps` or PowerShell answer); pass --owner-pid naming the long-lived session process that owns the run");
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
   const dir = join(scratchBase(root), ticket, `${role}-${head.slice(0, 7)}-${stamp}-${randomUUID().slice(0, 4)}`);
   mkdirSync(dir, { recursive: true });
-  const run = { schema: SCHEMA, ticket, role, head, session, owner, createdAt: now.toISOString(), state: "active", diskOverride: gate.override, trees: [], reclaimed: [] };
+  // Every run has a session: one harness process hosts many sessions, so the
+  // pid alone cannot tell them apart. Unless the caller names a unique one,
+  // the engine mints it and the caller passes it back on deps, done and fail.
+  const run = { schema: SCHEMA, ticket, role, head, session: session || `s-${randomUUID().replace(/-/g, "").slice(0, 16)}`, owner, createdAt: now.toISOString(), state: "active", diskOverride: gate.override, trees: [], reclaimed: [] };
   writeRun(dir, run);
   return { ok: true, path: dir, run, disk: gate.check };
 }

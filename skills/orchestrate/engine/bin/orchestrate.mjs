@@ -153,8 +153,10 @@ const USAGE = `orchestrate
   scratch new <key> --role developer|adversary|tester|integrator --head <sha>
         [--session <s>] [--owner-pid N] [--allow-low-disk <human approval>] [--json]
       Start a review run under .pathfinder/scratch/<key>/, recording the owner
-      process, ticket, role and head. Refused below the disk floor unless the
-      human's explicit approval is passed.
+      process, ticket, role, head and session. Prints the run directory, then
+      the session (minted when --session is absent), which deps, done and
+      fail require. Refused below the disk floor unless the human's explicit
+      approval is passed.
   scratch deps <run-dir> --tree <dir-in-run> [--session <s>] [--npm <path>] [--allow-low-disk <approval>] [--json]
       Give one tree in the run its own node_modules from the dependency cache:
       installed once per lockfile, Node, npm, platform and architecture, then
@@ -672,7 +674,7 @@ function scratch({ root, sub, args, flags }) {
       if (!result.ok) return fail(1, result.message);
       const warn = result.disk.level === "ok" ? "" : `${formatDisk(result.disk)}\n`;
       if (warn) process.stderr.write(`orchestrate: ${warn}`);
-      return out({ ok: true, path: result.path, run: result.run }, `${result.path}\n`);
+      return out({ ok: true, path: result.path, session: result.run.session, run: result.run }, `${result.path}\nsession ${result.run.session}\n`);
     }
     case "deps": {
       if (!args[0] || !flags.tree) return fail(2, "scratch deps needs <run-dir> --tree <dir-in-run>");

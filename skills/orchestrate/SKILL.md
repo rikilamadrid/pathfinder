@@ -124,8 +124,10 @@ area, and never with a fresh `npm ci` per tree:
 
 ```
 node skills/orchestrate/engine/bin/orchestrate.mjs scratch new <key> --role tester --head <sha>
-node skills/orchestrate/engine/bin/orchestrate.mjs scratch deps <run-dir> --tree head
-PATHFINDER_SCRATCH_RUN=<run-dir> node skills/orchestrate/engine/findings.mjs --checkpoint < report.json
+    # prints <run-dir>, then: session <s>
+node skills/orchestrate/engine/bin/orchestrate.mjs scratch deps <run-dir> --tree head --session <s>
+PATHFINDER_SCRATCH_RUN=<run-dir> PATHFINDER_SCRATCH_SESSION=<s> \
+  node skills/orchestrate/engine/findings.mjs --checkpoint < report.json
 ```
 
 `scratch deps` installs each lockfile once into `.pathfinder/deps/<key>/`,
@@ -145,11 +147,13 @@ and reclaims a preserved run's dependencies only with `--include-preserved`.
 Only a run's owner process — or anyone, once that process is provably dead —
 may add trees to it, finish it or fail it, and prune never touches a run whose
 owner is alive or cannot be checked. One harness process can host several
-sessions, so pass `--session` to `scratch new` and repeat it on `deps`, `done`
-and `fail` (and as `PATHFINDER_SCRATCH_SESSION` beside `PATHFINDER_SCRATCH_RUN`
-for the checkpoint hook). Where ancestry cannot be read (no `ps`), `scratch
-new` needs `--owner-pid` and `--session`, and the session then stands as the
-proof of ownership. npm never runs through a shell: on Windows the engine runs
+sessions, so every run also has a session: `scratch new` mints a unique one
+(or records `--session`), and `deps`, `done`, `fail` and the checkpoint hook
+(`PATHFINDER_SCRATCH_SESSION`) require it. Where ancestry cannot be read (no
+`ps`), `scratch new` needs `--owner-pid`, and the session then stands as the
+proof of ownership. npm settings that change the install — NODE_ENV, the
+install-affecting `npm_config_*`, the user and global npmrc — are part of the
+cache key; lifecycle scripts that read other variables or files are not. npm never runs through a shell: on Windows the engine runs
 the `npm-cli.js` beside Node, and `--npm` must name a `.js` entry point. A
 reviewer killed mid-copy can leave an orphaned clone finishing in the
 background; a retry into that tree refuses, and `scratch done` reclaims it. Clean-ups that remove a cache entry take its lock and rename it

@@ -31,7 +31,7 @@ import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, win32 } from "node:path";
 import { formatGb } from "./disk.mjs";
 import { isWsl, liveness, ownerRecord } from "./process.mjs";
 
@@ -53,8 +53,11 @@ const TRANSIENT = new Set(["EPERM", "EBUSY", "EACCES", "ENOTEMPTY"]);
  * and any other Windows value must name a script.
  */
 export function npmCommand(npm = "npm", platform = process.platform, execPath = process.execPath) {
-  if (/\.(?:c|m)?js$/i.test(npm)) return { ok: true, file: execPath, args: [npm] };
-  if (platform !== "win32") return { ok: true, file: npm, args: [] };
+  // A path is made absolute once, so `--version` and `ci` (run in another
+  // directory) name the same program.
+  const named = /[\\/]/.test(npm) ? (platform === "win32" ? win32.resolve(npm) : resolve(npm)) : npm;
+  if (/\.(?:c|m)?js$/i.test(named)) return { ok: true, file: execPath, args: [named] };
+  if (platform !== "win32") return { ok: true, file: named, args: [] };
   if (npm !== "npm") return refuse(`on Windows --npm must name npm's npm-cli.js (or another .js entry point), not ${npm}; shims run only through cmd.exe`);
   const cli = join(dirname(execPath), "node_modules", "npm", "bin", "npm-cli.js");
   if (!existsSync(cli)) return refuse(`cannot find npm beside this Node at ${cli}; pass --npm <path to npm-cli.js>`);
@@ -83,7 +86,10 @@ function renameRetrying(from, to, attempts = process.platform === "win32" ? 8 : 
  */
 /**
  * A hash of the configuration npm reads besides the project: NODE_ENV, the
- * install-affecting npm_config_* variables, and the user .npmrc. NODE_ENV=production alone
+ * install-affecting npm_config_* variables, and the user and global npmrc.
+ * Lifecycle scripts that read other variables or files are not keyed; a
+ * project that depends on them should review with `--ignore-scripts` trees or
+ * install directly. NODE_ENV=production alone
  * changes what `npm ci` installs. Values are hashed, never stored: they can
  * hold registry tokens.
  */
@@ -91,7 +97,8 @@ const INSTALL_SETTINGS = new Set([
   "omit", "include", "production", "only", "also", "dev", "optional", "registry", "ignore_scripts", "legacy_peer_deps",
   "strict_peer_deps", "install_links", "install_strategy", "global_style", "legacy_bundling", "engine_strict", "force",
   "os", "cpu", "libc", "arch", "platform", "target", "target_arch", "target_platform", "runtime", "disturl",
-  "build_from_source", "python", "msvs_version", "script_shell", "node_gyp", "sharp_binary_host", "sharp_libvips_binary_host",
+  "build_from_source", "python", "msvs_version", "script_shell", "sharp_binary_host", "sharp_libvips_binary_host",
+  "bin_links", "workspace", "workspaces", "include_workspace_root", "nodedir", "globalconfig", "userconfig", "prefix",
 ]);
 const installSetting = (name) => {
   const match = /^npm_config_(.+)$/i.exec(name);
@@ -104,10 +111,17 @@ export function npmEnvironment(env = process.env) {
   // Only settings that change what gets installed: npm also sets per-run
   // variables (prefix, user agent, cache) that would split one key per tree.
   const names = Object.keys(env).filter((name) => installSetting(name) || name === "NODE_ENV").sort();
-  const userconfig = env.npm_config_userconfig || env.NPM_CONFIG_USERCONFIG || join(env.HOME || env.USERPROFILE || homedir(), ".npmrc");
-  let user = null;
-  try { user = sha256(readFileSync(userconfig)); } catch { user = null; }
-  return sha256(JSON.stringify({ env: names.map((name) => [name, env[name]]), user }));
+  const setting = (name) => env[`npm_config_${name}`] || env[`NPM_CONFIG_${name.toUpperCase()}`];
+  const prefix = setting("prefix") || (process.platform === "win32" ? dirname(process.execPath) : dirname(dirname(process.execPath)));
+  const files = {
+    user: setting("userconfig") || join(env.HOME || env.USERPROFILE || homedir(), ".npmrc"),
+    global: setting("globalconfig") || join(prefix, "etc", "npmrc"),
+  };
+  const content = {};
+  for (const [which, file] of Object.entries(files)) {
+    try { content[which] = sha256(readFileSync(file)); } catch { content[which] = null; }
+  }
+  return sha256(JSON.stringify({ env: names.map((name) => [name, env[name]]), ...content }));
 }
 
 export function cacheInputs({ tree, npm = "npm", env = process.env, node = process.version, npmVersion = null, platform = process.platform, arch = process.arch }) {
@@ -251,10 +265,7 @@ function acquire(lock, { entry, key, timeoutMs, pollMs, orphanMs, shortcut = tru
     } else {
       try { stale = Date.now() - statSync(lock).mtimeMs > orphanMs; } catch { stale = false; }
     }
-    if (stale) {
-      breakStale(lock, owner, orphanMs);
-      continue;
-    }
+    if (stale && breakStale(lock, owner, orphanMs)) continue;
     if (Date.now() > deadline) return refuse(`timed out after ${timeoutMs} ms waiting for the install holding ${lock}`);
     sleep(pollMs);
   }
@@ -274,20 +285,23 @@ function breakStale(lock, observed, orphanMs) {
   try {
     mkdirSync(breaker);
   } catch {
-    try { if (Date.now() - statSync(breaker).mtimeMs > orphanMs) rmdirSync(breaker); } catch { /* gone already */ }
-    return;
+    // Another waiter is breaking it, or one crashed doing so: report no
+    // progress, so the caller honours its deadline and sleeps.
+    try { if (Date.now() - statSync(breaker).mtimeMs > orphanMs) { rmdirSync(breaker); return true; } } catch { /* gone already */ }
+    return false;
   }
   try {
     const current = lockOwner(lock);
     let still = false;
     if (observed) still = sameOwner(current, observed);
     else { try { still = !current && Date.now() - statSync(lock).mtimeMs > orphanMs; } catch { still = false; } }
-    if (!still) return;
+    if (!still) return true;
     const retired = `${lock}.stale-${randomUUID()}`;
     try { renameSync(lock, retired); rmSync(retired, { recursive: true, force: true }); } catch { /* already retired */ }
   } finally {
     try { rmdirSync(breaker); } catch { /* expires */ }
   }
+  return true;
 }
 
 function release(lock) {
