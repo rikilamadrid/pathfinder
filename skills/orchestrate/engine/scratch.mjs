@@ -55,6 +55,9 @@ export function within(parent, child, platform = process.platform) {
   return rel;
 }
 
+/** A path inside a run as run.json records it: forward slashes on every platform. */
+export const portable = (relativePath) => relativePath.split(/[\\/]/).join("/");
+
 /** The canonical spelling of an existing path, in the filesystem's own case. */
 export const real = (target) => realpathSync.native(target);
 
@@ -190,7 +193,7 @@ function reclaim(dir, run, reason, now) {
   const removed = [];
   const failed = [];
   for (const target of targets) {
-    try { removeTree(target); removed.push(target.slice(dir.length + 1)); } catch (error) { failed.push({ path: target, reason: error.message }); }
+    try { removeTree(target); removed.push(portable(target.slice(dir.length + 1))); } catch (error) { failed.push({ path: target, reason: error.message }); }
   }
   const latest = readRun(dir);
   latest.reclaimed.push(...removed.map((path) => ({ path, reason, at: now.toISOString() })));

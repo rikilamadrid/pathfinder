@@ -136,5 +136,7 @@ jobs:
         # predates Windows support. The result is reported, not hidden.
         if: ${{ !cancelled() && runner.os == 'Windows' }}
         continue-on-error: true
+        # A pre-existing test can hang on Windows; cap it so the job reports.
+        timeout-minutes: 20
         working-directory: packages/orchestrate
         run: node --test

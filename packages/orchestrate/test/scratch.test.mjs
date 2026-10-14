@@ -899,7 +899,7 @@ describe("third adversary pass regressions", () => {
 
 describe("final adversary pass regressions", () => {
   it("C1: a bare relative .js --npm is made absolute too", () => {
-    assert.equal(npmCommand("npm.js", "linux", "/node").args[0], join(process.cwd(), "npm.js"));
+    assert.equal(npmCommand("npm.js", process.platform, "/node").args[0], join(process.cwd(), "npm.js"));
   });
 
   it("A1: a run without a recorded session changes only once its owner has exited", () => {

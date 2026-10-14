@@ -62,7 +62,7 @@ import { orchestratorRefusal, readEvidenceJudge } from "../mode.mjs";
 import { computeStatus, formatStatus } from "../status.mjs";
 import { ensureEntry, holdKey, isComplete, materialize } from "../deps.mjs";
 import { diskCheck, diskLevelLine, floorGate, formatDisk, formatGb, roomFor } from "../disk.mjs";
-import { createRun, failRun, finishRun, listRuns, logicalBytes, ownerRefusal, parseDuration, pruneScratch, real, recordTree, resolveRun, scratchRefusal, within } from "../scratch.mjs";
+import { createRun, failRun, finishRun, listRuns, logicalBytes, ownerRefusal, parseDuration, portable, pruneScratch, real, recordTree, resolveRun, scratchRefusal, within } from "../scratch.mjs";
 import { describeStore, readTickets, resolveStore } from "../store.mjs";
 
 const USAGE = `orchestrate
@@ -704,7 +704,7 @@ function scratch({ root, sub, args, flags }) {
       } finally { hold.release(); }
       if (!copy.ok) return fail(1, copy.message);
       if (copy.warning) process.stderr.write(`orchestrate: ${copy.warning}\n`);
-      recordTree(found.path, { tree: rel, key: entry.key, strategy: copy.strategy, installed: entry.installed, at: new Date().toISOString() });
+      recordTree(found.path, { tree: portable(rel), key: entry.key, strategy: copy.strategy, installed: entry.installed, at: new Date().toISOString() });
       return out({ ok: true, key: entry.key, installed: entry.installed, strategy: copy.strategy, warning: copy.warning }, `${entry.installed ? "installed" : "reused"} ${entry.key}; ${copy.strategy} into ${tree}/node_modules\n`);
     }
     case "done": {
