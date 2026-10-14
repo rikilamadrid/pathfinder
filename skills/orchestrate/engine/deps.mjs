@@ -424,7 +424,8 @@ const APFS = 0x1a;
 export function cloneable(source, treeDir, platform = process.platform) {
   if (platform !== "darwin") return platform === "linux";
   try {
-    return statfsSync(source).type === APFS && statfsSync(treeDir).type === APFS && lstatSync(source).dev === lstatSync(treeDir).dev;
+    // stat, not lstat: type and device must both describe where a link points.
+    return statfsSync(source).type === APFS && statfsSync(treeDir).type === APFS && statSync(source).dev === statSync(treeDir).dev;
   } catch {
     return false;
   }

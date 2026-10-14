@@ -118,7 +118,7 @@ export function roomFor(check, bytes, approval = null) {
 }
 
 export function formatGb(bytes) {
-  return `${(bytes / GB).toFixed(1)} GB`;
+  return Math.abs(bytes) < GB ? `${Math.round(bytes / 1e6)} MB` : `${(bytes / GB).toFixed(1)} GB`;
 }
 
 /** The stable status line: empty when space is fine, else the level and threshold crossed. */

@@ -939,6 +939,11 @@ describe("tester regressions", () => {
     assert.match(result.warning, /fully copied/);
     assert.ok(asked > 0, "the floor was not consulted");
     assert.equal(cloneable("/x", "/y", "win32"), false);
+    if (process.platform === "darwin") {
+      const other = temporaryDirectory("clone-link-");
+      linkDir(join(entry.path, "node_modules"), join(other, "looks-local"));
+      assert.equal(cloneable(join(entry.path, "node_modules"), join(other, "looks-local")), cloneable(join(entry.path, "node_modules"), join(entry.path, "node_modules")), "a link must be judged by where it points");
+    }
   });
 
   it("F1: a non-APFS macOS volume never reports a clone", { skip: process.platform !== "darwin" && "macOS disk images" }, (t) => {
