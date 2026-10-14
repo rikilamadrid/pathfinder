@@ -1,15 +1,26 @@
 import { strict as assert } from "node:assert";
 import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
-import { hostname } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, describe, it } from "node:test";
 import { cleanUpTemporaryDirectories, ENGINE_BIN, ENGINE_ROOT, gitEnv, json, makeProject, orchestrate, temporaryDirectory } from "../lib/harness.mjs";
 
-const { cacheInputs, ensureEntry, materialize } = await import(pathToFileURL(join(ENGINE_ROOT, "deps.mjs")));
-const { freeBytes, readDiskPolicy } = await import(pathToFileURL(join(ENGINE_ROOT, "disk.mjs")));
-const { reclaimAfterCheckpoint } = await import(pathToFileURL(join(ENGINE_ROOT, "scratch.mjs")));
+const { cacheInputs, ensureEntry, escapingLinks, holdKey, materialize } = await import(pathToFileURL(join(ENGINE_ROOT, "deps.mjs")));
+const { diskCheck, freeBytes, readDiskPolicy, roomFor } = await import(pathToFileURL(join(ENGINE_ROOT, "disk.mjs")));
+const { reclaimAfterCheckpoint, runStatus, within } = await import(pathToFileURL(join(ENGINE_ROOT, "scratch.mjs")));
+const { findOwner, liveness, ownerRecord, processChain } = await import(pathToFileURL(join(ENGINE_ROOT, "process.mjs")));
+
+const WINDOWS = process.platform === "win32";
+/** A directory link any user can make: a junction on Windows, a symlink elsewhere. */
+const linkDir = (target, path) => symlinkSync(target, path, WINDOWS ? "junction" : "dir");
+/** A process that stays alive until killed, without POSIX `sleep`. */
+const sleeper = () => spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"]);
+/** Kill a process and everything it started; Windows does not kill children with the parent. */
+function killTree(child, marker) {
+  if (WINDOWS) spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"]);
+  else { child.kill("SIGKILL"); spawnSync("pkill", ["-9", "-f", marker]); }
+}
 
 after(cleanUpTemporaryDirectories);
 
@@ -22,8 +33,9 @@ const HEAD = "abcdef1234567890abcdef1234567890abcdef12";
  * way, or given one large file. Its last act is npm's own hidden lockfile.
  */
 function fakeNpm() {
-  const path = join(temporaryDirectory("fake-npm-"), "npm");
-  writeFileSync(path, `#!/usr/bin/env node
+  const dir = temporaryDirectory("fake-npm-");
+  const script = join(dir, "npm.js");
+  writeFileSync(script, `#!/usr/bin/env node
 const fs = require("node:fs");
 const { createHash, randomBytes } = require("node:crypto");
 const args = process.argv.slice(2);
@@ -36,7 +48,9 @@ fs.mkdirSync("node_modules/left-pad/lib", { recursive: true });
 fs.mkdirSync("node_modules/.bin", { recursive: true });
 fs.writeFileSync("node_modules/left-pad/index.js", "module.exports = " + JSON.stringify(hash) + ";\\n");
 fs.writeFileSync("node_modules/left-pad/lib/util.js", "exports.x = 1;\\n");
-fs.symlinkSync("../left-pad/index.js", "node_modules/.bin/left-pad");
+if (process.platform === "win32") fs.writeFileSync("node_modules/.bin/left-pad.cmd", "@node %~dp0\\..\\left-pad\\index.js %*\\r\\n");
+else fs.symlinkSync("../left-pad/index.js", "node_modules/.bin/left-pad");
+if (process.env.FAKE_NPM_ESCAPE) fs.symlinkSync(process.env.FAKE_NPM_ESCAPE, "node_modules/linked", process.platform === "win32" ? "junction" : "dir");
 const big = Number(process.env.FAKE_NPM_BIG_MB || 0);
 if (big) fs.writeFileSync("node_modules/left-pad/big.bin", randomBytes(big * 1024 * 1024));
 if (process.env.FAKE_NPM_FAIL) process.exit(1);
@@ -44,8 +58,13 @@ const delay = Number(process.env.FAKE_NPM_DELAY_MS || 0);
 if (delay) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, delay);
 fs.writeFileSync("node_modules/.package-lock.json", lock);
 `);
-  chmodSync(path, 0o755);
-  return path;
+  if (WINDOWS) {
+    const shim = join(dir, "npm.cmd");
+    writeFileSync(shim, `@"${process.execPath}" "${script}" %*\r\n`);
+    return shim;
+  }
+  chmodSync(script, 0o755);
+  return script;
 }
 
 function deadPid() {
@@ -78,7 +97,7 @@ function depsDir(root) {
 }
 
 function keyFor(treePath) {
-  return cacheInputs({ tree: treePath, npmVersion: "10.9.9" }).key;
+  return cacheInputs({ tree: treePath, npmVersion: "10.9.9", env: gitEnv() }).key;
 }
 
 describe("dependency cache keys", () => {
@@ -168,7 +187,7 @@ describe("concurrency and crash recovery", () => {
     const run = newRun(root);
     const head = tree(run, "head");
     mkdirSync(join(depsDir(root), `${keyFor(head)}.lock`), { recursive: true });
-    writeFileSync(join(depsDir(root), `${keyFor(head)}.lock`, "owner.json"), JSON.stringify({ pid: deadPid(), host: hostname() }));
+    writeFileSync(join(depsDir(root), `${keyFor(head)}.lock`, "owner.json"), JSON.stringify(ownerRecord(deadPid())));
     const result = deps(root, run, "head", npm);
     assert.equal(result.status, 0, result.stderr);
     assert.equal(existsSync(join(depsDir(root), `${keyFor(head)}.lock`)), false);
@@ -201,9 +220,9 @@ describe("concurrency and crash recovery", () => {
       assert.ok(Date.now() < deadline, "install never started");
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
-    child.kill("SIGKILL");
-    await new Promise((resolve) => child.on("close", resolve));
-    spawnSync("pkill", ["-9", "-f", npm]);
+    const closed = new Promise((resolve) => child.on("close", resolve));
+    killTree(child, npm);
+    await closed;
     assert.equal(existsSync(join(depsDir(root), keyFor(head))), false, "a partial entry was published");
     const recovered = deps(root, run, "head", npm);
     assert.equal(recovered.status, 0, recovered.stderr);
@@ -236,11 +255,12 @@ describe("clone isolation", () => {
     assert.equal(existsSync(join(cache, "left-pad", "lib", "util.js")), true);
     assert.equal(statSync(join(cache, file)).mode & 0o222, 0, "cache file is writable");
     for (const name of ["head", "mut"]) {
-      const copy = lstatSync(join(run, name, "node_modules", file));
-      assert.notEqual(copy.ino, lstatSync(join(cache, file)).ino);
-      assert.equal(copy.nlink, 1, "a hard link was created");
+      const big = { bigint: true };
+      const copy = lstatSync(join(run, name, "node_modules", file), big);
+      assert.notEqual(copy.ino, lstatSync(join(cache, file), big).ino);
+      assert.equal(copy.nlink, 1n, "a hard link was created");
     }
-    assert.equal(lstatSync(join(run, "head", "node_modules", ".bin", "left-pad")).isSymbolicLink(), true);
+    if (!WINDOWS) assert.equal(lstatSync(join(run, "head", "node_modules", ".bin", "left-pad")).isSymbolicLink(), true);
   });
 
   it("falls back to a full, still private copy when cloning fails, and says so", () => {
@@ -259,9 +279,9 @@ describe("clone isolation", () => {
       assert.equal(result.ok, true, result.message);
       assert.equal(result.strategy, "copy");
       assert.match(result.warning, /fully copied/);
-      if (flag) assert.match(readFileSync(argsLog, "utf8"), new RegExp(flag.replace(/[-=]/g, "\\$&")));
-      const copied = lstatSync(join(target, "node_modules", "left-pad", "index.js"));
-      assert.notEqual(copied.ino, lstatSync(join(entry.path, "node_modules", "left-pad", "index.js")).ino);
+      if (flag && !WINDOWS) assert.match(readFileSync(argsLog, "utf8"), new RegExp(flag.replace(/[-=]/g, "\\$&")));
+      const copied = lstatSync(join(target, "node_modules", "left-pad", "index.js"), { bigint: true });
+      assert.notEqual(copied.ino, lstatSync(join(entry.path, "node_modules", "left-pad", "index.js"), { bigint: true }).ino);
       writeFileSync(join(target, "node_modules", "left-pad", "index.js"), "mutant\n");
       assert.notEqual(readFileSync(join(entry.path, "node_modules", "left-pad", "index.js"), "utf8"), "mutant\n");
     }
@@ -274,18 +294,25 @@ describe("clone isolation", () => {
     tree(run, "first");
     const first = json(deps(root, run, "first", npm, { FAKE_NPM_BIG_MB: "64" }));
     assert.equal(first.strategy, "clone", "the test volume does not support APFS clones");
-    for (const name of ["a", "b", "c"]) tree(run, name);
-    const before = freeBytes(root);
-    for (const name of ["a", "b", "c"]) assert.equal(json(deps(root, run, name, npm)).strategy, "clone");
-    const used = before - freeBytes(root);
-    assert.ok(used < 24 * 1024 * 1024, `three clones used ${used} bytes; three copies would use ${3 * 64 * 1024 * 1024}`);
+    // Free space is shared with every other process writing to this volume, so
+    // one quiet measurement out of three is enough; three copies would need 192 MB.
+    const measurements = [];
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const names = ["a", "b", "c"].map((name) => `${name}${attempt}`);
+      for (const name of names) tree(run, name);
+      const before = freeBytes(root);
+      for (const name of names) assert.equal(json(deps(root, run, name, npm)).strategy, "clone");
+      measurements.push(before - freeBytes(root));
+      if (measurements.at(-1) < 48 * 1024 * 1024) break;
+    }
+    assert.ok(Math.min(...measurements) < 48 * 1024 * 1024, `three clones used ${measurements.join(", ")} bytes; three copies would use ${3 * 64 * 1024 * 1024}`);
   });
 });
 
 describe("scratch lifecycle", () => {
-  function evidenceRun(root) {
+  function evidenceRun(root, extra = []) {
     const npm = fakeNpm();
-    const run = newRun(root);
+    const run = newRun(root, { extra });
     tree(run, "head");
     assert.equal(deps(root, run, "head", npm).status, 0);
     mkdirSync(join(run, "head", ".next", "cache"), { recursive: true });
@@ -299,7 +326,7 @@ describe("scratch lifecycle", () => {
     const outside = temporaryDirectory("outside-");
     mkdirSync(join(outside, "node_modules"));
     writeFileSync(join(outside, "node_modules", ".package-lock.json"), "{}\n");
-    symlinkSync(outside, join(run, "linked"));
+    linkDir(outside, join(run, "linked"));
     return { run, outside };
   }
 
@@ -319,18 +346,18 @@ describe("scratch lifecycle", () => {
 
   it("refuses a run owned by another live process, a path outside the scratch area, and a symlinked run", () => {
     const root = makeProject();
-    const sleeper = spawn("sleep", ["30"]);
+    const other = sleeper();
     try {
-      const run = newRun(root, { extra: ["--owner-pid", String(sleeper.pid)] });
+      const run = newRun(root, { extra: ["--owner-pid", String(other.pid)] });
       tree(run, "head");
       const refused = orchestrate(["scratch", "done", run], { root });
       assert.equal(refused.status, 1);
       assert.match(refused.stderr, /belongs to live process/);
       assert.equal(orchestrate(["scratch", "done", temporaryDirectory("elsewhere-")], { root }).status, 1);
       const alias = join(temporaryDirectory("alias-"), "run");
-      symlinkSync(run, alias);
+      linkDir(run, alias);
       assert.equal(orchestrate(["scratch", "done", alias], { root }).status, 1);
-    } finally { sleeper.kill(); }
+    } finally { other.kill(); }
   });
 
   it("the checkpoint hook reclaims the named run, and refuses a run for another ticket", () => {
@@ -354,6 +381,8 @@ describe("scratch lifecycle", () => {
     assert.equal(deps(root, active, "head", npm).status, 0);
     const finished = evidenceRun(root).run;
     assert.equal(orchestrate(["scratch", "done", finished], { root }).status, 0);
+    const record = JSON.parse(readFileSync(join(finished, "run.json"), "utf8"));
+    writeFileSync(join(finished, "run.json"), JSON.stringify({ ...record, owner: ownerRecord(deadPid()) }));
     mkdirSync(join(finished, "late", "node_modules"), { recursive: true });
     writeFileSync(join(finished, "late", "node_modules", ".package-lock.json"), "{}\n");
     writeFileSync(join(finished, "late", "package.json"), "{}\n");
@@ -361,7 +390,7 @@ describe("scratch lifecycle", () => {
     assert.equal(dry.execute, false);
     assert.equal(existsSync(join(finished, "late", "node_modules")), true);
     assert.ok(dry.kept.some((item) => item.path === active && /alive/.test(item.reason)));
-    assert.equal(orchestrate(["scratch", "prune", "--older-than", "0", "--execute", "--include-preserved"], { root }).status, 0);
+    assert.equal(orchestrate(["scratch", "prune", "--older-than", "0", "--execute"], { root }).status, 0);
     assert.equal(existsSync(join(finished, "late", "node_modules")), false);
     assert.equal(existsSync(join(active, "head", "node_modules", "left-pad", "index.js")), true, "an active run was pruned");
   });
@@ -373,7 +402,7 @@ describe("scratch lifecycle", () => {
     tree(interrupted, "head");
     assert.equal(deps(root, interrupted, "head", npm).status, 0);
     writeFileSync(join(interrupted, "crash.log"), "evidence\n");
-    const failed = newRun(root);
+    const failed = newRun(root, { extra: ["--owner-pid", String(deadPid())] });
     tree(failed, "head");
     assert.equal(deps(root, failed, "head", npm).status, 0);
     assert.equal(orchestrate(["scratch", "fail", failed], { root }).status, 0);
@@ -444,13 +473,256 @@ describe("disk safeguards", () => {
     assert.deepEqual(readDiskPolicy(makeProject(), {}), { valid: true, warnGb: 25, floorGb: 10, source: "default" });
   });
 
-  it("status and disk report physical free space", () => {
+  it("status names a crossed threshold without changing figures; disk reports physical free space", () => {
     const root = makeProject({ tickets: { "1.1": { title: "Alpha" } } });
-    assert.match(orchestrate(["status"], { root }).stdout, /^disk: \d+\.\d GB free \(warn 25\.0 GB, floor 10\.0 GB, default\)$/m);
-    assert.equal(typeof json(orchestrate(["status", "--json"], { root })).disk.freeBytes, "number");
+    const HIGH = { PATHFINDER_DISK_WARN_GB: "0", PATHFINDER_DISK_FLOOR_GB: "0" };
+    assert.doesNotMatch(orchestrate(["status"], { root, env: HIGH }).stdout, /disk:/);
+    assert.match(orchestrate(["status"], { root, env: LOW }).stdout, /^disk: BELOW the 999999\.0 GB floor — new review runs refused; run `orchestrate disk` for figures$/m);
+    assert.deepEqual(json(orchestrate(["status", "--json"], { root, env: LOW })).disk, { level: "below-floor", warnBytes: 999999e9, floorBytes: 999999e9 });
+    assert.match(orchestrate(["disk"], { root }).stdout, /^disk: \d+\.\d GB free \(warn 25\.0 GB, floor 10\.0 GB, default\)/m);
     const report = orchestrate(["disk"], { root, env: LOW });
     assert.equal(report.status, 0);
     assert.match(report.stdout, /BELOW FLOOR/);
     assert.match(report.stdout, /counted in full/);
   });
 });
+
+describe("cross-platform safety", () => {
+  it("refuses to publish an install that links outside its own tree, so no copy can share it", () => {
+    const root = makeProject();
+    const run = newRun(root);
+    const head = tree(run, "head");
+    const outside = temporaryDirectory("linked-package-");
+    const result = deps(root, run, "head", fakeNpm(), { FAKE_NPM_ESCAPE: outside });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /links outside its own tree/);
+    assert.equal(existsSync(join(depsDir(root), keyFor(head))), false);
+    assert.equal(existsSync(join(run, "head", "node_modules")), false);
+  });
+
+  it("escapingLinks flags absolute and escaping links and accepts links that stay inside", () => {
+    const dir = temporaryDirectory("links-");
+    mkdirSync(join(dir, "nm", "pkg"), { recursive: true });
+    mkdirSync(join(dir, "nm", "inner"), { recursive: true });
+    linkDir(join(dir, "nm", "pkg"), join(dir, "nm", "absolute"));
+    assert.equal(escapingLinks(join(dir, "nm")).length, 1, "absolute link (every junction) not flagged");
+    if (!WINDOWS) {
+      symlinkSync("../pkg", join(dir, "nm", "inner", "relative-inside"));
+      symlinkSync("../../..", join(dir, "nm", "inner", "relative-escape"));
+      const found = escapingLinks(join(dir, "nm"));
+      assert.equal(found.length, 2);
+      assert.ok(found.some((line) => line.includes("relative-escape")));
+      assert.ok(!found.some((line) => line.includes("relative-inside")));
+    }
+  });
+
+  it("checks the disk floor before a full copy where cloning is unavailable, and refuses without approval", () => {
+    const root = makeProject();
+    const dir = temporaryDirectory("deps-guard-");
+    const t = tree(dir, "src");
+    const entry = ensureEntry({ root, tree: t, npm: fakeNpm(), inputs: cacheInputs({ tree: t, npmVersion: "10.9.9" }) });
+    assert.equal(entry.ok, true, entry.message);
+    let asked = null;
+    const target = tree(dir, "copy");
+    const refused = materialize({ entry: entry.path, tree: target, strategies: [], beforeCopy: (bytes) => { asked = bytes; return { ok: false, message: "no room" }; } });
+    assert.equal(refused.ok, false);
+    assert.match(refused.message, /no room/);
+    assert.ok(asked > 0, "the guard was not told the copy size");
+    assert.equal(existsSync(join(target, "node_modules")), false);
+    const check = { ok: true, freeBytes: 100, floorBytes: 50, warnBytes: 80, level: "ok" };
+    assert.equal(roomFor(check, 40).ok, true);
+    assert.equal(roomFor(check, 60).ok, false);
+    assert.equal(roomFor(check, 60, "owner approved").override, "owner approved");
+    assert.equal(roomFor(diskCheck({ root, env: {} }), Number.MAX_SAFE_INTEGER).ok, false);
+  });
+
+  it("never judges an owner from another platform or host dead, so its run is never pruned", () => {
+    const pid = spawnSync(process.execPath, ["-e", ""]).pid;
+    const here = ownerRecord(pid);
+    assert.equal(liveness(here), false);
+    assert.equal(liveness({ ...here, platform: here.platform === "win32" ? "linux-wsl" : "win32" }), null);
+    assert.equal(liveness({ ...here, host: "another-host" }), null);
+    assert.equal(liveness({ pid, host: here.host }), null, "an owner without a platform must be unknown");
+    assert.equal(runStatus({ state: "active", owner: { ...here, platform: "linux-wsl-elsewhere" } }), "active");
+    const root = makeProject();
+    const run = newRun(root);
+    tree(run, "head");
+    assert.equal(deps(root, run, "head", fakeNpm()).status, 0);
+    const record = JSON.parse(readFileSync(join(run, "run.json"), "utf8"));
+    writeFileSync(join(run, "run.json"), JSON.stringify({ ...record, owner: { ...here, platform: "elsewhere" } }));
+    assert.equal(orchestrate(["scratch", "prune", "--include-preserved", "--older-than", "0", "--execute"], { root }).status, 0);
+    assert.equal(existsSync(join(run, "head", "node_modules")), true, "pruned a run whose owner cannot be checked");
+  });
+
+  it("compares paths case-insensitively on Windows and macOS, with drive letters and either separator", () => {
+    assert.equal(within("C:\\Repo\\.pathfinder\\scratch", "c:\\repo\\.PATHFINDER\\scratch\\1.1\\run", "win32"), "1.1\\run");
+    assert.equal(within("C:\\Repo\\scratch", "C:/Repo/scratch/1.1/run", "win32"), "1.1\\run");
+    assert.equal(within("C:\\Repo\\scratch", "D:\\Repo\\scratch\\1.1", "win32"), null);
+    assert.equal(within("C:\\Repo\\scratch", "C:\\Repo\\scratch-other\\x", "win32"), null);
+    assert.equal(within("/Users/a/Repo", "/users/A/repo/run", "darwin"), "run");
+    assert.equal(within("/home/a/repo", "/home/a/Repo/run", "linux"), null);
+    assert.equal(within("/home/a/repo", "/home/a/repo", "linux"), null);
+  });
+
+  it("finds a live, non-shell owner for this process on this platform", () => {
+    const chain = processChain(process.pid);
+    assert.ok(chain.length >= 1, "no process information on this platform");
+    assert.equal(chain[0].pid, process.pid);
+    const owner = findOwner(process.pid);
+    assert.equal(liveness(owner), true);
+  });
+});
+
+describe("Windows native", { skip: !WINDOWS && "runs only on Windows" }, () => {
+  it("materializes an independent full copy with a warning, never a junction or hard link", () => {
+    const root = makeProject();
+    const run = newRun(root);
+    const head = tree(run, "head"); tree(run, "mut");
+    const first = json(deps(root, run, "head", fakeNpm()));
+    assert.equal(first.strategy, "copy");
+    assert.match(first.warning, /fully copied/);
+    assert.equal(json(deps(root, run, "mut", fakeNpm())).strategy, "copy");
+    const cache = join(depsDir(root), keyFor(head), "node_modules", "left-pad", "index.js");
+    const copy = join(run, "mut", "node_modules", "left-pad", "index.js");
+    assert.equal(lstatSync(join(run, "mut", "node_modules")).isSymbolicLink(), false);
+    assert.notEqual(lstatSync(copy, { bigint: true }).ino, lstatSync(cache, { bigint: true }).ino);
+    writeFileSync(copy, "mutant\n");
+    assert.notEqual(readFileSync(cache, "utf8"), "mutant\n");
+    assert.equal(orchestrate(["scratch", "done", run], { root }).status, 0);
+    assert.equal(existsSync(join(run, "mut", "node_modules")), false);
+  });
+
+  it("runs npm through its .cmd shim and reports free space for the drive", () => {
+    const dir = temporaryDirectory("win-npm-");
+    const t = tree(dir, "t");
+    const inputs = cacheInputs({ tree: t, npm: fakeNpm() });
+    assert.equal(inputs.ok, true, inputs.message);
+    assert.equal(inputs.inputs.npm, "10.9.9");
+    assert.ok(freeBytes(dir) > 0);
+  });
+});
+
+describe("adversary regressions", () => {
+  it("E1/E2: another live owner's run cannot be failed, extended or pruned in any state", () => {
+    const root = makeProject();
+    const npm = fakeNpm();
+    const other = sleeper();
+    try {
+      const run = newRun(root, { extra: ["--owner-pid", String(other.pid)] });
+      tree(run, "head");
+      assert.match(deps(root, run, "head", npm).stderr, /belongs to live process/);
+      assert.match(orchestrate(["scratch", "fail", run], { root }).stderr, /belongs to live process/);
+      const record = JSON.parse(readFileSync(join(run, "run.json"), "utf8"));
+      mkdirSync(join(run, "head", "node_modules"));
+      writeFileSync(join(run, "head", "node_modules", ".package-lock.json"), "{}\n");
+      for (const state of ["checkpointed", "failed"]) {
+        writeFileSync(join(run, "run.json"), JSON.stringify({ ...record, state }));
+        assert.equal(orchestrate(["scratch", "prune", "--older-than", "0", "--include-preserved", "--cache", "--execute"], { root }).status, 0);
+        assert.equal(existsSync(join(run, "head", "node_modules")), true, `pruned a live owner's ${state} run`);
+      }
+    } finally { other.kill(); }
+  });
+
+  it("E2: a checkpointed run accepts no new trees", () => {
+    const root = makeProject();
+    const npm = fakeNpm();
+    const run = newRun(root);
+    tree(run, "head"); tree(run, "round2");
+    assert.equal(deps(root, run, "head", npm).status, 0);
+    assert.equal(orchestrate(["scratch", "done", run], { root }).status, 0);
+    const again = deps(root, run, "round2", npm);
+    assert.equal(again.status, 1);
+    assert.match(again.stderr, /checkpointed; start a new run/);
+  });
+
+  it("E3: a run that records a session acts only for that session", () => {
+    const root = makeProject();
+    const run = newRun(root, { extra: ["--session", "tester-a"] });
+    tree(run, "head");
+    assert.match(deps(root, run, "head", fakeNpm()).stderr, /belongs to session tester-a/);
+    assert.match(orchestrate(["scratch", "done", run, "--session", "tester-b"], { root }).stderr, /belongs to session tester-a/);
+    assert.equal(orchestrate(["scratch", "done", run, "--session", "tester-a"], { root }).status, 0);
+  });
+
+  it("E4: prune never follows a link planted in the cache directory", { skip: WINDOWS && "POSIX permission bits" }, () => {
+    const root = makeProject();
+    const outside = temporaryDirectory("outside-");
+    writeFileSync(join(outside, "readonly.txt"), "x\n");
+    chmodSync(join(outside, "readonly.txt"), 0o444);
+    mkdirSync(join(root, ".pathfinder", "deps"), { recursive: true });
+    for (const name of [".tmp-planted", "planted.lock", "0123456789abcdef0123456789abcdef"]) linkDir(outside, join(root, ".pathfinder", "deps", name));
+    assert.equal(orchestrate(["scratch", "prune", "--older-than", "0", "--cache", "--execute"], { root }).status, 0);
+    assert.equal(statSync(join(outside, "readonly.txt")).mode & 0o777, 0o444);
+    assert.equal(existsSync(join(outside, "readonly.txt")), true);
+  });
+
+  it("E5: a reclaim failure after a written checkpoint is reported, never thrown", { skip: WINDOWS && "POSIX permission bits" }, () => {
+    const root = makeProject();
+    const run = newRun(root);
+    mkdirSync(join(run, "evidence", "locked"), { recursive: true });
+    chmodSync(join(run, "evidence", "locked"), 0o000);
+    try {
+      const result = reclaimAfterCheckpoint(root, "1.1", run);
+      assert.equal(result.ok, false);
+      assert.match(result.message, /after the checkpoint was written/);
+    } finally { chmodSync(join(run, "evidence", "locked"), 0o755); }
+  });
+
+  it("E6: npm's environment and user config are part of the cache key", () => {
+    const dir = temporaryDirectory("deps-env-");
+    const t = tree(dir, "t");
+    const base = { tree: t, npmVersion: "1", node: "v1", platform: "linux", arch: "x64" };
+    const plain = cacheInputs({ ...base, env: { HOME: dir } }).key;
+    assert.notEqual(cacheInputs({ ...base, env: { HOME: dir, NODE_ENV: "production" } }).key, plain);
+    assert.notEqual(cacheInputs({ ...base, env: { HOME: dir, npm_config_omit: "dev" } }).key, plain);
+    writeFileSync(join(dir, ".npmrc"), "omit=dev\n");
+    assert.notEqual(cacheInputs({ ...base, env: { HOME: dir } }).key, plain);
+    assert.equal(cacheInputs({ ...base, env: { HOME: dir, UNRELATED: "x" } }).key, cacheInputs({ ...base, env: { HOME: dir } }).key);
+  });
+
+  it("E7/E8: prune --cache never removes an entry while a copy holds its key, and unpublishes atomically", () => {
+    const root = makeProject();
+    const npm = fakeNpm();
+    const run = newRun(root, { extra: ["--owner-pid", String(deadPid())] });
+    const head = tree(run, "head");
+    assert.equal(deps(root, run, "head", npm).status, 0);
+    const key = keyFor(head);
+    const held = holdKey({ root, key });
+    assert.equal(held.ok, true, held.message);
+    try {
+      const busy = json(orchestrate(["scratch", "prune", "--older-than", "0", "--cache", "--execute", "--json"], { root }));
+      assert.ok(busy.results.some((r) => /in use/.test(r.skipped ?? "")), JSON.stringify(busy.results));
+      assert.equal(existsSync(join(depsDir(root), key, "entry.json")), true);
+    } finally { held.release(); }
+    assert.equal(orchestrate(["scratch", "prune", "--older-than", "0", "--cache", "--execute"], { root }).status, 0);
+    assert.deepEqual(readdirSync(depsDir(root)).filter((n) => n.includes(key)), []);
+  });
+
+  it("E9: a disk marker with repeated or malformed pairs is invalid", () => {
+    for (const marker of ["warn=30 floor=10 floor=0", "warn=25=junk floor=10=x", "warn=30", "warn=30 floor=10 extra=1"]) {
+      const root = makeProject({ modeFile: `<!-- pathfinder:execution-mode orchestrator -->\n<!-- pathfinder:disk ${marker} -->\n` });
+      assert.equal(readDiskPolicy(root, {}).valid, false, marker);
+    }
+  });
+
+  it("E10: a case-variant node_modules segment cannot name a tree", () => {
+    const root = makeProject();
+    const run = newRun(root);
+    tree(run, "head/NODE_MODULES/pkg");
+    assert.equal(deps(root, run, "head/NODE_MODULES/pkg", fakeNpm()).status, 1);
+  });
+
+  it("E11: without readable ancestry, a run needs an explicit owner instead of a guessed shell", { skip: WINDOWS && "POSIX PATH" }, () => {
+    const root = makeProject();
+    const bin = temporaryDirectory("no-ps-");
+    const git = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+    symlinkSync(git, join(bin, "git"));
+    symlinkSync(process.execPath, join(bin, "node"));
+    const result = orchestrate(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD], { root, env: { PATH: bin } });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /pass --owner-pid/);
+    const explicit = orchestrate(["scratch", "new", "1.1", "--role", "tester", "--head", HEAD, "--owner-pid", String(process.pid)], { root, env: { PATH: bin } });
+    assert.equal(explicit.status, 0, explicit.stderr);
+  });
+});
+

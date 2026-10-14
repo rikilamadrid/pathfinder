@@ -29,10 +29,11 @@
 
 import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, rmdirSync, statSync, writeFileSync } from "node:fs";
-import { hostname } from "node:os";
-import { join } from "node:path";
-import { ownerAlive } from "./checkpoint-write.mjs";
+import { chmodSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, renameSync, rmSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { formatGb } from "./disk.mjs";
+import { isWsl, liveness, ownerRecord } from "./process.mjs";
 
 export const DEPS_DIR = ".pathfinder/deps";
 const SCHEMA = "pathfinder.deps-entry/1";
@@ -40,18 +41,52 @@ const LOCKFILES = ["npm-shrinkwrap.json", "package-lock.json"];
 const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const refuse = (message) => ({ ok: false, message });
 const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+const TRANSIENT = new Set(["EPERM", "EBUSY", "EACCES", "ENOTEMPTY"]);
+
+/**
+ * Run npm. On Windows `npm` is a .cmd shim, which Node starts only through a
+ * shell; the arguments here are fixed words, and the program path is quoted.
+ */
+export function runNpm(npm, args, options = {}) {
+  if (process.platform !== "win32") return spawnSync(npm, args, { encoding: "utf8", ...options });
+  return spawnSync(/[\s"]/.test(npm) ? `"${npm.replace(/"/g, "")}"` : npm, args, { encoding: "utf8", shell: true, windowsHide: true, ...options });
+}
+
+/** Rename, retrying the transient sharing violations Windows reports while a scanner holds a file open. */
+function renameRetrying(from, to, attempts = process.platform === "win32" ? 8 : 1) {
+  for (let n = 1; ; n += 1) {
+    try { return renameSync(from, to); } catch (error) {
+      if (n >= attempts || !TRANSIENT.has(error.code) || existsSync(to)) throw error;
+      sleep(50 * 2 ** n);
+    }
+  }
+}
 
 /**
  * What one install depends on, and the key it hashes to.
  * Every machine-dependent input can be overridden so the key is testable.
  */
-export function cacheInputs({ tree, npm = "npm", node = process.version, npmVersion = null, platform = process.platform, arch = process.arch }) {
+/**
+ * A hash of the configuration npm reads besides the project: NODE_ENV, every
+ * npm_config_* variable, and the user .npmrc. NODE_ENV=production alone
+ * changes what `npm ci` installs. Values are hashed, never stored: they can
+ * hold registry tokens.
+ */
+export function npmEnvironment(env = process.env) {
+  const names = Object.keys(env).filter((name) => /^npm_config_/i.test(name) || name === "NODE_ENV").sort();
+  const userconfig = env.npm_config_userconfig || env.NPM_CONFIG_USERCONFIG || join(env.HOME || env.USERPROFILE || homedir(), ".npmrc");
+  let user = null;
+  try { user = sha256(readFileSync(userconfig)); } catch { user = null; }
+  return sha256(JSON.stringify({ env: names.map((name) => [name, env[name]]), user }));
+}
+
+export function cacheInputs({ tree, npm = "npm", env = process.env, node = process.version, npmVersion = null, platform = process.platform, arch = process.arch }) {
   const lockfile = LOCKFILES.find((name) => existsSync(join(tree, name)));
   if (!lockfile) return refuse(`${tree} has no package-lock.json or npm-shrinkwrap.json; the cache installs only locked trees`);
   if (!existsSync(join(tree, "package.json"))) return refuse(`${tree} has no package.json`);
   let version = npmVersion;
   if (version === null) {
-    const result = spawnSync(npm, ["--version"], { encoding: "utf8" });
+    const result = runNpm(npm, ["--version"], { env });
     if (result.status !== 0) return refuse(`cannot run \`${npm} --version\`: ${(result.stderr || result.error?.message || "").trim()}`);
     version = result.stdout.trim();
   }
@@ -61,6 +96,7 @@ export function cacheInputs({ tree, npm = "npm", node = process.version, npmVers
     lock: sha256(readFileSync(join(tree, lockfile))),
     manifest: sha256(readFileSync(join(tree, "package.json"))),
     npmrc,
+    environment: npmEnvironment(env),
     node,
     npm: version,
     platform,
@@ -99,15 +135,60 @@ function makeReadOnly(dir) {
 
 /** Give the owner write access again: metadata only, so a clone stays shared. */
 export function makeWritable(dir) {
+  if (lstatSync(dir).isSymbolicLink()) throw new Error(`${dir} is a link; its target is not this engine's to change`);
   chmodSync(dir, (statSync(dir).mode & 0o7777) | 0o200);
   walk(dir, (path, stats) => { if (!stats.isSymbolicLink()) chmodSync(path, (stats.mode & 0o7777) | 0o200); });
 }
 
 /** Remove an engine-made tree, restoring the owner write bit it removed itself. */
 export function removeTree(dir) {
-  if (!existsSync(dir)) return;
+  let stats;
+  try { stats = lstatSync(dir); } catch { return; }
+  if (stats.isSymbolicLink()) { unlinkSync(dir); return; }
   try { makeWritable(dir); } catch { /* removal below reports what remains */ }
-  rmSync(dir, { recursive: true, force: true });
+  rmSync(dir, { recursive: true, force: true, maxRetries: process.platform === "win32" ? 8 : 0, retryDelay: 100 });
+}
+
+/**
+ * Links in a dependency tree that would be shared once copied: absolute
+ * targets (every Windows junction, and npm's links to local packages) and
+ * relative targets that leave the tree. npm's own `.bin` links stay inside.
+ */
+export function escapingLinks(dir, limit = 5) {
+  const found = [];
+  const visit = (current) => {
+    for (const name of readdirSync(current)) {
+      if (found.length >= limit) return;
+      const path = join(current, name);
+      const stats = lstatSync(path);
+      if (stats.isSymbolicLink()) {
+        let target;
+        try { target = readlinkSync(path); } catch { found.push(path); continue; }
+        const rel = relative(dir, resolve(dirname(path), target));
+        if (isAbsolute(target) || !rel || rel.startsWith("..") || isAbsolute(rel)) found.push(`${path} -> ${target}`);
+      } else if (stats.isDirectory()) visit(path);
+    }
+  };
+  visit(dir);
+  return found;
+}
+
+/**
+ * Bytes a full copy of `dir` would occupy: allocated blocks where the platform
+ * reports them, else each file rounded up to a 4 KiB cluster. Sizes alone
+ * undercount a tree of many small files by a fifth.
+ */
+export function treeBytes(dir) {
+  let total = 0;
+  const visit = (current) => {
+    for (const name of readdirSync(current)) {
+      const stats = lstatSync(join(current, name));
+      if (stats.isDirectory()) visit(join(current, name));
+      else total += stats.blocks ? stats.blocks * 512 : Math.ceil(stats.size / 4096) * 4096;
+    }
+  };
+  visit(dir);
+  return total;
 }
 
 function lockOwner(lock) {
@@ -120,21 +201,21 @@ function lockOwner(lock) {
  * ownerless lock older than `orphanMs` is a crash between mkdir and the owner
  * write.
  */
-function acquire(lock, { entry, key, timeoutMs, pollMs, orphanMs }) {
+function acquire(lock, { entry, key, timeoutMs, pollMs, orphanMs, shortcut = true }) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     try {
       mkdirSync(lock);
-      writeFileSync(join(lock, "owner.json"), JSON.stringify({ pid: process.pid, host: hostname() }));
+      writeFileSync(join(lock, "owner.json"), JSON.stringify(ownerRecord(process.pid)));
       return { ok: true };
     } catch (error) {
       if (error.code !== "EEXIST") return refuse(`cannot create dependency lock ${lock}: ${error.message}`);
     }
-    if (isComplete(entry, key)) return { ok: true, published: true };
+    if (shortcut && isComplete(entry, key)) return { ok: true, published: true };
     const owner = lockOwner(lock);
     let stale = false;
     if (owner) {
-      const alive = ownerAlive(owner);
+      const alive = liveness(owner);
       if (alive === null) return refuse(`dependency lock ${lock} is held by ${JSON.stringify(owner)}, which this host cannot check; remove it only after confirming that install has stopped`);
       stale = alive === false;
     } else {
@@ -152,7 +233,8 @@ function acquire(lock, { entry, key, timeoutMs, pollMs, orphanMs }) {
 
 function release(lock) {
   const owner = lockOwner(lock);
-  if (!owner || owner.pid !== process.pid || owner.host !== hostname()) return;
+  const self = ownerRecord(process.pid);
+  if (!owner || owner.pid !== self.pid || owner.host !== self.host || owner.platform !== self.platform) return;
   rmSync(join(lock, "owner.json"), { force: true });
   try { rmdirSync(lock); } catch { /* left for the stale-lock path */ }
 }
@@ -163,7 +245,7 @@ function release(lock) {
  * @returns {{ok: true, key: string, path: string, installed: boolean, inputs: object} | {ok: false, message: string}}
  */
 export function ensureEntry({ root, tree, npm = "npm", env = process.env, timeoutMs = 15 * 60_000, pollMs = 200, orphanMs = 60_000, inputs: given = null }) {
-  const keyed = given ?? cacheInputs({ tree, npm });
+  const keyed = given ?? cacheInputs({ tree, npm, env });
   if (!keyed.ok) return keyed;
   const { key, inputs } = keyed;
   const base = join(root, DEPS_DIR);
@@ -180,11 +262,11 @@ export function ensureEntry({ root, tree, npm = "npm", env = process.env, timeou
   try {
     if (isComplete(entry, key)) return { ok: true, key, path: entry, installed: false, inputs };
     mkdirSync(temp);
-    writeFileSync(join(temp, "owner.json"), JSON.stringify({ pid: process.pid, host: hostname() }));
+    writeFileSync(join(temp, "owner.json"), JSON.stringify(ownerRecord(process.pid)));
     for (const name of ["package.json", inputs.lockfile, ".npmrc"]) {
       if (existsSync(join(tree, name))) writeFileSync(join(temp, name), readFileSync(join(tree, name)));
     }
-    const result = spawnSync(npm, ["ci", "--no-audit", "--no-fund"], { cwd: temp, env, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+    const result = runNpm(npm, ["ci", "--no-audit", "--no-fund"], { cwd: temp, env, maxBuffer: 64 * 1024 * 1024 });
     writeFileSync(join(temp, "install.log"), `${result.stdout ?? ""}${result.stderr ?? ""}`);
     if (result.status !== 0) {
       const log = join(base, `${key}.failed-${Date.now()}.log`);
@@ -196,11 +278,17 @@ export function ensureEntry({ root, tree, npm = "npm", env = process.env, timeou
       removeTree(temp);
       return refuse(`\`${npm} ci\` exited 0 without node_modules/.package-lock.json; nothing was published`);
     }
+    const links = escapingLinks(join(temp, "node_modules"));
+    if (links.length) {
+      removeTree(temp);
+      return refuse(`the install links outside its own tree (${links.join("; ")}); copies would share those targets, so nothing was published — install this tree directly`);
+    }
     rmSync(join(temp, "owner.json"));
-    writeFileSync(join(temp, "entry.json"), JSON.stringify({ schema: SCHEMA, key, inputs, createdAt: new Date().toISOString(), complete: true }, null, 2) + "\n");
+    const bytes = treeBytes(join(temp, "node_modules"));
+    writeFileSync(join(temp, "entry.json"), JSON.stringify({ schema: SCHEMA, key, inputs, bytes, createdAt: new Date().toISOString(), complete: true }, null, 2) + "\n");
     makeReadOnly(join(temp, "node_modules"));
     try {
-      renameSync(temp, entry);
+      renameRetrying(temp, entry);
     } catch (error) {
       removeTree(temp);
       if (!isComplete(entry, key)) return refuse(`cannot publish ${entry}: ${error.message}`);
@@ -214,22 +302,60 @@ export function ensureEntry({ root, tree, npm = "npm", env = process.env, timeou
   }
 }
 
+/**
+ * Hold `key`'s lock: the same lock an install takes. Copying from an entry
+ * and removing it both hold it, so an entry is never removed mid-copy.
+ *
+ * @returns {{ok: true, release: () => void} | {ok: false, message: string}}
+ */
+export function holdKey({ root, key, timeoutMs = 15 * 60_000, pollMs = 200, orphanMs = 60_000 }) {
+  const base = join(root, DEPS_DIR);
+  mkdirSync(base, { recursive: true });
+  const lock = join(base, `${key}.lock`);
+  const held = acquire(lock, { entry: join(base, key), key, timeoutMs, pollMs, orphanMs, shortcut: false });
+  return held.ok ? { ok: true, release: () => release(lock) } : held;
+}
+
+/**
+ * Remove a published entry without ever exposing a partial one: under its
+ * lock, rename it out of the published name, then delete the renamed tree.
+ * Refused while any install or copy holds the key.
+ */
+export function unpublish({ root, key }) {
+  const base = join(root, DEPS_DIR);
+  const entry = join(base, key);
+  if (lstatSync(entry).isSymbolicLink()) return refuse(`${entry} is a link, not an entry; left untouched`);
+  const held = holdKey({ root, key, timeoutMs: 0 });
+  if (!held.ok) return refuse(`${key} is in use; left in place`);
+  const trash = join(base, `.trash-${key}-${randomUUID()}`);
+  try {
+    renameRetrying(entry, trash);
+    rmSync(`${entry}.used`, { force: true });
+  } catch (error) {
+    return refuse(`cannot unpublish ${key}: ${error.message}`);
+  } finally {
+    held.release();
+  }
+  removeTree(trash);
+  return { ok: true };
+}
+
 /** The copy strategies to try, best first. */
-function strategies(platform) {
+function defaultStrategies(platform) {
   if (platform === "darwin") return [{ name: "clone", args: ["-cR"] }];
   if (platform === "linux") return [{ name: "reflink", args: ["-R", "--reflink=always"] }];
   return [];
 }
 
-/** Sampled proof that no file in `copy` is the same inode as its source. */
+/** Sampled proof that no file in `copy` is the same inode as its source. Inodes are compared as bigints: NTFS file ids exceed 2^53. */
 function sharesInode(source, copy, limit = 500) {
   let checked = 0;
   let shared = false;
   const visit = (dir) => {
     for (const name of readdirSync(dir)) {
       if (checked >= limit || shared) return;
-      const from = lstatSync(join(dir, name));
-      const to = lstatSync(join(copy, join(dir, name).slice(source.length)));
+      const from = lstatSync(join(dir, name), { bigint: true });
+      const to = lstatSync(join(copy, join(dir, name).slice(source.length)), { bigint: true });
       if (from.isDirectory()) visit(join(dir, name));
       else if (from.isFile()) { checked += 1; if (from.dev === to.dev && from.ino === to.ino) shared = true; }
     }
@@ -241,30 +367,50 @@ function sharesInode(source, copy, limit = 500) {
 /**
  * Give `tree` its own writable node_modules from a complete entry.
  *
+ * `beforeCopy(bytes)` is asked before a full copy and may refuse it, so a
+ * platform without cloning cannot fill the disk past its floor. A copy that
+ * shares an inode or a link target with the cache is removed and refused —
+ * never kept as a silent shared fallback.
+ *
  * @returns {{ok: true, strategy: "clone"|"reflink"|"copy", warning: string|null} | {ok: false, message: string}}
  */
-export function materialize({ entry, tree, platform = process.platform, cp = "cp" }) {
+export function materialize({ entry, tree, platform = process.platform, cp = "cp", strategies = defaultStrategies(platform), beforeCopy = null }) {
   const source = join(entry, "node_modules");
   const target = join(tree, "node_modules");
   let exists = true;
   try { lstatSync(target); } catch { exists = false; }
   if (exists) return refuse(`${target} already exists; materialize only into a tree without dependencies`);
   let strategy = null;
-  for (const candidate of strategies(platform)) {
-    const result = spawnSync(cp, [...candidate.args, source, target], { encoding: "utf8" });
+  if (!isComplete(entry, JSON.parse(readFileSync(join(entry, "entry.json"), "utf8")).key)) return refuse(`${entry} is not a complete entry`);
+  for (const candidate of strategies) {
+    const result = spawnSync(cp, [...candidate.args, source, target], { encoding: "utf8", windowsHide: true });
     if (result.status === 0) { strategy = candidate.name; break; }
     removeTree(target);
+    if (!existsSync(join(source, ".package-lock.json"))) return refuse(`${source} disappeared during the copy; nothing was materialized`);
   }
   let warning = null;
   if (!strategy) {
-    cpSync(source, target, { recursive: true, verbatimSymlinks: true, errorOnExist: true, force: false });
+    const record = JSON.parse(readFileSync(join(entry, "entry.json"), "utf8"));
+    const bytes = Number.isFinite(record.bytes) ? record.bytes : treeBytes(source);
+    if (beforeCopy) {
+      const verdict = beforeCopy(bytes);
+      if (!verdict.ok) return refuse(`copy-on-write cloning is unavailable here and a full copy needs ${formatGb(bytes)}: ${verdict.message}`);
+    }
+    try {
+      cpSync(source, target, { recursive: true, verbatimSymlinks: true, errorOnExist: true, force: false });
+    } catch (error) {
+      removeTree(target);
+      return refuse(`full copy into ${target} failed: ${error.message}; nothing was materialized`);
+    }
     strategy = "copy";
-    warning = "copy-on-write cloning is unavailable here; this tree's dependencies were fully copied and use their full size on disk";
+    const where = platform === "linux" && isWsl() && /^\/mnt\/[a-z]\//i.test(tree) ? " (a WSL Windows drive; keep review trees on the Linux filesystem to clone)" : "";
+    warning = `copy-on-write cloning is unavailable here${where}; this tree's dependencies were fully copied and use about ${formatGb(bytes)} on disk`;
   }
   makeWritable(target);
-  if (sharesInode(source, target)) {
+  const links = escapingLinks(target);
+  if (links.length || sharesInode(source, target)) {
     removeTree(target);
-    return refuse(`${target} shared an inode with the cache; it was removed, and nothing is shared`);
+    return refuse(`${target} shared ${links.length ? `link targets (${links.join("; ")})` : "an inode"} with the cache; it was removed, and nothing is shared`);
   }
   try { writeFileSync(`${entry}.used`, new Date().toISOString() + "\n"); } catch { /* recency only guides eviction */ }
   return { ok: true, strategy, warning };

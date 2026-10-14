@@ -37,7 +37,7 @@ import { humanDirectedFollowup } from "../routing-followup.mjs";
 import { readFollowups, followupDigest, rawReport, applicableFollowups } from "../followup-record.mjs";
 import { replaceCheckpoint } from "../checkpoint-write.mjs";
 import { readFileSync, realpathSync } from "node:fs";
-import { join, sep } from "node:path";
+import { join } from "node:path";
 
 import { checkIntegration, formatCheck, releaseClaim } from "../integration.mjs";
 import { computeBoard, formatBoard } from "../board.mjs";
@@ -60,9 +60,9 @@ import { canonical, checkoutRoot, repositoryRoot, resolveRef } from "../git.mjs"
 import { isKey } from "../keys.mjs";
 import { orchestratorRefusal, readEvidenceJudge } from "../mode.mjs";
 import { computeStatus, formatStatus } from "../status.mjs";
-import { ensureEntry, materialize } from "../deps.mjs";
-import { diskCheck, floorGate, formatDisk, formatGb } from "../disk.mjs";
-import { createRun, failRun, finishRun, listRuns, logicalBytes, parseDuration, pruneScratch, recordTree, resolveRun, scratchRefusal } from "../scratch.mjs";
+import { ensureEntry, holdKey, materialize } from "../deps.mjs";
+import { diskCheck, diskLevelLine, floorGate, formatDisk, formatGb, roomFor } from "../disk.mjs";
+import { createRun, failRun, finishRun, listRuns, logicalBytes, ownerRefusal, parseDuration, pruneScratch, real, recordTree, resolveRun, scratchRefusal, within } from "../scratch.mjs";
 import { describeStore, readTickets, resolveStore } from "../store.mjs";
 
 const USAGE = `orchestrate
@@ -155,15 +155,17 @@ const USAGE = `orchestrate
       Start a review run under .pathfinder/scratch/<key>/, recording the owner
       process, ticket, role and head. Refused below the disk floor unless the
       human's explicit approval is passed.
-  scratch deps <run-dir> --tree <dir-in-run> [--npm <path>] [--allow-low-disk <approval>] [--json]
+  scratch deps <run-dir> --tree <dir-in-run> [--session <s>] [--npm <path>] [--allow-low-disk <approval>] [--json]
       Give one tree in the run its own node_modules from the dependency cache:
       installed once per lockfile, Node, npm, platform and architecture, then
       cloned copy-on-write (APFS clone or reflink; a full copy, with a
       warning, where neither exists). Never a hard link or a shared tree.
-  scratch done <run-dir> [--json]
+  scratch done <run-dir> [--session <s>] [--json]
       The run's checkpoint was recorded: reclaim its rebuildable dependency
-      and build directories; logs, reports and sources stay.
-  scratch fail <run-dir> [--json]
+      and build directories; logs, reports and sources stay. deps, done and
+      fail act only for the run's owner process (or once it is dead), and
+      need --session when the run recorded one.
+  scratch fail <run-dir> [--session <s>] [--json]
       Preserve a run whose checkpoint failed; nothing is reclaimed for it.
   scratch list [--json]
       Every run with its state: active, interrupted, checkpointed or failed.
@@ -648,9 +650,11 @@ function status({ root, store, gh, feature, live, json }) {
   if (refusal) return fail(1, `refusing to show orchestration status: ${refusal}`);
   const result = computeStatus({ root, live, feature, store, gh });
   if (!result.ok) return fail(1, result.message);
+  // Status prints the same bytes for the same inputs, so it carries the disk
+  // level, never the free-space figure that changes between calls.
   const check = diskCheck({ root });
-  result.disk = check.ok ? { freeBytes: check.freeBytes, warnBytes: check.warnBytes, floorBytes: check.floorBytes, level: check.level } : { error: check.message };
-  process.stdout.write(json ? JSON.stringify(result, null, 2) + "\n" : `${formatStatus(result)}${formatDisk(check)}\n`);
+  result.disk = check.ok ? { level: check.level, warnBytes: check.warnBytes, floorBytes: check.floorBytes } : { error: check.message };
+  process.stdout.write(json ? JSON.stringify(result, null, 2) + "\n" : `${formatStatus(result)}${diskLevelLine(check)}`);
   return 0;
 }
 
@@ -672,27 +676,36 @@ function scratch({ root, sub, args, flags }) {
       if (!args[0] || !flags.tree) return fail(2, "scratch deps needs <run-dir> --tree <dir-in-run>");
       const found = resolveRun(root, args[0]);
       if (!found.ok) return fail(1, found.message);
-      const tree = canonical(join(found.path, flags.tree));
-      if (!tree.startsWith(found.path + sep) || tree.slice(found.path.length + 1).split(sep).includes("node_modules")) return fail(1, `--tree must name a directory inside ${found.path}`);
-      const gate = floorGate(diskCheck({ root }), flags["allow-low-disk"] ?? null);
+      if (found.run.state !== "active") return fail(1, `run ${found.path} is ${found.run.state}; start a new run with scratch new`);
+      const refusal = ownerRefusal(found, flags.session ?? null);
+      if (refusal) return fail(1, refusal);
+      let tree;
+      try { tree = real(join(found.path, flags.tree)); } catch { return fail(1, `--tree ${flags.tree} does not exist in ${found.path}`); }
+      const rel = within(found.path, tree);
+      if (rel === null || rel.split(/[\\/]/).some((part) => part.toLowerCase() === "node_modules")) return fail(1, `--tree must name a directory inside ${found.path}`);
+      const approval = flags["allow-low-disk"] ?? null;
+      const gate = floorGate(diskCheck({ root }), approval);
       if (!gate.ok) return fail(1, gate.message);
       const entry = ensureEntry({ root, tree, npm: flags.npm ?? "npm" });
       if (!entry.ok) return fail(1, entry.message);
-      const copy = materialize({ entry: entry.path, tree });
+      const hold = holdKey({ root, key: entry.key });
+      if (!hold.ok) return fail(1, hold.message);
+      let copy;
+      try { copy = materialize({ entry: entry.path, tree, beforeCopy: (bytes) => roomFor(diskCheck({ root }), bytes, approval) }); } finally { hold.release(); }
       if (!copy.ok) return fail(1, copy.message);
       if (copy.warning) process.stderr.write(`orchestrate: ${copy.warning}\n`);
-      recordTree(found.path, { tree: tree.slice(found.path.length + 1), key: entry.key, strategy: copy.strategy, installed: entry.installed, at: new Date().toISOString() });
+      recordTree(found.path, { tree: rel, key: entry.key, strategy: copy.strategy, installed: entry.installed, at: new Date().toISOString() });
       return out({ ok: true, key: entry.key, installed: entry.installed, strategy: copy.strategy, warning: copy.warning }, `${entry.installed ? "installed" : "reused"} ${entry.key}; ${copy.strategy} into ${tree}/node_modules\n`);
     }
     case "done": {
       if (!args[0]) return fail(2, "scratch done needs <run-dir>");
-      const result = finishRun({ root, runDir: args[0] });
+      const result = finishRun({ root, runDir: args[0], session: flags.session ?? null });
       if (!result.ok) return fail(1, result.message);
       return out(result, `reclaimed ${result.removed.length} rebuildable director${result.removed.length === 1 ? "y" : "ies"} in ${result.path}; evidence kept\n` + result.preserved.map((item) => `  preserved ${item.path}: ${item.reason}\n`).join(""));
     }
     case "fail": {
       if (!args[0]) return fail(2, "scratch fail needs <run-dir>");
-      const result = failRun({ root, runDir: args[0] });
+      const result = failRun({ root, runDir: args[0], session: flags.session ?? null });
       if (!result.ok) return fail(1, result.message);
       return out(result, `preserved ${result.path}\n`);
     }

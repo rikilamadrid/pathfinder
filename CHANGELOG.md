@@ -36,14 +36,17 @@ The heading of the most recent released section below is the single source of tr
   architecture; atomic publication under a lock, stale locks reclaimed, a
   partial install never published) and gives every tree a private
   copy-on-write clone — APFS on macOS, reflink on Linux, a warned full copy
-  otherwise; never a hard link or a shared writable tree. A checkpoint written
+  otherwise (always on Windows), checked against the disk floor first; never a
+  hard link, a shared writable tree, or a link out of the tree. Owners are
+  identified by pid, host and platform, so a WSL or Windows owner is never
+  judged dead from the other side. A checkpoint written
   with `PATHFINDER_SCRATCH_RUN`, or `scratch done`, reclaims the run's
   `node_modules` and `.next` and keeps all evidence; failed and interrupted
   runs are preserved, and `scratch prune` is a dry run until `--execute`.
   New runs are refused below a configurable disk floor
   (`<!-- pathfinder:disk warn=25 floor=10 -->`, or `PATHFINDER_DISK_*_GB`)
-  unless `--allow-low-disk` names the human's approval; `status` adds a
-  physical free-space line.
+  unless `--allow-low-disk` names the human's approval; `disk` reports
+  physical free space, and `status` names a crossed threshold.
 
 - **Breaking for callers outside the documented procedures: `orchestrate
   brief` now requires `--approval <text>`.** A missing, empty, or

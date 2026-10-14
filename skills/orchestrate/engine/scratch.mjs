@@ -21,21 +21,19 @@
  * A run whose owner is alive, or cannot be checked, is never touched.
  */
 
-import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
-import { hostname } from "node:os";
-import { basename, join, sep } from "node:path";
-import { atomicCheckpointWrite, ownerAlive } from "./checkpoint-write.mjs";
-import { DEPS_DIR, removeTree } from "./deps.mjs";
+import path, { join } from "node:path";
+import { atomicCheckpointWrite } from "./checkpoint-write.mjs";
+import { DEPS_DIR, removeTree, unpublish } from "./deps.mjs";
 import { diskCheck, floorGate } from "./disk.mjs";
 import { isIgnored } from "./git.mjs";
 import { isKey } from "./keys.mjs";
+import { callerOwns, findOwner, liveness, ownerRecord, processChain } from "./process.mjs";
 
 export const SCRATCH_DIR = ".pathfinder/scratch";
 const SCHEMA = "pathfinder.scratch-run/1";
 export const ROLES = Object.freeze(["developer", "adversary", "tester", "integrator"]);
-const SHELLS = new Set(["sh", "bash", "zsh", "dash", "fish", "ksh", "tcsh", "csh", "env", "timeout", "nohup", "xargs"]);
 const refuse = (message) => ({ ok: false, message });
 
 /** Scratch runs live under `.pathfinder/`, which must be ignored like the worktrees. */
@@ -44,51 +42,22 @@ export function scratchRefusal(root) {
   return null;
 }
 
-function processInfo(pid) {
-  if (process.platform === "win32") return null;
-  const result = spawnSync("ps", ["-o", "ppid=", "-o", "comm=", "-p", String(pid)], { encoding: "utf8" });
-  if (result.status !== 0) return null;
-  const match = /^\s*(\d+)\s+(.+?)\s*$/.exec(result.stdout);
-  return match ? { ppid: Number(match[1]), command: basename(match[2]) } : null;
-}
-
 /**
- * The long-lived process that owns this run: the nearest ancestor that is not
- * a shell or wrapper. The engine CLI and the shell a harness spawns for one
- * command both exit at once; the harness session outlives them.
+ * `child` relative to `parent` when it lies strictly inside it, else null.
+ * Windows and macOS compare case-insensitively; Windows paths may differ in
+ * drive-letter case and separators.
  */
-export function findOwner(start = process.ppid) {
-  let pid = start;
-  for (let depth = 0; depth < 12 && pid > 1; depth += 1) {
-    const info = processInfo(pid);
-    if (!info) break;
-    if (!SHELLS.has(info.command.replace(/^-/, ""))) return { pid, host: hostname(), command: info.command };
-    pid = info.ppid;
-  }
-  return { pid: start, host: hostname(), command: processInfo(start)?.command ?? null };
+export function within(parent, child, platform = process.platform) {
+  const p = platform === "win32" ? path.win32 : path.posix;
+  const fold = (text) => (platform === "win32" || platform === "darwin" ? text.toLowerCase() : text);
+  const rel = p.relative(fold(parent), fold(child));
+  if (!rel || rel.startsWith("..") || p.isAbsolute(rel)) return null;
+  const tail = p.normalize(child).slice(-rel.length);
+  return fold(tail) === rel ? tail : rel;
 }
 
-/** Is the run's owner this process or one of its ancestors? */
-export function callerOwns(owner, start = process.pid) {
-  if (owner?.host !== hostname()) return false;
-  let pid = start;
-  for (let depth = 0; depth < 16 && pid > 1; depth += 1) {
-    if (pid === owner.pid) return true;
-    const info = processInfo(pid);
-    if (!info) return false;
-    pid = info.ppid;
-  }
-  return false;
-}
-
-/** true, false, or null when this host cannot tell. A reused pid running another command is not the owner. */
-export function ownerLiveness(owner) {
-  const alive = ownerAlive({ pid: owner?.pid, host: owner?.host });
-  if (alive !== true || !owner.command) return alive;
-  const info = processInfo(owner.pid);
-  if (!info) return null;
-  return info.command === owner.command;
-}
+/** The canonical spelling of an existing path, in the filesystem's own case. */
+export const real = (target) => realpathSync.native(target);
 
 function scratchBase(root) {
   return join(root, ...SCRATCH_DIR.split("/"));
@@ -96,14 +65,15 @@ function scratchBase(root) {
 
 /** The canonical run directory, refused unless it is a run inside this root's scratch area. */
 export function resolveRun(root, runDir) {
-  let real;
+  let canonicalRun;
   let base;
-  try { real = realpathSync(runDir); base = realpathSync(scratchBase(root)); } catch { return refuse(`${runDir} is not a scratch run`); }
-  if (!real.startsWith(base + sep) || real.slice(base.length + 1).split(sep).length !== 2) return refuse(`${runDir} is not a run directory under ${SCRATCH_DIR}/<ticket>/`);
-  if (lstatSync(runDir).isSymbolicLink()) return refuse(`${runDir} is a symlink; name the run directory itself`);
-  const run = readRun(real);
-  if (!run) return refuse(`${real}/run.json is missing or invalid; the run is left untouched`);
-  return { ok: true, path: real, run };
+  try { canonicalRun = real(runDir); base = real(scratchBase(root)); } catch { return refuse(`${runDir} is not a scratch run`); }
+  const rel = within(base, canonicalRun);
+  if (rel === null || rel.split(/[\\/]/).length !== 2) return refuse(`${runDir} is not a run directory under ${SCRATCH_DIR}/<ticket>/`);
+  if (lstatSync(runDir).isSymbolicLink()) return refuse(`${runDir} is a symlink or junction; name the run directory itself`);
+  const run = readRun(canonicalRun);
+  if (!run) return refuse(`${join(canonicalRun, "run.json")} is missing or invalid; the run is left untouched`);
+  return { ok: true, path: canonicalRun, run };
 }
 
 export function readRun(dir) {
@@ -122,7 +92,20 @@ function writeRun(dir, run) {
 /** active, interrupted, checkpointed, or failed. An unknown owner counts as active. */
 export function runStatus(run) {
   if (run.state !== "active") return run.state;
-  return ownerLiveness(run.owner) === false ? "interrupted" : "active";
+  return liveness(run.owner) === false ? "interrupted" : "active";
+}
+
+/**
+ * May this caller change a run it did not necessarily create? Only its owner
+ * (this process or an ancestor), and anyone once the owner is provably dead.
+ * A recorded session must match too: one harness process can host several
+ * sessions, and its pid alone cannot tell them apart.
+ */
+export function ownerRefusal(found, session) {
+  const { run, path } = found;
+  if (run.session && session !== run.session) return `run ${path} belongs to session ${run.session}; pass --session ${run.session} to act on it`;
+  if (liveness(run.owner) !== false && !callerOwns(run.owner)) return `run ${path} belongs to live process ${run.owner?.pid}, not this session; nothing was changed`;
+  return null;
 }
 
 /**
@@ -137,7 +120,8 @@ export function createRun({ root, ticket, role, head, session = null, ownerPid =
   if (!/^[0-9a-f]{7,64}$/.test(head ?? "")) return refuse("--head must be the exact commit the run reviews");
   const gate = floorGate(diskCheck({ root, env }), approval);
   if (!gate.ok) return refuse(gate.message);
-  const owner = ownerPid ? { pid: ownerPid, host: hostname(), command: processInfo(ownerPid)?.command ?? null } : findOwner();
+  const owner = ownerPid ? ownerRecord(ownerPid, processChain(ownerPid, { depth: 1 })[0]?.command ?? null) : findOwner();
+  if (!owner) return refuse("cannot read this process's ancestry here (no `ps` or PowerShell answer); pass --owner-pid naming the long-lived session process that owns the run");
   const stamp = now.toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
   const dir = join(scratchBase(root), ticket, `${role}-${head.slice(0, 7)}-${stamp}-${randomUUID().slice(0, 4)}`);
   mkdirSync(dir, { recursive: true });
@@ -212,12 +196,13 @@ function reclaim(dir, run, reason, now) {
  * The run's owner recorded its checkpoint: reclaim its rebuildable trees and
  * keep everything else. `ticket`, when given, must be the run's ticket.
  */
-export function finishRun({ root, runDir, ticket = null, now = new Date() }) {
+export function finishRun({ root, runDir, ticket = null, session = null, sessionFromRun = false, now = new Date() }) {
   const found = resolveRun(root, runDir);
   if (!found.ok) return found;
   if (ticket && found.run.ticket !== ticket) return refuse(`run ${found.path} is for ${found.run.ticket}, not ${ticket}; nothing was reclaimed`);
   if (found.run.state === "failed") return refuse(`run ${found.path} is marked failed and is preserved`);
-  if (runStatus(found.run) === "active" && !callerOwns(found.run.owner)) return refuse(`run ${found.path} belongs to live process ${found.run.owner.pid}, not this session; nothing was reclaimed`);
+  const refusal = ownerRefusal(found, sessionFromRun ? found.run.session : session);
+  if (refusal) return refuse(refusal);
   return { ok: true, path: found.path, ...reclaim(found.path, found.run, "checkpoint", now) };
 }
 
@@ -228,16 +213,19 @@ export function finishRun({ root, runDir, ticket = null, now = new Date() }) {
  */
 export function reclaimAfterCheckpoint(root, ticket, runDir = process.env.PATHFINDER_SCRATCH_RUN) {
   if (!runDir) return null;
-  const result = finishRun({ root, runDir, ticket });
+  let result;
+  try { result = finishRun({ root, runDir, ticket, sessionFromRun: true }); } catch (error) { result = refuse(`reclaim failed after the checkpoint was written: ${error.message}`); }
   if (result.ok) console.log(`Scratch run reclaimed: ${result.removed.length} rebuildable director${result.removed.length === 1 ? "y" : "ies"}; evidence kept.`);
   else console.error(`scratch: ${result.message}`);
   return result;
 }
 
 /** Preserve a run whose checkpoint failed: nothing is reclaimed automatically. */
-export function failRun({ root, runDir, now = new Date() }) {
+export function failRun({ root, runDir, session = null, now = new Date() }) {
   const found = resolveRun(root, runDir);
   if (!found.ok) return found;
+  const refusal = ownerRefusal(found, session);
+  if (refusal) return refuse(refusal);
   writeRun(found.path, { ...found.run, state: "failed", failedAt: now.toISOString() });
   return { ok: true, path: found.path };
 }
@@ -268,15 +256,18 @@ function cachePlan(root, { cache, olderThanMs, now, liveKeys }) {
   if (!existsSync(base)) return plan;
   for (const name of readdirSync(base)) {
     const path = join(base, name);
-    const age = now - statSync(path).mtimeMs;
+    const stats = lstatSync(path);
+    if (stats.isSymbolicLink()) continue;
+    const age = now - stats.mtimeMs;
     if (name.includes(".lock.stale-")) plan.push({ path, kind: "retired lock" });
+    else if (name.startsWith(".trash-")) plan.push({ path, kind: "unpublished entry" });
     else if (name.startsWith(".tmp-") || name.endsWith(".lock")) {
       const owner = ownerOf(join(path, "owner.json"));
-      const alive = owner ? ownerAlive(owner) : age > 60_000 ? false : null;
+      const alive = owner ? liveness(owner) : age > 60_000 ? false : null;
       if (alive === false) plan.push({ path, kind: name.endsWith(".lock") ? "stale lock" : "abandoned install" });
     } else if (cache && /^[0-9a-f]{32}$/.test(name) && !liveKeys.has(name)) {
       const used = existsSync(`${path}.used`) ? statSync(`${path}.used`).mtimeMs : statSync(path).mtimeMs;
-      if (now - used > olderThanMs) plan.push({ path, kind: "unused cache entry", alsoRemove: `${path}.used` });
+      if (now - used > olderThanMs) plan.push({ path, kind: "unused cache entry", key: name });
     }
   }
   return plan;
@@ -300,7 +291,7 @@ export function pruneScratch({ root, olderThanMs = 24 * 3_600_000, includePreser
   for (const entry of runs) {
     if (!entry.run) { kept.push({ path: entry.path, reason: "invalid or foreign run.json; left untouched" }); continue; }
     const age = now - Date.parse(entry.run.createdAt);
-    if (entry.status === "active") { kept.push({ path: entry.path, reason: "owner is alive or cannot be checked" }); continue; }
+    if (liveness(entry.run.owner) !== false) { kept.push({ path: entry.path, reason: `${entry.status}; owner is alive or cannot be checked` }); continue; }
     if (entry.status !== "checkpointed") {
       if (!includePreserved) { kept.push({ path: entry.path, reason: `${entry.status}; preserved (pass --include-preserved to reclaim its dependencies)` }); continue; }
       if (!(age > olderThanMs)) { kept.push({ path: entry.path, reason: `${entry.status}; younger than the --older-than threshold` }); continue; }
@@ -314,11 +305,13 @@ export function pruneScratch({ root, olderThanMs = 24 * 3_600_000, includePreser
     for (const action of actions) {
       if (action.kind === "run") {
         const run = readRun(action.path);
-        if (!run || (run.state === "active" && runStatus(run) !== "interrupted")) { results.push({ path: action.path, skipped: "state changed since planning" }); continue; }
+        if (!run || liveness(run.owner) !== false) { results.push({ path: action.path, skipped: "owner alive or unknown at execution" }); continue; }
         results.push({ path: action.path, ...reclaim(action.path, run, `prune:${action.status}`, new Date(now)) });
+      } else if (action.key) {
+        const removed = unpublish({ root, key: action.key });
+        results.push(removed.ok ? { path: action.path, removed: [action.path] } : { path: action.path, skipped: removed.message });
       } else {
         removeTree(action.path);
-        if (action.alsoRemove) rmSync(action.alsoRemove, { force: true });
         results.push({ path: action.path, removed: [action.path] });
       }
     }

@@ -46,10 +46,12 @@ export function readDiskPolicy(root, env = process.env) {
   for (const line of content.split(/\r?\n/)) {
     const match = DISK_MARKER.exec(line.trim());
     if (!match) continue;
-    const fields = Object.fromEntries(match[1].split(/\s+/).map((pair) => pair.split("=")));
+    const pairs = match[1].split(/\s+/).map((pair) => pair.split("="));
+    const fields = Object.fromEntries(pairs);
     const warn = number(fields.warn);
     const floor = number(fields.floor);
-    if (warn === null || floor === null || Object.keys(fields).some((name) => !["warn", "floor"].includes(name))) {
+    const malformed = pairs.length !== 2 || pairs.some((pair) => pair.length !== 2) || Object.keys(fields).length !== 2;
+    if (malformed || warn === null || floor === null || Object.keys(fields).some((name) => !["warn", "floor"].includes(name))) {
       return { valid: false, message: `invalid disk marker \`${line.trim()}\`; expected <!-- pathfinder:disk warn=<GB> floor=<GB> -->` };
     }
     warnGb = warn; floorGb = floor; source = "marker";
@@ -104,8 +106,27 @@ export function floorGate(check, approval = null) {
   };
 }
 
+/**
+ * Whether writing `bytes` more would still leave the floor intact. A full
+ * dependency copy asks this first; only explicit approval passes below it.
+ */
+export function roomFor(check, bytes, approval = null) {
+  if (!check.ok) return { ok: false, message: check.message };
+  if (check.freeBytes - bytes >= check.floorBytes) return { ok: true, override: null };
+  if (typeof approval === "string" && approval.trim()) return { ok: true, override: approval.trim() };
+  return { ok: false, message: `it would leave ${formatGb(Math.max(0, check.freeBytes - bytes))} free, below the ${formatGb(check.floorBytes)} floor; free space or pass --allow-low-disk naming the human's explicit approval` };
+}
+
 export function formatGb(bytes) {
   return `${(bytes / GB).toFixed(1)} GB`;
+}
+
+/** The stable status line: empty when space is fine, else the level and threshold crossed. */
+export function diskLevelLine(check) {
+  if (!check.ok) return `disk: ${check.message}\n`;
+  if (check.level === "ok") return "";
+  const crossed = check.level === "warn" ? `below the ${formatGb(check.warnBytes)} warning threshold` : `BELOW the ${formatGb(check.floorBytes)} floor — new review runs refused`;
+  return `disk: ${crossed}; run \`orchestrate disk\` for figures\n`;
 }
 
 export function formatDisk(check) {

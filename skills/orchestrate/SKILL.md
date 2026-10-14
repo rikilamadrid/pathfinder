@@ -108,6 +108,7 @@ engine/judges/              Evidence Judge providers; jev is the first
 engine/scratch.mjs           review scratch runs: owner, ticket, role, head; reclaim and prune
 engine/deps.mjs              content-addressed dependency cache and copy-on-write trees
 engine/disk.mjs              physical free space, warning and floor thresholds
+engine/process.mjs           process identity and ancestry on macOS, Linux, WSL and Windows
 ```
 
 `profile.md` documents the profile, its thresholds, and routing policies.
@@ -130,17 +131,30 @@ PATHFINDER_SCRATCH_RUN=<run-dir> node skills/orchestrate/engine/findings.mjs --c
 `scratch deps` installs each lockfile once into `.pathfinder/deps/<key>/`,
 keyed by lockfile, package.json, Node, npm, platform and architecture, and
 gives the tree its own copy-on-write clone: an APFS clone on macOS, a reflink
-on Linux, a full copy with a warning elsewhere. A mutant's edits stay in its
-own tree. A container keys its own Linux entry. A checkpoint written with
+on Linux filesystems that support it (Btrfs, XFS), otherwise a full,
+independent copy with a warning — always on Windows, and on ext4, overlay or a
+WSL `/mnt/<drive>` path. A full copy is checked against the disk floor first.
+A mutant's edits stay in its own tree; an install that links outside its own
+tree (workspaces, `file:` packages, junctions) is refused rather than shared.
+Windows, WSL and containers each key their own entries, and an owner recorded
+on another platform or host is never judged dead. A checkpoint written with
 `PATHFINDER_SCRATCH_RUN`, or `scratch done`, reclaims the run's `node_modules`
 and `.next` and keeps every log, report, patch and source. A failed or
 interrupted run is preserved; `scratch prune` is a dry run until `--execute`,
 and reclaims a preserved run's dependencies only with `--include-preserved`.
+Only a run's owner process — or anyone, once that process is provably dead —
+may add trees to it, finish it or fail it, and prune never touches a run whose
+owner is alive or cannot be checked. One harness process can host several
+sessions, so pass `--session` to `scratch new` and repeat it on `deps`, `done`
+and `fail`. Where ancestry cannot be read (no `ps`), `scratch new` needs
+`--owner-pid`. Clean-ups that remove a cache entry take its lock and rename it
+out of place first, so a copy in progress is never left without its source.
 New runs are refused below the disk floor — `<!-- pathfinder:disk warn=25
 floor=10 -->` in `context/execution-mode.md`, in GB, or
 `PATHFINDER_DISK_WARN_GB` / `PATHFINDER_DISK_FLOOR_GB` — unless
-`--allow-low-disk` names the human's explicit approval. `disk` and `status`
-report physical free space; per-file totals overstate clones.
+`--allow-low-disk` names the human's explicit approval. `disk` reports
+physical free space (per-file totals overstate clones); `status` stays
+byte-stable and only names a threshold once it is crossed.
 
 A store other than local Markdown needs one machine-readable line in
 `context/tracker.md`, described in `skills/ticket/store.md`.
