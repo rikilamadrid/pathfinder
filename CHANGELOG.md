@@ -27,6 +27,31 @@ The heading of the most recent released section below is the single source of tr
 
 ## [Unreleased]
 
+- **Review rounds no longer leave gigabytes of dependencies behind.** New
+  `orchestrate scratch new|deps|done|fail|list|prune` and `orchestrate disk`.
+  Adversary and Tester trees live in runs under `.pathfinder/scratch/<key>/`
+  recording owner process, ticket, role and head. `scratch deps` installs each
+  lockfile once into a content-addressed cache (`.pathfinder/deps/<key>/`,
+  keyed by lockfile, package.json, `.npmrc`, Node, npm, platform and
+  architecture; atomic publication under a lock, stale locks reclaimed, a
+  partial install never published) and gives every tree a private
+  copy-on-write clone — APFS on macOS (proven by volume type and device, as
+  `cp -c` silently copies elsewhere), reflink on Linux, a warned full copy
+  otherwise (always on Windows), checked against the disk floor first; never a
+  hard link, a shared writable tree, or a link out of the tree. Owners are
+  identified by pid, host and platform, so a WSL or Windows owner is never
+  judged dead from the other side. A checkpoint written
+  with `PATHFINDER_SCRATCH_RUN`, or `scratch done`, reclaims the run's
+  `node_modules` and `.next` and keeps all evidence; failed and interrupted
+  runs are preserved, and `scratch prune` is a dry run until `--execute`.
+  New runs are refused below a configurable disk floor
+  (`<!-- pathfinder:disk warn=25 floor=10 -->`, or `PATHFINDER_DISK_*_GB`)
+  unless `--allow-low-disk` names the human's approval; `disk` reports
+  physical free space, and `status` names a crossed threshold. Verified on
+  macOS and Linux; on native Windows only the scratch and cache tests run
+  (full copy). The older orchestrate suite and end-to-end checkpoint cleanup
+  on Windows, Linux reflink success, and WSL2 are not yet verified.
+
 - **Breaking for callers outside the documented procedures: `orchestrate
   brief` now requires `--approval <text>`.** A missing, empty, or
   whitespace-only value is a usage error (exit 2) that names the flag and

@@ -83,7 +83,7 @@ and, for a GitHub Issues store, the `gh` CLI. It holds no state of its own:
 every call re-derives its answer from Git, the worktrees, and the store.
 
 ```
-engine/bin/orchestrate.mjs   board | claim | owner | status | estimate | brief | check | judge | release
+engine/bin/orchestrate.mjs   board | claim | owner | status | estimate | brief | check | judge | release | scratch | disk
 engine/store.mjs             reads the configured ticket store
 engine/board.mjs             eligibility
 engine/claims.mjs            claims, from git worktrees and state files
@@ -105,12 +105,76 @@ engine/experiments.mjs       bounded transient Adversary experiments
 engine/findings.mjs          bounded transient independent Tester review
 engine/judgment.mjs          optional Evidence Judge: bundle, validation, policy, checkpoint
 engine/judges/              Evidence Judge providers; jev is the first
+engine/scratch.mjs           review scratch runs: owner, ticket, role, head; reclaim and prune
+engine/deps.mjs              content-addressed dependency cache and copy-on-write trees
+engine/disk.mjs              physical free space, warning and floor thresholds
+engine/process.mjs           process identity and ancestry on macOS, Linux, WSL and Windows
 ```
 
 `profile.md` documents the profile, its thresholds, and routing policies.
 `brief.md` documents the brief and the harness translation table.
 `worker-brief.md` and `resume-brief.md` state what each brief asks a worker to do.
 `evidence-judge.md` documents the optional Evidence Judge and its trust boundary.
+
+### Review scratch
+
+Adversary and Tester rounds build their trees — base, head, mutants — in a
+run under `.pathfinder/scratch/<key>/`, never in a harness's private temporary
+area, and never with a fresh `npm ci` per tree:
+
+```
+node skills/orchestrate/engine/bin/orchestrate.mjs scratch new <key> --role tester --head <sha>
+    # prints <run-dir>, then: session <s>
+node skills/orchestrate/engine/bin/orchestrate.mjs scratch deps <run-dir> --tree head --session <s>
+PATHFINDER_SCRATCH_RUN=<run-dir> PATHFINDER_SCRATCH_SESSION=<s> \
+  node skills/orchestrate/engine/findings.mjs --checkpoint < report.json
+```
+
+`scratch deps` installs each lockfile once into `.pathfinder/deps/<key>/`,
+keyed by lockfile, package.json, Node, npm, platform and architecture, and
+gives the tree its own copy-on-write clone: an APFS clone on macOS (only when
+the cache and the tree share one APFS volume — `cp -c` silently copies
+anywhere else), a reflink
+on Linux filesystems that support it (Btrfs, XFS), otherwise a full,
+independent copy with a warning — always on Windows, and on ext4, overlay or a
+WSL `/mnt/<drive>` path. A full copy is checked against the disk floor first.
+A mutant's edits stay in its own tree; an install that links outside its own
+tree (workspaces, `file:` packages, junctions) is refused rather than shared.
+Windows, WSL and containers each key their own entries, and an owner recorded
+on another platform or host is never judged dead. A checkpoint written with
+`PATHFINDER_SCRATCH_RUN`, or `scratch done`, reclaims the run's `node_modules`
+and `.next` and keeps every log, report, patch and source. A failed or
+interrupted run is preserved; `scratch prune` is a dry run until `--execute`,
+and reclaims a preserved run's dependencies only with `--include-preserved`.
+Only a run's owner process — or anyone, once that process is provably dead —
+may add trees to it, finish it or fail it, and prune never touches a run whose
+owner is alive or cannot be checked. One harness process can host several
+sessions, so every run also has a session: `scratch new` mints a unique one
+(or records `--session`), and `deps`, `done`, `fail` and the checkpoint hook
+(`PATHFINDER_SCRATCH_SESSION`) require it. Where ancestry cannot be read (no
+`ps`), `scratch new` needs `--owner-pid`, and the session then stands as the
+proof of ownership. npm settings that change the install — NODE_ENV, the
+install-affecting `npm_config_*`, the user and global npmrc — are part of the
+cache key; lifecycle scripts that read other variables or files are not. npm never runs through a shell: on Windows the engine runs
+the `npm-cli.js` beside Node, and `--npm` must name a `.js` entry point. A
+reviewer killed mid-copy can leave an orphaned clone finishing in the
+background; a retry into that tree refuses, and `scratch done` reclaims it. Clean-ups that remove a cache entry take its lock and rename it
+out of place first, so a copy in progress is never left without its source.
+New runs are refused below the disk floor — `<!-- pathfinder:disk warn=25
+floor=10 -->` in `context/execution-mode.md`, in GB, or
+`PATHFINDER_DISK_WARN_GB` / `PATHFINDER_DISK_FLOOR_GB` — unless
+`--allow-low-disk` names the human's explicit approval. `disk` reports
+physical free space (per-file totals overstate clones); `status` stays
+byte-stable and only names a threshold once it is crossed.
+
+Verified so far: macOS (APFS clones) and Linux (full-copy fallback) run the
+whole orchestrate suite; native Windows runs the scratch and cache tests in CI
+and always takes the full-copy fallback. Not yet verified: the rest of the
+orchestrate suite on Windows (its older harness tests are not portable), a
+checkpoint reclaiming its own run end to end on Windows (`scratch done` is
+tested there), the Windows paths for unreadable ancestry, a planted cache link,
+a failed reclaim after checkpoint and antivirus `EBUSY` retries, a successful
+Linux reflink on Btrfs or XFS, and WSL2 in any form.
 
 A store other than local Markdown needs one machine-readable line in
 `context/tracker.md`, described in `skills/ticket/store.md`.

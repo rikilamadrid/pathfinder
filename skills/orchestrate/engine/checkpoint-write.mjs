@@ -28,7 +28,9 @@ export function atomicCheckpointWrite(path, text, tempDir = dirname(path)) {
   try {
     fd = openSync(temp, "wx", 0o600); writeFileSync(fd, text); fsyncSync(fd); closeSync(fd); fd = undefined;
     renameSync(temp, path);
-    const dir = openSync(dirname(path), "r"); try { fsyncSync(dir); } finally { closeSync(dir); }
+    // Windows cannot fsync a directory (EPERM). NTFS keeps the rename atomic,
+    // so a crash leaves the old or the new checkpoint, never a torn one.
+    if (process.platform !== "win32") { const dir = openSync(dirname(path), "r"); try { fsyncSync(dir); } finally { closeSync(dir); } }
   } finally { if (fd !== undefined) closeSync(fd); if (existsSync(temp)) rmSync(temp); }
 }
 function retire(p) {

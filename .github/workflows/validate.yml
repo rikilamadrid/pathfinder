@@ -106,3 +106,37 @@ jobs:
             fi
           done
           echo "OK — no manifest at the repository root."
+
+  scratch-portability:
+    # Review scratch and the dependency cache must hold on every platform a
+    # reviewer runs: APFS clones on macOS, the warned full-copy fallback on
+    # Windows (Ubuntu runs the same suite in the job above). Claims of Windows
+    # support rest on this job, not on macOS or Linux results.
+    name: Scratch portability (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out the kit
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Test review scratch and the dependency cache
+        working-directory: packages/orchestrate
+        run: node --test test/scratch.test.mjs
+
+      - name: Measure the full orchestrate suite on Windows
+        # Informational until the wider suite is portable: its harness
+        # predates Windows support. The result is reported, not hidden.
+        if: ${{ !cancelled() && runner.os == 'Windows' }}
+        continue-on-error: true
+        # A pre-existing test can hang on Windows; cap it so the job reports.
+        timeout-minutes: 20
+        working-directory: packages/orchestrate
+        run: node --test
