@@ -42,10 +42,12 @@ let snapshot = null;
  */
 function windowsProcesses() {
   if (snapshot && Date.now() - snapshot.at < 2000) return snapshot.table;
+  // A failed query is remembered for the same moment, so a host whose CIM
+  // hangs costs one timeout per command rather than one per lookup.
   const script = "Get-CimInstance Win32_Process -Property ProcessId,ParentProcessId,Name | ForEach-Object { \"$($_.ProcessId) $($_.ParentProcessId) $($_.Name)\" }";
   const env = { ...process.env, SystemRoot: process.env.SystemRoot || process.env.SYSTEMROOT || process.env.windir || "C:\\Windows" };
   const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand", Buffer.from(script, "utf16le").toString("base64")], { encoding: "utf8", windowsHide: true, timeout: 20_000, env });
-  if (result.status !== 0) return null;
+  if (result.status !== 0) { snapshot = { at: Date.now(), table: null }; return null; }
   const table = new Map();
   for (const line of result.stdout.split(/\r?\n/)) {
     const m = /^(\d+)\s+(\d+)\s+(.+)$/.exec(line.trim());

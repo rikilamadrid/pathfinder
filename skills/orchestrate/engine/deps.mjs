@@ -114,7 +114,9 @@ export function npmEnvironment(env = process.env) {
   const setting = (name) => env[`npm_config_${name}`] || env[`NPM_CONFIG_${name.toUpperCase()}`];
   const prefix = setting("prefix") || (process.platform === "win32" ? dirname(process.execPath) : dirname(dirname(process.execPath)));
   const files = {
-    user: setting("userconfig") || join(env.HOME || env.USERPROFILE || homedir(), ".npmrc"),
+    // npm finds the user npmrc in the OS home: USERPROFILE on Windows, where
+    // HOME may be a Git Bash path such as /c/Users/x.
+    user: setting("userconfig") || join((process.platform === "win32" ? env.USERPROFILE || env.HOME : env.HOME || env.USERPROFILE) || homedir(), ".npmrc"),
     global: setting("globalconfig") || join(prefix, "etc", "npmrc"),
   };
   const content = {};

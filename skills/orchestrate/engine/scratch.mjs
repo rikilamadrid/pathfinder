@@ -56,7 +56,7 @@ export function within(parent, child, platform = process.platform) {
 }
 
 /** A path inside a run as run.json records it: forward slashes on every platform. */
-export const portable = (relativePath) => relativePath.split(/[\\/]/).join("/");
+export const portable = (relativePath, separator = path.sep) => relativePath.split(separator).join("/");
 
 /** The canonical spelling of an existing path, in the filesystem's own case. */
 export const real = (target) => realpathSync.native(target);

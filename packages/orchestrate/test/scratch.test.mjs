@@ -8,7 +8,7 @@ import { cleanUpTemporaryDirectories, ENGINE_BIN, ENGINE_ROOT, gitEnv, json, mak
 
 const { cacheInputs, cloneable, ensureEntry, escapingLinks, holdKey, materialize, npmCommand, retireStaleLock, unpublish } = await import(pathToFileURL(join(ENGINE_ROOT, "deps.mjs")));
 const { diskCheck, freeBytes, readDiskPolicy, roomFor } = await import(pathToFileURL(join(ENGINE_ROOT, "disk.mjs")));
-const { real, reclaimAfterCheckpoint, runStatus, within } = await import(pathToFileURL(join(ENGINE_ROOT, "scratch.mjs")));
+const { portable, real, reclaimAfterCheckpoint, runStatus, within } = await import(pathToFileURL(join(ENGINE_ROOT, "scratch.mjs")));
 const { findOwner, liveness, ownerRecord, processChain } = await import(pathToFileURL(join(ENGINE_ROOT, "process.mjs")));
 
 const WINDOWS = process.platform === "win32";
@@ -976,6 +976,26 @@ describe("tester regressions", () => {
     writeFileSync(join(lock, "owner.json"), JSON.stringify(ownerRecord(deadPid())));
     assert.equal(retireStaleLock(lock), true);
     assert.equal(existsSync(lock), false);
+  });
+});
+
+describe("Windows CI adversary regressions", () => {
+  it("records keep a POSIX filename's literal backslash, and normalise Windows separators", () => {
+    assert.equal(portable("we\\ird/node_modules", "/"), "we\\ird/node_modules");
+    assert.equal(portable("a\\b\\node_modules", "\\"), "a/b/node_modules");
+  });
+
+  it("finds this process's ancestry even when SystemRoot is missing from the environment", { skip: !WINDOWS && "runs only on Windows" }, () => {
+    const saved = Object.fromEntries(["SystemRoot", "SYSTEMROOT", "windir"].map((name) => [name, process.env[name]]));
+    for (const name of Object.keys(saved)) delete process.env[name];
+    try {
+      const started = Date.now();
+      const chain = processChain(process.pid);
+      assert.ok(chain.length >= 1, "no ancestry without SystemRoot");
+      assert.ok(Date.now() - started < 15_000, `ancestry took ${Date.now() - started} ms`);
+    } finally {
+      for (const [name, value] of Object.entries(saved)) if (value !== undefined) process.env[name] = value;
+    }
   });
 });
 
