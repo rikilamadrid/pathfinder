@@ -167,6 +167,15 @@ floor=10 -->` in `context/execution-mode.md`, in GB, or
 physical free space (per-file totals overstate clones); `status` stays
 byte-stable and only names a threshold once it is crossed.
 
+Verified so far: macOS (APFS clones) and Linux (full-copy fallback) run the
+whole orchestrate suite; native Windows runs the scratch and cache tests in CI
+and always takes the full-copy fallback. Not yet verified: the rest of the
+orchestrate suite on Windows (its older harness tests are not portable), a
+checkpoint reclaiming its own run end to end on Windows (`scratch done` is
+tested there), the Windows paths for unreadable ancestry, a planted cache link,
+a failed reclaim after checkpoint and antivirus `EBUSY` retries, a successful
+Linux reflink on Btrfs or XFS, and WSL2 in any form.
+
 A store other than local Markdown needs one machine-readable line in
 `context/tracker.md`, described in `skills/ticket/store.md`.
 

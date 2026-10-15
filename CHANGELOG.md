@@ -47,7 +47,10 @@ The heading of the most recent released section below is the single source of tr
   New runs are refused below a configurable disk floor
   (`<!-- pathfinder:disk warn=25 floor=10 -->`, or `PATHFINDER_DISK_*_GB`)
   unless `--allow-low-disk` names the human's approval; `disk` reports
-  physical free space, and `status` names a crossed threshold.
+  physical free space, and `status` names a crossed threshold. Verified on
+  macOS and Linux; on native Windows only the scratch and cache tests run
+  (full copy). The older orchestrate suite and end-to-end checkpoint cleanup
+  on Windows, Linux reflink success, and WSL2 are not yet verified.
 
 - **Breaking for callers outside the documented procedures: `orchestrate
   brief` now requires `--approval <text>`.** A missing, empty, or
