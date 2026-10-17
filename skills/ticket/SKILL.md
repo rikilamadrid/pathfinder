@@ -90,8 +90,8 @@ install change has happened since. The citation is one line,
 A dirty tree is never reused. These always run fresh: focused tests after an
 edit; any run after a change; a run by another role or in another session,
 which is never cited; the Tester's own run at the Developer's head; Adversary
-experiments; CI; `complete`'s post-merge checks; and any re-run after a
-failure.
+experiments; CI; `complete`'s final checks (its step 1), whether they run
+pre-merge or post-merge; and any re-run after a failure.
 
 ## Rules
 
