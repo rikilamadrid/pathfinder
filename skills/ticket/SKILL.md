@@ -79,6 +79,20 @@ orientation handler — reads it this way, and nothing else restates it. In
 `human-in-the-loop` mode nothing in this skill behaves differently from before
 the file existed.
 
+## Full-suite reuse
+
+A role may cite a full-suite run it made earlier instead of running the suite
+again only when all of these hold: the same role made it, in the same session;
+`HEAD` is unchanged and `git status --porcelain` was empty at that run and is
+empty now; that run exited 0; and no dependency, lockfile, environment, or
+install change has happened since. The citation is one line,
+`suite: <command> | head <sha> | clean | exit 0 | <counts> | <UTC time>`.
+A dirty tree is never reused. These always run fresh: focused tests after an
+edit; any run after a change; a run by another role or in another session,
+which is never cited; the Tester's own run at the Developer's head; Adversary
+experiments; CI; `complete`'s post-merge checks; and any re-run after a
+failure.
+
 ## Rules
 
 - Run the one action the human named. Do not continue into the next one.
