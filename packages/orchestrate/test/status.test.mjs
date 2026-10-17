@@ -8,7 +8,7 @@
  */
 
 import { strict as assert } from "node:assert";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
@@ -59,7 +59,29 @@ describe("the state vocabulary", () => {
     assert.equal(rows["1.3"].state, "blocked");
     assert.equal(rows["1.3"].gate, "blocked by 1.1");
     assert.equal(rows["1.4"].state, "integrated");
+    assert.equal(rows["1.4"].gate, "—", "a Complete ticket without a claim has no hint");
     assert.equal(rows["1.5"].state, "ready", "a blocker that is Complete does not block");
+  });
+
+  it("flags a Complete ticket that still holds a claim, in JSON and text, and releases nothing", () => {
+    const root = project();
+    orchestrate(["claim", "1.1", "--now", NOW], { root });
+    setTicketStatus(root, "1.1", { title: "Alpha", status: "Complete" });
+    const hint = "claim retained; release with orchestrate release 1.1";
+
+    const row = rowsOf(root)["1.1"];
+    assert.equal(row.state, "integrated");
+    assert.equal(row.gate, hint);
+    assert.equal(row.where, "ticket/1.1-alpha @ .pathfinder/worktrees/1.1");
+
+    const text = orchestrate(["status"], { root });
+    assert.equal(text.status, 0, text.stderr);
+    const line = text.stdout.split("\n").find((entry) => /^\S+ developer +1\.1 /.test(entry));
+    assert.match(line, / integrated +ticket\/1\.1-alpha @ \.pathfinder\/worktrees\/1\.1 +claim retained; release with orchestrate release 1\.1 /);
+    assert.equal(rowsOf(root)["1.4"].gate, "—", "the unclaimed Complete row is unchanged");
+
+    assert.ok(existsSync(join(root, ".pathfinder", "worktrees", "1.1")), "status released nothing");
+    assert.equal(json(orchestrate(["owner", "1.1", "--json"], { root })).claim.key, "1.1", "the claim is still there");
   });
 
   it("shows a live claim as working, with its branch, worktree, and worker", () => {
