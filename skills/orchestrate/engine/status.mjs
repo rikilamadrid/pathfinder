@@ -134,6 +134,10 @@ function toRow(ticket, claim, liveSet) {
 
   if (ticket.status === "Complete") {
     row.state = "integrated";
+    // Integrated work that still holds a claim keeps its worktree and branch.
+    // Say so, with the command, so it is never read as clean state. Advisory
+    // only: status never releases anything.
+    if (claim) row.gate = `claim retained; release with orchestrate release ${ticket.key}`;
   } else if (claim) {
     if (ABANDONED.has(ticket.status)) {
       row.state = "stale";
