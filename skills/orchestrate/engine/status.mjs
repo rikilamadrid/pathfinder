@@ -29,7 +29,7 @@
 
 import { checkIntegration } from "./integration.mjs";
 import { computeBoard } from "./board.mjs";
-import { readClaims } from "./claims.mjs";
+import { keyOfBranch, readClaims } from "./claims.mjs";
 import { compareKeys } from "./keys.mjs";
 import { effectiveExecutionMode, readExecutionModeFile } from "./mode.mjs";
 import { describeStore, readTickets, resolveStore } from "./store.mjs";
@@ -135,9 +135,25 @@ function toRow(ticket, claim, liveSet) {
   if (ticket.status === "Complete") {
     row.state = "integrated";
     // Integrated work that still holds a claim keeps its worktree and branch.
-    // Say so, with the command, so it is never read as clean state. Advisory
-    // only: status never releases anything.
-    if (claim) row.gate = `claim retained; release with orchestrate release ${ticket.key}`;
+    // Say so, so it is never read as clean state. Advisory only: status never
+    // releases anything, and the hint is detection, not release eligibility.
+    // Where the claim data alone shows release would refuse, a person decides;
+    // otherwise the command is named with the conditions release checks. Any
+    // gate already on the row is kept after the hint.
+    if (claim) {
+      let hint;
+      if (claim.elsewhere) {
+        row.where = `${claim.branch} @ ${claim.elsewhere} (outside .pathfinder)`;
+        hint = "claim retained; checked out outside .pathfinder; a person decides";
+      } else if (!claim.branch) {
+        hint = "claim retained; no branch to prove merged; a person decides";
+      } else if (keyOfBranch(claim.branch) !== ticket.key) {
+        hint = "claim retained; not on its ticket branch; a person decides";
+      } else {
+        hint = `claim retained; orchestrate release ${ticket.key} releases it only if its branch is proven merged and its worktree is clean`;
+      }
+      row.gate = row.gate === "—" ? hint : `${hint} · ${row.gate}`;
+    }
   } else if (claim) {
     if (ABANDONED.has(ticket.status)) {
       row.state = "stale";
