@@ -8,7 +8,7 @@
  *   node bin/orchestrate.mjs status [--feature NN] [--live a,b] [--json]
  *   node bin/orchestrate.mjs estimate <key> [--risk <v> --reason <text>] [--json]
  *   node bin/orchestrate.mjs brief <key> --harness <id> --approval <text> [--session <s>] [--json]
- *   node bin/orchestrate.mjs plan [--feature NN] [--workers N] [--live a,b] [--json]
+ *   node bin/orchestrate.mjs plan [--feature NN] [--workers N] [--live a,b] [--harness <id>] [--assess <key>=<risk>:<reason>]... [--json]
  *   node bin/orchestrate.mjs announce <key> [--now <iso>]
  *   node bin/orchestrate.mjs gate <key> open --question <text> | resolve [--answer <text>] [--now <iso>]
  *   node bin/orchestrate.mjs state <key> --set <state> [--gate <text>] [--last <text>] [--next <text>] [--now <iso>]
@@ -41,7 +41,7 @@ import { join } from "node:path";
 
 import { checkIntegration, formatCheck, releaseClaim } from "../integration.mjs";
 import { computeBoard, formatBoard } from "../board.mjs";
-import { buildBrief, formatBrief, translateBrief } from "../brief.mjs";
+import { HARNESS_TRANSLATIONS, buildBrief, formatBrief, translateBrief } from "../brief.mjs";
 import { approvalScope, blockedNote, claimedNote, gateOpenedNote, gateResolvedNote, unblockedNote } from "../comments.mjs";
 import { checkpointText, currentPr, selectStage } from "../stage.mjs";
 import { readExperimentReport } from "../experiments.mjs";
@@ -58,7 +58,7 @@ import { claim } from "../claim.mjs";
 import { claimFor } from "../claims.mjs";
 import { canonical, checkoutRoot, repositoryRoot, resolveRef } from "../git.mjs";
 import { isKey } from "../keys.mjs";
-import { orchestratorRefusal, readEvidenceJudge } from "../mode.mjs";
+import { orchestratorRefusal, readEvidenceJudge, readModelTiers } from "../mode.mjs";
 import { computeStatus, formatStatus } from "../status.mjs";
 import { ensureEntry, holdKey, isComplete, materialize } from "../deps.mjs";
 import { diskCheck, diskLevelLine, floorGate, formatDisk, formatGb, roomFor } from "../disk.mjs";
@@ -116,10 +116,15 @@ const USAGE = `orchestrate
       assessed with its reason, and the selection the routing policy makes.
       Reads only.
 
-  plan [--feature NN] [--workers N] [--live a,b] [--json]
+  plan [--feature NN] [--workers N] [--live a,b] [--harness <id>] [--assess <key>=<risk>:<reason>]... [--json]
       The dispatch plan: which eligible tickets one run would claim now, each
-      with its execution profile; which wait, and why; stale claims, never
+      with its execution profile and the selection for its implementation,
+      adversary, review and repair sessions — translated for --harness when
+      given, or refused by name; which wait, and why; stale claims, never
       re-dispatched; and the approval scope a run asks for. Reads only.
+      --assess, once per ticket, plans with the risk the claim will record
+      (claim <key> --risk <risk> --reason <reason>). Under a policy other than
+      static, an entry whose risk is still derived is marked provisional.
 
   claim  ... [--announce]
       With --announce, also post the ownership note to the ticket.
@@ -266,7 +271,10 @@ async function main(argv) {
     case "plan": {
       const workers = flags.workers === undefined ? 3 : Number(flags.workers);
       if (!Number.isInteger(workers) || workers < 1) return fail(2, "--workers must be a whole number of at least 1");
-      return plan({ ...common, feature: flags.feature ?? null, workers, live: listOf(flags.live), json: Boolean(flags.json) });
+      if (flags.harness !== undefined && (typeof flags.harness !== "string" || flags.harness === "")) return fail(2, "--harness needs a harness name");
+      const assessments = parseAssessments(flags.assess ?? []);
+      if (!assessments.ok) return fail(2, assessments.message);
+      return plan({ ...common, feature: flags.feature ?? null, workers, live: listOf(flags.live), json: Boolean(flags.json), harness: flags.harness ?? null, assessments: assessments.assessments });
     }
     case "announce":
       if (!isKey(positional[0])) return fail(2, `announce needs a ticket key such as 53.2\n\n${USAGE}`);
@@ -563,7 +571,7 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", s
     if (!handoff.ok) return fail(1, handoff.message);
     if (handoff.session !== session) return fail(1, `recorded checkpoint requires ${handoff.session ?? "integration"}, not ${session}`);
   }
-  if (session === "review" || session === "adversary") {
+  if (["adversary", "review", "repair"].includes(session)) {
     const policy = await loadPolicy(selection.policy);
     if (!policy.ok) return fail(1, policy.message);
     const selected = runPolicy(policy, found.profile.estimate, { session, root });
@@ -601,7 +609,7 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", s
     built.brief.protocol.push(JUDGE_PROJECTION[session]);
     if (session === "review") built.brief.protocol.push(criteriaGuidance(root, key, { store: storeOverride, gh }));
   }
-  const translated = translateBrief(built.brief, harness);
+  const translated = translateBrief(built.brief, harness, { tiers: readModelTiers(root) });
   if (!translated.ok) return fail(1, translated.message);
 
   process.stdout.write(
@@ -775,13 +783,34 @@ function samePath(a, b) {
   }
 }
 
-async function plan({ root, store: storeOverride, gh, feature, workers, live, json }) {
+/**
+ * `--assess <key>=<risk>:<reason>`, once per ticket: the assessment `claim
+ * --risk <risk> --reason <reason>` will record, checked the same way.
+ */
+function parseAssessments(values) {
+  const assessments = {};
+  for (const value of values) {
+    const match = /^([^=]+)=([^:]*):(.*)$/s.exec(value);
+    if (!match || !isKey(match[1])) return { ok: false, message: `--assess needs <key>=<risk>:<reason>, such as 53.2=high:touches permissions; got \`${value}\`` };
+    const [, key, risk, reason] = match;
+    if (Object.hasOwn(assessments, key)) return { ok: false, message: `--assess names ${key} more than once` };
+    if (!["low", "medium", "high"].includes(risk)) return { ok: false, message: `--assess ${key}: risk \`${risk}\` must be low, medium, or high` };
+    if (reason.trim() === "") return { ok: false, message: `--assess ${key}: an assessed risk needs a non-empty reason` };
+    assessments[key] = { risk, reason: reason.trim() };
+  }
+  return { ok: true, assessments };
+}
+
+async function plan({ root, store: storeOverride, gh, feature, workers, live, json, harness = null, assessments = {} }) {
+  if (harness !== null && !Object.hasOwn(HARNESS_TRANSLATIONS, harness)) {
+    return fail(2, `no translation for harness \`${harness}\`. Known: ${Object.keys(HARNESS_TRANSLATIONS).join(", ")}`);
+  }
   const refusal = orchestratorRefusal(root);
   if (refusal) return fail(1, `refusing to plan: ${refusal}`);
   const store = resolveStore(root, { override: storeOverride });
   const read = readTickets(root, store, { gh });
   if (!read.ok) return fail(1, read.message);
-  const planned = await computePlan({ root, tickets: read.tickets, feature, workers, live });
+  const planned = await computePlan({ root, tickets: read.tickets, feature, workers, live, harness, assessments });
   if (!planned.ok) return fail(1, planned.message);
   const result = planned.plan;
   const scope = approvalScope({ scope: result.scope, keys: result.dispatch.map((entry) => entry.key), workers });
@@ -920,6 +949,11 @@ function parse(argv) {
         const value = equals === -1 ? argv[++index] : argument.slice(equals + 1);
         if (value === undefined || value.startsWith("--")) return { error: `--${name} needs a value` };
         flags[name] = value;
+      } else if (name === "assess") {
+        // Repeatable: one assessment per ticket.
+        const value = equals === -1 ? argv[++index] : argument.slice(equals + 1);
+        if (value === undefined || value.startsWith("--")) return { error: `--${name} needs a value` };
+        (flags.assess ??= []).push(value);
       } else if (name === "json" || name === "help" || name === "announce" || name === "force" || name === "adopt" || name === "advance" || name === "begin-repair" || name === "execute" || name === "include-preserved" || name === "cache") {
         flags[name] = true;
       } else {

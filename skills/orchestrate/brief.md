@@ -16,7 +16,7 @@ inspects programmatically asks for `--json`:
 
 | Harness | `translation.invocation` |
 | --- | --- |
-| `claude-code`, `manual` | `prompt`: the brief text. `model` and `effort`: present only when the brief names an override |
+| `claude-code`, `manual` | `prompt`: the brief text. `model` and `effort`: present only when the brief names an override; `model` is the concrete model a tier maps to |
 | `codex` | `tool` and `arguments`: the native call to make, described under Codex invocation contract |
 
 A refusal exits non-zero with its reason on stderr and prints no brief.
@@ -50,9 +50,11 @@ missing: a brief that lacks one is refused.
 goes in those three fields, and nothing about how a brief is built, read, or
 translated moves.
 
-The implementation selection is the one the claim recorded. Adversary and review briefs
-ask the same policy again from the same recorded estimate, so a brief never
-depends on anything the claim did not write down.
+The implementation selection is the one the claim recorded. Adversary, review,
+and repair briefs ask the same policy again from the same recorded estimate, so
+a brief never depends on anything the claim did not write down. `brief.model`
+keeps a tier (`light`, `standard`, `strong`) as the policy chose it; the
+translation, and the prompt it carries, name the concrete model.
 
 ## Translation
 
@@ -63,9 +65,16 @@ nothing would say so.
 
 | Harness | Starts the session as | model | effort |
 | --- | --- | --- | --- |
-| `claude-code` | a background subagent | `inherited`: no override. A family alias (`opus`, `sonnet`, `haiku`, `fable`): passed as the override. A pinned model ID such as `claude-opus-5`: **refused** | `inherited`: nothing. Anything else: **refused**, because the subagent call takes no effort setting. A subagent definition file can set one, and that would be a new translation row |
-| `codex` | `collaboration.spawn_agent` with the translated `arguments` | `inherited`: no override. Supported model IDs below: passed exactly as `model` | `inherited` with inherited model: no override. Supported explicit effort: passed exactly as `reasoning_effort`. Explicit model with inherited effort: **refused** |
-| `manual` | a session the human starts from the printed brief | passed as written | passed as written |
+| `claude-code` | a background subagent | `inherited`: no override. A family alias (`opus`, `sonnet`, `haiku`, `fable`): passed as the override. A tier: mapped `light=haiku standard=sonnet strong=opus`, or by the project's marker, then passed. A pinned model ID such as `claude-opus-5`: **refused** | `inherited`: nothing. `low`, `medium`, `high`, `xhigh`, `max`: passed exactly as `effort`. Anything else: **refused** |
+| `codex` | `collaboration.spawn_agent` with the translated `arguments` | `inherited`: no override. Supported model IDs below: passed exactly as `model`. A tier: **refused** unless the project's marker maps one for `codex` | `inherited` with inherited model: no override. Supported explicit effort: passed exactly as `reasoning_effort`. Explicit model with inherited effort: **refused** |
+| `manual` | a session the human starts from the printed brief | passed as written. A tier: **refused** unless the project's marker maps one for `manual` | passed as written |
+
+A tier is resolved before any other check, so a mapped model still meets the
+harness's model and effort checks. The map comes from the optional
+`<!-- pathfinder:model-tiers <harness> light=<m> standard=<m> strong=<m> -->`
+line in `context/execution-mode.md`, which replaces the shipped map for that
+harness (`profile.md` §Model tiers). A malformed marker, or one whose models
+fail their harness's check, refuses every brief. Nothing is substituted.
 
 A new harness is a new row in `HARNESS_TRANSLATIONS` in `engine/brief.mjs`.
 

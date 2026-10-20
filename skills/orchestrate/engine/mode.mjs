@@ -78,6 +78,68 @@ export function readRoutingPolicy(root) {
   return { name: DEFAULT_ROUTING_POLICY, explicit: false };
 }
 
+/** The harness-neutral model tiers a routing policy may select. */
+export const MODEL_TIERS = Object.freeze(["light", "standard", "strong"]);
+
+const TIERS_MARKER = /^<!--\s*pathfinder:model-tiers\b/;
+const TIERS_LINE = /^<!--\s*pathfinder:model-tiers\s+(.*?)\s*-->$/;
+const NAME = /^[a-z0-9][a-z0-9._-]*$/;
+
+/**
+ * The model-tier maps a mode file's contents set, one optional line per
+ * harness:
+ *
+ *     <!-- pathfinder:model-tiers <harness> light=<m> standard=<m> strong=<m> -->
+ *
+ * Every tier appears exactly once, and nothing else does. A line that opens
+ * the marker and is not exactly that shape, or a second line for the same
+ * harness, makes the whole reading malformed: a map that is half-understood is
+ * how a session gets dispatched on a model nobody chose. Whether the harness
+ * exists and each model passes its check is the translation's question, not
+ * this reader's.
+ *
+ * @returns {{ok: true, maps: Record<string, {light: string, standard: string, strong: string}>}
+ *         | {ok: false, message: string}}
+ */
+export function readModelTiersMarker(content) {
+  const maps = {};
+  for (const raw of String(content ?? "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!TIERS_MARKER.test(line)) continue;
+    const bad = (why) => ({ ok: false, message: `malformed model-tiers marker in ${EXECUTION_MODE_PATH} (\`${line}\`): ${why}. Expected \`<!-- pathfinder:model-tiers <harness> light=<model> standard=<model> strong=<model> -->\`` });
+    const match = TIERS_LINE.exec(line);
+    if (!match) return bad("it is not one complete marker line");
+    const [harness, ...pairs] = match[1].split(/\s+/);
+    if (!NAME.test(harness ?? "") || harness.includes("=")) return bad("it names no harness");
+    if (Object.hasOwn(maps, harness)) return bad(`harness \`${harness}\` is mapped twice`);
+    const map = {};
+    for (const pair of pairs) {
+      const [tier, model, ...rest] = pair.split("=");
+      if (rest.length > 0 || model === undefined) return bad(`\`${pair}\` is not tier=model`);
+      if (!MODEL_TIERS.includes(tier)) return bad(`\`${tier}\` is not a tier; the tiers are ${MODEL_TIERS.join(", ")}`);
+      if (Object.hasOwn(map, tier)) return bad(`tier \`${tier}\` is mapped twice`);
+      if (!NAME.test(model)) return bad(`model \`${model}\` is not a lower-case name`);
+      map[tier] = model;
+    }
+    const missing = MODEL_TIERS.filter((tier) => !Object.hasOwn(map, tier));
+    if (missing.length > 0) return bad(`it does not map ${missing.join(", ")}`);
+    maps[harness] = Object.freeze(map);
+  }
+  return { ok: true, maps: Object.freeze(maps) };
+}
+
+/** The project's model-tier maps, read from its mode file. No file is no maps. */
+export function readModelTiers(root) {
+  const path = join(root, ...EXECUTION_MODE_PATH.split("/"));
+  let content = null;
+  try {
+    if (existsSync(path)) content = readFileSync(path, "utf8");
+  } catch {
+    return { ok: false, message: `${EXECUTION_MODE_PATH} could not be read for its model-tiers marker` };
+  }
+  return readModelTiersMarker(content);
+}
+
 const JUDGE_MARKER = /^<!--\s*pathfinder:evidence-judge\s+(\S+)\s*-->$/;
 
 /** The value that records an explicit choice of no judge. */

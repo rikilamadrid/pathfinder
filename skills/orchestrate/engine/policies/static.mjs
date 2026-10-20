@@ -1,8 +1,9 @@
 /**
- * The `static` routing policy: the one v1 ships.
+ * The `static` routing policy: the default when the mode file names none.
  *
- * It reads nothing from the estimate. Implementation runs as `developer`,
- * review runs as `tester`, and model and reasoning effort are `inherited` —
+ * It reads nothing from the estimate. Implementation and repair run as
+ * `developer`, adversary as `adversary`, review as `tester`, and model and
+ * reasoning effort are `inherited` —
  * whatever the session that dispatches the worker already runs on.
  *
  * A routing policy is one module in this directory exporting `select`. The
@@ -13,7 +14,7 @@ export const description = "developer implements, tester reviews, model and effo
 
 /**
  * @param {object} profile the validated estimate half of a profile
- * @param {{session: "implementation" | "review"}} options
+ * @param {{session: "implementation" | "adversary" | "review" | "repair"}} options
  * @returns {{role: string, model: string, effort: string}}
  */
 export function select(profile, { session }) {
