@@ -5,7 +5,11 @@
  * Fixture transcripts follow the Claude Code 2.1.304 subagent transcript:
  * `api-request` entries carry `params.model` and `params.output_config.effort`;
  * one API response is written as one `assistant` entry per content block, all
- * sharing `message.id` and usage, the last one carrying the final output count.
+ * sharing `message.id`. Every entry carries the streaming-start usage: final
+ * input and cache counts, but a small placeholder `output_tokens` with
+ * `stop_reason: null`. Only some responses also get an entry whose
+ * `stop_reason` is set, and only that entry carries the final output count;
+ * `turn({ stopped: false })` is the common real shape with none.
  */
 
 import { strict as assert } from "node:assert";
@@ -29,7 +33,7 @@ const NOW = "2026-10-20T12:00:00.000Z";
 const OVERRIDE = "use sonnet at high for this one — Ricardo";
 
 /** One request and its response, in transcript lines. */
-function turn({ id, model, effort, at, usage = { input_tokens: 2, output_tokens: 10, cache_read_input_tokens: 100, cache_creation_input_tokens: 50 }, blocks = 1, answered = model }) {
+function turn({ id, model, effort, at, usage = { input_tokens: 2, output_tokens: 10, cache_read_input_tokens: 100, cache_creation_input_tokens: 50 }, blocks = 1, answered = model, stopped = true, start = 3 }) {
   const params = { model, max_tokens: 1000 };
   if (effort !== undefined) params.output_config = { effort };
   const lines = [{ type: "api-request", id, timestamp: at, version: "2.1.304", querySource: "agent:builtin:general-purpose", params }];
@@ -39,7 +43,9 @@ function turn({ id, model, effort, at, usage = { input_tokens: 2, output_tokens:
       requestRef: id,
       timestamp: at,
       ...(effort !== undefined ? { effort } : {}),
-      message: { id: `msg_${id}`, model: answered, usage: { ...usage, output_tokens: block === blocks - 1 ? usage.output_tokens : 1 } },
+      message: stopped && block === blocks - 1
+        ? { id: `msg_${id}`, model: answered, stop_reason: "end_turn", usage }
+        : { id: `msg_${id}`, model: answered, stop_reason: null, usage: { ...usage, output_tokens: start } },
     });
   }
   return lines;
@@ -137,10 +143,37 @@ describe("reading a Claude Code transcript", () => {
       models: ["claude-sonnet-5-5"],
       efforts: ["high"],
       requests: 2,
-      tokens: { input: 7, output: 30, cache: 1150 },
+      tokens: { input: 7, output: 30, cache: 1150, outputLowerBound: false },
       seconds: 90,
       disagreements: [],
     });
+  });
+
+  it("never reads a streaming-start output count as final: without a stop_reason the output is a lower bound", () => {
+    // The real shape: every block of a response repeats the same placeholder
+    // output_tokens with stop_reason null.
+    const open = parseClaudeCodeTranscript(readFileSync(transcript(
+      turn({ id: "r1", model: "claude-opus-5-5", effort: "high", at: "2026-10-20T12:00:00Z", blocks: 2, stopped: false, start: 8 }),
+      turn({ id: "r2", model: "claude-opus-5-5", effort: "high", at: "2026-10-20T12:00:09Z", stopped: false, start: 16 }),
+    ), "utf8"));
+    assert.deepEqual(open.observed.tokens, { input: 4, output: 24, cache: 300, outputLowerBound: true });
+    // One response that did stop contributes its final count; the total stays a bound.
+    const mixed = parseClaudeCodeTranscript(readFileSync(transcript(
+      turn({ id: "r1", model: "claude-opus-5-5", effort: "high", at: "2026-10-20T12:00:00Z", blocks: 2, stopped: false, start: 8 }),
+      turn({ id: "r2", model: "claude-opus-5-5", effort: "high", at: "2026-10-20T12:00:09Z", blocks: 2, usage: { input_tokens: 1, output_tokens: 400, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }),
+    ), "utf8"));
+    assert.deepEqual(mixed.observed.tokens, { input: 3, output: 408, cache: 150, outputLowerBound: true });
+    assert.match(formatDispatch({ ...LINE_RECORD, tokens: mixed.observed.tokens }), /\| in 3 out >=408 cache 150 \|/);
+  });
+
+  it("refuses a session whose requests produced no model response", () => {
+    // A failed API call: one request, one harness-written error entry.
+    const parsed = parseClaudeCodeTranscript([
+      { type: "api-request", id: "r1", timestamp: "2026-10-20T12:00:00Z", params: { model: "claude-opus-5-5", output_config: { effort: "high" } } },
+      { type: "assistant", timestamp: "2026-10-20T12:00:01Z", isApiErrorMessage: true, message: { id: "x", model: "<synthetic>", usage: { input_tokens: 0, output_tokens: 0 } } },
+    ].map((line) => JSON.stringify(line)).join("\n"));
+    assert.equal(parsed.ok, false);
+    assert.match(parsed.message, /1 api-request entry but no model response/);
   });
 
   it("records a request with no effort as unrecorded, and ignores synthetic messages", () => {
@@ -161,9 +194,22 @@ describe("reading a Claude Code transcript", () => {
     assert.match(parseClaudeCodeTranscript("{\"type\":\"user\"}\n").message, /no api-request entries/);
     assert.match(parseClaudeCodeTranscript(JSON.stringify(turn({ id: "r1", model: "m", effort: "low", at: "x" })[0]) + "\n{\"type\":").message, /line 2 is not JSON/);
     const untimed = { type: "api-request", id: "r1", params: { model: "claude-haiku-5-5", output_config: { effort: "low" } } };
-    assert.match(parseClaudeCodeTranscript(JSON.stringify(untimed)).message, /no timestamps/);
+    const answer = { type: "assistant", requestRef: "r1", message: { id: "m1", model: "claude-haiku-5-5", stop_reason: "end_turn", usage: { output_tokens: 1 } } };
+    assert.match(parseClaudeCodeTranscript([untimed, answer].map((line) => JSON.stringify(line)).join("\n")).message, /no timestamps/);
   });
 });
+
+const LINE_RECORD = {
+  session: "implementation",
+  harness: "claude-code",
+  planned: { model: "standard", effort: "medium" },
+  invoked: { model: "sonnet", effort: "medium" },
+  observed: { models: ["claude-sonnet-5-5"], efforts: ["medium"] },
+  result: "match",
+  tokens: { input: 7, output: 30, cache: 1150, outputLowerBound: false },
+  seconds: 90,
+  source: "transcript agent-a1.jsonl",
+};
 
 describe("comparing", () => {
   const observed = (models, efforts) => ({ models, efforts, disagreements: [] });
@@ -190,23 +236,17 @@ describe("comparing", () => {
 });
 
 describe("the ## Dispatches section", () => {
-  const record = {
-    session: "implementation",
-    harness: "claude-code",
-    planned: { model: "standard", effort: "medium" },
-    invoked: { model: "sonnet", effort: "medium" },
-    observed: { models: ["claude-sonnet-5-5"], efforts: ["medium"] },
-    result: "match",
-    tokens: { input: 7, output: 30, cache: 1150 },
-    seconds: 90,
-    source: "transcript agent-a1.jsonl",
-  };
+  const record = LINE_RECORD;
 
   it("is one line in the documented format", () => {
     assert.equal(
       formatDispatch(record),
       "- implementation | claude-code | planned standard/medium | invoked sonnet/medium | observed claude-sonnet-5-5/medium | match | in 7 out 30 cache 1150 | 90s | transcript agent-a1.jsonl",
     );
+    assert.match(formatDispatch({ ...record, tokens: { ...record.tokens, outputLowerBound: true } }), /\| in 7 out >=30 cache 1150 \|/);
+    for (const source of ["a\nb", "a\rb", "a\u2028b", "a\u2029b"]) {
+      assert.throws(() => formatDispatch({ ...record, source }), /one line/);
+    }
   });
 
   it("is created at the end, appended to in place, and leaves every other byte alone", () => {
@@ -270,6 +310,47 @@ describe("orchestrate dispatch-check", () => {
     const unrecordedResult = check(root, brief, ["--transcript", unrecorded]);
     assert.equal(unrecordedResult.status, 1);
     assert.match(unrecordedResult.stdout, /observed claude-sonnet-5-5\/unrecorded \| mismatch/);
+  });
+
+  it("records a real-shaped session's output as a lower bound", () => {
+    const root = claimed();
+    const { path: brief } = saveBrief(root, SONNET_HIGH);
+    const file = transcript(
+      turn({ id: "r1", model: "claude-sonnet-5-5", effort: "high", at: "2026-10-20T12:00:00Z", blocks: 3, stopped: false, start: 8 }),
+      turn({ id: "r2", model: "claude-sonnet-5-5", effort: "high", at: "2026-10-20T12:00:07Z", stopped: false, start: 16 }),
+    );
+    const result = check(root, brief, ["--transcript", file, "--json"]);
+    assert.equal(result.status, 0, result.stderr);
+    const record = json(result);
+    assert.deepEqual(record.tokens, { input: 4, output: 24, cache: 300, outputLowerBound: true });
+    assert.equal(record.line, "- implementation | claude-code | planned sonnet/high | invoked sonnet/high | observed claude-sonnet-5-5/high | match | in 4 out >=24 cache 300 | 7s | transcript agent-a1.jsonl");
+  });
+
+  it("refuses an API-error-only session and a transcript name that would break the line, recording nothing", () => {
+    const root = claimed();
+    const { path: brief } = saveBrief(root, SONNET_HIGH);
+    const before = readFileSync(statePath(root), "utf8");
+    const failed = transcript([
+      { type: "api-request", id: "r1", timestamp: NOW, params: { model: "claude-sonnet-5-5", output_config: { effort: "high" } } },
+      { type: "assistant", timestamp: NOW, isApiErrorMessage: true, message: { id: "x", model: "<synthetic>", usage: { input_tokens: 0, output_tokens: 0 } } },
+    ]);
+    const error = check(root, brief, ["--transcript", failed]);
+    assert.equal(error.status, 1);
+    assert.equal(error.stdout, "");
+    assert.match(error.stderr, /no model response/);
+
+    const good = readFileSync(transcript(turn({ id: "r1", model: "claude-sonnet-5-5", effort: "high", at: NOW })), "utf8");
+    const dir = temporaryDirectory("dispatch-name-");
+    for (const name of ["agent-x | mismatch.jsonl", "agent-x\n## State\n\n- State: complete.jsonl", "agent-x\rb.jsonl", "agent-x\u2028b.jsonl"]) {
+      const path = join(dir, name);
+      writeFileSync(path, good);
+      const result = check(root, brief, ["--transcript", path]);
+      assert.equal(result.status, 2, `${JSON.stringify(name)}: ${result.stderr}`);
+      assert.equal(result.stdout, "");
+      assert.match(result.stderr, /one line without \|/);
+    }
+    assert.equal(readFileSync(statePath(root), "utf8"), before);
+    assert.equal(json(orchestrate(["owner", "1.1", "--json"], { root })).claim.state, "working");
   });
 
   it("records an inherited session as observed, never a mismatch", () => {

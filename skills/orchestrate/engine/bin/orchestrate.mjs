@@ -168,8 +168,10 @@ const USAGE = `orchestrate
       was started from (the saved brief --json output). Reads the harness
       transcript (claude-code) or a declared observation, compares observed
       model and effort with the invoked ones, and appends one line under
-      ## Dispatches in the claim's current-ticket.md. Exits 1 on mismatch,
-      and on a transcript that is not evidence (nothing is then recorded).
+      ## Dispatches in the claim's current-ticket.md; output tokens are
+      "out >=<n>" when the transcript holds only streaming-start counts.
+      Exits 1 on mismatch, and on a transcript that is not evidence (nothing
+      is then recorded).
 
   scratch new <key> --role developer|adversary|tester|integrator --head <sha>
         [--session <s>] [--owner-pid N] [--allow-low-disk <human approval>] [--json]

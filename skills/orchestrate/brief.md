@@ -181,9 +181,15 @@ ticket, session, and harness must be the ones named.
   entry's `params.model` and `params.output_config.effort` — what was sent to
   the API. A request with no effort is `unrecorded`. Assistant entries'
   `message.model` and `effort` are cross-checked against the request they
-  name; any disagreement is a mismatch. Input, output and cache
-  (read + creation) tokens are summed once per assistant message, and the
-  time is the span between the first and last timestamps. Other harnesses
+  name; any disagreement is a mismatch. Input and cache (read + creation)
+  tokens are summed once per assistant message. Output tokens are final only
+  for a message with an entry whose `stop_reason` is set: Claude Code writes
+  every content-block entry with the streaming-start usage, a small
+  placeholder `output_tokens` and `stop_reason: null`. A message without a
+  final entry adds its placeholder, and the output is then recorded as a
+  lower bound, `out >=<n>` (`tokens.outputLowerBound` in `--json`); it is
+  never presented as the session's total. The time is the span between the
+  first and last timestamps. Other harnesses
   have no parser: declare the observation with `--observed-*` and
   `--source`, which is recorded as `declared <source>`.
 
@@ -197,13 +203,17 @@ check appends one line under `## Dispatches` in the claim's
 section, touching nothing else:
 
 ```text
-- <session> | <harness> | planned <model>/<effort> | invoked <model>/<effort> | observed <model>/<effort> | match|mismatch|inherited | in <n> out <n> cache <n> | <seconds>s | <source>
+- <session> | <harness> | planned <model>/<effort> | invoked <model>/<effort> | observed <model>/<effort> | match|mismatch|inherited | in <n> out <n>|>=<n> cache <n> | <seconds>s | <source>
 ```
 
 A mismatch prints the line, names the reasons on stderr, and exits 1. A
 transcript that is not evidence — unreadable, a line that is not JSON, no
-`api-request` entries, no timestamps — is refused with exit 1 and records
-nothing. `--json` prints the record with its `line`.
+`api-request` entries, requests with no model response (only harness-written
+`<synthetic>` entries, as after an API error), no timestamps — is refused
+with exit 1 and records nothing. A transcript whose file name contains `|`,
+CR, LF, U+2028 or U+2029 is refused with exit 2 and records nothing: the name
+is the line's source, and the record must stay one line. `--json` prints the
+record with its `line`.
 
 ## Stage and handoff validation
 

@@ -42,9 +42,16 @@ const text = (value) => typeof value === "string" && value.trim() !== "";
  * against the set of requested models when they name none), and
  * `message.usage`. One API response is written as one assistant entry per
  * content block, all sharing `message.id`, so usage is counted once per
- * message, taking the largest value each field reached. `<synthetic>`
- * assistant entries are written by the harness, not the model, and are not
- * evidence.
+ * message. Input and cache counts are known when the response starts, so the
+ * largest value each reached is taken. Output is not: the entries carry the
+ * streaming-start usage, a small placeholder `output_tokens` with
+ * `stop_reason: null`, and only an entry whose `stop_reason` is set carries
+ * the message's final output count. A message with such an entry contributes
+ * that count; one without contributes its placeholder, and the total is then
+ * only a lower bound (`outputLowerBound`, recorded as `out >=<n>`).
+ * `<synthetic>` assistant entries are written by the harness, not the model,
+ * and are not evidence; a transcript whose requests produced no other
+ * assistant entry (an API error, say) is refused as partial evidence.
  *
  * @returns {{ok: true, observed: object} | {ok: false, message: string}}
  */
@@ -78,10 +85,12 @@ export function parseClaudeCodeTranscript(raw) {
 
   const disagreements = [];
   const usage = new Map();
+  let responses = 0;
   for (const entry of entries) {
     if (entry?.type !== "assistant") continue;
     const message = entry.message ?? {};
     if (message.model === "<synthetic>") continue;
+    responses += 1;
     const request = text(entry.requestRef) ? byId.get(entry.requestRef) : undefined;
     if (text(message.model)) {
       if (request ? request.model !== message.model : !models.has(message.model)) {
@@ -93,13 +102,20 @@ export function parseClaudeCodeTranscript(raw) {
     }
     if (message.usage && typeof message.usage === "object") {
       const id = text(message.id) ? message.id : `entry-${usage.size}`;
-      const seen = usage.get(id) ?? { input: 0, output: 0, cache: 0 };
+      const seen = usage.get(id) ?? { input: 0, output: 0, cache: 0, final: null };
+      const output = count(message.usage.output_tokens);
+      const stopped = message.stop_reason !== null && message.stop_reason !== undefined;
       usage.set(id, {
         input: Math.max(seen.input, count(message.usage.input_tokens)),
-        output: Math.max(seen.output, count(message.usage.output_tokens)),
+        output: Math.max(seen.output, output),
         cache: Math.max(seen.cache, count(message.usage.cache_read_input_tokens) + count(message.usage.cache_creation_input_tokens)),
+        final: stopped ? Math.max(seen.final ?? 0, output) : seen.final,
       });
     }
+  }
+
+  if (responses === 0) {
+    return { ok: false, message: `transcript has ${requests.length} api-request ${requests.length === 1 ? "entry" : "entries"} but no model response (only harness-written <synthetic> or no assistant entries, such as an API error): partial evidence, nothing recorded` };
   }
 
   const times = entries.map((entry) => Date.parse(entry?.timestamp)).filter(Number.isFinite);
@@ -107,11 +123,16 @@ export function parseClaudeCodeTranscript(raw) {
     return { ok: false, message: "transcript carries no timestamps: partial evidence, nothing recorded" };
   }
 
-  const tokens = { input: 0, output: 0, cache: 0 };
+  const tokens = { input: 0, output: 0, cache: 0, outputLowerBound: false };
   for (const value of usage.values()) {
     tokens.input += value.input;
-    tokens.output += value.output;
     tokens.cache += value.cache;
+    if (value.final === null) {
+      tokens.output += value.output;
+      tokens.outputLowerBound = true;
+    } else {
+      tokens.output += value.final;
+    }
   }
 
   return {
@@ -162,21 +183,31 @@ export function compare(invoked, observed) {
   return { result: reasons.length === 0 ? "match" : "mismatch", reasons };
 }
 
-/** The one `## Dispatches` line. */
+/** A value that would break the one-line, `|`-separated record. */
+export const UNSAFE_LINE_TEXT = /[|\r\n\u2028\u2029]/;
+const LINE_BREAK = /[\r\n\u2028\u2029]/;
+
+/**
+ * The one `## Dispatches` line. `out >=<n>` when the output count is only a
+ * lower bound. Throws on a line break, which would write past the line.
+ */
 export function formatDispatch(record) {
   const tokens = record.tokens ?? {};
   const value = (n) => (Number.isSafeInteger(n) ? String(n) : UNRECORDED);
-  return [
+  const output = tokens.outputLowerBound === true && Number.isSafeInteger(tokens.output) ? `>=${tokens.output}` : value(tokens.output);
+  const line = [
     `- ${record.session}`,
     record.harness,
     `planned ${record.planned.model}/${record.planned.effort}`,
     `invoked ${record.invoked.model}/${record.invoked.effort}`,
     `observed ${record.observed.models.join("+")}/${record.observed.efforts.join("+")}`,
     record.result,
-    `in ${value(tokens.input)} out ${value(tokens.output)} cache ${value(tokens.cache)}`,
+    `in ${value(tokens.input)} out ${output} cache ${value(tokens.cache)}`,
     Number.isSafeInteger(record.seconds) ? `${record.seconds}s` : UNRECORDED,
     record.source,
   ].join(" | ");
+  if (LINE_BREAK.test(line)) throw new Error("a dispatch line must be one line");
+  return line;
 }
 
 /**
@@ -243,6 +274,9 @@ export function dispatchCheck({ key, session, harness, brief: briefJson, transcr
     if (!parse) {
       return { ok: false, usage: true, message: `no transcript parser for ${harness}; declare what was observed with --observed-model, --observed-effort and --source` };
     }
+    if (UNSAFE_LINE_TEXT.test(basename(transcript))) {
+      return { ok: false, usage: true, message: "the transcript file name must be one line without |: it is recorded as the line's source" };
+    }
     let raw;
     try {
       raw = readFileSync(transcript, "utf8");
@@ -273,7 +307,12 @@ export function dispatchCheck({ key, session, harness, brief: briefJson, transcr
     seconds: observed.seconds,
     source,
   };
-  const line = formatDispatch(record);
+  let line;
+  try {
+    line = formatDispatch(record);
+  } catch (error) {
+    return { ok: false, message: `dispatch not recorded: ${error.message}` };
+  }
 
   try {
     mutateCheckpoint(statePath, (latest) => {
