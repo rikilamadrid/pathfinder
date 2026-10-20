@@ -32,7 +32,7 @@ a session, before anything is asked or claimed.
 Under a routing policy other than `static`, assess risk before asking. The
 plan marks each ticket to claim whose risk is still derived as `provisional`
 (`"provisional": true` in `--json`), because the risk assessed at claim may
-raise its selections. For every such ticket, assess its risk as §3 step 1
+change its selections, raising or lowering them. For every such ticket, assess its risk as §3 step 1
 describes, then plan again with one `--assess <key>=<risk>:<reason>` per
 ticket. Repeat until no ticket to claim is marked provisional. The plan you
 print in §2 is then the plan dispatch will follow. Under `static` nothing
@@ -126,6 +126,15 @@ For each ticket the plan says to claim now, in order:
    differ, do not dispatch it: report both selections to the human and ask
    again for that ticket. The approval covered the selections it was shown.
 
+   Only when the human asks for a different model or effort, add
+   `--model <m> --effort <e> --override "<the human's words>"`. The override
+   is recorded in `routing.override` beside the policy's `routing.selected`,
+   and is translated or refused like any selection. Never override on your
+   own judgment.
+
+   Keep each session's `--json` output in a file, for example under the
+   ignored `.pathfinder/`: `dispatch-check` reads it when the session ends.
+
 3. Start the worker session. **This is the one harness-specific step.** Every
    step before and after it is the same in every harness.
 
@@ -159,6 +168,25 @@ After the first dispatch wave, run `orchestrate status --live <live keys>` and p
 
 Handle each worker report as it arrives. Unrelated workers keep running
 throughout.
+
+When any worker session ends, before using its report, check what it ran on:
+
+```sh
+orchestrate dispatch-check <key> --session <session> --harness <harness> --brief <that session's brief.json> --transcript <its subagent transcript>
+```
+
+On Claude Code the transcript is the subagent's
+`~/.claude*/projects/*/<session id>/subagents/agent-<id>.jsonl`. A harness
+with no transcript parser passes `--observed-model`, `--observed-effort`, and
+`--source` instead, naming where the values were observed. The check appends
+one line under `## Dispatches` in the claim's `current-ticket.md`
+(`brief.md` §Dispatch check). Exit 0 (`match` or `inherited`): handle the
+report below. Exit 1 — a `mismatch`, or evidence the check refused — makes
+the report unusable: do not advance, dispatch, or act on it; run
+`orchestrate gate <key> open --question "dispatch check: <the line or refusal>"`
+and tell the human as for `GATE`; a worker already stopped at its own gate
+keeps it, and the human is told the line with its question. Re-dispatch is the
+human's decision.
 
 - **`GATE: <question>`**
   1. `orchestrate gate <key> open --question "<question>"`

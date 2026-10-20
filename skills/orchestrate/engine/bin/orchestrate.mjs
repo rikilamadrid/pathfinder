@@ -7,7 +7,8 @@
  *   node bin/orchestrate.mjs owner  <key> [--json]
  *   node bin/orchestrate.mjs status [--feature NN] [--live a,b] [--json]
  *   node bin/orchestrate.mjs estimate <key> [--risk <v> --reason <text>] [--json]
- *   node bin/orchestrate.mjs brief <key> --harness <id> --approval <text> [--session <s>] [--json]
+ *   node bin/orchestrate.mjs brief <key> --harness <id> --approval <text> [--session <s>] [--model <m> --effort <e> --override <text>] [--json]
+ *   node bin/orchestrate.mjs dispatch-check <key> --session <s> --harness <id> --brief <brief.json> (--transcript <file.jsonl> | --observed-model <m> --observed-effort <e> --source <text>) [--json]
  *   node bin/orchestrate.mjs plan [--feature NN] [--workers N] [--live a,b] [--harness <id>] [--assess <key>=<risk>:<reason>]... [--json]
  *   node bin/orchestrate.mjs announce <key> [--now <iso>]
  *   node bin/orchestrate.mjs gate <key> open --question <text> | resolve [--answer <text>] [--now <iso>]
@@ -42,6 +43,7 @@ import { join } from "node:path";
 import { checkIntegration, formatCheck, releaseClaim } from "../integration.mjs";
 import { computeBoard, formatBoard } from "../board.mjs";
 import { HARNESS_TRANSLATIONS, buildBrief, formatBrief, translateBrief } from "../brief.mjs";
+import { dispatchCheck } from "../dispatch.mjs";
 import { approvalScope, blockedNote, claimedNote, gateOpenedNote, gateResolvedNote, unblockedNote } from "../comments.mjs";
 import { checkpointText, currentPr, selectStage } from "../stage.mjs";
 import { readExperimentReport } from "../experiments.mjs";
@@ -154,6 +156,20 @@ const USAGE = `orchestrate
       session while the claim is at a human gate, naming the open question;
       gate <key> resolve is the only way past it. Refuses a model or effort
       the harness cannot honour, by name. Reads only.
+  brief ... --model <m> --effort <e> --override "<the human's words>"
+      A recorded human override: replaces the policy's model and effort for
+      this one brief, still translated and refused as any selection is.
+      --model or --effort without --override, or --override without both, is
+      a usage error. --json adds routing: { selected, override }.
+
+  dispatch-check <key> --session <s> --harness <id> --brief <brief.json>
+        (--transcript <file.jsonl> | --observed-model <m> --observed-effort <e> --source <text>) [--json]
+      What a finished worker session actually ran on, against the brief it
+      was started from (the saved brief --json output). Reads the harness
+      transcript (claude-code) or a declared observation, compares observed
+      model and effort with the invoked ones, and appends one line under
+      ## Dispatches in the claim's current-ticket.md. Exits 1 on mismatch,
+      and on a transcript that is not evidence (nothing is then recorded).
 
   scratch new <key> --role developer|adversary|tester|integrator --head <sha>
         [--session <s>] [--owner-pid N] [--allow-low-disk <human approval>] [--json]
@@ -333,7 +349,19 @@ async function main(argv) {
       if (typeof flags.approval !== "string" || flags.approval.trim() === "") {
         return fail(2, `brief needs --approval <text>: the non-empty scope the human approved for this run\n\n${USAGE}`);
       }
+      // A human override is recorded with the human's words, or it is not
+      // accepted at all: a model or effort with no --override would be a
+      // selection nobody can trace.
+      if (flags.model !== undefined || flags.effort !== undefined || flags.override !== undefined) {
+        if (typeof flags.override !== "string" || flags.override.trim() === "") {
+          return fail(2, `brief takes --model and --effort only with --override "<the human's words>"\n\n${USAGE}`);
+        }
+        if (flags.model === undefined || flags.effort === undefined) {
+          return fail(2, `brief --override needs both --model <m> and --effort <e>\n\n${USAGE}`);
+        }
+      }
       return brief({
+        override: flags.override === undefined ? null : { model: flags.model, effort: flags.effort, by: oneLine(flags.override) },
         root,
         key: positional[0],
         harness: flags.harness,
@@ -344,6 +372,33 @@ async function main(argv) {
         approval: flags.approval,
         json: Boolean(flags.json),
       });
+    case "dispatch-check": {
+      if (!isKey(positional[0])) return fail(2, `dispatch-check needs a ticket key such as 53.2\n\n${USAGE}`);
+      for (const name of ["session", "harness", "brief"]) {
+        if (!flags[name]) return fail(2, `dispatch-check needs --${name}\n\n${USAGE}`);
+      }
+      const declaredFlags = ["observed-model", "observed-effort", "source"];
+      const declaring = declaredFlags.some((name) => flags[name] !== undefined);
+      if (Boolean(flags.transcript) === declaring) {
+        return fail(2, `dispatch-check needs --transcript <file>, or --observed-model, --observed-effort and --source, not both\n\n${USAGE}`);
+      }
+      if (declaring) {
+        for (const name of declaredFlags) {
+          if (typeof flags[name] !== "string" || flags[name].trim() === "") return fail(2, `dispatch-check needs --${name} with a value when declaring an observation`);
+          if (/[|\r\n\u2028\u2029]/.test(flags[name])) return fail(2, `--${name} must be one line without |`);
+        }
+      }
+      return dispatchCheckCommand({
+        root,
+        key: positional[0],
+        session: flags.session,
+        harness: flags.harness,
+        briefPath: flags.brief,
+        transcript: flags.transcript ?? null,
+        declared: declaring ? { model: flags["observed-model"].trim(), effort: flags["observed-effort"].trim(), source: flags.source.trim() } : null,
+        json: Boolean(flags.json),
+      });
+    }
     case "owner":
       if (!isKey(positional[0])) return fail(2, `owner needs a ticket key such as 53.2\n\n${USAGE}`);
       return owner({ root, key: positional[0], json: Boolean(flags.json) });
@@ -543,7 +598,7 @@ function criteriaGuidance(root, key, { store: storeOverride, gh }) {
     : "Every ## Verification item can be sent to the judge as written; `judge.criteria` is not needed.";
 }
 
-async function brief({ root, key, harness, session, approval, json, gh = "gh", store: storeOverride, live = [] }) {
+async function brief({ root, key, harness, session, approval, json, gh = "gh", store: storeOverride, live = [], override = null }) {
   const found = claimFor(root, key);
   if (!found || found.orphan) return fail(1, `${key} has no registered claim to brief`);
   // A worker at a human gate stopped for a decision nobody has made yet. No
@@ -578,6 +633,10 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", s
     if (!selected.ok) return fail(selected.message.startsWith("session must") ? 2 : 1, selected.message);
     selection = selected.selection;
   }
+  // The policy's choice stays visible beside the human's, which replaces it
+  // for this one brief and is then translated like any other selection.
+  const routing = { selected: { model: selection.model, effort: selection.effort }, override };
+  if (override) selection = { ...selection, model: override.model, effort: override.effort };
 
   const built = buildBrief({
     ticket: key,
@@ -613,8 +672,35 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", s
   if (!translated.ok) return fail(1, translated.message);
 
   process.stdout.write(
-    json ? JSON.stringify({ brief: built.brief, translation: translated }, null, 2) + "\n" : formatBrief(built.brief),
+    json ? JSON.stringify({ brief: built.brief, translation: translated, routing }, null, 2) + "\n" : formatBrief(built.brief),
   );
+  return 0;
+}
+
+function dispatchCheckCommand({ root, key, session, harness, briefPath, transcript, declared, json }) {
+  const found = claimFor(root, key);
+  if (!found || found.orphan) return fail(1, `${key} has no registered claim to record a dispatch for`);
+  let briefJson;
+  try {
+    briefJson = JSON.parse(readFileSync(briefPath, "utf8"));
+  } catch (error) {
+    return fail(1, `cannot read the brief ${briefPath} as brief --json output: ${error.code ?? error.message}`);
+  }
+  const result = dispatchCheck({
+    key,
+    session,
+    harness,
+    brief: briefJson,
+    transcript,
+    declared,
+    statePath: join(root, ...found.worktree.split("/"), "context", "current-ticket.md"),
+  });
+  if (!result.ok) return fail(result.usage ? 2 : 1, result.message);
+  process.stdout.write(json ? JSON.stringify({ ...result.record, line: result.line }, null, 2) + "\n" : result.line + "\n");
+  if (result.record.result === "mismatch") {
+    process.stderr.write(`orchestrate: dispatch mismatch: ${result.record.reasons.join("; ")}\n`);
+    return 1;
+  }
   return 0;
 }
 
@@ -938,6 +1024,7 @@ function parse(argv) {
     "root", "store", "gh", "feature", "slug", "now", "live", "risk", "reason", "harness", "session", "approval",
     "request", "consent", "invocation", "workers", "question", "answer", "set", "gate", "last", "next", "comment-blocked", "comment-unblocked", "by", "guidance", "timeout-ms",
     "role", "head", "owner-pid", "allow-low-disk", "tree", "npm", "older-than",
+    "model", "effort", "override", "brief", "transcript", "observed-model", "observed-effort", "source",
   ]);
 
   for (let index = 0; index < argv.length; index += 1) {
