@@ -148,9 +148,13 @@ confirmed findings are evidence the first allocation was insufficient, and no
 adversary, review, or repair cell sits below its implementation cell. The
 table is the whole policy: `engine/policies/adaptive.mjs`.
 
-Under any policy other than `static` the orchestrator claims with `--risk` and
-a `--reason` (`actions/start.md` §3), because an unassessed risk only ever
-raises the level to 1.
+Under any policy other than `static` the orchestrator assesses risk before
+the plan is approved, plans with `--assess`, and claims with the same `--risk`
+and `--reason` (`actions/start.md` §1 and §3). The assessment matters because
+a derived `low` risk lets a small ticket reach level 0, the lightest model and
+effort, whatever its security, permission, concurrency, data-integrity, or
+integration exposure. An `unassessed` risk merely holds the level at 1. Until
+it is assessed, `plan` marks the ticket's selections `provisional`.
 
 ### Model tiers
 

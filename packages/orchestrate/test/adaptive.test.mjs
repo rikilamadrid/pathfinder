@@ -312,10 +312,49 @@ describe("adaptive through the CLI", () => {
     assert.deepEqual([result.translation.invocation.model, result.translation.invocation.effort], ["sonnet", "medium"]);
   });
 
+  it("marks a derived risk provisional, and plans with --assess the selections the assessed claim dispatches", () => {
+    const root = makeProject({ modeFile: ADAPTIVE, tickets: { "1.1": { title: "Low" } } });
+
+    const derived = json(orchestrate(["plan", "--harness", "claude-code", "--json"], { root }));
+    assert.equal(derived.dispatch[0].provisional, true);
+    assert.deepEqual(derived.dispatch[0].sessions.implementation.translation, { ok: true, harness: "claude-code", model: "haiku", effort: "low" });
+    assert.match(orchestrate(["plan", "--harness", "claude-code"], { root }).stdout, /^ {8}provisional: risk derived, not assessed/m);
+
+    const assess = ["--assess", "1.1=high:touches permissions"];
+    const assessed = json(orchestrate(["plan", "--harness", "claude-code", ...assess, "--json"], { root }));
+    const [entry] = assessed.dispatch;
+    assert.equal(entry.provisional, false);
+    assert.deepEqual(entry.profile.estimate.risk, { value: "high", source: "assessed", reason: "touches permissions" });
+    assert.doesNotMatch(orchestrate(["plan", "--harness", "claude-code", ...assess], { root }).stdout, /provisional/);
+
+    // The claim records the same assessment, and the brief dispatches exactly
+    // what the assessed plan showed.
+    assert.equal(orchestrate(["claim", "1.1", "--risk", "high", "--reason", "touches permissions"], { root }).status, 0);
+    const briefed = json(orchestrate(["brief", "1.1", "--harness", "claude-code", "--approval", APPROVAL, "--json"], { root }));
+    const shown = entry.sessions.implementation;
+    assert.deepEqual([briefed.brief.model, briefed.brief.effort], [shown.model, shown.effort]);
+    assert.deepEqual([briefed.translation.invocation.model, briefed.translation.invocation.effort], [shown.translation.model, shown.translation.effort]);
+    assert.deepEqual([shown.translation.model, shown.translation.effort], ["opus", "high"]);
+  });
+
+  it("refuses a malformed, duplicate, or out-of-scope --assess", () => {
+    const root = makeProject({ modeFile: ADAPTIVE, tickets: { "1.1": { title: "Low" } } });
+    for (const bad of [["1.1=high"], ["1.1=extreme:x"], ["1.1=high:  "], ["nope=high:x"], ["1.1=high:a", "1.1=low:b"]]) {
+      const result = orchestrate(["plan", ...bad.flatMap((value) => ["--assess", value])], { root });
+      assert.equal(result.status, 2, bad.join(" "));
+      assert.match(result.stderr, /--assess/);
+    }
+    const outside = orchestrate(["plan", "--assess", "9.9=high:x"], { root });
+    assert.equal(outside.status, 1);
+    assert.match(outside.stderr, /--assess names 9\.9, which is not a ticket in the whole board/);
+  });
+
   it("keeps static at inherited for every planned session, with no override on any harness", () => {
     const root = makeProject({ tickets: { "1.1": { title: "A" } } });
     for (const harness of ["claude-code", "codex", "manual"]) {
       const planned = json(orchestrate(["plan", "--harness", harness, "--json"], { root }));
+      assert.equal(planned.dispatch[0].provisional, false, "static reads no risk, so nothing is provisional");
+      assert.doesNotMatch(orchestrate(["plan", "--harness", harness], { root }).stdout, /provisional/);
       for (const session of SESSIONS) {
         assert.deepEqual(planned.dispatch[0].sessions[session], {
           role: ROLES[session], model: "inherited", effort: "inherited",

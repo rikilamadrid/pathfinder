@@ -40,10 +40,14 @@ export const PLAN_SESSIONS = Object.freeze(["implementation", "adversary", "revi
 const ACTIVE = new Set(["working", "adversary", "review", "repair"]);
 
 /**
- * @param {{root: string, tickets: object[], feature?: string|null, workers?: number, live?: string[]}} args
+ * `assessments` maps a ticket key to the risk the orchestrator assessed for it
+ * (`{risk, reason}`), the same assessment `claim --risk --reason` records, so
+ * the selections the human approves are the ones the claim will dispatch.
+ *
+ * @param {{root: string, tickets: object[], feature?: string|null, workers?: number, live?: string[], harness?: string|null, assessments?: Record<string, {risk: string, reason: string}>}} args
  * @returns {Promise<{ok: true, plan: object} | {ok: false, message: string}>}
  */
-export async function computePlan({ root, tickets, feature = null, workers = 3, live = [], harness = null }) {
+export async function computePlan({ root, tickets, feature = null, workers = 3, live = [], harness = null, assessments = {} }) {
   const scope = feature === null ? "the whole board" : `Feature ${feature}`;
   const rows = computeBoard(tickets, { feature });
 
@@ -81,6 +85,10 @@ export async function computePlan({ root, tickets, feature = null, workers = 3, 
 
   const liveSet = new Set(live);
   const inScope = new Set(rows.map((row) => row.key));
+  const unknown = Object.keys(assessments).filter((key) => !inScope.has(key));
+  if (unknown.length > 0) {
+    return { ok: false, message: `--assess names ${unknown.join(", ")}, which ${unknown.length === 1 ? "is" : "are"} not a ticket in ${scope}` };
+  }
   const claims = readClaims(root).filter((claim) => inScope.has(claim.key));
   const claimed = new Map(claims.map((claim) => [claim.key, claim]));
   const byKey = new Map(tickets.map((ticket) => [ticket.key, ticket]));
@@ -101,10 +109,14 @@ export async function computePlan({ root, tickets, feature = null, workers = 3, 
 
   for (const row of rows.filter((candidate) => candidate.eligible && !claimed.has(candidate.key))) {
     const selectedTickets = dispatch.map((entry) => byKey.get(entry.key));
-    const routed = await profileFor({ root, ticket: row, tickets, alsoInFlight: selectedTickets });
+    const routed = await profileFor({ root, ticket: row, tickets, alsoInFlight: selectedTickets, assessment: assessments[row.key] ?? {} });
     if (!routed.ok) return routed;
 
-    const entry = { key: row.key, title: row.title, ref: row.ref, number: row.number, profile: routed.profile };
+    // Under a policy that reads risk, a derived risk is the engine's guess,
+    // and the assessment `claim --risk` records may raise the level. Say so,
+    // rather than let the human approve selections the dispatch will not use.
+    const provisional = routed.profile.selection.policy !== "static" && routed.profile.estimate.risk.source === "derived";
+    const entry = { key: row.key, title: row.title, ref: row.ref, number: row.number, profile: routed.profile, provisional };
     if (routed.profile.estimate["parallel-safety"].value === "serialize") {
       deferred.push({ ...entry, reason: `serialize: ${routed.profile.estimate["parallel-safety"].reason}` });
     } else if (dispatch.length >= slots) {
@@ -173,6 +185,10 @@ function previewTranslation({ root, entry, session, selection, harness, tiers })
   return { ok: true, harness, model: values.model ?? "inherited", effort: values.effort ?? "inherited" };
 }
 
+/** The note under a dispatch entry whose selections rest on a derived risk. */
+export const PROVISIONAL =
+  "provisional: risk derived, not assessed — an assessed risk at claim may raise these selections; re-plan with --assess <key>=<risk>:<reason> before approving";
+
 /** The plan as a person reads it before approving. */
 export function formatPlan(plan) {
   const lines = [`Dispatch plan — ${plan.scope} — up to ${plan.workers} worker${plan.workers === 1 ? "" : "s"}`, "", plan.message];
@@ -190,6 +206,7 @@ export function formatPlan(plan) {
     lines.push("", "Claim now:");
     for (const entry of plan.dispatch) {
       lines.push(`  ${entry.key}  ${entry.title} (${entry.ref})`, `        ${profileLine(entry)}`);
+      if (entry.provisional) lines.push(`        ${PROVISIONAL}`);
       for (const session of PLAN_SESSIONS) {
         const row = entry.sessions?.[session];
         if (!row) continue;

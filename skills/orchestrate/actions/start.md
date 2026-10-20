@@ -21,13 +21,22 @@ Take the scope from the invocation: `feature NN`, or `all` for the whole board
 (the default). Take the worker limit from `--workers N` (default 3).
 
 ```sh
-orchestrate plan [--feature NN] --workers N --harness <harness> [--live <keys this conversation already started>]
+orchestrate plan [--feature NN] --workers N --harness <harness> [--live <keys this conversation already started>] [--assess <key>=<risk>:<reason>]...
 ```
 
 `--harness` names the harness this run dispatches through. The plan then shows,
 for every ticket it would claim, the implementation, adversary, review, and
 repair selections translated for that harness, or the refusal that would stop
 a session, before anything is asked or claimed.
+
+Under a routing policy other than `static`, assess risk before asking. The
+plan marks each ticket to claim whose risk is still derived as `provisional`
+(`"provisional": true` in `--json`), because the risk assessed at claim may
+raise its selections. For every such ticket, assess its risk as §3 step 1
+describes, then plan again with one `--assess <key>=<risk>:<reason>` per
+ticket. Repeat until no ticket to claim is marked provisional. The plan you
+print in §2 is then the plan dispatch will follow. Under `static` nothing
+reads risk, nothing is marked, and assessing is optional.
 
 A non-zero exit is a refusal, for example not orchestrator mode or an unreadable
 store. Report it verbatim and stop.
@@ -91,8 +100,12 @@ For each ticket the plan says to claim now, in order:
    Under a routing policy other than `static`, assess risk on every claim:
    pass `--risk` with a `--reason` naming the ticket's security, permission,
    concurrency, data-integrity, or integration exposure. Assess `high`
-   whenever any of those applies. Recorded risk is never lowered after the
-   claim. Under `static` the assessment is optional, because nothing reads it.
+   whenever any of those applies. This matters most for small tickets: a
+   derived `low` risk lets a ticket reach level 0, the lightest model and
+   effort, whatever that exposure. Pass the same risk and reason the approved
+   plan's `--assess` named, so the claim records the selections the human
+   approved. Recorded risk is never lowered after the claim. Under `static`
+   the assessment is optional, because nothing reads it.
 
    A refusal, which exits non-zero, means the board moved since the plan.
    Re-plan rather than retry. A claim that succeeded but whose announcement
@@ -107,6 +120,11 @@ For each ticket the plan says to claim now, in order:
 
    A refusal names a model or effort this harness cannot honour. Do not dispatch
    that ticket. Report the refusal to the human and continue with the others.
+
+   Compare the brief's model and effort, and their translation, with the
+   implementation selection the approved plan showed for that ticket. If they
+   differ, do not dispatch it: report both selections to the human and ask
+   again for that ticket. The approval covered the selections it was shown.
 
 3. Start the worker session. **This is the one harness-specific step.** Every
    step before and after it is the same in every harness.
