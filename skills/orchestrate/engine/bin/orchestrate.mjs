@@ -8,7 +8,7 @@
  *   node bin/orchestrate.mjs status [--feature NN] [--live a,b] [--json]
  *   node bin/orchestrate.mjs estimate <key> [--risk <v> --reason <text>] [--json]
  *   node bin/orchestrate.mjs brief <key> --harness <id> --approval <text> [--session <s>] [--json]
- *   node bin/orchestrate.mjs plan [--feature NN] [--workers N] [--live a,b] [--json]
+ *   node bin/orchestrate.mjs plan [--feature NN] [--workers N] [--live a,b] [--harness <id>] [--json]
  *   node bin/orchestrate.mjs announce <key> [--now <iso>]
  *   node bin/orchestrate.mjs gate <key> open --question <text> | resolve [--answer <text>] [--now <iso>]
  *   node bin/orchestrate.mjs state <key> --set <state> [--gate <text>] [--last <text>] [--next <text>] [--now <iso>]
@@ -41,7 +41,7 @@ import { join } from "node:path";
 
 import { checkIntegration, formatCheck, releaseClaim } from "../integration.mjs";
 import { computeBoard, formatBoard } from "../board.mjs";
-import { buildBrief, formatBrief, translateBrief } from "../brief.mjs";
+import { HARNESS_TRANSLATIONS, buildBrief, formatBrief, translateBrief } from "../brief.mjs";
 import { approvalScope, blockedNote, claimedNote, gateOpenedNote, gateResolvedNote, unblockedNote } from "../comments.mjs";
 import { checkpointText, currentPr, selectStage } from "../stage.mjs";
 import { readExperimentReport } from "../experiments.mjs";
@@ -58,7 +58,7 @@ import { claim } from "../claim.mjs";
 import { claimFor } from "../claims.mjs";
 import { canonical, checkoutRoot, repositoryRoot, resolveRef } from "../git.mjs";
 import { isKey } from "../keys.mjs";
-import { orchestratorRefusal, readEvidenceJudge } from "../mode.mjs";
+import { orchestratorRefusal, readEvidenceJudge, readModelTiers } from "../mode.mjs";
 import { computeStatus, formatStatus } from "../status.mjs";
 import { ensureEntry, holdKey, isComplete, materialize } from "../deps.mjs";
 import { diskCheck, diskLevelLine, floorGate, formatDisk, formatGb, roomFor } from "../disk.mjs";
@@ -116,9 +116,11 @@ const USAGE = `orchestrate
       assessed with its reason, and the selection the routing policy makes.
       Reads only.
 
-  plan [--feature NN] [--workers N] [--live a,b] [--json]
+  plan [--feature NN] [--workers N] [--live a,b] [--harness <id>] [--json]
       The dispatch plan: which eligible tickets one run would claim now, each
-      with its execution profile; which wait, and why; stale claims, never
+      with its execution profile and the selection for its implementation,
+      adversary, review and repair sessions — translated for --harness when
+      given, or refused by name; which wait, and why; stale claims, never
       re-dispatched; and the approval scope a run asks for. Reads only.
 
   claim  ... [--announce]
@@ -266,7 +268,8 @@ async function main(argv) {
     case "plan": {
       const workers = flags.workers === undefined ? 3 : Number(flags.workers);
       if (!Number.isInteger(workers) || workers < 1) return fail(2, "--workers must be a whole number of at least 1");
-      return plan({ ...common, feature: flags.feature ?? null, workers, live: listOf(flags.live), json: Boolean(flags.json) });
+      if (flags.harness !== undefined && (typeof flags.harness !== "string" || flags.harness === "")) return fail(2, "--harness needs a harness name");
+      return plan({ ...common, feature: flags.feature ?? null, workers, live: listOf(flags.live), json: Boolean(flags.json), harness: flags.harness ?? null });
     }
     case "announce":
       if (!isKey(positional[0])) return fail(2, `announce needs a ticket key such as 53.2\n\n${USAGE}`);
@@ -563,7 +566,7 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", s
     if (!handoff.ok) return fail(1, handoff.message);
     if (handoff.session !== session) return fail(1, `recorded checkpoint requires ${handoff.session ?? "integration"}, not ${session}`);
   }
-  if (session === "review" || session === "adversary") {
+  if (["adversary", "review", "repair"].includes(session)) {
     const policy = await loadPolicy(selection.policy);
     if (!policy.ok) return fail(1, policy.message);
     const selected = runPolicy(policy, found.profile.estimate, { session, root });
@@ -601,7 +604,7 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", s
     built.brief.protocol.push(JUDGE_PROJECTION[session]);
     if (session === "review") built.brief.protocol.push(criteriaGuidance(root, key, { store: storeOverride, gh }));
   }
-  const translated = translateBrief(built.brief, harness);
+  const translated = translateBrief(built.brief, harness, { tiers: readModelTiers(root) });
   if (!translated.ok) return fail(1, translated.message);
 
   process.stdout.write(
@@ -775,13 +778,16 @@ function samePath(a, b) {
   }
 }
 
-async function plan({ root, store: storeOverride, gh, feature, workers, live, json }) {
+async function plan({ root, store: storeOverride, gh, feature, workers, live, json, harness = null }) {
+  if (harness !== null && !Object.hasOwn(HARNESS_TRANSLATIONS, harness)) {
+    return fail(2, `no translation for harness \`${harness}\`. Known: ${Object.keys(HARNESS_TRANSLATIONS).join(", ")}`);
+  }
   const refusal = orchestratorRefusal(root);
   if (refusal) return fail(1, `refusing to plan: ${refusal}`);
   const store = resolveStore(root, { override: storeOverride });
   const read = readTickets(root, store, { gh });
   if (!read.ok) return fail(1, read.message);
-  const planned = await computePlan({ root, tickets: read.tickets, feature, workers, live });
+  const planned = await computePlan({ root, tickets: read.tickets, feature, workers, live, harness });
   if (!planned.ok) return fail(1, planned.message);
   const result = planned.plan;
   const scope = approvalScope({ scope: result.scope, keys: result.dispatch.map((entry) => entry.key), workers });

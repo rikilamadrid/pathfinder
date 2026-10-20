@@ -243,8 +243,8 @@ describe("the estimate", () => {
 });
 
 describe("the routing policy", () => {
-  it("ships static alone, and static selects developer, tester, inherited, inherited", async () => {
-    assert.deepEqual(shippedPolicies(), ["static"]);
+  it("ships adaptive and static, and static selects developer, tester, inherited, inherited", async () => {
+    assert.deepEqual(shippedPolicies(), ["adaptive", "static"]);
     const policy = await loadPolicy("static");
     assert.equal(policy.ok, true);
     const estimate = validProfile().estimate;
@@ -255,13 +255,19 @@ describe("the routing policy", () => {
       effort: "inherited",
     });
     assert.equal(runPolicy(policy, estimate, { session: "review" }).selection.role, "tester");
-    assert.match(runPolicy(policy, estimate, { session: "deploy" }).message, /session must be implementation or review or adversary/);
+    assert.deepEqual(runPolicy(policy, estimate, { session: "repair" }).selection, {
+      policy: "static",
+      role: "developer",
+      model: "inherited",
+      effort: "inherited",
+    });
+    assert.match(runPolicy(policy, estimate, { session: "deploy" }).message, /session must be implementation or review or adversary or repair/);
   });
 
   it("refuses a policy the engine does not ship, naming the shipped ones", async () => {
     const result = await loadPolicy("victoria");
     assert.equal(result.ok, false);
-    assert.equal(result.message, "routing policy `victoria` is not shipped with this engine. Shipped: static");
+    assert.equal(result.message, "routing policy `victoria` is not shipped with this engine. Shipped: adaptive, static");
   });
 
   it("is static when the mode file names none, and refuses a claim when it names an unshipped one", () => {
@@ -283,7 +289,7 @@ describe("the routing policy", () => {
     });
     const refused = orchestrate(["claim", "1.1"], { root: unshipped });
     assert.equal(refused.status, 1);
-    assert.match(refused.stderr, /routing policy `victoria` is not shipped with this engine\. Shipped: static/);
+    assert.match(refused.stderr, /routing policy `victoria` is not shipped with this engine\. Shipped: adaptive, static/);
     assert.equal(orchestrate(["owner", "1.1", "--json"], { root: unshipped }).stdout.includes('"claim": null'), true, "nothing was claimed");
   });
 });
@@ -435,9 +441,12 @@ describe("the seam: adding a policy changes nothing else", () => {
       { model: "haiku", effort: "high", invocation: "high" },
     );
 
-    const claude = run(engine, ["brief", "1.1", "--approval", APPROVAL, "--harness", "claude-code"], root);
-    assert.equal(claude.status, 1, "Claude Code subagents take no effort, so effort: high is refused");
-    assert.match(claude.stderr, /cannot honour effort `high`: the subagent call takes no reasoning-effort setting/);
+    const claude = JSON.parse(run(engine, ["brief", "1.1", "--approval", APPROVAL, "--harness", "claude-code", "--json"], root).stdout);
+    assert.deepEqual(
+      { model: claude.translation.invocation.model, effort: claude.translation.invocation.effort },
+      { model: "haiku", effort: "high" },
+      "a Claude Code subagent takes an effort, so effort: high is passed through",
+    );
 
     const review = JSON.parse(run(engine, ["brief", "1.1", "--approval", APPROVAL, "--harness", "manual", "--session", "review", "--gh", prepareIntegrationReview(root), "--json"], root).stdout);
     assert.deepEqual(
@@ -505,10 +514,18 @@ describe("the brief and its translation", () => {
     assert.match(pinned.message, /cannot honour model `claude-opus-5`: it takes a family alias \(opus, sonnet, haiku, fable\), not a pinned model ID/);
   });
 
-  it("refuses an effort Claude Code cannot honour, by name", () => {
-    const effort = translateBrief(brief({ role: "developer", model: "inherited", effort: "high" }), "claude-code");
-    assert.equal(effort.ok, false);
-    assert.match(effort.message, /cannot honour effort `high`/);
+  it("passes a Claude Code effort through, and refuses one it cannot honour, by name", () => {
+    for (const value of ["low", "medium", "high", "xhigh", "max"]) {
+      const effort = translateBrief(brief({ role: "developer", model: "inherited", effort: value }), "claude-code");
+      assert.equal(effort.ok, true, effort.message);
+      assert.equal(effort.invocation.effort, value);
+      assert.equal(Object.hasOwn(effort.invocation, "model"), false);
+    }
+    for (const value of ["ultra", "minimal", "none"]) {
+      const effort = translateBrief(brief({ role: "developer", model: "opus", effort: value }), "claude-code");
+      assert.equal(effort.ok, false);
+      assert.match(effort.message, new RegExp(`cannot honour effort \`${value}\`: it takes low, medium, high, xhigh, or max`));
+    }
   });
 
   it("gives a manually started session every value, and refuses an unknown harness", () => {
@@ -556,7 +573,7 @@ describe("repairs from the 53.7 review", () => {
     write(join(engine, "policies", "later.test.mjs"), "export const y = 1;\n");
     const registry = await import(join(engine, "policies", "registry.mjs"));
 
-    assert.deepEqual(registry.shippedPolicies(), ["later", "static"]);
+    assert.deepEqual(registry.shippedPolicies(), ["adaptive", "later", "static"]);
     const result = registry.runPolicy(await registry.loadPolicy("later"), validProfile().estimate, { session: "implementation" });
     assert.match(result.message, /returned a promise; select must return its choice synchronously/);
   });

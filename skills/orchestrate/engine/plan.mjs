@@ -23,9 +23,17 @@
  * and stop at its approval gate.
  */
 
+import { join } from "node:path";
+
 import { computeBoard } from "./board.mjs";
+import { buildBrief, translateBrief } from "./brief.mjs";
 import { readClaims } from "./claims.mjs";
+import { readModelTiers } from "./mode.mjs";
+import { loadPolicy, runPolicy } from "./policies/registry.mjs";
 import { profileFor } from "./route.mjs";
+
+/** The sessions a plan shows a selection for, in the order a ticket meets them. */
+export const PLAN_SESSIONS = Object.freeze(["implementation", "adversary", "review", "repair"]);
 
 // States whose worker is running. A gated worker's session has ended while it
 // waits for a human, so it holds no slot and is not stale.
@@ -35,7 +43,7 @@ const ACTIVE = new Set(["working", "adversary", "review", "repair"]);
  * @param {{root: string, tickets: object[], feature?: string|null, workers?: number, live?: string[]}} args
  * @returns {Promise<{ok: true, plan: object} | {ok: false, message: string}>}
  */
-export async function computePlan({ root, tickets, feature = null, workers = 3, live = [] }) {
+export async function computePlan({ root, tickets, feature = null, workers = 3, live = [], harness = null }) {
   const scope = feature === null ? "the whole board" : `Feature ${feature}`;
   const rows = computeBoard(tickets, { feature });
 
@@ -102,7 +110,9 @@ export async function computePlan({ root, tickets, feature = null, workers = 3, 
     } else if (dispatch.length >= slots) {
       deferred.push({ ...entry, reason: `worker limit ${workers} reached` });
     } else {
-      dispatch.push(entry);
+      const sessions = await sessionSelections({ root, entry, harness });
+      if (!sessions.ok) return sessions;
+      dispatch.push({ ...entry, sessions: sessions.sessions });
     }
   }
 
@@ -113,6 +123,54 @@ export async function computePlan({ root, tickets, feature = null, workers = 3, 
       : "No ticket can be dispatched now. The blocked, deferred, and stale lists say why.";
 
   return { ok: true, plan: { outcome, scope, workers, message, dispatch, deferred, blocked, stale } };
+}
+
+/**
+ * What each session of a ticket the plan would claim runs on: the recorded
+ * policy asked from the same estimate, as `brief` asks it, and — when a
+ * harness is named — that harness's translation of it, or its refusal. The
+ * translation is the one `brief` makes, over a brief that differs only in
+ * text a translation does not read for model and effort.
+ */
+async function sessionSelections({ root, entry, harness }) {
+  const { profile } = entry;
+  const policy = await loadPolicy(profile.selection.policy);
+  if (!policy.ok) return policy;
+  const tiers = harness === null ? null : readModelTiers(root);
+  const sessions = {};
+  for (const session of PLAN_SESSIONS) {
+    let selection = profile.selection;
+    if (session !== "implementation") {
+      const selected = runPolicy(policy, profile.estimate, { session, root });
+      if (!selected.ok) return selected;
+      selection = selected.selection;
+    }
+    const row = { role: selection.role, model: selection.model, effort: selection.effort };
+    if (harness !== null) row.translation = previewTranslation({ root, entry, session, selection, harness, tiers });
+    sessions[session] = row;
+  }
+  return { ok: true, sessions };
+}
+
+function previewTranslation({ root, entry, session, selection, harness, tiers }) {
+  const built = buildBrief({
+    ticket: entry.key,
+    title: entry.title ?? entry.key,
+    ref: entry.ref ?? entry.key,
+    session,
+    worktree: join(root, ".pathfinder", "worktrees", entry.key),
+    main: root,
+    branch: `ticket/${entry.key}`,
+    selection,
+    approval: "dispatch plan preview",
+  });
+  if (!built.ok) return { ok: false, harness, message: built.message };
+  const translated = translateBrief(built.brief, harness, { tiers });
+  if (!translated.ok) return { ok: false, harness, message: translated.message };
+  const values = translated.invocation.arguments
+    ? { model: translated.invocation.arguments.model, effort: translated.invocation.arguments.reasoning_effort }
+    : { model: translated.invocation.model, effort: translated.invocation.effort };
+  return { ok: true, harness, model: values.model ?? "inherited", effort: values.effort ?? "inherited" };
 }
 
 /** The plan as a person reads it before approving. */
@@ -130,7 +188,19 @@ export function formatPlan(plan) {
 
   if (plan.dispatch.length > 0) {
     lines.push("", "Claim now:");
-    for (const entry of plan.dispatch) lines.push(`  ${entry.key}  ${entry.title} (${entry.ref})`, `        ${profileLine(entry)}`);
+    for (const entry of plan.dispatch) {
+      lines.push(`  ${entry.key}  ${entry.title} (${entry.ref})`, `        ${profileLine(entry)}`);
+      for (const session of PLAN_SESSIONS) {
+        const row = entry.sessions?.[session];
+        if (!row) continue;
+        const translated = !row.translation
+          ? ""
+          : row.translation.ok
+            ? ` → ${row.translation.harness} ${row.translation.model}/${row.translation.effort}`
+            : ` → ${row.translation.harness} refused: ${row.translation.message}`;
+        lines.push(`        ${session.padEnd(14)} ${row.role} ${row.model}/${row.effort}${translated}`);
+      }
+    }
   }
   if (plan.deferred.length > 0) {
     lines.push("", "Eligible, but waits this round:");

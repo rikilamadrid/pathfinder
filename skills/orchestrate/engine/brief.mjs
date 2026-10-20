@@ -15,6 +15,7 @@
  */
 
 import { isAbsolute } from "node:path";
+import { EXECUTION_MODE_PATH, MODEL_TIERS } from "./mode.mjs";
 import { TOKEN } from "./profile.mjs";
 import { isKey } from "./keys.mjs";
 
@@ -268,15 +269,20 @@ function codexInvocation(brief) {
 /**
  * How each harness honours a brief. One row per harness; a new harness is a
  * new row. `models` is the set of values the harness's session primitive
- * accepts for a model override, and `effort` whether it takes an effort at all.
+ * accepts for a model override; `effort` is `true` for any effort, `false` for
+ * none, or the list it accepts; `tiers`, when present, is the harness's default
+ * map from a model tier to a concrete model. A row with no `tiers` refuses a
+ * tier unless the project's mode file maps one for it.
  */
 export const HARNESS_TRANSLATIONS = Object.freeze({
   "claude-code": Object.freeze({
     label: "Claude Code background subagent",
     models: Object.freeze(["opus", "sonnet", "haiku", "fable"]),
     modelHint: "a family alias (opus, sonnet, haiku, fable), not a pinned model ID",
-    effort: false,
-    effortHint: "the subagent call takes no reasoning-effort setting",
+    // The Agent call takes `effort` alongside `model` (Claude Code 2.1.304).
+    effort: Object.freeze(["low", "medium", "high", "xhigh", "max"]),
+    effortHint: "it takes low, medium, high, xhigh, or max",
+    tiers: Object.freeze({ light: "haiku", standard: "sonnet", strong: "opus" }),
   }),
   codex: Object.freeze({
     label: "Codex subagent",
@@ -299,11 +305,15 @@ export const HARNESS_TRANSLATIONS = Object.freeze({
  * @returns {{ok: true, harness: string, invocation: object}
  *         | {ok: false, message: string}}
  */
-export function translateBrief(brief, harness) {
+export function translateBrief(original, harness, { tiers = null } = {}) {
   const row = HARNESS_TRANSLATIONS[harness];
   if (!row) {
     return { ok: false, message: `no translation for harness \`${harness}\`. Known: ${Object.keys(HARNESS_TRANSLATIONS).join(", ")}` };
   }
+
+  const resolved = resolveTier(original, harness, tiers);
+  if (!resolved.ok) return resolved;
+  const brief = resolved.brief;
 
   const invocation = { role: brief.role, prompt: formatBrief(brief) };
 
@@ -318,7 +328,7 @@ export function translateBrief(brief, harness) {
   }
 
   if (brief.effort !== "inherited") {
-    if (!row.effort) {
+    if (!row.effort || (Array.isArray(row.effort) && !row.effort.includes(brief.effort))) {
       return {
         ok: false,
         message: `${row.label} cannot honour effort \`${brief.effort}\`: ${row.effortHint}. Refusing rather than dispatching at a different effort.`,
@@ -328,4 +338,49 @@ export function translateBrief(brief, harness) {
   }
 
   return row.translate ? row.translate(brief) : { ok: true, harness, invocation };
+}
+
+/**
+ * Every model-tier map the project set must name a harness this engine
+ * translates for, and each model must pass that harness's model check. A map
+ * that fails either is refused whichever harness is asked for, because the
+ * marker that carries it is wrong.
+ */
+function checkTierMaps(maps) {
+  for (const [harness, map] of Object.entries(maps)) {
+    const row = HARNESS_TRANSLATIONS[harness];
+    if (!row) {
+      return { ok: false, message: `model-tiers marker maps harness \`${harness}\`, which has no translation. Known: ${Object.keys(HARNESS_TRANSLATIONS).join(", ")}` };
+    }
+    for (const tier of MODEL_TIERS) {
+      if (row.models !== null && !row.models.includes(map[tier])) {
+        return { ok: false, message: `model-tiers marker maps ${harness} tier \`${tier}\` to \`${map[tier]}\`, which ${row.label} cannot honour: it takes ${row.modelHint}` };
+      }
+    }
+  }
+  return { ok: true };
+}
+
+/**
+ * A brief whose model is a tier, rewritten to the concrete model the
+ * harness's map names. The project's marker replaces the shipped map for its
+ * harness; with neither, the tier is refused by name. A brief naming no tier
+ * is returned as it is.
+ */
+function resolveTier(brief, harness, tiers) {
+  if (tiers !== null && tiers.ok === false) return { ok: false, message: tiers.message };
+  const maps = tiers?.maps ?? {};
+  const checked = checkTierMaps(maps);
+  if (!checked.ok) return checked;
+  if (!MODEL_TIERS.includes(brief.model)) return { ok: true, brief };
+
+  const row = HARNESS_TRANSLATIONS[harness];
+  const map = Object.hasOwn(maps, harness) ? maps[harness] : row.tiers;
+  if (!map) {
+    return {
+      ok: false,
+      message: `${row.label} has no map for model tier \`${brief.model}\`: Pathfinder ships none for ${harness}. Set one with \`<!-- pathfinder:model-tiers ${harness} light=<model> standard=<model> strong=<model> -->\` in ${EXECUTION_MODE_PATH}. Refusing rather than choosing a model.`,
+    };
+  }
+  return { ok: true, brief: { ...brief, model: map[brief.model] } };
 }

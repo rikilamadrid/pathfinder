@@ -21,8 +21,13 @@ Take the scope from the invocation: `feature NN`, or `all` for the whole board
 (the default). Take the worker limit from `--workers N` (default 3).
 
 ```sh
-orchestrate plan [--feature NN] --workers N [--live <keys this conversation already started>]
+orchestrate plan [--feature NN] --workers N --harness <harness> [--live <keys this conversation already started>]
 ```
+
+`--harness` names the harness this run dispatches through. The plan then shows,
+for every ticket it would claim, the implementation, adversary, review, and
+repair selections translated for that harness, or the refusal that would stop
+a session, before anything is asked or claimed.
 
 A non-zero exit is a refusal, for example not orchestrator mode or an unreadable
 store. Report it verbatim and stop.
@@ -80,8 +85,14 @@ For each ticket the plan says to claim now, in order:
 1. Claim and announce:
 
    ```sh
-   orchestrate claim <key> --announce
+   orchestrate claim <key> --announce [--risk low|medium|high --reason "<exposure>"]
    ```
+
+   Under a routing policy other than `static`, assess risk on every claim:
+   pass `--risk` with a `--reason` naming the ticket's security, permission,
+   concurrency, data-integrity, or integration exposure. Assess `high`
+   whenever any of those applies. Recorded risk is never lowered after the
+   claim. Under `static` the assessment is optional, because nothing reads it.
 
    A refusal, which exits non-zero, means the board moved since the plan.
    Re-plan rather than retry. A claim that succeeded but whose announcement
@@ -102,7 +113,8 @@ For each ticket the plan says to claim now, in order:
 
    - **Claude Code.** Start a background subagent whose prompt is
      `translation.invocation.prompt`. Pass `translation.invocation.model` as the
-     subagent's model when it is present, and pass no model when it is absent.
+     subagent's model and `translation.invocation.effort` as its effort, each
+     when it is present, and neither when it is absent.
      Record the key as live for this conversation. A worker that stops at a gate
      ends its session: remove it from the live set. A gated worker is shown as
      `human-gate`, never stale, and holds no worker slot.

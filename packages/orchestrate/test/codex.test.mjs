@@ -172,7 +172,7 @@ describe("Codex harness translation", () => {
     assert.doesNotMatch(translated.invocation.arguments.message, /Run \/ticket load/);
   });
 
-  it("leaves the Claude Code and manual invocation contracts unchanged", () => {
+  it("keeps the Claude Code and manual invocation contracts, with Claude Code now taking an effort", () => {
     for (const harness of ["claude-code", "manual"]) {
       const inherited = brief();
       assert.deepEqual(translateBrief(inherited, harness), {
@@ -187,7 +187,8 @@ describe("Codex harness translation", () => {
     assert.deepEqual(translateBrief(manual, "manual"), {
       ok: true, harness: "manual", invocation: { role: "developer", prompt: formatBrief(manual), model: "custom-model", effort: "custom-effort" },
     });
-    assert.equal(translateBrief(brief({ effort: "high" }), "claude-code").ok, false);
+    assert.equal(translateBrief(brief({ effort: "high" }), "claude-code").invocation.effort, "high");
+    assert.equal(translateBrief(brief({ effort: "ultra" }), "claude-code").ok, false);
   });
 
   it("emits valid recovery-session names through the real CLI for an existing claim", () => {
