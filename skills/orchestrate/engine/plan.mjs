@@ -113,8 +113,9 @@ export async function computePlan({ root, tickets, feature = null, workers = 3, 
     if (!routed.ok) return routed;
 
     // Under a policy that reads risk, a derived risk is the engine's guess,
-    // and the assessment `claim --risk` records may raise the level. Say so,
-    // rather than let the human approve selections the dispatch will not use.
+    // and the assessment `claim --risk` records may change the level, raising
+    // or lowering it. Say so, rather than let the human approve selections
+    // the dispatch will not use.
     const provisional = routed.profile.selection.policy !== "static" && routed.profile.estimate.risk.source === "derived";
     const entry = { key: row.key, title: row.title, ref: row.ref, number: row.number, profile: routed.profile, provisional };
     if (routed.profile.estimate["parallel-safety"].value === "serialize") {
@@ -187,7 +188,7 @@ function previewTranslation({ root, entry, session, selection, harness, tiers })
 
 /** The note under a dispatch entry whose selections rest on a derived risk. */
 export const PROVISIONAL =
-  "provisional: risk derived, not assessed — an assessed risk at claim may raise these selections; re-plan with --assess <key>=<risk>:<reason> before approving";
+  "provisional: risk derived, not assessed — an assessed risk at claim may change (raise or lower) these selections; re-plan with --assess <key>=<risk>:<reason> before approving";
 
 /** The plan as a person reads it before approving. */
 export function formatPlan(plan) {
