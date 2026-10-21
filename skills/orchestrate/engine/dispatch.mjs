@@ -139,6 +139,14 @@ export function parseClaudeCodeTranscript(raw) {
   if (times.length === 0) {
     return { ok: false, message: "transcript carries no timestamps: partial evidence, nothing recorded" };
   }
+  // One pass, not Math.min(...times): spreading every timestamp as a call
+  // argument overflows the stack on a long transcript.
+  let earliest = times[0];
+  let latest = times[0];
+  for (const time of times) {
+    if (time < earliest) earliest = time;
+    if (time > latest) latest = time;
+  }
 
   // A total is known only when every message recorded it; one gap leaves the
   // total null (`unrecorded`), not a sum presented as exact.
@@ -163,7 +171,7 @@ export function parseClaudeCodeTranscript(raw) {
       efforts: [...efforts].sort(),
       requests: requests.length,
       tokens,
-      seconds: Math.round((Math.max(...times) - Math.min(...times)) / 1000),
+      seconds: Math.round((latest - earliest) / 1000),
       disagreements: [...new Set(disagreements)],
     },
   };

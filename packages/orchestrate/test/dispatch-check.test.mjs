@@ -332,6 +332,24 @@ describe("orchestrate dispatch-check", () => {
     assert.equal(json(orchestrate(["owner", "1.1", "--json"], { root })).claim.profileError, null, "the profile still parses");
   });
 
+  it("records a match for a transcript longer than a spread call can take (over 125,000 timestamped entries)", () => {
+    const root = claimed();
+    const { path: brief } = saveBrief(root, SONNET_HIGH);
+    // 70,000 request/response pairs: 140,000 timestamped entries, one second
+    // apart per turn, past the ~124k-argument limit of Math.max(...array).
+    const start = Date.parse("2026-10-20T12:00:00.000Z");
+    const turns = [];
+    for (let index = 0; index < 70000; index += 1) {
+      turns.push(turn({ id: `r${index}`, model: "claude-sonnet-5-5", effort: "high", at: new Date(start + index * 1000).toISOString(), usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }));
+    }
+    const file = transcript(...turns);
+    const result = check(root, brief, ["--transcript", file]);
+    assert.equal(result.status, 0, result.stderr);
+    const line = "- implementation | claude-code | planned sonnet/high | invoked sonnet/high | observed claude-sonnet-5-5/high | match | in 70000 out 70000 cache 0 | 69999s | transcript agent-a1.jsonl";
+    assert.equal(result.stdout, line + "\n");
+    assert.ok(readFileSync(statePath(root), "utf8").includes(line));
+  });
+
   it("exits 1 on a mismatch, still recording the line, and prints the record with --json", () => {
     const root = claimed();
     const { path: brief } = saveBrief(root, SONNET_HIGH);
