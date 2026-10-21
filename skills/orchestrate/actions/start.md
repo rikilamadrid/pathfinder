@@ -76,12 +76,10 @@ the approval scope. Then ask the human one question: approve this run as scoped?
   question states them by key and adds one sentence: the human confirms that no
   session from the previous round is still running. Without that confirmation,
   continue nothing; `/orchestrate resume <key>` remains available per claim.
-- For each pending claim whose selection is `repair`, the same question also
-  asks for that claim's confirmed-findings repair count, as the previous
-  round-boundary report stated it. The engine does not hold the count and a
-  missing answer is not zero: an unknown count, or a count of two or more,
-  opens the human gate instead of dispatching another repair (§Continuing a
-  run step 4).
+- The question asks for no repair count. The engine holds it: each claim's
+  checkpoint records `Repair rounds`, and `stage --advance` opens the human
+  gate itself instead of a third repair round, or of one on an unknown count
+  (§4 step 5).
 - The approval does not cover merging. Each merge is presented separately, under
   the project's merge policy.
 - If the human declines or narrows the scope, stop or re-plan with the narrower
@@ -222,9 +220,18 @@ human's decision.
      require repeating Tester. Missing/incomplete findings stay in review;
      stale findings before first repair require coordination, never invented
      repair instructions. Partial repair resumes using its original findings.
-  5. A repaired published head returns to Adversary, then fresh Tester. After
-     two rounds of confirmed findings, open the existing human gate with the
-     exact summary; do not repair forever or use Adversary suspicions as findings.
+  5. A repaired published head returns to Adversary, then fresh Tester. The
+     engine holds the repair budget: `stage --advance` writes `Repair rounds`
+     when it selects a repair of a new reviewed head, and in place of a third
+     round, or of any round on an unknown count, it checkpoints
+     `State: human-gate`, `Gate stage: repair` and `Gate: repair budget
+     exhausted after <n> rounds: <finding ids>` (or `repair round count
+     unknown: <finding ids>`) and returns no session. Dispatch nothing; run
+     `orchestrate gate <key> open --question "<that Gate>"` and handle it as
+     `GATE`. Resolving it resumes only that one counted repair. A completed
+     repair's finding ids join `Resolved findings`, and a Tester report may name
+     one again only with `reopened` evidence at the new head. Never repair
+     forever or use Adversary suspicions as findings.
   6. A current-head Tester PASS with the required matching experiments (or its
      recorded legacy/integration exception) selects `done` with no worker session. Hand it
      to `/orchestrate integrate <key>`; it remains unaccepted until the human gate.
@@ -283,10 +290,8 @@ At the boundary:
    names what the next round would continue and what it would claim.
 3. Report, one line per claim with a worktree: its recorded `State`, the
    session `stage <key> --json` would select next or its refusal, and its
-   confirmed-findings repair count: the count the human stated at this round's
-   approval, or zero for a claim this round first claimed, plus every repair
-   this round dispatched for it. The engine does not hold that count; the next
-   round asks the human for it (§2) to apply the two-round rule.
+   `Repair rounds` as its checkpoint records it, or `unknown`. The engine holds
+   that count and applies the two-round rule itself (§4 step 5).
 4. Stop. The human starts the next round with `/orchestrate start` in a new
    session, which continues as §Continuing a run says.
 
@@ -322,21 +327,17 @@ guidance, and `integrate`.
 2. Run `orchestrate plan` with the same scope and no live keys. This round's
    scope is the pending claims first, then what the plan would claim, within
    the worker limit.
-3. Ask once, as §2 says, with the confirmation sentence and, for each pending
-   claim whose selection is `repair`, the confirmed-findings repair count.
+3. Ask once, as §2 says, with the confirmation sentence.
 4. For each pending claim, in key order:
-   - If its selection is `repair` and the human stated a count of zero or one,
-     continue. If the count is unknown, or two or more, run
-     `orchestrate gate <key> open --question "<the exact findings summary and
-     the count as stated>"`, report it, and continue with the next claim. Never
-     dispatch another repair for it, and never infer zero from a missing count.
    - Run `orchestrate stage <key> --advance --json` with no live keys and
      dispatch its returned `session` exactly as §3 does: `brief <key> --harness
      <harness> --session <returned session> --approval "<approved scope>" --json`
      and the harness translation. The selector reads the checkpoint, the
      current PR head and the reports, and refuses anything incomplete or stale;
      a refusal preserves the claim and is reported, never worked around. Record
-     the key as live.
+     the key as live. When it returns no session and `state: human-gate`, the
+     repair budget gated the claim (§4 step 5): open the gate with its `gate`
+     text, report it, dispatch nothing, and continue with the next claim.
 5. Claim and dispatch new tickets from the plan into the slots the worker
    limit leaves after the pending claims, as §3 says.
 6. Run the round as §4 and end it as §5.
@@ -350,8 +351,8 @@ guidance, and `integrate`.
   or a stale claim, except a pending claim continued under §Continuing a run
   after the human's confirmation.
 - Never end the coordinating session while a worker session it started is live.
-- Never dispatch a repair for a pending claim without the human's stated
-  confirmed-findings repair count; unknown, or two or more, opens the gate.
+- Never dispatch a repair `stage --advance` did not select. Its repair budget
+  gate, after two rounds or on an unknown count, is answered by the human.
 - Never change a ticket's substance. Status moves only through the worker's
   own `/ticket load` and `/ticket start`.
 - A worker at a human gate never stops unrelated workers.
