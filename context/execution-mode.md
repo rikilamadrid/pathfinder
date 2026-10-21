@@ -1,6 +1,7 @@
 # Execution Mode
 
 <!-- pathfinder:execution-mode orchestrator -->
+<!-- pathfinder:routing-policy adaptive -->
 
 Pathfinder runs this project in **orchestrator** mode: an orchestrator
 coordinates several dependency-safe ticket workers at once, each in its own
