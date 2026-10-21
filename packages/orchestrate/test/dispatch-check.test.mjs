@@ -166,6 +166,44 @@ describe("reading a Claude Code transcript", () => {
     assert.match(formatDispatch({ ...LINE_RECORD, tokens: mixed.observed.tokens }), /\| in 3 out >=408 cache 150 \|/);
   });
 
+  it("records a response with no usage, or a usage field it left out, as unrecorded, never as zero", () => {
+    const request = { type: "api-request", id: "r1", timestamp: "2026-10-20T12:00:00Z", params: { model: "claude-opus-5-5", output_config: { effort: "high" } } };
+    const answer = (message) => ({ type: "assistant", requestRef: "r1", timestamp: "2026-10-20T12:00:30Z", effort: "high", message: { id: "m1", model: "claude-opus-5-5", stop_reason: null, ...message } });
+    const parse = (...lines) => parseClaudeCodeTranscript([request, ...lines].map((line) => JSON.stringify(line)).join("\n"));
+
+    const none = parse(answer({}));
+    assert.equal(none.ok, true);
+    assert.deepEqual(none.observed.tokens, { input: null, output: null, cache: null, outputLowerBound: false });
+    assert.deepEqual([none.observed.models, none.observed.efforts], [["claude-opus-5-5"], ["high"]], "the model/effort evidence is unchanged");
+    assert.match(formatDispatch({ ...LINE_RECORD, tokens: none.observed.tokens }), /\| in unrecorded out unrecorded cache unrecorded \|/);
+
+    // A field left out, or not a non-negative integer, is not known for that total only.
+    const partial = parse(answer({ stop_reason: "end_turn", usage: { output_tokens: 12, cache_read_input_tokens: -1, cache_creation_input_tokens: 0 } }));
+    assert.deepEqual(partial.observed.tokens, { input: null, output: 12, cache: null, outputLowerBound: false });
+
+    // One message without usage leaves the session's totals unrecorded, not a sum of the others.
+    const mixed = parseClaudeCodeTranscript([
+      ...turn({ id: "r1", model: "claude-opus-5-5", effort: "high", at: "2026-10-20T12:00:00Z" }),
+      ...turn({ id: "r2", model: "claude-opus-5-5", effort: "high", at: "2026-10-20T12:00:05Z" }).map((line) => (line.type === "assistant" ? { ...line, message: { id: "msg_r2", model: "claude-opus-5-5", stop_reason: null } } : line)),
+    ].map((line) => JSON.stringify(line)).join("\n"));
+    assert.deepEqual(mixed.observed.tokens, { input: null, output: null, cache: null, outputLowerBound: false });
+
+    // A message is known once any of its entries recorded usage.
+    const blocks = parse(answer({}), answer({ usage: { input_tokens: 3, output_tokens: 4, cache_read_input_tokens: 5, cache_creation_input_tokens: 6 } }));
+    assert.deepEqual(blocks.observed.tokens, { input: 3, output: 4, cache: 11, outputLowerBound: true });
+  });
+
+  it("refuses a requested model or effort that would break the one-line record", () => {
+    for (const params of [{ model: "claude-opus-5-5 | mismatch | x", output_config: { effort: "high" } }, { model: "claude-opus-5-5", output_config: { effort: "high\nState: complete" } }]) {
+      const parsed = parseClaudeCodeTranscript([
+        { type: "api-request", id: "r1", timestamp: "2026-10-20T12:00:00Z", params },
+        { type: "assistant", requestRef: "r1", timestamp: "2026-10-20T12:00:01Z", message: { id: "m1", model: params.model, stop_reason: "end_turn", usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } },
+      ].map((line) => JSON.stringify(line)).join("\n"));
+      assert.equal(parsed.ok, false);
+      assert.match(parsed.message, /containing \| or a line break: unsupported evidence/);
+    }
+  });
+
   it("refuses a session whose requests produced no model response", () => {
     // A failed API call: one request, one harness-written error entry.
     const parsed = parseClaudeCodeTranscript([
@@ -244,8 +282,19 @@ describe("the ## Dispatches section", () => {
       "- implementation | claude-code | planned standard/medium | invoked sonnet/medium | observed claude-sonnet-5-5/medium | match | in 7 out 30 cache 1150 | 90s | transcript agent-a1.jsonl",
     );
     assert.match(formatDispatch({ ...record, tokens: { ...record.tokens, outputLowerBound: true } }), /\| in 7 out >=30 cache 1150 \|/);
-    for (const source of ["a\nb", "a\rb", "a\u2028b", "a\u2029b"]) {
-      assert.throws(() => formatDispatch({ ...record, source }), /one line/);
+    for (const source of ["a\nb", "a\rb", "a\u2028b", "a\u2029b", "a | b"]) {
+      assert.throws(() => formatDispatch({ ...record, source }), /one line without \|/);
+    }
+    // Every interpolated value, not only the source.
+    for (const changed of [
+      { session: "a|b" },
+      { harness: "a|b" },
+      { planned: { model: "opus | mismatch", effort: "high" } },
+      { invoked: { model: "opus", effort: "high|x" } },
+      { observed: { models: ["claude-opus-5-5 | mismatch | x"], efforts: ["high"] } },
+      { observed: { models: ["claude-opus-5-5"], efforts: ["high\nx"] } },
+    ]) {
+      assert.throws(() => formatDispatch({ ...record, ...changed }), /one line without \|/, JSON.stringify(changed));
     }
   });
 
@@ -351,6 +400,42 @@ describe("orchestrate dispatch-check", () => {
     }
     assert.equal(readFileSync(statePath(root), "utf8"), before);
     assert.equal(json(orchestrate(["owner", "1.1", "--json"], { root })).claim.state, "working");
+  });
+
+  it("records a session whose response carried no usage with unrecorded tokens, still comparing model and effort", () => {
+    const root = claimed();
+    const { path: brief } = saveBrief(root, SONNET_HIGH);
+    const file = transcript([
+      { type: "api-request", id: "r1", timestamp: "2026-10-20T12:00:00Z", params: { model: "claude-sonnet-5-5", output_config: { effort: "high" } } },
+      { type: "assistant", requestRef: "r1", timestamp: "2026-10-20T12:00:30Z", effort: "high", message: { id: "m1", model: "claude-sonnet-5-5", stop_reason: null } },
+    ]);
+    const result = check(root, brief, ["--transcript", file, "--json"]);
+    assert.equal(result.status, 0, result.stderr);
+    const record = json(result);
+    assert.deepEqual(record.tokens, { input: null, output: null, cache: null, outputLowerBound: false });
+    assert.equal(record.line, "- implementation | claude-code | planned sonnet/high | invoked sonnet/high | observed claude-sonnet-5-5/high | match | in unrecorded out unrecorded cache unrecorded | 30s | transcript agent-a1.jsonl");
+    assert.ok(readFileSync(statePath(root), "utf8").includes(record.line));
+  });
+
+  it("refuses a transcript model or a brief value containing |, exit 1, recording nothing", () => {
+    const root = claimed();
+    const saved = saveBrief(root, SONNET_HIGH);
+    const before = readFileSync(statePath(root), "utf8");
+    const piped = "claude-sonnet-5-5 | mismatch | x";
+    const file = transcript(turn({ id: "r1", model: piped, effort: "high", at: NOW }));
+    const result = check(root, saved.path, ["--transcript", file]);
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(result.stdout, "");
+    assert.match(result.stderr, /unsupported evidence/);
+
+    const tampered = join(temporaryDirectory("dispatch-brief-"), "brief.json");
+    writeFileSync(tampered, JSON.stringify({ ...saved.output, brief: { ...saved.output.brief, model: "sonnet | mismatch" } }));
+    const good = transcript(turn({ id: "r1", model: "claude-sonnet-5-5", effort: "high", at: NOW }));
+    const planned = check(root, tampered, ["--transcript", good]);
+    assert.equal(planned.status, 1, planned.stderr);
+    assert.equal(planned.stdout, "");
+    assert.match(planned.stderr, /dispatch not recorded: every value on a dispatch line must be one line without \|/);
+    assert.equal(readFileSync(statePath(root), "utf8"), before);
   });
 
   it("records an inherited session as observed, never a mismatch", () => {

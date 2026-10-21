@@ -23,13 +23,19 @@ export const DISPATCHES_HEADING = "## Dispatches";
 export const UNRECORDED = "unrecorded";
 export const RESULTS = Object.freeze(["match", "mismatch", "inherited"]);
 
+/** A value that would break the one-line, `|`-separated record. */
+export const UNSAFE_LINE_TEXT = /[|\r\n\u2028\u2029]/;
+
 /** Claude Code family aliases: an alias matches a model ID of that family. */
 export const CLAUDE_FAMILIES = Object.freeze(["haiku", "sonnet", "opus", "fable"]);
 
 /** Harnesses whose transcript this engine parses. Others use --observed-*. */
 export const TRANSCRIPT_PARSERS = Object.freeze({ "claude-code": parseClaudeCodeTranscript });
 
-const count = (value) => (Number.isSafeInteger(value) && value >= 0 ? value : 0);
+/** A token count the transcript recorded, or null when it left it out. */
+const count = (value) => (Number.isSafeInteger(value) && value >= 0 ? value : null);
+/** A message's count across its entries: known once any entry recorded it. */
+const larger = (seen, value) => (seen === undefined || seen === null ? value : value === null ? seen : Math.max(seen, value));
 const text = (value) => typeof value === "string" && value.trim() !== "";
 
 /**
@@ -48,7 +54,12 @@ const text = (value) => typeof value === "string" && value.trim() !== "";
  * `stop_reason: null`, and only an entry whose `stop_reason` is set carries
  * the message's final output count. A message with such an entry contributes
  * that count; one without contributes its placeholder, and the total is then
- * only a lower bound (`outputLowerBound`, recorded as `out >=<n>`).
+ * only a lower bound (`outputLowerBound`, recorded as `out >=<n>`). A model
+ * response with no usage, or a usage field that is absent or not a
+ * non-negative integer, leaves that total not recorded (`null`, written
+ * `unrecorded`): it is never counted as zero. A requested model or effort that
+ * would break the one-line record (`|` or a line break) is refused as
+ * unsupported evidence.
  * `<synthetic>` assistant entries are written by the harness, not the model,
  * and are not evidence; a transcript whose requests produced no other
  * assistant entry (an API error, say) is refused as partial evidence.
@@ -78,6 +89,9 @@ export function parseClaudeCodeTranscript(raw) {
   for (const request of requests) {
     const model = text(request.params?.model) ? request.params.model : UNRECORDED;
     const effort = text(request.params?.output_config?.effort) ? request.params.output_config.effort : UNRECORDED;
+    if (UNSAFE_LINE_TEXT.test(model) || UNSAFE_LINE_TEXT.test(effort)) {
+      return { ok: false, message: "transcript requests a model or effort containing | or a line break: unsupported evidence for the one-line record, nothing recorded" };
+    }
     models.add(model);
     efforts.add(effort);
     if (text(request.id)) byId.set(request.id, { model, effort });
@@ -100,18 +114,21 @@ export function parseClaudeCodeTranscript(raw) {
     if (request && text(entry.effort) && request.effort !== UNRECORDED && entry.effort !== request.effort) {
       disagreements.push(`assistant effort ${entry.effort} differs from requested ${request.effort}`);
     }
-    if (message.usage && typeof message.usage === "object") {
-      const id = text(message.id) ? message.id : `entry-${usage.size}`;
-      const seen = usage.get(id) ?? { input: 0, output: 0, cache: 0, final: null };
-      const output = count(message.usage.output_tokens);
-      const stopped = message.stop_reason !== null && message.stop_reason !== undefined;
-      usage.set(id, {
-        input: Math.max(seen.input, count(message.usage.input_tokens)),
-        output: Math.max(seen.output, output),
-        cache: Math.max(seen.cache, count(message.usage.cache_read_input_tokens) + count(message.usage.cache_creation_input_tokens)),
-        final: stopped ? Math.max(seen.final ?? 0, output) : seen.final,
-      });
-    }
+    // Every counted response is a message, with or without usage: an absent
+    // usage object or field is recorded as not known, never as zero.
+    const id = text(message.id) ? message.id : `entry-${usage.size}`;
+    const seen = usage.get(id) ?? { final: null };
+    const recorded = message.usage && typeof message.usage === "object" ? message.usage : {};
+    const output = count(recorded.output_tokens);
+    const read = count(recorded.cache_read_input_tokens);
+    const creation = count(recorded.cache_creation_input_tokens);
+    const stopped = message.stop_reason !== null && message.stop_reason !== undefined;
+    usage.set(id, {
+      input: larger(seen.input, count(recorded.input_tokens)),
+      output: larger(seen.output, output),
+      cache: larger(seen.cache, read === null || creation === null ? null : read + creation),
+      final: stopped && output !== null ? Math.max(seen.final ?? 0, output) : seen.final,
+    });
   }
 
   if (responses === 0) {
@@ -123,17 +140,21 @@ export function parseClaudeCodeTranscript(raw) {
     return { ok: false, message: "transcript carries no timestamps: partial evidence, nothing recorded" };
   }
 
+  // A total is known only when every message recorded it; one gap leaves the
+  // total null (`unrecorded`), not a sum presented as exact.
+  const add = (total, value) => (total === null || value === null ? null : total + value);
   const tokens = { input: 0, output: 0, cache: 0, outputLowerBound: false };
   for (const value of usage.values()) {
-    tokens.input += value.input;
-    tokens.cache += value.cache;
-    if (value.final === null) {
-      tokens.output += value.output;
-      tokens.outputLowerBound = true;
+    tokens.input = add(tokens.input, value.input);
+    tokens.cache = add(tokens.cache, value.cache);
+    if (value.final !== null) {
+      tokens.output = add(tokens.output, value.final);
     } else {
-      tokens.output += value.final;
+      tokens.output = add(tokens.output, value.output);
+      tokens.outputLowerBound = true;
     }
   }
+  if (tokens.output === null) tokens.outputLowerBound = false;
 
   return {
     ok: true,
@@ -183,15 +204,27 @@ export function compare(invoked, observed) {
   return { result: reasons.length === 0 ? "match" : "mismatch", reasons };
 }
 
-/** A value that would break the one-line, `|`-separated record. */
-export const UNSAFE_LINE_TEXT = /[|\r\n\u2028\u2029]/;
-const LINE_BREAK = /[\r\n\u2028\u2029]/;
-
 /**
  * The one `## Dispatches` line. `out >=<n>` when the output count is only a
- * lower bound. Throws on a line break, which would write past the line.
+ * lower bound. Throws when any interpolated value carries `|` or a line
+ * break, which would shift the columns or write past the line.
  */
 export function formatDispatch(record) {
+  const fields = [
+    record.session,
+    record.harness,
+    record.planned.model,
+    record.planned.effort,
+    record.invoked.model,
+    record.invoked.effort,
+    ...record.observed.models,
+    ...record.observed.efforts,
+    record.result,
+    record.source,
+  ];
+  if (fields.some((field) => typeof field !== "string" || UNSAFE_LINE_TEXT.test(field))) {
+    throw new Error("every value on a dispatch line must be one line without |");
+  }
   const tokens = record.tokens ?? {};
   const value = (n) => (Number.isSafeInteger(n) ? String(n) : UNRECORDED);
   const output = tokens.outputLowerBound === true && Number.isSafeInteger(tokens.output) ? `>=${tokens.output}` : value(tokens.output);
@@ -206,7 +239,6 @@ export function formatDispatch(record) {
     Number.isSafeInteger(record.seconds) ? `${record.seconds}s` : UNRECORDED,
     record.source,
   ].join(" | ");
-  if (LINE_BREAK.test(line)) throw new Error("a dispatch line must be one line");
   return line;
 }
 

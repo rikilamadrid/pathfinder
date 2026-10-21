@@ -188,8 +188,11 @@ ticket, session, and harness must be the ones named.
   placeholder `output_tokens` and `stop_reason: null`. A message without a
   final entry adds its placeholder, and the output is then recorded as a
   lower bound, `out >=<n>` (`tokens.outputLowerBound` in `--json`); it is
-  never presented as the session's total. The time is the span between the
-  first and last timestamps. Other harnesses
+  never presented as the session's total. A model response with no
+  `message.usage`, or a usage field that is absent or not a non-negative
+  integer, leaves that total `unrecorded` (`null` in `--json`): it is never
+  counted as zero, and the model/effort comparison is unaffected. The time is
+  the span between the first and last timestamps. Other harnesses
   have no parser: declare the observation with `--observed-*` and
   `--source`, which is recorded as `declared <source>`.
 
@@ -209,8 +212,11 @@ section, touching nothing else:
 A mismatch prints the line, names the reasons on stderr, and exits 1. A
 transcript that is not evidence — unreadable, a line that is not JSON, no
 `api-request` entries, requests with no model response (only harness-written
-`<synthetic>` entries, as after an API error), no timestamps — is refused
-with exit 1 and records nothing. A transcript whose file name contains `|`,
+`<synthetic>` entries, as after an API error), a requested model or effort
+containing `|` or a line break, no timestamps — is refused with exit 1 and
+records nothing. Every value interpolated into the line (session, harness,
+planned, invoked and observed model/effort, source) must be one line without
+`|`; a brief value that is not is refused the same way. A transcript whose file name contains `|`,
 CR, LF, U+2028 or U+2029 is refused with exit 2 and records nothing: the name
 is the line's source, and the record must stay one line. `--json` prints the
 record with its `line`.
