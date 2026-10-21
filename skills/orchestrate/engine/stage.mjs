@@ -22,6 +22,35 @@ const refuse = (message) => ({ ok: false, message });
 const selected = (session, state, extra = {}) => ({ ok: true, session, state, ...extra });
 const matches = (report, claim, pr, head) => report?.ticket === claim.key && report?.pr === pr && report?.head_sha.toLowerCase() === head.toLowerCase();
 
+/** Repair rounds a claim may run before the engine asks the human. */
+export const REPAIR_ROUND_LIMIT = 2;
+/** The recorded `Repair rounds`: a count, or null when it is unknown. */
+export function recordedRepairRounds(claim) {
+  const value = claim.repairRounds;
+  if (value === undefined || value === null) return claim.repair ? null : 0;
+  return /^(0|[1-9]\d{0,3})$/.test(value) ? Number(value) : null;
+}
+/**
+ * The engine-held repair budget. Selecting a repair of a new origin counts one
+ * more round; a pending or started repair of the same origin is the round
+ * already counted. A round beyond the limit, or any round on an unknown
+ * count, is the human's decision and dispatches nothing.
+ */
+export function repairBudget(claim, report, origin) {
+  const recorded = recordedRepairRounds(claim);
+  if ([origin, `pending:${origin}`, `started:${origin}`].includes(claim.repair)) return { ok: true, rounds: recorded };
+  const ids = report.findings.map((finding, index) => typeof finding.id === "string" ? finding.id : `#${index + 1}`).join(", ");
+  if (recorded === null) return { ok: false, rounds: null, gate: `repair round count unknown: ${ids}` };
+  if (recorded + 1 > REPAIR_ROUND_LIMIT) return { ok: false, rounds: recorded + 1, gate: `repair budget exhausted after ${recorded} rounds: ${ids}` };
+  return { ok: true, rounds: recorded + 1 };
+}
+/** A repair selection, or the human gate the budget opens in its place. */
+function repairOrGate(claim, report, origin, extra) {
+  const budget = repairBudget(claim, report, origin);
+  if (!budget.ok) return selected(null, "human-gate", { gate: budget.gate, gateStage: "repair", report, repair: origin, rounds: budget.rounds, started: false, legacy: extra.legacy });
+  return selected("repair", "repair", { report, repair: origin, rounds: budget.rounds, ...extra });
+}
+
 /** A review's required upstream evidence, also retained at the repair origin. */
 function reviewPrerequisite(claim, experiments, pr, head) {
   if (claim.review?.startsWith("integration:")) {
@@ -67,7 +96,7 @@ export function selectStage({ claim, text, pr, head, live = [] }) {
     if (!started && !currentFindings) return refuse("stale Tester findings before first repair worker starts");
     const prerequisite = reviewPrerequisite(claim, experiments, pr, origin);
     if (!prerequisite.ok) return prerequisite;
-    return selected("repair", "repair", { report: findings.report, repair: origin, started });
+    return repairOrGate(claim, findings.report, origin, { started });
   }
   if (claim.state === "done") {
     const prerequisite = reviewPrerequisite(claim, experiments, pr, head);
@@ -86,7 +115,7 @@ export function selectStage({ claim, text, pr, head, live = [] }) {
   }
   if (findings.ok && findings.report.ticket === claim.key && findings.report.pr === pr && findings.report.result === "findings" && claim.repair !== `completed:${findings.report.head_sha}`) {
     if (!currentFindings) return refuse("stale Tester findings; assess changed head before repair");
-    return selected("repair", "repair", { report: findings.report, repair: findings.report.head_sha, legacy: prerequisite.legacy });
+    return repairOrGate(claim, findings.report, findings.report.head_sha, { legacy: prerequisite.legacy });
   }
   if (currentFindings && findings.report.result === "PASS") return selected(null, "done", { report: findings.report });
   return selected("review", "review", prerequisite);

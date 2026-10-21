@@ -13,11 +13,15 @@ import { testerJudgeErrors } from "./judge-prose.mjs";
 import { projectionProblem } from "./judgment.mjs";
 import { readEvidenceJudge } from "./mode.mjs";
 import { readTickets, resolveStore } from "./store.mjs";
+import { updateStateText } from "./statefile.mjs";
 
 export const FINDINGS_HEADING = "## Tester findings";
+/** A finding's stable identity: the same id names the same defect in every round. */
+export const FINDING_ID = /^[a-z0-9][a-z0-9-]{0,47}$/;
 const nonempty = (v) => typeof v === "string" && v.trim() !== "" && v.length <= 2048;
 const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const list = (v) => Array.isArray(v) && v.length >= 1 && v.length <= 20 && v.every(nonempty);
+const refs = (v) => list(v) && v.every((r) => parseSource(r));
 export function validateFindingsReport(report) {
   const errors = [];
   if (report?.followup !== undefined) errors.push(...followupBindingErrors(report.followup));
@@ -30,10 +34,23 @@ export function validateFindingsReport(report) {
   if (!["PASS", "findings"].includes(report.result)) errors.push("result must be PASS or findings");
   if (!list(report.verification) || !nonempty(report.limits)) errors.push("actual verification and limits required");
   if (!Array.isArray(report.findings) || report.findings.length > 12 || (report.result === "PASS" ? report.findings.length !== 0 : report.findings.length === 0)) errors.push("PASS has no findings; findings requires 1–12 findings");
+  const ids = new Set();
   for (const f of Array.isArray(report.findings) ? report.findings : []) {
     if (!object(f)) { errors.push("finding must be an object"); continue; }
     const fields = ["severity", "location", "impact", "evidence", "repair_instruction"];
-    if (Object.keys(f).some((key) => !fields.includes(key)) || fields.some((key) => key === "evidence" ? !list(f[key]) || f[key].some((r) => !parseSource(r)) : !nonempty(f[key]))) errors.push("complete finding severity/location/impact/evidence/repair_instruction required");
+    if (Object.keys(f).some((key) => ![...fields, "id", "reopened"].includes(key)) || fields.some((key) => key === "evidence" ? !refs(f[key]) : !nonempty(f[key]))) errors.push("complete finding severity/location/impact/evidence/repair_instruction required");
+    // `id` is optional here so a legacy report still reads; writing through
+    // --checkpoint requires it (findingsWriteErrors).
+    if (f.id !== undefined) {
+      if (typeof f.id !== "string" || !FINDING_ID.test(f.id)) errors.push("finding id must match ^[a-z0-9][a-z0-9-]{0,47}$");
+      else if (ids.has(f.id)) errors.push(`duplicate finding id: ${f.id}`);
+      else ids.add(f.id);
+    }
+    if (f.reopened !== undefined) {
+      const r = f.reopened;
+      if (f.id === undefined) errors.push("reopened requires the finding's id");
+      if (!object(r) || Object.keys(r).some((key) => !["because", "evidence"].includes(key)) || !nonempty(r.because) || !refs(r.evidence)) errors.push("reopened must be exactly { because, evidence } with 1–20 type:locator references");
+    }
   }
   // The optional judge-facing projection: shape only here, so lifecycle
   // gating never depends on how well it is written. Its prose is checked when
@@ -69,6 +86,49 @@ export function readFindingsReport(text) {
   const checked = validateFindingsReport(report);
   if (checked.ok) checked.errors.push(...followupReportErrors(text, report, "tester"));
   return checked.ok && checked.errors.length === 0 ? { ok: true, report } : { ok: false, errors: checked.errors };
+}
+/**
+ * The finding ids a completed repair resolved: the recorded `Resolved
+ * findings` line, plus the ids of the report a `Repair: completed:<sha>` line
+ * repaired while that report is still the checkpoint's, so they are never
+ * lost when the next Tester report replaces it. Throws on a damaged line.
+ */
+export function resolvedFindingIds(text) {
+  const field = (name) => {
+    const found = [...text.matchAll(new RegExp(`^-\\s*${name}:[ \\t]*(.*?)[ \\t]*\\r?$`, "gm"))];
+    if (found.length > 1) throw new Error(`duplicate ${name} field; human reconciliation required`);
+    return found.length ? found[0][1] : null;
+  };
+  const recorded = (field("Resolved findings") ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+  const invalid = recorded.find((id) => !FINDING_ID.test(id));
+  if (invalid !== undefined) throw new Error(`Resolved findings carries an invalid id: ${invalid}`);
+  const ids = [...new Set(recorded)];
+  const completed = /^completed:([a-f0-9]{40})$/i.exec(field("Repair") ?? "");
+  const report = completed ? readFindingsReport(text) : null;
+  if (report?.ok && report.report.result === "findings" && report.report.head_sha.toLowerCase() === completed[1].toLowerCase()) {
+    for (const finding of report.report.findings) if (typeof finding.id === "string" && !ids.includes(finding.id)) ids.push(finding.id);
+  }
+  return { recorded, ids };
+}
+/** The checkpoint with every resolved id recorded under `Resolved findings`. */
+export function recordResolvedFindings(text) {
+  const { recorded, ids } = resolvedFindingIds(text);
+  if (ids.length === recorded.length && ids.every((id, i) => id === recorded[i])) return text;
+  return updateStateText(text, { set: { "Resolved findings": ids.join(", ") } });
+}
+/**
+ * What refuses writing a report through --checkpoint beyond its shape: every
+ * finding names its stable id, and a finding whose id a completed repair
+ * resolved is reopened only with new evidence.
+ */
+export function findingsWriteErrors(report, resolved = []) {
+  const errors = [];
+  (Array.isArray(report?.findings) ? report.findings : []).forEach((finding, index) => {
+    if (!object(finding)) return;
+    if (finding.id === undefined) errors.push(`finding ${index + 1} needs an id matching ^[a-z0-9][a-z0-9-]{0,47}$, kept the same across rounds for the same defect`);
+    else if (resolved.includes(finding.id) && finding.reopened === undefined) errors.push(`finding id ${finding.id} was resolved by a completed repair; reopen it only with reopened: { because, evidence } citing evidence at head ${report.head_sha}`);
+  });
+  return errors;
 }
 export function replaceFindingsReport(text, report) {
   const freshness = followupReportErrors(text, report, "tester");
@@ -113,7 +173,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
         if (problem) throw new Error(`judge-facing projection refused; nothing was written, and the raw evidence is unchanged: ${problem}`);
       }
     }
-    replaceCheckpoint(path, text, (latest) => replaceFindingsReport(latest, report));
+    const checked = validateFindingsReport(report);
+    if (!checked.ok) throw new Error(`${checked.errors.join("; ")}; nothing was written`);
+    const identity = findingsWriteErrors(report, resolvedFindingIds(text).ids);
+    if (identity.length) throw new Error(`${identity.join("; ")}; nothing was written`);
+    // Record the resolved ids before this report replaces the one they came from.
+    replaceCheckpoint(path, text, (latest) => replaceFindingsReport(recordResolvedFindings(latest), report));
     console.log("Tester findings checkpoint written; State unchanged.");
     reclaimAfterCheckpoint(root, report.ticket);
   } catch (error) { console.error(`findings: ${error.message}`); process.exitCode = 1; }

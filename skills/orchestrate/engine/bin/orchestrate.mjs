@@ -47,7 +47,7 @@ import { dispatchCheck } from "../dispatch.mjs";
 import { approvalScope, blockedNote, claimedNote, gateOpenedNote, gateResolvedNote, unblockedNote } from "../comments.mjs";
 import { checkpointText, currentPr, selectStage } from "../stage.mjs";
 import { readExperimentReport } from "../experiments.mjs";
-import { readFindingsReport } from "../findings.mjs";
+import { readFindingsReport, recordResolvedFindings } from "../findings.mjs";
 import { buildBundle, criteriaNeedingSummary, decide, summarizedOf, DEFAULT_TIMEOUT_MS, duplicateJudgment, evaluate, JUDGMENT_HEADING, judgmentRecord, replaceJudgment } from "../judgment.mjs";
 import { loadJudge } from "../judges/registry.mjs";
 import { computePlan, formatPlan } from "../plan.mjs";
@@ -77,6 +77,8 @@ const USAGE = `orchestrate
       Select the recoverable session from the exact current PR and checkpoint.
       --adopt classifies an old claim once at a stopped session boundary.
       --advance checkpoints a pending phase; it never marks repair started.
+        It counts Repair rounds and opens the human gate instead of a third
+        repair or one on an unknown count, and records Resolved findings.
       --begin-repair runs only in the owning Developer worktree before edits.
       --guidance with --advance restores a recorded failed phase after authorization.
 
@@ -516,13 +518,19 @@ function stage({ root, key, gh, live, adopt, advance, beginRepair, guidance, jso
       set.Repair = `${result.started ? "started" : "pending"}:${result.repair}`;
       if (result.legacy) set.Review = `legacy:${result.repair}`;
       set.Adversary = "required";
+      // The engine holds the count; an unknown count is never written as one.
+      if (Number.isInteger(result.rounds)) set["Repair rounds"] = String(result.rounds);
     }
+    // The budget gate records its repair origin, so resolving the gate resumes
+    // exactly that pending repair, already counted, and nothing else.
+    if (result.state === "human-gate") { set.Gate = result.gate; set["Gate stage"] = result.gateStage; }
     if (result.state === "adversary") { set.Adversary = "required"; set.Review = "ordinary"; }
     if (guidance) set.Last = `human failure-resume guidance: ${oneLine(guidance)}`;
-    try { replaceCheckpoint(join(worktree, "context/current-ticket.md"), stageCheckpoint, latest => updateStateText(latest, { set, unset: guidance ? ["Failed stage"] : [] })); }
+    try { replaceCheckpoint(join(worktree, "context/current-ticket.md"), stageCheckpoint, latest => updateStateText(recordResolvedFindings(latest), { set, unset: guidance ? ["Failed stage"] : [] })); }
     catch (error) { return fail(1, error.message); }
   }
-  process.stdout.write(json ? JSON.stringify(result, null, 2) + "\n" : `${key}: ${result.session ?? "integration"} (${result.state})\n`);
+  const selection = result.state === "human-gate" ? `human gate (${result.gateStage}): ${result.gate}` : `${result.session ?? "integration"} (${result.state})`;
+  process.stdout.write(json ? JSON.stringify(result, null, 2) + "\n" : `${key}: ${selection}\n`);
   return 0;
 }
 
@@ -626,7 +634,7 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", s
     reviewIdentity = identity;
     handoff = selectStage({ claim: found, text: checkpointText(root, found), ...identity, live });
     if (!handoff.ok) return fail(1, handoff.message);
-    if (handoff.session !== session) return fail(1, `recorded checkpoint requires ${handoff.session ?? "integration"}, not ${session}`);
+    if (handoff.session !== session) return fail(1, handoff.state === "human-gate" ? `human gate: ${handoff.gate}` : `recorded checkpoint requires ${handoff.session ?? "integration"}, not ${session}`);
   }
   if (["adversary", "review", "repair"].includes(session)) {
     const policy = await loadPolicy(selection.policy);

@@ -70,8 +70,12 @@ fields, including the profile and previous head identifiers. The report has
 exactly `ticket`, `pr`, `head_sha`, `result` (`PASS` or `findings`), `findings`,
 `verification` (1–20 non-empty actual check descriptions), and `limits`.
 `PASS` has an empty findings array; `findings` has 1–12 complete findings,
-each with exactly `severity`, `location`, `impact`, `evidence` (1–20 existing
-`type:locator` references), and `repair_instruction`. Strings are non-empty,
+each with exactly `id`, `severity`, `location`, `impact`, `evidence` (1–20
+existing `type:locator` references), and `repair_instruction`. `id` matches
+`^[a-z0-9][a-z0-9-]{0,47}$` and stays the same across rounds for the same
+defect. A finding whose id the checkpoint lists under `Resolved findings` also
+carries `reopened: { because, evidence }`, its evidence observed at the new
+head; without it the write is refused. Strings are non-empty,
 at most 2048 characters; the entire JSON is at most 32 KiB. This checkpoint is
 transient, not a durable regression record or acceptance decision.
 

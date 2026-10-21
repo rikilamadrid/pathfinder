@@ -1790,7 +1790,7 @@ describe("cleanup before final review: ordinary evidence, write-time parity, jud
   it("does not validate the projection of a findings report, which is never judged", () => {
     const s = doneClaim();
     const worktree = join(s.root, ".pathfinder/worktrees/1.1");
-    const findings = { ...passReport(s.head, undefined, { verification: [{ action_summary: "Ran it.", observation_summary: "curl -u admin:hunter2 https://x" }, judgeEntry(1)], limits_summary: "None." }), result: "findings", findings: [{ severity: "high", location: "src/a.mjs:1", impact: "an empty input is accepted", evidence: ["file:src/a.mjs#L1"], repair_instruction: "reject it" }] };
+    const findings = { ...passReport(s.head, undefined, { verification: [{ action_summary: "Ran it.", observation_summary: "curl -u admin:hunter2 https://x" }, judgeEntry(1)], limits_summary: "None." }), result: "findings", findings: [{ id: "empty-input", severity: "high", location: "src/a.mjs:1", impact: "an empty input is accepted", evidence: ["file:src/a.mjs#L1"], repair_instruction: "reject it" }] };
     const result = spawnSync(process.execPath, [join(ENGINE_ROOT, "findings.mjs"), "--checkpoint"], { cwd: worktree, input: JSON.stringify(findings), encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(readFindingsReport(readFileSync(s.path, "utf8")).report.result, "findings");

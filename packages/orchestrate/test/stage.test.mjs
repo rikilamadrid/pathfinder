@@ -30,6 +30,8 @@ function setup() {
   const commit = () => { writeFileSync(join(worktree, "example.txt"), sha()); runGit(["add", "example.txt"], worktree); runGit(["commit", "-qm", "repair"], worktree); };
   return { root, worktree, path, run, begin, sha, set, stage, experiment, review, experiments, findings, commit };
 }
+/** A findings report whose findings carry stable ids, as a checkpoint write requires. */
+const identified = (report, ...ids) => ({ ...report, findings: report.result === "PASS" ? [] : (ids.length ? ids : ["invalid-input"]).map((id) => ({ ...report.findings[0], id })) });
 describe("recoverable Adversary and Tester delivery", () => {
   it("uses one claim through interrupted implementation, experiments, findings, partial repair and fresh review", () => {
     const s = setup(); const original = readFileSync(s.path, "utf8");
@@ -251,13 +253,153 @@ describe("recoverable Adversary and Tester delivery", () => {
     const s = setup(); const original = readFileSync(s.path, "utf8");
     const tool = join(ENGINE_ROOT, "findings.mjs");
     const run = (report, cwd = s.worktree) => spawnSync(process.execPath, [tool, "--checkpoint"], { cwd, input: JSON.stringify(report), encoding: "utf8" });
-    assert.notEqual(run(s.review(), s.root).status, 0); assert.equal(readFileSync(s.path, "utf8"), original);
-    assert.equal(run(s.review()).status, 0);
+    assert.notEqual(run(identified(s.review()), s.root).status, 0); assert.equal(readFileSync(s.path, "utf8"), original);
+    assert.equal(run(identified(s.review())).status, 0);
     const checkpoint = readFileSync(s.path, "utf8"); assert.ok(checkpoint.startsWith(original));
-    assert.deepEqual(readFindingsReport(checkpoint).report, s.review());
+    assert.deepEqual(readFindingsReport(checkpoint).report, identified(s.review()));
     for (const key of Object.keys(s.review())) { const bad = s.review(); delete bad[key]; assert.equal(validateFindingsReport(bad).ok, false, key); }
     for (const change of [(r) => r.findings = {}, (r) => r.findings[0].evidence = ["bad:log"], (r) => r.verification = [], (r) => r.limits = "x".repeat(2049), (r) => r.result = "accepted"]) {
       const bad = s.review(); change(bad); assert.equal(validateFindingsReport(bad).ok, false); assert.notEqual(run(bad).status, 0); assert.equal(readFileSync(s.path, "utf8"), checkpoint);
     }
+  });
+});
+
+describe("engine-held repair budget and stable finding identity", () => {
+  const checkpoint = (s) => readFileSync(s.path, "utf8");
+  const line = (s, name) => (new RegExp(`^- ${name}: (.*)$`, "m").exec(checkpoint(s)) ?? [])[1] ?? null;
+  const tool = (s, report) => spawnSync(process.execPath, [join(ENGINE_ROOT, "findings.mjs"), "--checkpoint"], { cwd: s.worktree, input: JSON.stringify(report), encoding: "utf8" });
+  /** Experiments at the current head, then Tester findings with these ids, then advance. */
+  const reviewed = (s, ...ids) => {
+    s.experiments(); assert.equal(s.stage("--advance").state, "review");
+    s.findings(identified(s.review(), ...ids));
+    return s.stage("--advance");
+  };
+  /** The owning Developer starts, commits and completes the pending repair. */
+  const repaired = (s) => {
+    const origin = s.sha();
+    assert.equal(s.begin().status, 0); s.commit();
+    s.set({ State: "adversary", Adversary: "required", Review: "ordinary", Repair: `completed:${origin}` });
+    assert.equal(s.stage("--advance").session, "adversary");
+    return origin;
+  };
+  const adversary = () => { const s = setup(); s.set({ State: "adversary", Review: "ordinary" }); return s; };
+
+  it("counts the first and second repairs and gates the third with its ids and no session", () => {
+    const s = adversary();
+    const first = reviewed(s, "invalid-input");
+    assert.equal(first.session, "repair"); assert.equal(first.rounds, 1);
+    assert.equal(line(s, "Repair rounds"), "1");
+    repaired(s);
+    assert.equal(line(s, "Resolved findings"), "invalid-input", "a completed repair resolves its report's ids");
+    const second = reviewed(s, "empty-name");
+    assert.equal(second.session, "repair"); assert.equal(second.rounds, 2);
+    assert.equal(line(s, "Repair rounds"), "2");
+    repaired(s);
+    assert.equal(line(s, "Resolved findings"), "invalid-input, empty-name");
+    const origin = s.sha();
+    const third = reviewed(s, "long-name", "unicode-name");
+    assert.equal(third.session, null, "no repair is dispatched past the budget");
+    assert.equal(third.state, "human-gate");
+    assert.equal(third.gate, "repair budget exhausted after 2 rounds: long-name, unicode-name");
+    assert.equal(line(s, "State"), "human-gate");
+    assert.equal(line(s, "Gate stage"), "repair");
+    assert.equal(line(s, "Gate"), "repair budget exhausted after 2 rounds: long-name, unicode-name");
+    assert.equal(line(s, "Repair"), `pending:${origin}`);
+    assert.equal(line(s, "Repair rounds"), "3");
+    assert.match(s.run("stage", "1.1").stderr, /human gate: repair budget exhausted/);
+    for (const harness of ["manual", "claude-code", "codex"]) assert.match(s.run("brief", "1.1", "--approval", APPROVAL, "--session", "repair", "--harness", harness).stderr, /human gate: repair budget exhausted/);
+    assert.equal(s.begin().status, 1, "the Developer cannot start a repair the gate holds");
+    // Resolving the gate resumes exactly that counted repair, never a fourth.
+    assert.equal(s.run("gate", "1.1", "open", "--question", third.gate).status, 0);
+    assert.equal(s.run("gate", "1.1", "resolve", "--answer", "one more repair").status, 0);
+    const resumed = s.stage("--advance");
+    assert.equal(resumed.session, "repair"); assert.equal(resumed.rounds, 3);
+    assert.equal(line(s, "Repair rounds"), "3");
+    repaired(s);
+    assert.equal(reviewed(s, "fourth-defect").gate, "repair budget exhausted after 3 rounds: fourth-defect");
+  });
+
+  it("gates an unknown count instead of guessing one", () => {
+    for (const recorded of [null, "many", "-1"]) {
+      const s = adversary(); s.experiments(); s.stage("--advance");
+      s.set({ Repair: `completed:${"b".repeat(40)}`, ...(recorded === null ? {} : { "Repair rounds": recorded }) });
+      s.findings(identified(s.review(), "invalid-input"));
+      const before = checkpoint(s);
+      const plain = s.stage();
+      assert.equal(plain.session, null); assert.equal(plain.gate, "repair round count unknown: invalid-input");
+      assert.equal(checkpoint(s), before, "selection without --advance writes nothing");
+      const gated = s.stage("--advance");
+      assert.equal(gated.state, "human-gate"); assert.equal(gated.session, null);
+      assert.equal(line(s, "Gate"), "repair round count unknown: invalid-input");
+      assert.equal(line(s, "Gate stage"), "repair");
+      assert.equal(line(s, "Repair rounds"), recorded, "an unknown count is never written as a number");
+    }
+    const legacy = adversary(); legacy.experiments(); legacy.stage("--advance");
+    legacy.set({ Repair: `completed:${"b".repeat(40)}` }); legacy.findings();
+    assert.equal(legacy.stage().gate, "repair round count unknown: #1", "a legacy report without ids still names its findings");
+  });
+
+  it("never double-counts a pending or restarted started repair of the same origin", () => {
+    const s = adversary();
+    assert.equal(reviewed(s, "invalid-input").rounds, 1);
+    assert.equal(s.stage("--advance").rounds, 1, "re-advancing a pending repair does not count again");
+    assert.equal(s.begin().status, 0); s.commit();
+    const restarted = s.stage("--advance");
+    assert.equal(restarted.session, "repair"); assert.equal(restarted.started, true); assert.equal(restarted.rounds, 1);
+    assert.equal(s.begin().status, 0);
+    assert.equal(line(s, "Repair rounds"), "1");
+    // A started repair recorded before the engine held the count stays unknown.
+    const legacy = adversary(); reviewed(legacy, "invalid-input");
+    writeFileSync(legacy.path, checkpoint(legacy).replace(/^- Repair rounds:.*\n/m, ""));
+    const continued = legacy.stage("--advance");
+    assert.equal(continued.session, "repair"); assert.equal(continued.rounds, null);
+    assert.equal(line(legacy, "Repair rounds"), null);
+  });
+
+  it("requires a finding id when writing and still reads a legacy report without one", () => {
+    const s = setup(); const original = checkpoint(s);
+    const legacy = s.review();
+    assert.equal(validateFindingsReport(legacy).ok, true, "legacy report shape is still valid");
+    assert.deepEqual(readFindingsReport(replaceFindingsReport(original, legacy)).report, legacy, "legacy report still reads");
+    const refused = tool(s, legacy);
+    assert.notEqual(refused.status, 0); assert.match(refused.stderr, /finding 1 needs an id/);
+    assert.equal(checkpoint(s), original);
+    for (const id of ["Bad_ID", "-leading", "a".repeat(49), 7, ""]) {
+      const bad = identified(s.review()); bad.findings[0].id = id;
+      assert.equal(validateFindingsReport(bad).ok, false, String(id));
+      assert.notEqual(tool(s, bad).status, 0); assert.equal(checkpoint(s), original);
+    }
+    const duplicate = identified(s.review(), "same-defect", "same-defect");
+    assert.match(validateFindingsReport(duplicate).errors.join(), /duplicate finding id: same-defect/);
+    assert.equal(tool(s, identified(s.review(), "a".repeat(48), "x")).status, 0);
+  });
+
+  it("refuses a resolved id without reopened evidence and accepts it with that evidence", () => {
+    const s = setup();
+    assert.equal(tool(s, identified(s.review(), "invalid-input", "empty-name")).status, 0);
+    const origin = s.sha(); s.commit();
+    s.set({ State: "adversary", Repair: `completed:${origin}` });
+    const before = checkpoint(s);
+    const again = identified(s.review(), "invalid-input");
+    const refused = tool(s, again);
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stderr, /finding id invalid-input was resolved by a completed repair; reopen it only with reopened/);
+    assert.equal(checkpoint(s), before, "nothing was written");
+    for (const reopened of [{}, { because: "regressed" }, { because: "regressed", evidence: ["bad:log"] }, { because: "", evidence: ["cmd:node example"] }, { because: "regressed", evidence: ["cmd:node example"], extra: true }]) {
+      const bad = identified(s.review(), "invalid-input"); bad.findings[0].reopened = reopened;
+      assert.equal(validateFindingsReport(bad).ok, false, JSON.stringify(reopened));
+      assert.notEqual(tool(s, bad).status, 0); assert.equal(checkpoint(s), before);
+    }
+    const withoutId = s.review(); withoutId.findings[0].reopened = { because: "regressed", evidence: ["cmd:node example"] };
+    assert.match(validateFindingsReport(withoutId).errors.join(), /reopened requires the finding's id/);
+    again.findings[0].reopened = { because: "the empty-input case fails again at the new head", evidence: ["cmd:node example --empty"] };
+    const accepted = tool(s, again);
+    assert.equal(accepted.status, 0, accepted.stderr);
+    assert.deepEqual(readFindingsReport(checkpoint(s)).report, again);
+    assert.equal(line(s, "Resolved findings"), "invalid-input, empty-name", "resolved ids survive the report that replaced theirs");
+    assert.equal(tool(s, identified(s.review(), "unrelated-defect")).status, 0, "an unresolved id needs no reopening");
+    const recorded = tool(s, identified(s.review(), "empty-name"));
+    assert.notEqual(recorded.status, 0, "a recorded resolved id stays resolved after its report is gone");
+    assert.match(recorded.stderr, /finding id empty-name was resolved/);
   });
 });
