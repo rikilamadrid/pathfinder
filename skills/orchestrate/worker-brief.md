@@ -30,13 +30,19 @@ against it.
 4. Commit on the ticket branch, push it, and open a draft pull request against
    the default branch. Its body says `Closes #<issue>` for a GitHub ticket, or
    names the ticket file for a local one.
-5. On a human decision: record `Gate stage: <current pending phase>`, then set `State: human-gate` and `Gate: <question>` in
+5. Before `DONE`, self-check: check each acceptance criterion of the ticket,
+   and of its Feature where this ticket advances one, against the diff. Record
+   `Self-check: <command> | head <sha> | exit 0 | criteria <n>/<n>` in
+   `context/current-ticket.md`: the verification command run at the exact
+   published head, and how many of the checked criteria the diff meets. A
+   criterion it does not meet is unfinished work, never `DONE`.
+6. On a human decision: record `Gate stage: <current pending phase>`, then set `State: human-gate` and `Gate: <question>` in
    `context/current-ticket.md`, then stop and report `GATE: <question>`.
-6. When verified, committed, pushed, and the draft pull request is open: set
+7. When verified, self-checked, committed, pushed, and the draft pull request is open: set
    `Adversary: required`, `Review: ordinary`, and `State: adversary` before ending; report `DONE: <pull request>` with exact published head SHA.
-7. When the work cannot be completed inside the ticket: preserve `Failed stage: <pending phase>` before setting `State: failed` and
+8. When the work cannot be completed inside the ticket: preserve `Failed stage: <pending phase>` before setting `State: failed` and
    report `FAILED: <reason>`.
-8. Never merge, and never change another ticket's worktree.
+9. Never merge, and never change another ticket's worktree.
 
 A report is the first line of the worker's final message: `GATE:`, `DONE:`, or
 `FAILED:`.

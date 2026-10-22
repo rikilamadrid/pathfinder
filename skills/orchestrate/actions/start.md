@@ -231,7 +231,13 @@ human's decision.
      `GATE`. Resolving it resumes only that one counted repair. A completed
      repair's finding ids join `Resolved findings`, and a Tester report may name
      one again only with `reopened` evidence at the new head. Never repair
-     forever or use Adversary suspicions as findings.
+     forever or use Adversary suspicions as findings. A current-head Tester
+     report whose `deferred` items include an `unclear-requirement` is the
+     human's before any repair or done: `stage --advance` checkpoints
+     `State: human-gate`, `Gate stage: review`, `Gate: unclear requirement:
+     <ids>` and `Gated requirements`, and returns no session. Open and handle
+     it as above; once resolved, a fresh Tester review classifies those ids
+     from the decision.
   6. A current-head Tester PASS with the required matching experiments (or its
      recorded legacy/integration exception) selects `done` with no worker session. Hand it
      to `/orchestrate integrate <key>`; it remains unaccepted until the human gate.

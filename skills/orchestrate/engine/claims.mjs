@@ -64,6 +64,7 @@ export function readClaims(root) {
       repair: state.repair,
       repairRounds: state.repairRounds,
       resolvedFindings: state.resolvedFindings,
+      gatedRequirements: state.gatedRequirements,
       gateStage: state.gateStage,
       failedStage: state.failedStage,
       stateFile: state.present,
@@ -185,6 +186,7 @@ export function readStateFile(path) {
     repair: field("Repair"),
     repairRounds: field("Repair rounds"),
     resolvedFindings: field("Resolved findings"),
+    gatedRequirements: field("Gated requirements"),
     gateStage: field("Gate stage"),
     failedStage: field("Failed stage"),
   };
