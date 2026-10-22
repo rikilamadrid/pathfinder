@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { readExperimentReport } from "./experiments.mjs";
-import { readFindingsReport } from "./findings.mjs";
+import { checkpointIds, readFindingsReport, unclearRequirementIds } from "./findings.mjs";
 
 export function currentPr(root, branch, gh = "gh") {
   const result = spawnSync(gh, ["pr", "view", branch, "--json", "url,headRefOid"], { cwd: root, encoding: "utf8" });
@@ -49,6 +49,26 @@ function repairOrGate(claim, report, origin, extra) {
   const budget = repairBudget(claim, report, origin);
   if (!budget.ok) return selected(null, "human-gate", { gate: budget.gate, gateStage: "repair", report, repair: origin, rounds: budget.rounds, started: false, legacy: extra.legacy });
   return selected("repair", "repair", { report, repair: origin, rounds: budget.rounds, ...extra });
+}
+
+/**
+ * A report's unclear-requirement ids, split into those not yet put to a human
+ * (`pending`, which gate) and those a gate already asked (`answered`, which
+ * need a fresh Tester review from that decision); `{ error }` on a damaged
+ * `Gated requirements` line.
+ */
+export function unclearRequirements(claim, report) {
+  let gated;
+  try { gated = checkpointIds(claim.gatedRequirements, "Gated requirements"); } catch (error) { return { error: error.message }; }
+  const unclear = unclearRequirementIds(report);
+  return { gated, pending: unclear.filter((id) => !gated.includes(id)), answered: unclear.filter((id) => gated.includes(id)) };
+}
+/** Refuses a repair or done that a report's unclear requirement must stop. */
+function unclearRefusal(claim, report, stage) {
+  const unclear = unclearRequirements(claim, report);
+  if (unclear.error) return refuse(unclear.error);
+  const ids = [...unclear.pending, ...unclear.answered];
+  return ids.length ? refuse(`unclear requirement ${ids.join(", ")} in the Tester report needs a human decision and a fresh Tester review; never ${stage}`) : null;
 }
 
 /** A review's required upstream evidence, also retained at the repair origin. */
@@ -96,12 +116,16 @@ export function selectStage({ claim, text, pr, head, live = [] }) {
     if (!started && !currentFindings) return refuse("stale Tester findings before first repair worker starts");
     const prerequisite = reviewPrerequisite(claim, experiments, pr, origin);
     if (!prerequisite.ok) return prerequisite;
+    const unclear = unclearRefusal(claim, findings.report, "repair");
+    if (unclear) return unclear;
     return repairOrGate(claim, findings.report, origin, { started });
   }
   if (claim.state === "done") {
     const prerequisite = reviewPrerequisite(claim, experiments, pr, head);
     if (!prerequisite.ok) return prerequisite;
     if (!currentFindings || findings.report.result !== "PASS") return refuse("done requires independent Tester PASS at current PR head");
+    const unclear = unclearRefusal(claim, findings.report, "done");
+    if (unclear) return unclear;
     return selected(null, "done", { report: findings.report });
   }
   if (!["adversary", "review"].includes(claim.state)) return refuse(`cannot route recorded stage ${claim.state}`);
@@ -112,6 +136,15 @@ export function selectStage({ claim, text, pr, head, live = [] }) {
   if (!prerequisite.ok) {
     if (findings.ok || claim.review?.startsWith("integration:")) return prerequisite;
     return selected("adversary", "adversary");
+  }
+  // An unclear requirement at the current head is the human's, whatever else
+  // the report says: it gates before any repair or done. Once that gate has
+  // asked it, the report that raised it needs a fresh Tester review.
+  if (currentFindings) {
+    const unclear = unclearRequirements(claim, findings.report);
+    if (unclear.error) return refuse(unclear.error);
+    if (unclear.pending.length) return selected(null, "human-gate", { gate: `unclear requirement: ${unclear.pending.join(", ")}`, gateStage: "review", report: findings.report, gatedRequirements: [...unclear.gated, ...unclear.pending] });
+    if (unclear.answered.length) return selected("review", "review", { ...prerequisite, clarified: unclear.answered });
   }
   if (findings.ok && findings.report.ticket === claim.key && findings.report.pr === pr && findings.report.result === "findings" && claim.repair !== `completed:${findings.report.head_sha}`) {
     if (!currentFindings) return refuse("stale Tester findings; assess changed head before repair");

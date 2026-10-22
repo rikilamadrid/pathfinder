@@ -32,13 +32,25 @@ Report:
 
 - `PASS`, or findings by severity
 - file/location and impact for each finding
+- deferred items, by class
 - what was actually verified
 - anything important that remains unverified
 
-A finding this review or the human defers rather than repairs is reported as
-`deferred`, with its actual text and its evidence, so it is not lost; whether it
-becomes a ledger observation later is a separate, explicit act, and review still
-writes no durable state.
+Findings are blocking defects only: work this ticket must fix before it can be
+accepted. Every other observation is reported as `deferred`, with its location
+and a note, in exactly one class:
+
+- `pre-existing` — present before this ticket's diff; not this ticket's to fix.
+- `polish` — a real improvement that does not block acceptance.
+- `unclear-requirement` — whether it is a defect depends on a policy or
+  requirement the ticket and Feature do not state. It goes to the human, never
+  to repair, and a review carrying one does not end in done.
+- `duplicate` — the same issue as another finding or deferred item of this
+  report, whose id its note names.
+
+A `PASS` may carry deferred items. They are listed in the report and never
+dropped, so nothing observed is lost; whether one becomes a ledger observation
+later is a separate, explicit act, and review still writes no durable state.
 
 Do not modify the implementation unless the human explicitly asks.
 
@@ -68,14 +80,24 @@ the run records a session) so a written checkpoint reclaims that run's
 dependencies and keeps its evidence. Preserve all other sections and
 fields, including the profile and previous head identifiers. The report has
 exactly `ticket`, `pr`, `head_sha`, `result` (`PASS` or `findings`), `findings`,
-`verification` (1–20 non-empty actual check descriptions), and `limits`.
+`verification` (1–20 non-empty actual check descriptions), and `limits`, and
+may have `deferred`.
 `PASS` has an empty findings array; `findings` has 1–12 complete findings,
 each with exactly `id`, `severity`, `location`, `impact`, `evidence` (1–20
 existing `type:locator` references), and `repair_instruction`. `id` matches
 `^[a-z0-9][a-z0-9-]{0,47}$` and stays the same across rounds for the same
 defect. A finding whose id the checkpoint lists under `Resolved findings` also
 carries `reopened: { because, evidence }`, its evidence observed at the new
-head; without it the write is refused. Strings are non-empty,
+head; without it the write is refused. `deferred` holds at most 12 items, each
+with exactly `id` (the same grammar, unique across findings and deferred),
+`class` (`pre-existing`, `polish`, `unclear-requirement` or `duplicate`),
+`location` and `note`; a `duplicate`'s note names the id it duplicates. Any
+`unclear-requirement` at the reviewed head makes the coordinator's
+`stage --advance` open a human gate (`Gate stage: review`) before any repair or
+done, and record its id under `Gated requirements`. Once that gate is resolved,
+the fresh review reads the decision from the ticket's latest gate note and
+classifies the item from it as a blocking finding or another deferred class: a
+gated id listed as `unclear-requirement` again is refused. Strings are non-empty,
 at most 2048 characters; the entire JSON is at most 32 KiB. This checkpoint is
 transient, not a durable regression record or acceptance decision.
 

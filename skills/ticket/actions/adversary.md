@@ -65,6 +65,25 @@ Even under an override, this action grants no repair, verdict or acceptance.
    defects must reach independent Tester through `/ticket review` before any
    Developer repair instruction. Do not dispatch another role yourself.
 
+## After a repair
+
+A round that follows a completed repair is targeted and fresh. The orchestrated
+brief names the repaired finding ids and the repair range
+`<reviewed sha>..<head>`; in human-in-the-loop mode, take both from the
+findings that were repaired and the revision they were reviewed at. The report
+must then include, at the new head:
+
+- one regression experiment per repaired id, whose `contract` names that id
+  (the `experiment_id` stays the experiment's own, never the finding's), and
+- at least one experiment on the repair diff itself, the code the range
+  changed.
+
+These are the floor, not the ceiling: attack more widely when the repair
+suggests it. Every experiment is run again at this head. A previous round's
+experiment, observation or evidence is history, never cited or copied as
+current; a check worth keeping is rerun and reported with what it observed now.
+Classifying what the experiments show remains Tester's.
+
 ## Report contract
 
 The orchestrator report has exactly `ticket`, `pr` (full PR URL), `head_sha`

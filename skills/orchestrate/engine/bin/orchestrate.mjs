@@ -47,7 +47,7 @@ import { dispatchCheck } from "../dispatch.mjs";
 import { approvalScope, blockedNote, claimedNote, gateOpenedNote, gateResolvedNote, unblockedNote } from "../comments.mjs";
 import { checkpointText, currentPr, selectStage } from "../stage.mjs";
 import { readExperimentReport } from "../experiments.mjs";
-import { readFindingsReport, recordResolvedFindings } from "../findings.mjs";
+import { readFindingsReport, recordResolvedFindings, resolvedFindingIds } from "../findings.mjs";
 import { buildBundle, criteriaNeedingSummary, decide, summarizedOf, DEFAULT_TIMEOUT_MS, duplicateJudgment, evaluate, JUDGMENT_HEADING, judgmentRecord, replaceJudgment } from "../judgment.mjs";
 import { loadJudge } from "../judges/registry.mjs";
 import { computePlan, formatPlan } from "../plan.mjs";
@@ -79,6 +79,8 @@ const USAGE = `orchestrate
       --advance checkpoints a pending phase; it never marks repair started.
         It counts Repair rounds and opens the human gate instead of a third
         repair or one on an unknown count, and records Resolved findings.
+        An unclear-requirement deferred item opens the human gate (Gate
+        stage: review) before any repair or done, and records Gated requirements.
       --begin-repair runs only in the owning Developer worktree before edits.
       --guidance with --advance restores a recorded failed phase after authorization.
 
@@ -524,6 +526,9 @@ function stage({ root, key, gh, live, adopt, advance, beginRepair, guidance, jso
     // The budget gate records its repair origin, so resolving the gate resumes
     // exactly that pending repair, already counted, and nothing else.
     if (result.state === "human-gate") { set.Gate = result.gate; set["Gate stage"] = result.gateStage; }
+    // An unclear-requirement gate records what it asked, so the answered
+    // report goes back to the Tester rather than to the same gate again.
+    if (result.gatedRequirements) set["Gated requirements"] = result.gatedRequirements.join(", ");
     if (result.state === "adversary") { set.Adversary = "required"; set.Review = "ordinary"; }
     if (guidance) set.Last = `human failure-resume guidance: ${oneLine(guidance)}`;
     try { replaceCheckpoint(join(worktree, "context/current-ticket.md"), stageCheckpoint, latest => updateStateText(recordResolvedFindings(latest), { set, unset: guidance ? ["Failed stage"] : [] })); }
@@ -671,8 +676,18 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", s
       built.brief.protocol.push(`Human-directed fresh review: ${JSON.stringify(record.request.concern)}; direction: ${record.request.authorization.direction}. Historical reports are not current authority. Perform fresh work addressing this concern, include new evidence and a followup object with id ${record.id}, concern ${followupDigest(record.request.concern)}, response (bounded description of actual concern verification), experiments_digest ${session === "review" ? followupDigest(experiments) : record.experiments_digest}. Tester must independently review the current experiments. Never relabel an old report.`);
     }
   }
+  if (session === "adversary") {
+    const repaired = repairedRound(found, checkpointText(root, found), reviewIdentity.head);
+    if (repaired) built.brief.protocol.push(`Post-repair round. Repaired finding ids: ${repaired.ids.join(", ")}. Repair range: ${repaired.range}. At head ${reviewIdentity.head}, include one fresh regression experiment per repaired id (name the id in its contract) and at least one experiment on the repair diff (git diff ${repaired.range}); you may attack more widely. The previous round's experiments are history, never current evidence: do not cite or copy them as this round's.`);
+  }
+  if (session === "review") {
+    let resolved = [];
+    try { resolved = resolvedFindingIds(checkpointText(root, found)).ids; } catch (error) { return fail(1, error.message); }
+    if (resolved.length) built.brief.protocol.push(`Resolved finding ids: ${resolved.join(", ")}. A finding naming one again needs reopened: { because, evidence } with evidence observed at this head; otherwise the checkpoint write is refused.`);
+    if (handoff?.clarified?.length) built.brief.protocol.push(`A human gate answered unclear requirement ${handoff.clarified.join(", ")}; the decision is in the ticket's latest gate note. Review this head afresh and classify each from that decision as a blocking finding or another deferred class; never list it as unclear-requirement again.`);
+  }
   if (handoff?.experiments) built.brief.protocol.push(`Adversary experiments to independently verify: ${JSON.stringify(handoff.experiments)}`);
-  if (handoff?.report) built.brief.protocol.push(`Confirmed Tester findings at the original reviewed head; repair only these, not unverified experiments: ${JSON.stringify(handoff.report)}`);
+  if (handoff?.report) built.brief.protocol.push(`Confirmed Tester findings at the original reviewed head; repair every one of its findings and only those — not its deferred items, which are listed, not repaired, and not unverified experiments: ${JSON.stringify(handoff.report)}`);
   // Only a project that names a judge asks for the judge-facing projection.
   if (readEvidenceJudge(root).explicit && JUDGE_PROJECTION[session]) {
     built.brief.protocol.push(JUDGE_PROJECTION[session]);
@@ -685,6 +700,19 @@ async function brief({ root, key, harness, session, approval, json, gh = "gh", s
     json ? JSON.stringify({ brief: built.brief, translation: translated, routing }, null, 2) + "\n" : formatBrief(built.brief),
   );
   return 0;
+}
+
+/**
+ * The repair an Adversary round follows: the ids of the Tester report a
+ * `Repair: completed:<sha>` line repaired, while that report is still the
+ * checkpoint's, and the range from its reviewed head to the current one.
+ */
+function repairedRound(claim, text, head) {
+  const completed = /^completed:([a-f0-9]{40})$/i.exec(claim.repair ?? "");
+  if (!completed) return null;
+  const read = readFindingsReport(text);
+  if (!read.ok || read.report.result !== "findings" || read.report.head_sha.toLowerCase() !== completed[1].toLowerCase()) return null;
+  return { ids: read.report.findings.map((finding, index) => typeof finding.id === "string" ? finding.id : `#${index + 1}`), range: `${read.report.head_sha}..${head}` };
 }
 
 function dispatchCheckCommand({ root, key, session, harness, briefPath, transcript, declared, json }) {

@@ -18,6 +18,24 @@ import { updateStateText } from "./statefile.mjs";
 export const FINDINGS_HEADING = "## Tester findings";
 /** A finding's stable identity: the same id names the same defect in every round. */
 export const FINDING_ID = /^[a-z0-9][a-z0-9-]{0,47}$/;
+/**
+ * What a deferred item may be. `findings` holds blocking defects only; these
+ * are kept and listed, never repaired. An `unclear-requirement` is the
+ * human's to decide: it gates, never repairs and never reaches done.
+ */
+export const DEFERRED_CLASSES = Object.freeze(["pre-existing", "polish", "unclear-requirement", "duplicate"]);
+const DEFERRED_FIELDS = Object.freeze(["id", "class", "location", "note"]);
+/** A report's unclear-requirement ids, in report order. */
+export function unclearRequirementIds(report) {
+  return (Array.isArray(report?.deferred) ? report.deferred : []).filter((d) => d?.class === "unclear-requirement" && typeof d.id === "string").map((d) => d.id);
+}
+/** The ids a comma-separated checkpoint line lists; throws on an invalid one. */
+export function checkpointIds(value, name) {
+  const ids = (value ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+  const invalid = ids.find((id) => !FINDING_ID.test(id));
+  if (invalid !== undefined) throw new Error(`${name} carries an invalid id: ${invalid}`);
+  return [...new Set(ids)];
+}
 const nonempty = (v) => typeof v === "string" && v.trim() !== "" && v.length <= 2048;
 const object = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const list = (v) => Array.isArray(v) && v.length >= 1 && v.length <= 20 && v.every(nonempty);
@@ -27,7 +45,7 @@ export function validateFindingsReport(report) {
   if (report?.followup !== undefined) errors.push(...followupBindingErrors(report.followup));
   if (!object(report)) return { ok: false, errors: ["review must be an object"] };
   if (Buffer.byteLength(JSON.stringify(report, null, 2)) > 32768) errors.push("review exceeds 32 KiB");
-  for (const key of Object.keys(report)) if (!["ticket", "pr", "head_sha", "result", "findings", "verification", "limits", "judge", "followup"].includes(key)) errors.push(/^[a-z_]{1,32}$/.test(key) ? `unknown review field: ${key}` : "an unknown review field");
+  for (const key of Object.keys(report)) if (!["ticket", "pr", "head_sha", "result", "findings", "deferred", "verification", "limits", "judge", "followup"].includes(key)) errors.push(/^[a-z_]{1,32}$/.test(key) ? `unknown review field: ${key}` : "an unknown review field");
   if (typeof report.ticket !== "string" || !/^\d+\.\d+$/.test(report.ticket)) errors.push("invalid ticket");
   if (typeof report.pr !== "string" || !/^https:\/\/[^\s]+\/pull\/[1-9]\d*$/.test(report.pr ?? "")) errors.push("invalid PR URL");
   if (typeof report.head_sha !== "string" || !/^[a-f0-9]{40}$/i.test(report.head_sha)) errors.push("invalid reviewed SHA");
@@ -50,6 +68,24 @@ export function validateFindingsReport(report) {
       const r = f.reopened;
       if (f.id === undefined) errors.push("reopened requires the finding's id");
       if (!object(r) || Object.keys(r).some((key) => !["because", "evidence"].includes(key)) || !nonempty(r.because) || !refs(r.evidence)) errors.push("reopened must be exactly { because, evidence } with 1–20 type:locator references");
+    }
+  }
+  // Observations that are not blocking defects: listed, kept, never repaired.
+  if (report.deferred !== undefined) {
+    if (!Array.isArray(report.deferred) || report.deferred.length > 12) errors.push("deferred must be a list of at most 12 items");
+    else {
+      for (const d of report.deferred) {
+        if (!object(d) || Object.keys(d).some((key) => !DEFERRED_FIELDS.includes(key)) || !nonempty(d.location) || !nonempty(d.note)) { errors.push("deferred item must be exactly { id, class, location, note } with non-empty location and note"); continue; }
+        if (typeof d.id !== "string" || !FINDING_ID.test(d.id)) errors.push("deferred id must match ^[a-z0-9][a-z0-9-]{0,47}$");
+        else if (ids.has(d.id)) errors.push(`duplicate finding id: ${d.id}`);
+        else ids.add(d.id);
+        if (!DEFERRED_CLASSES.includes(d.class)) errors.push(`deferred class must be ${DEFERRED_CLASSES.join(", ")}`);
+      }
+      // A duplicate names, in its note, the id of another item in this report.
+      for (const d of report.deferred) {
+        if (!object(d) || d.class !== "duplicate" || typeof d.note !== "string") continue;
+        if (![...ids].some((id) => id !== d.id && new RegExp(`(?<![a-z0-9-])${id}(?![a-z0-9-])`).test(d.note))) errors.push(`duplicate ${d.id} must name in its note the id of the finding or deferred item it duplicates`);
+      }
     }
   }
   // The optional judge-facing projection: shape only here, so lifecycle
@@ -87,6 +123,12 @@ export function readFindingsReport(text) {
   if (checked.ok) checked.errors.push(...followupReportErrors(text, report, "tester"));
   return checked.ok && checked.errors.length === 0 ? { ok: true, report } : { ok: false, errors: checked.errors };
 }
+/** One `- Name: value` checkpoint line's value, or null; throws on a duplicate. */
+function checkpointField(text, name) {
+  const found = [...text.matchAll(new RegExp(`^-\\s*${name}:[ \\t]*(.*?)[ \\t]*\\r?$`, "gm"))];
+  if (found.length > 1) throw new Error(`duplicate ${name} field; human reconciliation required`);
+  return found.length ? found[0][1] : null;
+}
 /**
  * The finding ids a completed repair resolved: the recorded `Resolved
  * findings` line, plus the ids of the report a `Repair: completed:<sha>` line
@@ -94,11 +136,7 @@ export function readFindingsReport(text) {
  * lost when the next Tester report replaces it. Throws on a damaged line.
  */
 export function resolvedFindingIds(text) {
-  const field = (name) => {
-    const found = [...text.matchAll(new RegExp(`^-\\s*${name}:[ \\t]*(.*?)[ \\t]*\\r?$`, "gm"))];
-    if (found.length > 1) throw new Error(`duplicate ${name} field; human reconciliation required`);
-    return found.length ? found[0][1] : null;
-  };
+  const field = (name) => checkpointField(text, name);
   const recorded = (field("Resolved findings") ?? "").split(",").map((id) => id.trim()).filter(Boolean);
   const invalid = recorded.find((id) => !FINDING_ID.test(id));
   if (invalid !== undefined) throw new Error(`Resolved findings carries an invalid id: ${invalid}`);
@@ -117,12 +155,21 @@ export function recordResolvedFindings(text) {
   return updateStateText(text, { set: { "Resolved findings": ids.join(", ") } });
 }
 /**
- * What refuses writing a report through --checkpoint beyond its shape: every
- * finding names its stable id, and a finding whose id a completed repair
- * resolved is reopened only with new evidence.
+ * The unclear-requirement ids already put to a human at a gate, recorded by
+ * `stage --advance` under `Gated requirements`. Throws on a damaged line.
  */
-export function findingsWriteErrors(report, resolved = []) {
+export function gatedRequirementIds(text) {
+  return checkpointIds(checkpointField(text, "Gated requirements"), "Gated requirements");
+}
+/**
+ * What refuses writing a report through --checkpoint beyond its shape: every
+ * finding names its stable id, a finding whose id a completed repair resolved
+ * is reopened only with new evidence, and a requirement a human gate already
+ * decided is classified from that decision, never put back as unclear.
+ */
+export function findingsWriteErrors(report, resolved = [], gated = []) {
   const errors = [];
+  for (const id of unclearRequirementIds(report)) if (gated.includes(id)) errors.push(`unclear requirement ${id} was already put to the human at a gate; classify it from that decision (the ticket's latest gate note) as a blocking finding or another deferred class, or open a gate with a new question`);
   (Array.isArray(report?.findings) ? report.findings : []).forEach((finding, index) => {
     if (!object(finding)) return;
     if (finding.id === undefined) errors.push(`finding ${index + 1} needs an id matching ^[a-z0-9][a-z0-9-]{0,47}$, kept the same across rounds for the same defect`);
@@ -175,7 +222,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
     }
     const checked = validateFindingsReport(report);
     if (!checked.ok) throw new Error(`${checked.errors.join("; ")}; nothing was written`);
-    const identity = findingsWriteErrors(report, resolvedFindingIds(text).ids);
+    const identity = findingsWriteErrors(report, resolvedFindingIds(text).ids, gatedRequirementIds(text));
     if (identity.length) throw new Error(`${identity.join("; ")}; nothing was written`);
     // Record the resolved ids before this report replaces the one they came from.
     replaceCheckpoint(path, text, (latest) => replaceFindingsReport(recordResolvedFindings(latest), report));

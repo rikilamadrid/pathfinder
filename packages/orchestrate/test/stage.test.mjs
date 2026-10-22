@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { after, describe, it } from "node:test";
 import { replaceExperimentReport } from "../../../skills/orchestrate/engine/experiments.mjs";
-import { readFindingsReport, renderFindingsReport, replaceFindingsReport, validateFindingsReport } from "../../../skills/orchestrate/engine/findings.mjs";
+import { DEFERRED_CLASSES, readFindingsReport, renderFindingsReport, replaceFindingsReport, validateFindingsReport } from "../../../skills/orchestrate/engine/findings.mjs";
+import { PROTOCOLS } from "../../../skills/orchestrate/engine/brief.mjs";
 import { updateStateText } from "../../../skills/orchestrate/engine/statefile.mjs";
 import { cleanUpTemporaryDirectories, ENGINE_ROOT, makeProject, orchestrate, prGh, json, runGit } from "../lib/harness.mjs";
 after(cleanUpTemporaryDirectories);
@@ -401,5 +402,189 @@ describe("engine-held repair budget and stable finding identity", () => {
     const recorded = tool(s, identified(s.review(), "empty-name"));
     assert.notEqual(recorded.status, 0, "a recorded resolved id stays resolved after its report is gone");
     assert.match(recorded.stderr, /finding id empty-name was resolved/);
+  });
+});
+
+describe("classified findings and convergent worker protocols", () => {
+  const checkpoint = (s) => readFileSync(s.path, "utf8");
+  const line = (s, name) => (new RegExp(`^- ${name}: (.*)$`, "m").exec(checkpoint(s)) ?? [])[1] ?? null;
+  const tool = (s, report) => spawnSync(process.execPath, [join(ENGINE_ROOT, "findings.mjs"), "--checkpoint"], { cwd: s.worktree, input: JSON.stringify(report), encoding: "utf8" });
+  const item = (id, cls = "polish", note = "a clearer message would help") => ({ id, class: cls, location: "example.mjs:2", note });
+  const deferring = (report, ...items) => ({ ...report, deferred: items });
+  /** A claim in review at its current head, with matching experiments. */
+  const inReview = () => { const s = setup(); s.set({ State: "adversary", Review: "ordinary" }); s.experiments(); assert.equal(s.stage("--advance").state, "review"); return s; };
+  const brief = (s, session, harness = "manual") => s.run("brief", "1.1", "--approval", APPROVAL, "--session", session, "--harness", harness);
+
+  it("checks deferred shape, class and limits, and keeps findings for blocking defects", () => {
+    const s = setup(); const original = checkpoint(s);
+    const pass = s.review("PASS");
+    for (const cls of DEFERRED_CLASSES) {
+      const report = deferring(pass, item("seen", "polish"), item("other", cls, "same as seen"));
+      assert.equal(validateFindingsReport(report).ok, true, `${cls}: ${validateFindingsReport(report).errors}`);
+    }
+    assert.equal(validateFindingsReport(deferring(pass)).ok, true, "an empty deferred list is allowed");
+    assert.equal(validateFindingsReport(deferring(identified(s.review(), "invalid-input"), item("wording"))).ok, true, "findings may carry deferred items");
+    const twelve = Array.from({ length: 12 }, (_, i) => item(`polish-${i}`));
+    assert.equal(validateFindingsReport(deferring(pass, ...twelve)).ok, true);
+    assert.match(validateFindingsReport(deferring(pass, ...twelve, item("thirteen"))).errors.join(), /at most 12/);
+    assert.match(validateFindingsReport({ ...pass, deferred: {} }).errors.join(), /at most 12/);
+    const refused = [
+      [item("x", "blocking"), /deferred class must be/],
+      [item("x", "Polish"), /deferred class must be/],
+      [{ id: "x", class: "polish", location: "a" }, /exactly \{ id, class, location, note \}/],
+      [{ ...item("x"), severity: "low" }, /exactly \{ id, class, location, note \}/],
+      [{ ...item("x"), note: " " }, /exactly \{ id, class, location, note \}/],
+      [item("Bad_ID"), /deferred id must match/],
+      [item(7), /deferred id must match/],
+      ["not an item", /exactly \{ id, class, location, note \}/],
+    ];
+    for (const [bad, error] of refused) {
+      const report = deferring(pass, bad);
+      assert.match(validateFindingsReport(report).errors.join(), error, JSON.stringify(bad));
+      assert.notEqual(tool(s, report).status, 0); assert.equal(checkpoint(s), original);
+    }
+    assert.match(validateFindingsReport(deferring(identified(s.review(), "same"), item("same"))).errors.join(), /duplicate finding id: same/, "one id namespace across findings and deferred");
+    assert.match(validateFindingsReport(deferring(pass, item("a"), item("a"))).errors.join(), /duplicate finding id: a/);
+    // A duplicate names the id it duplicates: of this report, not itself, not a near miss.
+    assert.match(validateFindingsReport(deferring(pass, item("dup", "duplicate", "repeats something"))).errors.join(), /dup must name/);
+    assert.match(validateFindingsReport(deferring(pass, item("dup", "duplicate", "same as dup"))).errors.join(), /dup must name/);
+    assert.match(validateFindingsReport(deferring(pass, item("seen"), item("dup", "duplicate", "same as seen-again"))).errors.join(), /dup must name/);
+    assert.equal(validateFindingsReport(deferring(identified(s.review(), "invalid-input"), item("dup", "duplicate", "Adversary E2 repeats invalid-input"))).ok, true);
+    const written = deferring(identified(s.review(), "invalid-input"), item("wording"), item("old-bug", "pre-existing", "present at the base"));
+    assert.equal(tool(s, written).status, 0, tool(s, written).stderr);
+    assert.deepEqual(readFindingsReport(checkpoint(s)).report, written, "deferred items are kept in the checkpoint");
+  });
+
+  it("selects done for a PASS with only non-gating deferred items, which stay in the checkpoint", () => {
+    const s = inReview();
+    const report = deferring(s.review("PASS"), item("wording"), item("old-bug", "pre-existing", "present at the base"), item("again", "duplicate", "same as wording"));
+    assert.equal(tool(s, report).status, 0);
+    const done = s.stage("--advance");
+    assert.equal(done.state, "done"); assert.equal(done.session, null);
+    assert.deepEqual(readFindingsReport(checkpoint(s)).report.deferred, report.deferred);
+    assert.equal(line(s, "Gated requirements"), null);
+  });
+
+  it("gates an unclear requirement at the current head before repair or done, then sends it back to a fresh Tester", () => {
+    for (const result of ["PASS", "findings"]) {
+      const s = inReview();
+      const report = deferring(result === "PASS" ? s.review("PASS") : identified(s.review(), "invalid-input"), item("wording"), item("empty-policy", "unclear-requirement", "ticket sets no empty-result policy"), item("length-cap", "unclear-requirement", "no length rule"));
+      assert.equal(tool(s, report).status, 0);
+      const before = checkpoint(s);
+      const plain = s.stage();
+      assert.equal(plain.state, "human-gate"); assert.equal(plain.session, null);
+      assert.equal(checkpoint(s), before, "selection without --advance writes nothing");
+      const gated = s.stage("--advance");
+      assert.equal(gated.state, "human-gate"); assert.equal(gated.session, null, `${result}: never repair or done`);
+      assert.equal(gated.gate, "unclear requirement: empty-policy, length-cap");
+      assert.equal(line(s, "State"), "human-gate");
+      assert.equal(line(s, "Gate stage"), "review");
+      assert.equal(line(s, "Gate"), "unclear requirement: empty-policy, length-cap");
+      assert.equal(line(s, "Gated requirements"), "empty-policy, length-cap");
+      assert.equal(line(s, "Repair"), null, "no repair is pending"); assert.equal(line(s, "Repair rounds"), null, "a gate is not a repair round");
+      assert.deepEqual(readFindingsReport(checkpoint(s)).report, report, "the report and its deferred items are kept");
+      for (const session of ["repair", "review"]) assert.match(brief(s, session).stderr, /human gate: unclear requirement/);
+      assert.equal(s.run("gate", "1.1", "open", "--question", gated.gate).status, 0);
+      assert.equal(s.run("gate", "1.1", "resolve", "--answer", "empty input throws; no length cap").status, 0);
+      const fresh = s.stage("--advance");
+      assert.equal(fresh.session, "review", "an answered gate goes to a fresh Tester, not the same gate again");
+      assert.deepEqual(fresh.clarified, ["empty-policy", "length-cap"]);
+      assert.equal(line(s, "State"), "review");
+      const text = brief(s, "review").stdout;
+      assert.match(text, /A human gate answered unclear requirement empty-policy, length-cap; the decision is in the ticket's latest gate note/);
+      const again = tool(s, deferring(s.review("PASS"), item("empty-policy", "unclear-requirement", "still unclear")));
+      assert.notEqual(again.status, 0);
+      assert.match(again.stderr, /unclear requirement empty-policy was already put to the human at a gate/);
+      const answered = deferring(identified(s.review(), "empty-policy"), item("length-cap", "polish", "the human ruled length out of contract"));
+      assert.equal(tool(s, answered).status, 0);
+      const repair = s.stage("--advance");
+      assert.equal(repair.session, "repair", "the clarified requirement became a blocking finding");
+      assert.equal(repair.rounds, 1);
+      const another = inReview();
+      assert.equal(tool(another, deferring(another.review("PASS"), item("q-one", "unclear-requirement", "unstated"))).status, 0);
+      another.stage("--advance");
+      another.set({ State: "review", "Gated requirements": "q-one" });
+      writeFileSync(another.path, checkpoint(another).replace(/^- Gate(?: stage)?:.*\n/gm, ""));
+      assert.equal(tool(another, deferring(another.review("PASS"), item("q-two", "unclear-requirement", "another unstated policy"))).status, 0);
+      const second = another.stage("--advance");
+      assert.equal(second.gate, "unclear requirement: q-two", "a new unclear requirement gates again");
+      assert.equal(line(another, "Gated requirements"), "q-one, q-two");
+    }
+  });
+
+  it("never lets a report carrying an unclear requirement repair or finish", () => {
+    const repair = inReview();
+    assert.equal(tool(repair, deferring(identified(repair.review(), "invalid-input"), item("policy", "unclear-requirement", "unstated"))).status, 0);
+    repair.set({ State: "repair", Repair: `pending:${repair.sha()}`, "Repair rounds": "1" });
+    assert.match(repair.run("stage", "1.1", "--advance").stderr, /unclear requirement policy .*never repair/);
+    assert.match(brief(repair, "repair").stderr, /unclear requirement policy/);
+    const done = inReview();
+    assert.equal(tool(done, deferring(done.review("PASS"), item("policy", "unclear-requirement", "unstated"))).status, 0);
+    done.set({ State: "done" });
+    assert.match(done.run("stage", "1.1").stderr, /unclear requirement policy .*never done/);
+    const damaged = inReview();
+    assert.equal(tool(damaged, deferring(damaged.review("PASS"), item("policy", "unclear-requirement", "unstated"))).status, 0);
+    damaged.set({ "Gated requirements": "Not An Id" });
+    assert.match(damaged.run("stage", "1.1").stderr, /Gated requirements carries an invalid id: Not An Id/);
+  });
+
+  it("hands a repair the findings and deferred items, repairing only the findings", () => {
+    const s = inReview();
+    const report = deferring(identified(s.review(), "invalid-input", "empty-name"), item("wording"));
+    assert.equal(tool(s, report).status, 0);
+    assert.equal(s.stage("--advance").session, "repair");
+    const text = brief(s, "repair").stdout;
+    assert.match(text, /repair every one of its findings and only those — not its deferred items, which are listed, not repaired/);
+    assert.match(text, /"deferred":\[\{"id":"wording"/);
+    assert.match(text, /"id":"invalid-input".*"id":"empty-name"/);
+  });
+
+  it("names the repaired ids and range to the post-repair Adversary, and resolved ids to the Tester", () => {
+    const s = inReview();
+    assert.equal(tool(s, identified(s.review(), "invalid-input", "empty-name")).status, 0);
+    s.stage("--advance");
+    const origin = s.sha();
+    assert.equal(s.begin().status, 0); s.commit();
+    s.set({ State: "adversary", Adversary: "required", Review: "ordinary", Repair: `completed:${origin}` });
+    for (const harness of ["manual", "claude-code", "codex"]) {
+      const r = brief(s, "adversary", harness);
+      assert.equal(r.status, 0, r.stderr);
+    }
+    const text = brief(s, "adversary").stdout;
+    assert.match(text, new RegExp(`Repaired finding ids: invalid-input, empty-name\\. Repair range: ${origin}\\.\\.${s.sha()}\\.`));
+    assert.match(text, /one fresh regression experiment per repaired id/);
+    assert.match(text, /at least one experiment on the repair diff/);
+    assert.match(text, /never cited or copied as this round's|do not cite or copy them as this round's/);
+    s.experiments(); assert.equal(s.stage("--advance").state, "review");
+    const review = brief(s, "review").stdout;
+    assert.match(review, /Resolved finding ids: invalid-input, empty-name\. A finding naming one again needs reopened/);
+    // A first-round Adversary is not told about a repair that never happened.
+    const first = setup(); first.set({ State: "adversary", Review: "ordinary" });
+    assert.doesNotMatch(brief(first, "adversary").stdout, /Repaired finding ids|Post-repair round/);
+    first.experiments(); first.stage("--advance");
+    assert.doesNotMatch(brief(first, "review").stdout, /Resolved finding ids/);
+  });
+
+  it("carries the self-check, batch repair and targeted-regression steps in the protocols", () => {
+    for (const session of ["implementation", "resume"]) {
+      const steps = PROTOCOLS[session].join("\n");
+      assert.match(steps, /Before DONE, self-check: check each acceptance criterion .* against the diff/);
+      assert.match(steps, /Self-check: <command> \| head <sha> \| exit 0 \| criteria <n>\/<n>/);
+      assert.ok(PROTOCOLS[session].findIndex((step) => step.includes("Self-check:")) < PROTOCOLS[session].findIndex((step) => step.includes("report DONE:")), "self-check comes before DONE");
+    }
+    const repair = PROTOCOLS.repair.join("\n");
+    assert.match(repair, /Fix every blocking finding of the report in this one session/);
+    assert.match(repair, /For each finding id add or name a regression check .* or state why none is possible/);
+    assert.match(repair, /Self-check: <command> \| head <sha> \| exit 0 \| addressed <ids>/);
+    assert.match(repair, /deferred items are listed, not repaired/);
+    const adversary = PROTOCOLS.adversary.join("\n");
+    assert.match(adversary, /repaired finding ids and the repair range <reviewed sha>\.\.<head>/);
+    assert.match(adversary, /one fresh regression experiment per repaired id and at least one experiment on the repair diff/);
+    assert.match(adversary, /Never cite the previous round's experiments as current/);
+    const review = PROTOCOLS.review.join("\n");
+    assert.match(review, /findings holds blocking defects only/);
+    assert.match(review, /deferred items are listed in the report, never dropped/);
+    assert.match(review, /pre-existing, polish, unclear-requirement or duplicate/);
+    assert.doesNotMatch(review, /\/ticket start|draft pull request|Run \/ticket load/, "review stays review");
   });
 });
