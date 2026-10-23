@@ -312,3 +312,26 @@ substitution occurred. Exact interruption duration, a durable human decision
 to wait and a rejected cross-harness handoff are not established. No
 hours-long wait or rejected handoff is claimed, and whether another harness
 could have resumed successfully is unknown.
+
+## 010 — Claim release removed the worktree's review checkpoints before they were archived
+
+<!-- pathfinder:improvement 010 -->
+
+- Observed: 2026-10-21
+- Source: integration
+- Scope: workflow
+- Category: missing-contract
+- Human intervention: correction
+- Impact: medium
+- Candidate improvement: Make orchestrate release copy the claim's context/current-ticket.md (and its ignored review/adversary scratch) to .pathfinder/archives/<key>/ before removing the worktree, or refuse release until that archive exists; state the step in integrate.md step 8.
+- Status: Open
+- Evidence: `issue:197`, `pr:201`, `file:skills/orchestrate/actions/integrate.md`
+- Occurrences: 1
+  - 2026-10-21 — `issue:197`, `pr:201`, `file:skills/orchestrate/actions/integrate.md`
+
+Integrating 61.2, orchestrate release removed the worktree with its
+current-ticket.md (Adversary and Tester checkpoints, including the final PASS
+at fb4f1ab) and the reviewers' scratch scripts. Earlier tickets (57.x) had
+been archived by hand first; nothing in integrate.md or release requires it.
+The archive was rebuilt from the engine-generated briefs; the final PASS
+survives only as a summary and the scratch scripts are lost.
