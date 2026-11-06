@@ -24,9 +24,12 @@
  * from the claim worktree (the trusted repository) and refused if it merges,
  * adds a gitlink, a symlink that could lead out of the repository, a `.git` or
  * `..` path component, or touches a host-owned path — compared as a case- and
- * normalization-insensitive filesystem would check it out; its state may move
- * only toward the next host-checked stage. Imported commits are unverified
- * work: collecting never marks a ticket reviewed or done.
+ * normalization-insensitive filesystem would check it out; a tip whose paths
+ * such a filesystem would fold onto each other is refused too. The import
+ * never replaces a file Git does not track in the claim worktree — an ignored
+ * state file, `.env` or `.pathfinder/` evidence — and its state may move only
+ * toward the next host-checked stage. Imported commits are unverified work:
+ * collecting never marks a ticket reviewed or done.
  *
  * Collect only once the sandbox has stopped and nothing can write the
  * workspace any more. Reads never follow a link and recheck the directories
@@ -70,14 +73,20 @@ export const IMPORT_REF_PREFIX = "refs/pathfinder/sandbox-import/";
 export const MAX_IMPORT_COMMITS = 100;
 /**
  * Host-owned paths an imported commit may not add, change, or delete. A
- * trailing `/` names a directory and everything under it. Matched through
- * `foldName`, as a case- and normalization-insensitive filesystem would check
- * them out.
+ * trailing `/` names a directory. Each entry is refused as itself, as
+ * anything under it, and as a file or link standing where one of its leading
+ * directories belongs: `.claude` as a link is `.claude/`, and `context` as a
+ * link would hold `context/tracker.md`. Matched through `foldName`, as a case-
+ * and normalization-insensitive filesystem would check them out. The claim's
+ * own state files are here so a sandbox can never track them, even where the
+ * host has none yet.
  */
 export const PROTECTED_PATHS = Object.freeze([
   ".gitignore",
   "context/execution-mode.md",
   "context/tracker.md",
+  "context/current-ticket.md",
+  "context/handoff.md",
   ".pathfinder/",
   ".github/",
   ".claude/",
@@ -378,17 +387,26 @@ export function stateErrors(state, { allowCommits = false } = {}) {
 }
 
 /**
- * Why an imported path is refused, or null: a `.git` or `..` component, or a
+ * Why an imported entry is refused, or null: a `.git` or `..` component, or a
  * host-owned path. Both are compared through `foldName`, so `.agentſ/` is
  * `.agents/` and `.pathﬁnder/` is `.pathfinder/`, as APFS would check them out.
+ *
+ * `file` is a file, link or gitlink, as `diff-tree -r` lists them — never a
+ * directory. So an entry named exactly a protected directory, `.claude` or
+ * `.Claude`, is refused like anything under it, and so is one named for a
+ * protected path's leading directory, such as a link `context`.
  */
 export function importPathProblem(file) {
   const segments = String(file).split("/");
   if (segments.some(dotGit)) return `${JSON.stringify(file)} has a .git component`;
   if (segments.some((segment) => segment === ".." || segment === "." || segment === "")) return `${JSON.stringify(file)} has a "..", "." or empty component`;
   const folded = foldName(file);
-  const owned = PROTECTED_PATHS.find((entry) => (entry.endsWith("/") ? folded.startsWith(entry) : folded === entry));
-  return owned ? `${JSON.stringify(file)} is host-owned (${owned})` : null;
+  for (const entry of PROTECTED_PATHS) {
+    const base = entry.endsWith("/") ? entry.slice(0, -1) : entry;
+    if (folded === base || folded.startsWith(`${base}/`)) return `${JSON.stringify(file)} is host-owned (${entry})`;
+    if (base.startsWith(`${folded}/`)) return `${JSON.stringify(file)} stands where the directory holding host-owned ${entry} belongs`;
+  }
+  return null;
 }
 
 /** A link target's components, split on either slash as Windows would, with `.` and empty ones dropped. */
@@ -633,7 +651,8 @@ function standingLinks(host, dispatchedHead) {
  * through, or name, any path that is a symlink at the dispatched head or
  * becomes one anywhere in the range — compared through `foldName`. With every
  * such link descending only through real directories from a contained climb,
- * no imported link leads out of the repository or into `.git`.
+ * no imported link leads out of the repository or into `.git`. The tip's tree
+ * must also be one a case-insensitive filesystem can check out whole.
  */
 function rangeProblems(host, dispatchedHead, tip, maxCommits) {
   const listed = host(["rev-list", "--parents", "--reverse", `${dispatchedHead}..${tip}`]);
@@ -669,14 +688,76 @@ function rangeProblems(host, dispatchedHead, tip, maxCommits) {
     const through = walkedPaths(file, target).find((walked) => linkPaths.has(foldName(walked)));
     if (through !== undefined) problems.push(`commit ${commit}: symlink ${JSON.stringify(file)} reaches ${JSON.stringify(target)} through the symlink ${JSON.stringify(through)}; a link may not lead through another`);
   }
+  problems.push(...foldCollisions(host, tip));
+  return problems;
+}
+
+/**
+ * Every pair of distinct paths in `tip`'s tree, leading directories included,
+ * that `foldName` makes one: a case- or normalization-insensitive filesystem
+ * checks only one of them out, so the claim worktree would not hold the tree
+ * the branch commits — `A -> .` beside `a/b/l`, or `README.md` beside
+ * `readme.md`.
+ */
+function foldCollisions(host, tip) {
+  const listed = host(["ls-tree", "-r", "-t", "-z", "--full-tree", "--name-only", tip]);
+  if (!listed.ok) return [`cannot list the imported tree: ${listed.message}`];
+  const seen = new Map();
+  const problems = [];
+  for (const file of listed.stdout.split("\0")) {
+    if (file === "") continue;
+    const folded = foldName(file);
+    const first = seen.get(folded);
+    if (first === undefined) seen.set(folded, file);
+    else problems.push(`${JSON.stringify(first)} and ${JSON.stringify(file)} are one path on a case- or normalization-insensitive filesystem; Git cannot check out both`);
+  }
+  return problems;
+}
+
+/**
+ * Every imported path that would replace something Git does not track in the
+ * claim worktree — an ignored or untracked file or directory that is the
+ * path, one of its leading directories, or inside a tracked directory the
+ * import turns into a file or link. Git's fast-forward replaces ignored files
+ * silently; the claim's state file, `.env` and `.pathfinder/` evidence are
+ * ignored files. Compared through `foldName`, as the filesystem may.
+ */
+function untrackedProblems(host, dispatchedHead, tip) {
+  const others = host(["ls-files", "-z", "--others", "--directory"]);
+  if (!others.ok) return [`cannot list the files Git does not track in the claim worktree: ${others.message}`];
+  const added = host(["diff-tree", "-r", "-z", "--no-renames", "--name-only", "--diff-filter=A", dispatchedHead, tip]);
+  if (!added.ok) return [`cannot list the imported paths: ${added.message}`];
+  const untracked = new Map();
+  const holders = new Map();
+  for (const entry of others.stdout.split("\0")) {
+    if (entry === "") continue;
+    const file = entry.replace(/\/$/, "");
+    const parts = foldName(file).split("/");
+    if (!untracked.has(parts.join("/"))) untracked.set(parts.join("/"), file);
+    for (let index = 1; index < parts.length; index += 1) {
+      const holder = parts.slice(0, index).join("/");
+      if (!holders.has(holder)) holders.set(holder, file);
+    }
+  }
+  const problems = [];
+  for (const file of added.stdout.split("\0")) {
+    if (file === "") continue;
+    const parts = foldName(file).split("/");
+    let replaced;
+    for (let index = 1; index <= parts.length && replaced === undefined; index += 1) replaced = untracked.get(parts.slice(0, index).join("/"));
+    if (replaced !== undefined) problems.push(`${JSON.stringify(file)} would replace ${JSON.stringify(replaced)}, which the claim worktree holds but Git does not track (ignored or untracked)`);
+    else if (holders.has(parts.join("/"))) problems.push(`${JSON.stringify(file)} would remove ${JSON.stringify(holders.get(parts.join("/")))}, which the claim worktree holds but Git does not track (ignored or untracked)`);
+  }
   return problems;
 }
 
 /**
  * Fast-forward the claim branch from a bundle's bytes. The bytes are copied
  * into the run directory, outside the agent-written workspace, and every Git
- * command runs in the claim worktree. A refusal leaves the branch where it
- * was, deletes the temporary ref, and keeps the copy for inspection.
+ * command runs in the claim worktree. The fast-forward never replaces a file
+ * Git does not track there: such paths are refused by name first, and the
+ * merge runs with `--no-overwrite-ignore` as well. A refusal leaves the branch
+ * where it was, deletes the temporary ref, and keeps the copy for inspection.
  */
 function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHead, bundle, claimedHead, maxCommits }) {
   const host = (args) => gitIn(run, worktree, args);
@@ -729,8 +810,15 @@ function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHe
 
     const still = worktreeAt(run, worktree, branch);
     if (!still.ok || still.head !== dispatchedHead) return reject("claim worktree changed during the import");
-    const merged = host(["merge", "--ff-only", "--quiet", "--no-stat", tip]);
-    if (!merged.ok) return reject(`cannot fast-forward ${branch} to ${tip}: ${merged.message}`);
+    const untracked = untrackedProblems(host, dispatchedHead, tip);
+    if (untracked.length) return reject(`the imported commits are refused: ${untracked.slice(0, 20).join("; ")}${untracked.length > 20 ? `; and ${untracked.length - 20} more` : ""}`);
+    // Second layer: Git itself refuses to replace an ignored file, and moves nothing when it does.
+    const merged = host(["merge", "--ff-only", "--no-overwrite-ignore", "--quiet", "--no-stat", tip]);
+    if (!merged.ok) {
+      const now = host(["rev-parse", "--verify", "HEAD^{commit}"]);
+      const moved = now.ok && now.stdout.trim() !== dispatchedHead ? `, and ${branch} is now at ${now.stdout.trim()}; inspect the claim worktree` : "";
+      return reject(`cannot fast-forward ${branch} to ${tip}: ${merged.message}${moved}`);
+    }
     const after = host(["rev-parse", "--verify", "HEAD^{commit}"]);
     if (!after.ok || after.stdout.trim() !== tip) return reject(`${branch} did not reach ${tip} after the fast-forward`);
     imported = true;
