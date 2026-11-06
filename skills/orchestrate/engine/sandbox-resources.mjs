@@ -18,14 +18,23 @@
  * owner process it cannot check as active. It never runs `sbx prune`,
  * `sbx rm --all`, or any `docker` command.
  *
- * A run directory is acted on only when it is exactly
- * `<root>/.pathfinder/sandboxes/<key>/<runId>` for the plan's own `root`, and
- * every component below `root` — `.pathfinder`, `sandboxes`, the key and the
- * run directory — is a plain directory, never a link. `root` itself is the
- * caller's anchor and is taken as given. A plan is never trusted to name the
- * directory: one built for another tree, or edited between preview and
- * execute, is skipped. A linked or unreadable directory on that path is
- * reported as unreadable, with its reason, and never followed or dropped.
+ * `root` is the caller's anchor: an absolute path, taken as given, and refused
+ * when relative. `executeCleanup` takes it from its own caller, never from the
+ * plan, and refuses a plan previewed for any other root. A run directory is
+ * acted on only when it is exactly `<root>/.pathfinder/sandboxes/<key>/<runId>`
+ * and every component below `root` — `.pathfinder`, `sandboxes`, the key and
+ * the run directory — is a plain directory, never a link, so a plan whose run
+ * directories or keys were edited is skipped. A linked or unreadable directory
+ * on that path is reported as unreadable, with its reason, and never followed
+ * or dropped.
+ *
+ * Evidence is archived only to `<root>/.pathfinder/archives/sandboxes/<key>/<runId>`,
+ * reached the same way: `.pathfinder`, `archives`, `sandboxes`, the key and the
+ * archive directory are each a plain directory, created one level at a time
+ * when missing. The archive directory must be new or empty, and no file is
+ * copied over an existing one. A linked or unreadable archive path is refused,
+ * not followed, and an existing non-empty archive is never reused: either way
+ * the run is skipped before anything is removed.
  *
  * Every `sbx` call goes through an injected runner (the Feature 64 shared
  * contract): `run(argv, options) → { status, signal, stdout, stderr, error }`,
@@ -34,7 +43,7 @@
 
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, unlinkSync } from "node:fs";
+import { chmodSync, constants as fsConstants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, unlinkSync } from "node:fs";
 import path, { join } from "node:path";
 import { atomicCheckpointWrite } from "./checkpoint-write.mjs";
 import { isKey } from "./keys.mjs";
@@ -60,7 +69,8 @@ export const LOGS_DIR = "logs";
  *   workspace for inspection until a human runs an explicit cleanup.
  *
  * Archiving always precedes removal: evidence is never deleted while it is
- * the only copy.
+ * the only copy. The archive lives under root's own `.pathfinder/archives`,
+ * reached through no link, so it can never sit inside what is removed.
  */
 export const RETENTION = Object.freeze({
   collected: Object.freeze({ sandbox: "remove-after-archive", workspace: "remove-after-archive" }),
@@ -127,6 +137,30 @@ function pathProblem(base, parts) {
 /** `base/...parts` when every component below `base` is a plain directory, never a link; else null. */
 const plainDirectory = (base, ...parts) => (pathProblem(base, parts) === null ? join(base, ...parts) : null);
 
+/**
+ * Make `base/...parts` one level at a time, every component a plain directory
+ * and never a link: an existing component must already be one, and a missing
+ * one is created alone (never recursively) and checked again. Throws the
+ * reason otherwise, having created nothing below the bad component.
+ */
+function makePlainDirectory(base, parts) {
+  let current = base;
+  for (const part of parts) {
+    const parent = current;
+    current = join(parent, part);
+    let problem = pathProblem(parent, [part]);
+    if (problem?.missing) {
+      try { mkdirSync(current); } catch (error) { if (error?.code !== "EEXIST") throw error; }
+      problem = pathProblem(parent, [part]);
+    }
+    if (problem) throw new Error(problem.reason);
+  }
+  return current;
+}
+
+/** Why `root` cannot anchor this module, or null: it must be an absolute path. */
+const rootProblem = (root) => (typeof root === "string" && path.isAbsolute(root) ? null : `root ${typeof root === "string" ? `\`${root}\`` : String(root)} is not an absolute path`);
+
 // ---------------------------------------------------------------------------
 // Identity
 
@@ -161,13 +195,34 @@ export const archiveDirectory = (root, key, runId) => join(root, ...ARCHIVES_DIR
  * `root` through plain directories alone.
  */
 function runDirectoryProblem(root, runDir, key, runId) {
-  if (typeof root !== "string" || !root) return "the plan names no project root; ownership unknown";
+  const badRoot = rootProblem(root);
+  if (badRoot) return `${badRoot}; ownership unknown`;
   if (!isKey(key)) return `\`${key}\` is not a ticket key; ownership unknown`;
   if (!isRunId(runId)) return `\`${runId}\` is not a run id; ownership unknown`;
   const expected = runDirectory(root, key, runId);
   if (runDir !== expected) return `run directory ${runDir} is not ${expected}; ownership unknown`;
   const problem = pathProblem(root, [...SANDBOXES_DIR.split("/"), key, runId]);
   return problem ? `${problem.reason}; ownership unknown` : null;
+}
+
+/**
+ * Why a run's evidence cannot be archived at `archiveDirectory(root, key,
+ * runId)`, or null. Every existing component below `root` — `.pathfinder`,
+ * `archives`, `sandboxes`, the key and the archive directory — must be a plain
+ * directory, never a link; a missing one is created later, one level at a
+ * time. With `fresh`, an existing archive directory that is not empty is a
+ * problem too: it is never reused.
+ */
+function archiveProblem(root, key, runId, { fresh = false } = {}) {
+  const problem = pathProblem(root, [...ARCHIVES_DIR.split("/"), key, runId]);
+  if (problem && !problem.missing) return `archive refused: ${problem.reason}`;
+  if (fresh && !problem) {
+    const target = archiveDirectory(root, key, runId);
+    let names;
+    try { names = readdirSync(target); } catch (error) { return `archive refused: cannot read ${target}: ${errorCode(error)}`; }
+    if (names.length > 0) return `archive refused: ${target} already exists and is not empty; not reused`;
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -264,8 +319,12 @@ export function updateOwnerRecord(runDir, patch, { from = null, now = new Date()
  * never thrown, and never treated as owned. A linked or unreadable
  * `.pathfinder` or `sandboxes` directory is one unreadable entry with no key:
  * it is reported, never followed. No `.pathfinder/sandboxes` at all is no runs.
+ * A `root` that is not an absolute path is the caller's error, thrown as a
+ * TypeError before anything is read.
  */
 export function readOwnerRecords(root, { key = null } = {}) {
+  const badRoot = rootProblem(root);
+  if (badRoot) throw new TypeError(badRoot);
   const base = join(root, ...SANDBOXES_DIR.split("/"));
   const entries = [];
   const unreadable = (runDir, keyName, runId, reason) => entries.push({ status: "unreadable", runDir, key: keyName, runId, reason });
@@ -451,6 +510,8 @@ function row(root, entry, listing) {
  * apart, as unreadable.
  */
 export function listOwned({ root, run = defaultRun, key = null, env = process.env } = {}) {
+  const badRoot = rootProblem(root);
+  if (badRoot) return refuse(badRoot);
   const entries = readOwnerRecords(root, { key });
   const listing = readSandboxes(run, env);
   return {
@@ -467,6 +528,8 @@ export function listOwned({ root, run = defaultRun, key = null, env = process.en
  * the sandbox and its state; it never removes anything.
  */
 export function stopOwned({ root, run = defaultRun, key, runId = null, env = process.env, now = new Date() } = {}) {
+  const badRoot = rootProblem(root);
+  if (badRoot) return refuse(badRoot);
   if (!isKey(key)) return refuse(`\`${key}\` is not a ticket key`);
   if (runId !== null && !isRunId(runId)) return refuse(`\`${runId}\` is not a run id`);
   // An unreadable directory that names no run may hold this one: it is reported, never dropped.
@@ -506,7 +569,7 @@ function blocker(root, entry, observed, listingReason) {
   const owner = ownerState(record.owner);
   if (owner === "alive") return "owner process is alive";
   if (owner === "unknown") return "owner process cannot be checked";
-  return workspaceProblem(root, entry, observed);
+  return workspaceProblem(root, entry, observed) ?? archiveProblem(root, record.key, record.runId);
 }
 
 /** Evidence sources inside a run, as [source, archive-relative destination]. No link is followed to find them. */
@@ -525,6 +588,8 @@ function evidenceSources(runDir) {
  * why it is skipped. Reads records and runs `sbx ls`; changes nothing.
  */
 export function cleanupPlan({ root, run = defaultRun, key = null, env = process.env, now = new Date() } = {}) {
+  const badRoot = rootProblem(root);
+  if (badRoot) return refuse(badRoot);
   if (key !== null && !isKey(key)) return refuse(`\`${key}\` is not a ticket key`);
   const entries = readOwnerRecords(root, { key });
   const listing = readSandboxes(run, env);
@@ -535,7 +600,8 @@ export function cleanupPlan({ root, run = defaultRun, key = null, env = process.
     const { record } = entry;
     const observed = observe(entry, listing);
     const base = { key: record.key, runId: record.runId, runDir: entry.runDir, sandbox: record.sandbox, state: record.state, status: observed.status };
-    const reason = blocker(root, entry, observed, listing.available ? null : listing.reason);
+    // An existing, non-empty archive for this run is never reused: preview the refusal execute would make.
+    const reason = blocker(root, entry, observed, listing.available ? null : listing.reason) ?? archiveProblem(root, record.key, record.runId, { fresh: true });
     if (reason) { skipped.push({ ...base, reason }); continue; }
     let sources;
     try { sources = evidenceSources(entry.runDir); } catch (error) { skipped.push({ ...base, reason: `cannot read run directory: ${errorCode(error)}` }); continue; }
@@ -551,34 +617,50 @@ export function cleanupPlan({ root, run = defaultRun, key = null, env = process.
   return { ok: true, execute: false, root, key, at: now.toISOString(), sbx: { available: listing.available, reason: listing.reason }, runs, skipped };
 }
 
-/** Copy `source` to `target` without following any symlink; returns [copied files, skipped links]. */
+/** `dir` as a plain directory, made alone when missing; throws if it is a link or not a directory. */
+const makePlainChild = (dir) => makePlainDirectory(path.dirname(dir), [path.basename(dir)]);
+
+/**
+ * Copy `source` to `target` without following any symlink, and never over an
+ * existing entry: each directory is a plain one made alone, and each file is
+ * created exclusively, so a link at a destination is refused, never written
+ * through. Collects the copied files and the links not followed.
+ */
 function copyTree(source, target, copied, links) {
   const stats = lstatSync(source);
-  if (stats.isSymbolicLink()) { links.push(source); return; }
+  if (stats.isSymbolicLink() || (!stats.isDirectory() && !stats.isFile())) { links.push(source); return; }
   if (stats.isDirectory()) {
-    mkdirSync(target, { recursive: true });
+    makePlainChild(target);
     for (const name of readdirSync(source)) copyTree(join(source, name), join(target, name), copied, links);
     return;
   }
-  if (!stats.isFile()) { links.push(source); return; }
-  mkdirSync(path.dirname(target), { recursive: true });
-  copyFileSync(source, target);
+  makePlainChild(path.dirname(target));
+  copyFileSync(source, target, fsConstants.COPYFILE_EXCL);
   if (lstatSync(target).size !== stats.size) throw new Error(`archive copy of ${source} is incomplete`);
   copied.push(target);
 }
 
+/**
+ * Archive a run's evidence to root's own archive directory for it. Nothing is
+ * created until the evidence has been listed and the archive path checked:
+ * every component below `root` must be a plain directory or missing, and the
+ * archive directory new or empty. Missing components are made one level at a
+ * time. Throws the reason otherwise, so the run is skipped before removal.
+ */
 function archive(root, entry) {
-  const target = archiveDirectory(root, entry.record.key, entry.record.runId);
-  const base = join(root, ...ARCHIVES_DIR.split("/"));
-  mkdirSync(target, { recursive: true });
-  const canonicalBase = real(base);
+  const { key, runId } = entry.record;
+  const sources = evidenceSources(entry.runDir);
+  const refused = archiveProblem(root, key, runId, { fresh: true });
+  if (refused) throw new Error(refused);
+  const parts = [...ARCHIVES_DIR.split("/"), key, runId];
+  const target = makePlainDirectory(root, parts);
+  const canonicalRoot = real(root);
   const canonicalTarget = real(target);
-  if (!canonicalBase || !canonicalTarget || inside(canonicalBase, canonicalTarget) !== join(entry.record.key, entry.record.runId)) {
-    throw new Error(`archive ${target} does not resolve inside ${ARCHIVES_DIR}`);
-  }
+  if (!canonicalRoot || canonicalTarget !== join(canonicalRoot, ...parts)) throw new Error(`archive ${target} does not resolve inside ${ARCHIVES_DIR}`);
+  if (readdirSync(canonicalTarget).length > 0) throw new Error(`archive refused: ${target} already exists and is not empty; not reused`);
   const copied = [];
   const links = [];
-  for (const [source, destination] of evidenceSources(entry.runDir)) copyTree(source, join(canonicalTarget, destination), copied, links);
+  for (const [source, destination] of sources) copyTree(source, join(canonicalTarget, destination), copied, links);
   return { path: canonicalTarget, relative: portable(path.relative(root, target)), copied, links };
 }
 
@@ -603,16 +685,23 @@ export function removeWithin(boundary, dir) {
 }
 
 /**
- * Perform a plan from `cleanupPlan`. Before each action the run directory is
- * re-derived from the plan's root, key and run id and its path checked for
- * links, and the record and `sbx ls` are read again; if the directory is not
- * root's own, or the record, its state, the sandbox's status, the owner's
- * liveness or the workspace agreement differ from what this run expects, the
- * rest of that run is skipped and left as it is.
+ * Perform a plan from `cleanupPlan`. `root` is the caller's own project root,
+ * an absolute path, never taken from the plan: a plan previewed for any other
+ * root, or with a relative one, is refused and nothing is done. Before each
+ * action the run directory is re-derived from that root and the plan's key
+ * and run id and its path checked for links, the archive path is checked, and
+ * the record and `sbx ls` are read again; if the directory is not root's own,
+ * the archive path is linked or unreadable, or the record, its state, the
+ * sandbox's status, the owner's liveness or the workspace agreement differ
+ * from what this run expects, the rest of that run is skipped and left as it is.
  */
-export function executeCleanup(plan, { run = defaultRun, env = process.env, now = new Date() } = {}) {
-  if (!plan?.ok || !Array.isArray(plan.runs) || typeof plan.root !== "string" || !plan.root) return refuse("not a cleanup plan");
-  const { root } = plan;
+export function executeCleanup(plan, { root, run = defaultRun, env = process.env, now = new Date() } = {}) {
+  if (!plan?.ok || !Array.isArray(plan.runs)) return refuse("not a cleanup plan");
+  const badRoot = rootProblem(root);
+  if (badRoot) return refuse(`${badRoot}: pass the project root the plan was previewed for; nothing was done`);
+  const badPlanRoot = rootProblem(plan.root);
+  if (badPlanRoot) return refuse(`the plan's ${badPlanRoot}; nothing was done`);
+  if (path.resolve(plan.root) !== path.resolve(root)) return refuse(`the plan was previewed for ${plan.root}, not ${root}; nothing was done`);
   const results = [];
   for (const planned of plan.runs) {
     const done = [];

@@ -1,8 +1,8 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, describe, it } from "node:test";
 import { cleanUpTemporaryDirectories, ENGINE_ROOT, temporaryDirectory } from "../lib/harness.mjs";
@@ -335,7 +335,7 @@ describe("cleanup", () => {
       assert.ok(blind.skipped.filter((entry) => entry.status === "unknown").every((entry) => /status unknown/.test(entry.reason)), mode);
       assert.ok(blind.skipped.some((entry) => entry.runId === live.runId && /unavailable or unreadable/.test(entry.reason)), mode);
     }
-    const executed = executeCleanup(plan, { run: sbx.run });
+    const executed = executeCleanup(plan, { root, run: sbx.run });
     assert.deepEqual(executed.results, []);
     for (const run of [running, live, unknown, mismatched, unreported, foreignWorkspace, nestedWorkspace, unreadable]) assert.ok(existsSync(run.workspace));
     assert.ok(!sbx.calls.some((argv) => argv[2] !== "ls"));
@@ -370,7 +370,7 @@ describe("cleanup", () => {
       return original(argv);
     };
 
-    const result = executeCleanup(cleanupPlan({ root, run: sbx.run, now: NOW }), { run: sbx.run, now: NOW });
+    const result = executeCleanup(cleanupPlan({ root, run: sbx.run, now: NOW }), { root, run: sbx.run, now: NOW });
     assert.deepEqual(result.results.map((entry) => [entry.runId, entry.done, entry.skipped]), [[run.runId, ["archive", "sbx-rm", "remove-workspace", "mark-removed"], undefined]]);
     assert.equal(archivedWhenRemoved, true, "the archive existed before sbx rm ran");
     assert.equal(readFileSync(join(archiveDir, "out", "result.json"), "utf8").includes('"DONE"'), true);
@@ -396,7 +396,7 @@ describe("cleanup", () => {
     const sbx = fixtureSbx([]);
     const plan = cleanupPlan({ root, run: sbx.run });
     assert.deepEqual(plan.runs[0].actions.map((action) => action.kind), ["mark-failed", "archive", "remove-workspace", "mark-removed"]);
-    const result = executeCleanup(plan, { run: sbx.run });
+    const result = executeCleanup(plan, { root, run: sbx.run });
     assert.equal(result.results[0].skipped, undefined, result.results[0].skipped);
     assert.equal(readRecord(run).state, "removed");
     assert.ok(!sbx.calls.some((argv) => argv[2] !== "ls"));
@@ -417,7 +417,7 @@ describe("cleanup", () => {
     writeOwnerRecord(adopted.runDir, { ...readRecord(adopted), owner: liveOwner() });
     sbx.sandboxes.push(listed(appeared));
 
-    const result = executeCleanup(plan, { run: sbx.run });
+    const result = executeCleanup(plan, { root, run: sbx.run });
     const outcome = (run) => result.results.find((entry) => entry.runId === run.runId);
     assert.match(outcome(restarted).skipped, /running, expected stopped/);
     assert.match(outcome(rewritten).skipped, /record changed/);
@@ -443,7 +443,7 @@ describe("cleanup", () => {
     if (!WINDOWS) symlinkSync(join(outside, "precious.txt"), join(run.workspace, "file-link"));
     const sbx = fixtureSbx([listed(run)]);
 
-    const result = executeCleanup(cleanupPlan({ root, run: sbx.run }), { run: sbx.run });
+    const result = executeCleanup(cleanupPlan({ root, run: sbx.run }), { root, run: sbx.run });
     assert.equal(result.results[0].skipped, undefined, result.results[0].skipped);
     assert.ok(!existsSync(run.workspace));
     assert.equal(readFileSync(join(outside, "precious.txt"), "utf8"), "keep me\n");
@@ -461,7 +461,7 @@ describe("cleanup", () => {
     const run = makeRun(root, { state: "failed", outputs: false });
     linkDir(outside, join(run.workspace, ".pathfinder-sandbox"));
     const sbx = fixtureSbx([listed(run)]);
-    const result = executeCleanup(cleanupPlan({ root, run: sbx.run }), { run: sbx.run });
+    const result = executeCleanup(cleanupPlan({ root, run: sbx.run }), { root, run: sbx.run });
     assert.equal(result.results[0].skipped, undefined, result.results[0].skipped);
     assert.ok(!existsSync(join(archiveDirectory(root, "64.3", run.runId), "out")));
     assert.ok(existsSync(join(outside, "out", "secret.txt")));
@@ -482,7 +482,7 @@ describe("cleanup", () => {
     writeFileSync(join(target, "owner.json"), readFileSync(join(run.runDir, "owner.json")));
     renameSync(run.runDir, join(keyDir, "moved-aside"));
     linkDir(target, run.runDir);
-    const result = executeCleanup(plan, { run: sbx.run });
+    const result = executeCleanup(plan, { root, run: sbx.run });
     assert.match(result.results[0].skipped, /link; ownership unknown/);
     assert.ok(existsSync(join(target, "workspace", "keep.txt")));
     assert.ok(!sbx.calls.some((argv) => argv[2] === "rm"));
@@ -510,7 +510,7 @@ describe("cleanup", () => {
     assert.ok(writeOwnerRecord(looseRun, looseRecord).ok);
     const handBuilt = { key: "64.3", runId, runDir: looseRun, sandbox: looseRecord.sandbox, state: "collected", status: "absent", actions: [{ kind: "archive" }, { kind: "remove-workspace", path: join(looseRun, "workspace") }, { kind: "mark-removed" }] };
 
-    const result = executeCleanup({ ...foreign, root, runs: [foreign.runs[0], walking, handBuilt] }, { run: sbx.run });
+    const result = executeCleanup({ ...foreign, root, runs: [foreign.runs[0], walking, handBuilt] }, { root, run: sbx.run });
     assert.deepEqual(result.results.map((entry) => entry.done), [[], [], []]);
     assert.match(result.results[0].skipped, /^before archive: run directory .* is not .*; ownership unknown$/);
     assert.match(result.results[1].skipped, /is not a ticket key; ownership unknown$/);
@@ -521,7 +521,7 @@ describe("cleanup", () => {
     assert.equal(JSON.parse(readFileSync(join(looseRun, "owner.json"), "utf8")).state, "collected");
     for (const tree of [root, other, loose]) assert.ok(!existsSync(join(tree, ".pathfinder", "archives")), tree);
     assert.ok(!sbx.calls.some((argv) => argv[2] !== "ls"));
-    assert.equal(executeCleanup({ ...foreign, root: undefined }).ok, false, "a plan with no root is refused");
+    assert.equal(executeCleanup({ ...foreign, root: undefined }, { root: other, run: sbx.run }).ok, false, "a plan with no root is refused");
   });
 
   it("never follows a linked .pathfinder or sandboxes directory", () => {
@@ -540,7 +540,7 @@ describe("cleanup", () => {
       linkDir(moved, join(root, ...linked));
       const movedRun = runDirectory(elsewhere, "64.3", run.runId);
 
-      const result = executeCleanup(plan, { run: sbx.run });
+      const result = executeCleanup(plan, { root, run: sbx.run });
       assert.deepEqual(result.results[0].done, [], label);
       assert.match(result.results[0].skipped, /is a link; ownership unknown$/, label);
       assert.ok(existsSync(join(movedRun, "workspace", "src", "index.js")), label);
@@ -557,10 +557,131 @@ describe("cleanup", () => {
       const again = cleanupPlan({ root, run: sbx.run });
       assert.deepEqual(again.runs, [], label);
       assert.match(again.skipped[0].reason, /is a link; not followed/, label);
-      assert.deepEqual(executeCleanup(again, { run: sbx.run }).results, [], label);
+      assert.deepEqual(executeCleanup(again, { root, run: sbx.run }).results, [], label);
       assert.ok(existsSync(join(movedRun, "workspace", "src", "index.js")), label);
     }
     assert.ok(!sbx.calls.some((argv) => argv[2] !== "ls"));
+  });
+
+  it("never archives through a linked archive path, and never reuses an existing archive", () => {
+    const sbx = fixtureSbx([]);
+    const archivesDir = (root) => join(root, ".pathfinder", "archives");
+    const cases = [
+      ["a linked .pathfinder/archives, outside the project", (root, run, outside) => linkDir(outside, archivesDir(root)), /archives is a link$/],
+      ["a linked .pathfinder/archives, into the run's own workspace", (root, run) => {
+        mkdirSync(join(run.workspace, "arch"));
+        linkDir(join(run.workspace, "arch"), archivesDir(root));
+      }, /archives is a link$/],
+      ["a linked archives/sandboxes/<key>", (root, run, outside) => {
+        mkdirSync(join(archivesDir(root), "sandboxes"), { recursive: true });
+        linkDir(outside, join(archivesDir(root), "sandboxes", "64.3"));
+      }, /sandboxes[\\/]64\.3 is a link$/],
+      ["an existing archive holding a link to an outside file", (root, run, outside) => {
+        const target = archiveDirectory(root, "64.3", run.runId);
+        mkdirSync(target, { recursive: true });
+        // A file link needs privileges on Windows; any existing entry is refused the same way.
+        if (WINDOWS) writeFileSync(join(target, "owner.json"), "stale\n");
+        else symlinkSync(join(outside, "victim.txt"), join(target, "owner.json"));
+      }, /already exists and is not empty; not reused$/],
+    ];
+    for (const [label, plant, reason] of cases) {
+      for (const when of ["before the preview", "after the preview"]) {
+        const at = `${label}, ${when}`;
+        const root = temporaryDirectory("sbx-archive-path-");
+        const outside = temporaryDirectory("sbx-archive-outside-");
+        writeFileSync(join(outside, "victim.txt"), "ORIGINAL\n");
+        const run = makeRun(root, { state: "collected" });
+        const capture = () => ({ outside: snapshot(outside), workspace: snapshot(run.workspace) });
+        let before = null;
+        if (when === "before the preview") { plant(root, run, outside); before = capture(); }
+        const plan = cleanupPlan({ root, run: sbx.run });
+        if (when === "before the preview") {
+          assert.deepEqual(plan.runs, [], at);
+          assert.match(plan.skipped[0].reason, /^archive refused: /, at);
+          assert.match(plan.skipped[0].reason, reason, at);
+        } else {
+          assert.deepEqual(plan.runs.map((entry) => entry.runId), [run.runId], at);
+          plant(root, run, outside);
+          before = capture();
+        }
+
+        const result = executeCleanup(plan, { root, run: sbx.run });
+        if (when === "before the preview") assert.deepEqual(result.results, [], at);
+        else {
+          assert.deepEqual(result.results[0].done, [], at);
+          assert.match(result.results[0].skipped, /archive refused: /, at);
+          assert.match(result.results[0].skipped, reason, at);
+        }
+        assert.deepEqual(capture(), before, `${at}: the workspace and every outside file are unchanged`);
+        assert.equal(readFileSync(join(outside, "victim.txt"), "utf8"), "ORIGINAL\n", at);
+        assert.ok(existsSync(join(run.workspace, "src", "index.js")), at);
+        const record = readRecord(run);
+        assert.deepEqual([record.state, record.evidence.archive], ["collected", null], at);
+      }
+    }
+    assert.ok(!sbx.calls.some((argv) => argv[2] !== "ls"));
+
+    // An empty archive directory, such as an earlier attempt left, holds nothing to reuse: cleanup proceeds.
+    const root = temporaryDirectory("sbx-archive-empty-");
+    const run = makeRun(root, { state: "collected" });
+    mkdirSync(archiveDirectory(root, "64.3", run.runId), { recursive: true });
+    const result = executeCleanup(cleanupPlan({ root, run: sbx.run }), { root, run: sbx.run });
+    assert.deepEqual(result.results[0].done, ["archive", "remove-workspace", "mark-removed"]);
+    assert.equal(readFileSync(join(archiveDirectory(root, "64.3", run.runId), "logs", "exec.log"), "utf8"), "agent output\n");
+  });
+
+  it("takes the root from its caller, refuses a relative one, and archives nothing in a tree it did not preview", () => {
+    const treeA = temporaryDirectory("sbx-root-a-");
+    const treeB = temporaryDirectory("sbx-root-b-");
+    const sbx = fixtureSbx([]);
+    const runA = makeRun(treeA, { state: "collected" });
+    const runB = makeRun(treeB, { state: "collected" });
+    const planA = cleanupPlan({ root: treeA, run: sbx.run });
+    assert.deepEqual(planA.runs.map((entry) => entry.runId), [runA.runId]);
+    // A relative spelling of A from the current directory (across Windows drives, only its name is relative).
+    const relativeA = isAbsolute(relative(process.cwd(), treeA)) ? basename(treeA) : relative(process.cwd(), treeA);
+
+    for (const notAbsolute of ["proj", relativeA, "", undefined]) {
+      for (const result of [cleanupPlan({ root: notAbsolute, run: sbx.run }), listOwned({ root: notAbsolute, run: sbx.run }), stopOwned({ root: notAbsolute, run: sbx.run, key: "64.3" })]) {
+        assert.equal(result.ok, false, String(notAbsolute));
+        assert.match(result.message, /is not an absolute path/, String(notAbsolute));
+      }
+      assert.throws(() => readOwnerRecords(notAbsolute), TypeError, String(notAbsolute));
+    }
+
+    // A's plan, rewritten consistently to B's genuinely owned run: root, run directory, sandbox and paths.
+    const workspaceB = join(realpathSync(runB.runDir), "workspace");
+    const rewritten = {
+      ...planA,
+      root: treeB,
+      runs: [{
+        ...planA.runs[0], runId: runB.runId, runDir: runB.runDir, sandbox: runB.name,
+        actions: planA.runs[0].actions.map((action) => (action.kind === "archive" ? { ...action, to: archiveDirectory(treeB, "64.3", runB.runId) } : action.kind === "remove-workspace" ? { ...action, path: workspaceB } : action)),
+      }],
+    };
+    for (const [plan, root, label] of [
+      [rewritten, treeA, "a plan rewritten for B, executed for A"],
+      [planA, treeB, "A's plan, executed for B"],
+      [{ ...planA, root: relativeA }, treeA, "a plan whose root is relative"],
+      [planA, undefined, "no caller root"],
+      [planA, relativeA, "a relative caller root"],
+    ]) {
+      const result = executeCleanup(plan, { root, run: sbx.run });
+      assert.equal(result.ok, false, label);
+      assert.match(result.message, /nothing was done$/, label);
+    }
+    for (const run of [runA, runB]) {
+      assert.ok(existsSync(join(run.workspace, "src", "index.js")));
+      assert.equal(readRecord(run).state, "collected");
+    }
+    for (const tree of [treeA, treeB]) assert.ok(!existsSync(join(tree, ".pathfinder", "archives")), tree);
+    assert.ok(!sbx.calls.some((argv) => argv[2] !== "ls"));
+
+    // The caller's own root, however spelled, executes the plan it previewed, and only in that tree.
+    const result = executeCleanup(planA, { root: `${treeA}/./`, run: sbx.run });
+    assert.deepEqual(result.results.map((entry) => entry.done), [["archive", "remove-workspace", "mark-removed"]]);
+    assert.ok(existsSync(join(runB.workspace, "src", "index.js")));
+    assert.ok(!existsSync(join(treeB, ".pathfinder", "archives")));
   });
 
   it("never lets workspace contents choose the sandbox, path, or archive it acts on", () => {
@@ -575,7 +696,7 @@ describe("cleanup", () => {
     const sbx = fixtureSbx([listed(run), { name: "pf-64-3-implementation-deadbeef", status: "stopped", workspace: victim }]);
     const plan = cleanupPlan({ root, run: sbx.run });
     assert.deepEqual(plan.runs.map((entry) => entry.sandbox), [run.name]);
-    const result = executeCleanup(plan, { run: sbx.run });
+    const result = executeCleanup(plan, { root, run: sbx.run });
     assert.equal(result.results[0].skipped, undefined, result.results[0].skipped);
     assert.deepEqual(sbx.calls.filter((argv) => argv[2] === "rm").map((argv) => argv.at(-1)), [run.name]);
     assert.ok(existsSync(join(victim, "keep.txt")));
