@@ -40,6 +40,7 @@ import {
   applyExecutionModePlan,
   evidenceJudgeCredential,
   parseEvidenceJudgeFlag,
+  parseExecutionEnvironmentFlag,
   parseExecutionModeFlag,
   planExecutionMode,
   readEvidenceJudgeFile,
@@ -81,6 +82,13 @@ Options:
                   context/execution-mode.md. Without it an interactive
                   orchestrator run asks once, and a key in the environment
                   never enables a judge. Re-run with none to turn it off.
+  --environment <environment>
+                  Optional, for orchestrator mode: where workers execute.
+                  local (the default: under your coding tool's own
+                  permissions) or sandbox (a local Docker Sandboxes microVM
+                  through the sbx CLI, which you install and sign in to
+                  yourself). Recorded in context/execution-mode.md and kept
+                  on re-runs until changed. Nothing is asked without it.
   --git-init      Run \`git init\` here if this is not a repository yet.
   --no-git-init   Never run \`git init\`; refuse instead.
   --no-clipboard  Never offer to copy the Kickstart prompt. The prompt is
@@ -278,16 +286,20 @@ export async function run(
   // A judge choice alone rewrites the file under the mode it already records,
   // and is never a decision about the mode. A file that records no valid mode
   // has none to keep, so a judge-only run leaves it untouched and fails.
+  // An environment choice is recorded the same way, with the same rule.
+  const environmentSelection = options.executionEnvironment;
+  const markerOnly = judgeSelection !== null || environmentSelection !== null;
   const judgeWithoutMode =
-    modeSelection === null && judgeSelection !== null && findings.executionMode?.present === true && !findings.executionMode.valid;
+    modeSelection === null && markerOnly && findings.executionMode?.present === true && !findings.executionMode.valid;
   const modePlan =
-    (modeSelection === null && judgeSelection === null) || judgeWithoutMode
+    (modeSelection === null && !markerOnly) || judgeWithoutMode
       ? null
       : planExecutionMode({
           targetRoot: cwd,
           mode: modeSelection?.mode ?? recordedMode(findings),
           force: options.force,
           evidenceJudge: judgeSelection?.value,
+          executionEnvironment: environmentSelection ?? undefined,
         });
 
   // Both plans are computed before anything is written, which is what lets the
@@ -363,13 +375,15 @@ export async function run(
           {
             relativePath: EXECUTION_MODE_PATH,
             message:
-              "records no valid execution mode, so the Evidence Judge was not recorded and the file was left untouched. " +
-              "Fix its marker, or pass --mode <human-in-the-loop|orchestrator> with --evidence-judge to choose one",
+              `records no valid execution mode, so the ${[judgeSelection && "Evidence Judge", environmentSelection && "execution environment"].filter(Boolean).join(" and ")} ` +
+              "was not recorded and the file was left untouched. " +
+              `Fix its marker, or pass --mode <human-in-the-loop|orchestrator> with ${[judgeSelection && "--evidence-judge", environmentSelection && "--environment"].filter(Boolean).join(" and ")} to choose one`,
           },
         ],
       }
     : recorded;
   const judge = judgeOutcome({ selection: judgeSelection, mode, env });
+  const environment = environmentOutcome({ selection: environmentSelection, mode });
 
   const adapters = generateAdapters({
     plan: adapterPlan,
@@ -404,7 +418,7 @@ export async function run(
   // plan or a result: the two renderings disagree about everything except the
   // facts, and this is what makes "except the facts" true rather than a hope
   // about two functions being edited together.
-  const outcome = summarize({ plan, result, adapters, hooks, mode, judge, harnesses, options });
+  const outcome = summarize({ plan, result, adapters, hooks, mode, judge, environment, harnesses, options });
 
   report({ outcome, harnesses, customTools, cwd, gitRoot, options, out, err, theme });
 
@@ -668,6 +682,13 @@ function judgeOutcome({ selection, mode, env }) {
   });
 }
 
+/** What the summary says about an environment this run chose, or null for none. */
+function environmentOutcome({ selection, mode }) {
+  if (selection === null) return null;
+  const recorded = mode.errors.length === 0 && ["write", "replace", "up-to-date"].includes(mode.action);
+  return Object.freeze({ value: selection, recorded, orchestrator: mode.mode === "orchestrator" });
+}
+
 /**
  * Record the execution mode, or explain why not.
  *
@@ -688,7 +709,7 @@ function recordExecutionMode({ plan, options, result, judgeOnly = false, onProgr
   const applied = applyExecutionModePlan(plan, { dryRun: options.dryRun, onProgress });
   const mark = theme.glyph;
 
-  // A run that only chose a judge rewrote the file without changing the mode,
+  // A run that only chose a judge or an environment rewrote the file without changing the mode,
   // and its mode line must not claim a change nobody asked for.
   if (judgeOnly && applied.action === "replace" && applied.previousMode === applied.mode) {
     applied.action = "up-to-date";
@@ -899,6 +920,8 @@ const NO_OPTIONS = {
   // null means "not said": an existing choice is kept, and only an
   // interactive orchestrator run with no recorded choice is asked.
   evidenceJudge: null,
+  // null means "not said": an existing choice is kept. Never asked.
+  executionEnvironment: null,
   error: null,
 };
 
@@ -972,6 +995,20 @@ function parseArguments(argv) {
       continue;
     }
 
+    if (argument === "--environment" || argument.startsWith("--environment=")) {
+      const equals = argument.indexOf("=");
+      const value = equals === -1 ? argv[++index] : argument.slice(equals + 1);
+      const parsed = parseExecutionEnvironmentFlag(value);
+
+      if (parsed.error) {
+        options.error = parsed.error;
+        return options;
+      }
+
+      options.executionEnvironment = parsed.executionEnvironment;
+      continue;
+    }
+
     switch (argument) {
       case "--dry-run":
         options.dryRun = true;
@@ -986,6 +1023,9 @@ function parseArguments(argv) {
         return options;
       case "--evidence-judge":
         options.error = parseEvidenceJudgeFlag(undefined).error;
+        return options;
+      case "--environment":
+        options.error = parseExecutionEnvironmentFlag(undefined).error;
         return options;
       case "--git-init":
         options.gitInit = true;
@@ -1404,6 +1444,7 @@ function contractReport({ outcome, harnesses, customTools, cwd, gitRoot, options
   lines.push(...contractAdapterLines({ outcome, options, theme }));
   lines.push(...contractModeLines({ outcome, options }));
   lines.push(...judgeLines({ outcome, options }).map(({ text }) => `  ${text}`));
+  lines.push(...environmentLines({ outcome, options }).map(({ text }) => `  ${text}`));
   lines.push(...customToolLines(customTools));
 
   if (skipped.length > 0) {
@@ -1539,6 +1580,29 @@ function judgeLines({ outcome, options }) {
       ? { level: "info", text: `Credential: ${judge.credential.name} detected (its value is never printed or stored)` }
       : { level: "warn", text: `Credential: ${judge.credential.name} not detected. Set it before using the Evidence Judge: ${judge.credential.setup}` },
   );
+  return lines;
+}
+
+/**
+ * The execution environment, in either rendering: nothing unless this run
+ * chose one. Sandbox prerequisites are setup the human does, not a failed
+ * install, and readiness is checked by the engine, not here.
+ *
+ * @returns {{level: "ok"|"info"|"warn", text: string}[]}
+ */
+function environmentLines({ outcome, options }) {
+  const environment = outcome.environment;
+  if (!environment) return [];
+  if (!environment.recorded) {
+    return [{ level: "warn", text: `Execution environment not recorded: ${EXECUTION_MODE_PATH} was left untouched` }];
+  }
+  const lines = [{ level: "ok", text: `Execution environment: ${environment.value} ${options.dryRun ? "to record" : "recorded"} (${EXECUTION_MODE_PATH})` }];
+  if (environment.value === "sandbox") {
+    if (!environment.orchestrator) {
+      lines.push({ level: "info", text: "The environment applies only to orchestrated dispatch; human-in-the-loop sessions launch nothing" });
+    }
+    lines.push({ level: "info", text: "Check sandbox readiness with: node skills/orchestrate/engine/bin/orchestrate.mjs environment" });
+  }
   return lines;
 }
 
@@ -1940,7 +2004,7 @@ function expressiveReport({ outcome, harnesses, customTools, cwd, gitRoot, optio
   lines.push(...expressiveAdapterLines({ outcome, options, theme }));
   lines.push(...expressiveModeLines({ outcome, options, theme }));
   lines.push(
-    ...judgeLines({ outcome, options }).map(({ level, text }) =>
+    ...[...judgeLines({ outcome, options }), ...environmentLines({ outcome, options })].map(({ level, text }) =>
       railed(theme, level === "warn" ? theme.warn(`${theme.glyph.warn} ${text}`) : level === "ok" ? theme.ok(`${theme.glyph.ok} ${text}`) : theme.dim(`${theme.glyph.info} ${text}`)),
     ),
   );

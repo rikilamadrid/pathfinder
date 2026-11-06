@@ -155,6 +155,95 @@ export function readEvidenceJudgeMarker(content) {
   return null;
 }
 
+// Where orchestrated workers execute, preserved the same way. The engine
+// judges the value; the installer writes only one it offers.
+const EXECUTION_ENVIRONMENT_PATTERN = /^<!--\s*pathfinder:execution-environment\s+(\S+)\s*-->$/;
+
+/** Where orchestrated workers execute. The first is what no line means. */
+export const EXECUTION_ENVIRONMENTS = Object.freeze(["local", "sandbox"]);
+export const DEFAULT_EXECUTION_ENVIRONMENT = EXECUTION_ENVIRONMENTS[0];
+
+/**
+ * Read `--environment <local|sandbox>`. An unknown value is refused, as an
+ * unknown mode is, rather than quietly recording local.
+ *
+ * @returns {{executionEnvironment: string} | {error: string}}
+ */
+export function parseExecutionEnvironmentFlag(value) {
+  if (value === undefined || value === "" || value.startsWith("-")) {
+    return { error: `\`--environment\` needs a value: ${EXECUTION_ENVIRONMENTS.join(" or ")}` };
+  }
+  if (!EXECUTION_ENVIRONMENTS.includes(value)) {
+    return { error: `unknown execution environment \`${value}\`. Valid values: ${EXECUTION_ENVIRONMENTS.join(", ")}` };
+  }
+  return { executionEnvironment: value };
+}
+
+// The sandbox's own recorded choices — the in-sandbox permission mode and a
+// declared subscription sign-in. The installer never writes them; it keeps
+// them, as written, whenever it re-renders a file that carries them.
+const SANDBOX_MARKER_PATTERNS = Object.freeze([
+  /^<!--\s*pathfinder:sandbox-permission-mode\s+(\S+)\s*-->$/,
+  /^<!--\s*pathfinder:sandbox-agent-auth\s+(\S+)\s*-->$/,
+]);
+
+/** The sandbox marker lines a file carries, normalized, in a fixed order. */
+export function readSandboxMarkerLines(content) {
+  const lines = String(content ?? "").split(/\r?\n/).map((line) => line.trim());
+  const found = [];
+  for (const [index, pattern] of SANDBOX_MARKER_PATTERNS.entries()) {
+    const line = lines.find((candidate) => pattern.test(candidate));
+    if (line) found.push(`<!-- pathfinder:${index === 0 ? "sandbox-permission-mode" : "sandbox-agent-auth"} ${pattern.exec(line)[1]} -->`);
+  }
+  return found;
+}
+
+/** The execution environment a file names on its own marker line, as written, or null. */
+export function readExecutionEnvironmentMarker(content) {
+  for (const line of String(content ?? "").split(/\r?\n/)) {
+    const match = EXECUTION_ENVIRONMENT_PATTERN.exec(line.trim());
+    if (match) return match[1];
+  }
+  return null;
+}
+
+/** The prose under the markers for the environment line, or nothing without one. */
+function executionEnvironmentProse(executionEnvironment) {
+  if (executionEnvironment === null) return [];
+  if (executionEnvironment === "sandbox") {
+    return [
+      "The execution-environment line selects where orchestrated workers execute:",
+      "`sandbox`, a local Docker Sandboxes microVM driven by the `sbx` CLI. Check",
+      "it with `node skills/orchestrate/engine/bin/orchestrate.mjs environment`. A",
+      "sandbox that is not ready refuses dispatch; it never runs workers locally",
+      "instead. Human-in-the-loop sessions launch nothing, so the line applies only",
+      "to orchestrated dispatch. Run `npx create-pathfinder --environment local` to",
+      "switch back.",
+      "",
+      "A sandbox also needs `<!-- pathfinder:sandbox-permission-mode <mode> -->`,",
+      "`bypassPermissions` or `acceptEdits`, chosen explicitly; there is no default.",
+      "A Claude subscription signed in with /login is declared with",
+      "`<!-- pathfinder:sandbox-agent-auth subscription -->`. See",
+      "`skills/orchestrate/environment.md`.",
+      "",
+    ];
+  }
+  if (executionEnvironment === "local") {
+    return [
+      "The execution-environment line records that orchestrated workers run",
+      "locally, under the coding tool's own permissions, which is also what no line",
+      "means. Run `npx create-pathfinder --environment sandbox` to select a Docker",
+      "Sandboxes microVM instead.",
+      "",
+    ];
+  }
+  return [
+    "The execution-environment line names where orchestrated workers execute. The",
+    "valid values are `local` and `sandbox`; any other value refuses dispatch.",
+    "",
+  ];
+}
+
 /** The routing policy a file names on its own marker line, or null. */
 export function readRoutingPolicyMarker(content) {
   for (const line of String(content ?? "").split(/\r?\n/)) {
@@ -255,7 +344,7 @@ export function effectiveExecutionMode(reading) {
  * @param {string} mode one of EXECUTION_MODES
  * @returns {string}
  */
-export function renderExecutionMode(mode, { routingPolicy = null, evidenceJudge = null } = {}) {
+export function renderExecutionMode(mode, { routingPolicy = null, evidenceJudge = null, executionEnvironment = null, sandboxMarkers = [] } = {}) {
   if (!isExecutionMode(mode)) {
     throw new Error(`renderExecutionMode: unknown execution mode \`${mode}\``);
   }
@@ -280,6 +369,8 @@ export function renderExecutionMode(mode, { routingPolicy = null, evidenceJudge 
     `<!-- ${EXECUTION_MODE_MARKER} ${mode} -->`,
     ...(routingPolicy ? [`<!-- pathfinder:routing-policy ${routingPolicy} -->`] : []),
     ...(evidenceJudge ? [`<!-- pathfinder:evidence-judge ${evidenceJudge} -->`] : []),
+    ...(executionEnvironment ? [`<!-- pathfinder:execution-environment ${executionEnvironment} -->`] : []),
+    ...sandboxMarkers,
     "",
     ...meaning,
     "",
@@ -298,6 +389,7 @@ export function renderExecutionMode(mode, { routingPolicy = null, evidenceJudge 
     "",
     ...evidenceJudgeProse(evidenceJudge),
     "",
+    ...executionEnvironmentProse(executionEnvironment),
   ].join("\n");
 }
 
@@ -315,7 +407,7 @@ export function renderExecutionMode(mode, { routingPolicy = null, evidenceJudge 
  *            state: string, action: "write"|"replace"|"up-to-date"|"conflict"|"unreadable",
  *            contents: string|null, message?: string}}
  */
-export function planExecutionMode({ targetRoot, mode, force = false, evidenceJudge = undefined }) {
+export function planExecutionMode({ targetRoot, mode, force = false, evidenceJudge = undefined, executionEnvironment = undefined }) {
   const relativePath = EXECUTION_MODE_PATH;
   const destination = join(targetRoot, ...relativePath.split("/"));
   const existing = readExisting(destination);
@@ -327,9 +419,12 @@ export function planExecutionMode({ targetRoot, mode, force = false, evidenceJud
   const routingPolicy = ours ? readRoutingPolicyMarker(existing.content) : null;
   const previousEvidenceJudge = ours ? readEvidenceJudgeMarker(existing.content) : null;
   const judge = evidenceJudge === undefined ? previousEvidenceJudge : evidenceJudge;
+  const previousExecutionEnvironment = ours ? readExecutionEnvironmentMarker(existing.content) : null;
+  const environment = executionEnvironment === undefined ? previousExecutionEnvironment : executionEnvironment;
   const previousMode = ours ? readExecutionMode(existing.content).mode : null;
-  const contents = renderExecutionMode(mode, { routingPolicy, evidenceJudge: judge });
-  const choice = { evidenceJudge: judge, previousEvidenceJudge, previousMode };
+  const sandboxMarkers = ours ? readSandboxMarkerLines(existing.content) : [];
+  const contents = renderExecutionMode(mode, { routingPolicy, evidenceJudge: judge, executionEnvironment: environment, sandboxMarkers });
+  const choice = { evidenceJudge: judge, previousEvidenceJudge, executionEnvironment: environment, previousExecutionEnvironment, previousMode };
 
   if (existing.unreadable) {
     return {
@@ -382,12 +477,13 @@ function actionFor(state, force) {
  *            errors: {relativePath: string, message: string}[]}}
  */
 export function applyExecutionModePlan(item, { dryRun = false, onProgress } = {}) {
-  const result = { action: null, mode: null, relativePath: EXECUTION_MODE_PATH, errors: [], evidenceJudge: null, previousMode: null };
+  const result = { action: null, mode: null, relativePath: EXECUTION_MODE_PATH, errors: [], evidenceJudge: null, executionEnvironment: null, previousMode: null };
   if (!item) return result;
 
   result.action = item.action;
   result.mode = item.mode;
   result.evidenceJudge = item.evidenceJudge ?? null;
+  result.executionEnvironment = item.executionEnvironment ?? null;
   result.previousMode = item.previousMode ?? null;
 
   switch (item.action) {

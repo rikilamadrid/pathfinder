@@ -179,6 +179,125 @@ export function readEvidenceJudge(root) {
   return readEvidenceJudgeMarker(content);
 }
 
+/** Where orchestrated workers execute. The first is the default. */
+export const EXECUTION_ENVIRONMENTS = Object.freeze(["local", "sandbox"]);
+export const DEFAULT_EXECUTION_ENVIRONMENT = EXECUTION_ENVIRONMENTS[0];
+
+const ENVIRONMENT_MARKER = /^<!--\s*pathfinder:execution-environment\s+(\S+)\s*-->$/;
+
+/**
+ * The execution environment a mode file's contents name, on its own optional
+ * line:
+ *
+ *     <!-- pathfinder:execution-environment local|sandbox -->
+ *
+ * No file, or no such line, is `local`: every project recorded before the
+ * line existed keeps running exactly as it did. Any other value is invalid,
+ * and `environment` stays the value read so a caller can name it; dispatch
+ * refuses an invalid environment rather than guessing one. The first marker
+ * line decides, and a marker quoted inside a longer line is not one.
+ *
+ * Execution environment is not execution mode and not harness: it says only
+ * where an orchestrated worker would execute.
+ *
+ * @returns {{environment: string, explicit: boolean, valid: boolean}}
+ */
+export function readExecutionEnvironmentMarker(content) {
+  for (const line of String(content ?? "").split(/\r?\n/)) {
+    const match = ENVIRONMENT_MARKER.exec(line.trim());
+    if (match) return { environment: match[1], explicit: true, valid: EXECUTION_ENVIRONMENTS.includes(match[1]) };
+  }
+  return { environment: DEFAULT_EXECUTION_ENVIRONMENT, explicit: false, valid: true };
+}
+
+/**
+ * The project's execution environment, read from its mode file. A missing
+ * file is `local`. A file that exists but cannot be read is invalid, never
+ * `local`: reading an unknown choice as local is exactly the silent fallback
+ * the environment exists to prevent.
+ */
+export function readExecutionEnvironment(root) {
+  const path = join(root, ...EXECUTION_MODE_PATH.split("/"));
+  if (!existsSync(path)) return readExecutionEnvironmentMarker(null);
+  try {
+    return readExecutionEnvironmentMarker(readFileSync(path, "utf8"));
+  } catch {
+    return { environment: null, explicit: true, valid: false };
+  }
+}
+
+/**
+ * The Claude Code permission mode a sandboxed agent runs under, on its own
+ * line:
+ *
+ *     <!-- pathfinder:sandbox-permission-mode bypassPermissions|acceptEdits -->
+ *
+ * There is deliberately no default: under `sandbox` a missing line is a
+ * readiness failure, so the mode is always the human's explicit choice. Any
+ * other value is invalid.
+ */
+export const SANDBOX_PERMISSION_MODES = Object.freeze(["bypassPermissions", "acceptEdits"]);
+
+const PERMISSION_MARKER = /^<!--\s*pathfinder:sandbox-permission-mode\s+(\S+)\s*-->$/;
+
+/** @returns {{mode: string|null, explicit: boolean, valid: boolean}} */
+export function readSandboxPermissionModeMarker(content) {
+  for (const line of String(content ?? "").split(/\r?\n/)) {
+    const match = PERMISSION_MARKER.exec(line.trim());
+    if (match) return { mode: match[1], explicit: true, valid: SANDBOX_PERMISSION_MODES.includes(match[1]) };
+  }
+  return { mode: null, explicit: false, valid: false };
+}
+
+/**
+ * How a sandboxed agent authenticates, when no check can see it, on its own
+ * line:
+ *
+ *     <!-- pathfinder:sandbox-agent-auth subscription -->
+ *
+ * A Claude subscription signed in with `/login` is an OAuth token `sbx`
+ * holds host-side; no read-only query reports it, so the human declares it.
+ * Any other value is invalid and declares nothing.
+ */
+export const SANDBOX_AGENT_AUTH_DECLARATIONS = Object.freeze(["subscription"]);
+
+const AGENT_AUTH_MARKER = /^<!--\s*pathfinder:sandbox-agent-auth\s+(\S+)\s*-->$/;
+
+/** @returns {{value: string|null, explicit: boolean, valid: boolean}} */
+export function readSandboxAgentAuthMarker(content) {
+  for (const line of String(content ?? "").split(/\r?\n/)) {
+    const match = AGENT_AUTH_MARKER.exec(line.trim());
+    if (match) return { value: match[1], explicit: true, valid: SANDBOX_AGENT_AUTH_DECLARATIONS.includes(match[1]) };
+  }
+  return { value: null, explicit: false, valid: false };
+}
+
+/**
+ * Every sandbox setting a project's mode file records, read once. A missing
+ * file is the defaults; an unreadable one is an invalid environment, an
+ * invalid permission mode, and no declaration — never a guess.
+ */
+export function readSandboxSettings(root) {
+  const path = join(root, ...EXECUTION_MODE_PATH.split("/"));
+  let content = null;
+  if (existsSync(path)) {
+    try {
+      content = readFileSync(path, "utf8");
+    } catch {
+      return {
+        environment: { environment: null, explicit: true, valid: false },
+        permissionMode: { mode: null, explicit: true, valid: false },
+        agentAuth: { value: null, explicit: false, valid: false },
+      };
+    }
+  }
+  return {
+    environment: readExecutionEnvironmentMarker(content),
+    permissionMode: readSandboxPermissionModeMarker(content),
+    agentAuth: readSandboxAgentAuthMarker(content),
+  };
+}
+
 /**
  * The mode a project effectively runs in: the recorded value, the default for
  * no file, and `null` for an invalid file so the caller names the problem.

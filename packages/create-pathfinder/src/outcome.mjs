@@ -51,7 +51,7 @@
  * @param {{dryRun?: boolean}} args.options
  * @returns {Readonly<object>} frozen; rows and lists frozen with it
  */
-export function summarize({ plan, result, adapters, hooks = NO_HOOKS, mode = NO_MODE, judge = null, harnesses, options }) {
+export function summarize({ plan, result, adapters, hooks = NO_HOOKS, mode = NO_MODE, judge = null, environment = null, harnesses, options }) {
   // A dry run has no `result.written` to report, because nothing was written.
   // The plan is counted instead, which is the same number the run would have
   // produced had it been allowed to write.
@@ -102,6 +102,8 @@ export function summarize({ plan, result, adapters, hooks = NO_HOOKS, mode = NO_
     // Null unless this run chose an Evidence Judge, so every other run's
     // renderings are exactly what they were.
     judge,
+    // Null unless this run chose an execution environment, for the same reason.
+    environment,
   });
 }
 

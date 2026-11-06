@@ -83,14 +83,15 @@ and, for a GitHub Issues store, the `gh` CLI. It holds no state of its own:
 every call re-derives its answer from Git, the worktrees, and the store.
 
 ```
-engine/bin/orchestrate.mjs   board | claim | owner | status | estimate | brief | check | judge | release | scratch | disk
+engine/bin/orchestrate.mjs   board | claim | owner | status | estimate | brief | check | judge | release | scratch | disk | environment
 engine/store.mjs             reads the configured ticket store
 engine/board.mjs             eligibility
 engine/claims.mjs            claims, from git worktrees and state files
 engine/claim.mjs             the one write: a claim ref, then a worktree on a new branch
 engine/integration.mjs       conflict/divergence/overlap evidence and safe release
 engine/status.mjs            the operator's view and its state vocabulary
-engine/mode.mjs              the execution-mode and routing-policy markers
+engine/mode.mjs              the execution-mode, routing-policy and execution-environment markers
+engine/environment.mjs       execution environment readiness, read-only; refuses local dispatch under sandbox
 engine/estimate.mjs          estimate: complexity, context, parallel safety, risk
 engine/profile.mjs           the pathfinder.execution-profile/1 schema
 engine/policies/             routing policies; select: role, model, effort
@@ -115,6 +116,7 @@ engine/process.mjs           process identity and ancestry on macOS, Linux, WSL 
 `brief.md` documents the brief and the harness translation table.
 `worker-brief.md` and `resume-brief.md` state what each brief asks a worker to do.
 `evidence-judge.md` documents the optional Evidence Judge and its trust boundary.
+`environment.md` documents the execution environment, its readiness statuses, and remediation.
 
 ### Review scratch
 

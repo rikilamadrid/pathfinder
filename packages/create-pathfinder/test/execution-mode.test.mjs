@@ -316,7 +316,7 @@ describe("planning the write", () => {
 describe("applying the plan", () => {
   it("applies nothing for a null plan, and says so with a null action", () => {
     const result = applyExecutionModePlan(null);
-    assert.deepEqual(result, { action: null, mode: null, relativePath: EXECUTION_MODE_PATH, errors: [], evidenceJudge: null, previousMode: null });
+    assert.deepEqual(result, { action: null, mode: null, relativePath: EXECUTION_MODE_PATH, errors: [], evidenceJudge: null, executionEnvironment: null, previousMode: null });
   });
 
   it("writes the file, creating context/ if it must", () => {

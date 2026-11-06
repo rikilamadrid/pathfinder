@@ -300,6 +300,7 @@ describe("summarize — the shape it returns", () => {
       "attention",
       "blocked",
       "built",
+      "environment",
       "failures",
       "handlers",
       "harnessRows",

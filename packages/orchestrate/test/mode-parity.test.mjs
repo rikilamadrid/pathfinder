@@ -73,3 +73,59 @@ describe("the installer and the engine agree on the Evidence Judge", () => {
     }
   });
 });
+
+describe("the installer and the engine read the execution environment identically", () => {
+  it("agree on the values and the default", () => {
+    assert.deepEqual([...engine.EXECUTION_ENVIRONMENTS], [...installer.EXECUTION_ENVIRONMENTS]);
+    assert.equal(engine.DEFAULT_EXECUTION_ENVIRONMENT, installer.DEFAULT_EXECUTION_ENVIRONMENT);
+  });
+
+  const cases = [
+    ["no file", null],
+    ["no line", "<!-- pathfinder:execution-mode orchestrator -->\n"],
+    ["local", "<!-- pathfinder:execution-environment local -->\n"],
+    ["sandbox", "<!-- pathfinder:execution-environment sandbox -->\n"],
+    ["invalid", "<!-- pathfinder:execution-environment cloud -->\n"],
+    ["CRLF and padding", "# M\r\n\r\n  <!--  pathfinder:execution-environment   sandbox  -->  \r\n"],
+    ["quoted inline", "It says `<!-- pathfinder:execution-environment sandbox -->` here.\n"],
+    ["first marker wins", "<!-- pathfinder:execution-environment sandbox -->\n<!-- pathfinder:execution-environment local -->\n"],
+  ];
+  for (const [name, content] of cases) {
+    it(name, () => {
+      const raw = installer.readExecutionEnvironmentMarker(content);
+      const read = engine.readExecutionEnvironmentMarker(content);
+      assert.equal(read.explicit, raw !== null);
+      assert.equal(read.environment, raw ?? installer.DEFAULT_EXECUTION_ENVIRONMENT);
+      assert.equal(read.valid, installer.EXECUTION_ENVIRONMENTS.includes(raw ?? installer.DEFAULT_EXECUTION_ENVIRONMENT));
+      if (raw !== null) assert.deepEqual(installer.parseExecutionEnvironmentFlag(raw).error === undefined, read.valid);
+    });
+  }
+
+  it("agree on what the installer writes, under either mode", () => {
+    for (const mode of installer.EXECUTION_MODES) {
+      assert.deepEqual(engine.readExecutionEnvironmentMarker(installer.renderExecutionMode(mode)), { environment: "local", explicit: false, valid: true });
+      for (const environment of installer.EXECUTION_ENVIRONMENTS) {
+        const rendered = installer.renderExecutionMode(mode, { executionEnvironment: environment });
+        assert.deepEqual(engine.readExecutionEnvironmentMarker(rendered), { environment, explicit: true, valid: true });
+        assert.deepEqual(engine.readExecutionMode(rendered), { present: true, mode, valid: true });
+      }
+    }
+  });
+});
+
+describe("the installer keeps the sandbox lines the engine reads", () => {
+  it("re-renders the permission mode and agent-auth declaration as the engine reads them", () => {
+    for (const [content, permission, auth] of [
+      ["<!-- pathfinder:sandbox-permission-mode acceptEdits -->\n<!-- pathfinder:sandbox-agent-auth subscription -->\n", "acceptEdits", "subscription"],
+      ["  <!--  pathfinder:sandbox-permission-mode   bypassPermissions -->  \r\n", "bypassPermissions", null],
+      ["<!-- pathfinder:sandbox-permission-mode plan -->\n", "plan", null],
+      ["says `<!-- pathfinder:sandbox-permission-mode acceptEdits -->` inline\n", null, null],
+    ]) {
+      const rendered = installer.renderExecutionMode("orchestrator", { executionEnvironment: "sandbox", sandboxMarkers: installer.readSandboxMarkerLines(content) });
+      assert.deepEqual(engine.readSandboxPermissionModeMarker(rendered), engine.readSandboxPermissionModeMarker(content));
+      assert.deepEqual(engine.readSandboxAgentAuthMarker(rendered), engine.readSandboxAgentAuthMarker(content));
+      assert.equal(engine.readSandboxPermissionModeMarker(rendered).mode, permission);
+      assert.equal(engine.readSandboxAgentAuthMarker(rendered).value, auth);
+    }
+  });
+});

@@ -16,6 +16,7 @@
  *   node bin/orchestrate.mjs judge <key> [--timeout-ms N] [--json]
  *   node bin/orchestrate.mjs scratch new|deps|done|fail|list|prune ... [--json]
  *   node bin/orchestrate.mjs disk [--json]
+ *   node bin/orchestrate.mjs environment [--harness <id>] [--json]
  *
  * Every command takes `--root <dir>` (default: the repository containing the
  * working directory), `--store <spec>` to override `context/tracker.md`
@@ -38,6 +39,7 @@ import { humanDirectedFollowup } from "../routing-followup.mjs";
 import { readFollowups, followupDigest, rawReport, applicableFollowups } from "../followup-record.mjs";
 import { replaceCheckpoint } from "../checkpoint-write.mjs";
 import { readFileSync, realpathSync } from "node:fs";
+import { release as osRelease } from "node:os";
 import { join } from "node:path";
 
 import { checkIntegration, formatCheck, releaseClaim } from "../integration.mjs";
@@ -60,7 +62,8 @@ import { claim } from "../claim.mjs";
 import { claimFor } from "../claims.mjs";
 import { canonical, checkoutRoot, repositoryRoot, resolveRef } from "../git.mjs";
 import { isKey } from "../keys.mjs";
-import { orchestratorRefusal, readEvidenceJudge, readModelTiers } from "../mode.mjs";
+import { effectiveExecutionMode, orchestratorRefusal, readEvidenceJudge, readExecutionEnvironment, readExecutionModeFile, readModelTiers } from "../mode.mjs";
+import { formatReadiness, localDispatchRefusal, projectReadiness } from "../environment.mjs";
 import { computeStatus, formatStatus } from "../status.mjs";
 import { ensureEntry, holdKey, isComplete, materialize } from "../deps.mjs";
 import { diskCheck, diskLevelLine, floorGate, formatDisk, formatGb, roomFor } from "../disk.mjs";
@@ -207,6 +210,18 @@ const USAGE = `orchestrate
       Physical free space against the warning and floor thresholds, and the
       scratch area's runs and dependency cache.
 
+  environment [--harness claude-code|codex|manual] [--json]
+      Whether the execution environment context/execution-mode.md selects
+      (local, the default, or sandbox) is ready for the harness (default
+      claude-code) on this host: environment, harness, permission mode,
+      platform, runtime and version, each check's status (ready, missing,
+      unsupported, not-ready, authentication-required; declared and info
+      never block and are shown as warnings) and its remediation. Exits 0
+      when ready, 1 otherwise. local probes nothing. Creates, starts,
+      changes and launches nothing.
+      Under sandbox, brief refuses every local harness session and plan
+      shows the environment and its readiness.
+
   Common: --root <dir>  --store local|github-issues:owner/repo  --gh <path>
 `;
 
@@ -269,6 +284,13 @@ async function main(argv) {
     }
     case "scratch":
       return scratch({ root, sub: positional[0], args: positional.slice(1), flags });
+    case "environment": {
+      const harness = flags.harness ?? "claude-code";
+      if (!Object.hasOwn(HARNESS_TRANSLATIONS, harness)) {
+        return fail(2, `no translation for harness \`${harness}\`. Known: ${Object.keys(HARNESS_TRANSLATIONS).join(", ")}`);
+      }
+      return environment({ root, harness, json: Boolean(flags.json) });
+    }
     case "disk":
       return disk({ root, json: Boolean(flags.json) });
     case "release": {
@@ -609,6 +631,11 @@ function criteriaGuidance(root, key, { store: storeOverride, gh }) {
 }
 
 async function brief({ root, key, harness, session, approval, json, gh = "gh", store: storeOverride, live = [], override = null }) {
+  // Every translation brief knows starts a session on this host. Under any
+  // environment but local that is a silent fallback, so it is refused before
+  // anything else is read; switching to local is the human's marker edit.
+  const environmentRefusal = localDispatchRefusal(root, harness);
+  if (environmentRefusal) return fail(1, environmentRefusal);
   const found = claimFor(root, key);
   if (!found || found.orphan) return fail(1, `${key} has no registered claim to brief`);
   // A worker at a human gate stopped for a decision nobody has made yet. No
@@ -910,12 +937,43 @@ async function plan({ root, store: storeOverride, gh, feature, workers, live, js
   if (!planned.ok) return fail(1, planned.message);
   const result = planned.plan;
   const scope = approvalScope({ scope: result.scope, keys: result.dispatch.map((entry) => entry.key), workers });
+  // Under local, or no line, the plan is exactly what it was before the
+  // environment existed. Under anything else it says so, with readiness.
+  const selected = readExecutionEnvironment(root);
+  const marked = selected.valid && selected.environment === "local" ? null : environmentMark(root, harness ?? "claude-code");
   if (json) {
-    process.stdout.write(JSON.stringify({ ...result, store: describeStore(store), approval: scope }, null, 2) + "\n");
+    process.stdout.write(JSON.stringify({ ...result, store: describeStore(store), approval: scope, ...(marked ? { environment: marked.json } : {}) }, null, 2) + "\n");
   } else {
-    process.stdout.write(formatPlan(result) + (result.outcome === "dispatch" ? `\n${scope}\n` : ""));
+    process.stdout.write(formatPlan(result) + (result.outcome === "dispatch" ? `\n${scope}\n` : "") + (marked ? `\n${marked.text}\n` : ""));
   }
   return 0;
+}
+
+/** The environment and its readiness, as a plan marks a non-local selection. */
+function environmentMark(root, harness) {
+  const { selected, readiness } = projectReadiness(root, { harness, osRelease: osRelease(), env: process.env });
+  const name = selected.environment ?? "(unreadable)";
+  return {
+    json: { name, valid: selected.valid, harness, readiness: readiness.status, remediation: readiness.remediation, localDispatch: "refused" },
+    text: [
+      `Execution environment: ${name}${selected.valid ? "" : " (invalid)"} — readiness for ${harness}: ${readiness.status}`,
+      "  brief refuses every local harness session under this environment; nothing falls back to local.",
+      readiness.remediation ? `  Next: ${readiness.remediation}` : null,
+      "  Details: orchestrate environment. To run workers locally, the human edits the line to <!-- pathfinder:execution-environment local -->.",
+    ].filter(Boolean).join("\n"),
+  };
+}
+
+/** `environment`: the selected environment's readiness, read-only. */
+function environment({ root, harness, json }) {
+  const { selected, readiness } = projectReadiness(root, { harness, osRelease: osRelease(), env: process.env });
+  const mode = effectiveExecutionMode(readExecutionModeFile(root));
+  if (json) {
+    process.stdout.write(JSON.stringify({ selected, mode, ...readiness }, null, 2) + "\n");
+  } else {
+    process.stdout.write(formatReadiness({ selected, readiness, mode }));
+  }
+  return readiness.status === "ready" ? 0 : 1;
 }
 
 function announce({ root, store: storeOverride, gh, key, now }) {

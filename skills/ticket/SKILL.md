@@ -79,6 +79,14 @@ orientation handler — reads it this way, and nothing else restates it. In
 `human-in-the-loop` mode nothing in this skill behaves differently from before
 the file existed.
 
+The same file may also name an execution environment,
+`<!-- pathfinder:execution-environment local|sandbox -->`. It says where an
+orchestrated worker executes, and nothing else; see
+`skills/orchestrate/environment.md`. In `human-in-the-loop` mode Pathfinder
+launches no session, so a `sandbox` line does not sandbox this session: the
+work runs wherever the human started it, under that tool's own permissions.
+Never describe a human-in-the-loop session as sandboxed because of that line.
+
 ## Full-suite reuse
 
 A role may cite a full-suite run it made earlier instead of running the suite
