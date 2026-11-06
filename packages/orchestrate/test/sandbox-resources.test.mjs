@@ -1,8 +1,8 @@
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { hostname } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, describe, it } from "node:test";
 import { cleanUpTemporaryDirectories, ENGINE_ROOT, temporaryDirectory } from "../lib/harness.mjs";
@@ -14,6 +14,8 @@ const { ownerRecord, processChain } = await import(pathToFileURL(join(ENGINE_ROO
 after(cleanUpTemporaryDirectories);
 
 const WINDOWS = process.platform === "win32";
+/** chmod cannot make a directory unreadable on Windows, or to root. */
+const CHMOD_IGNORED = WINDOWS || process.getuid?.() === 0;
 const NOW = new Date("2026-11-06T16:25:47.123Z");
 const linkDir = (target, path) => symlinkSync(target, path, WINDOWS ? "junction" : "dir");
 
@@ -196,6 +198,41 @@ describe("owner records", () => {
     assert.ok(unreadable.some((entry) => entry.runId === moved.runId && /run directory/.test(entry.reason)));
     assert.ok(unreadable.some((entry) => /symlink/.test(entry.reason)));
     assert.deepEqual(readOwnerRecords(root, { key: "64.2" }).map((entry) => entry.status), ["unreadable"]);
+  });
+
+  it("an unreadable key or run directory is reported with its reason, and the rest are still listed and planned", { skip: CHMOD_IGNORED && "chmod does not restrict this user here" }, () => {
+    const root = temporaryDirectory("sbx-eacces-");
+    const readable = makeRun(root, { key: "64.3" });
+    makeRun(root, { key: "64.4" });
+    const closed = makeRun(root, { key: "64.2" });
+    const unlisted = makeRun(root, { key: "64.1" });
+    const keyDir = join(root, ".pathfinder", "sandboxes", "64.4");
+    const sbx = fixtureSbx([]);
+    chmodSync(keyDir, 0o000);
+    chmodSync(closed.runDir, 0o000);
+    // Its record can be read, but the directory cannot be listed for evidence.
+    chmodSync(unlisted.runDir, 0o300);
+    try {
+      const records = readOwnerRecords(root);
+      const record = (runDir) => records.find((entry) => entry.runDir === runDir);
+      assert.equal(record(readable.runDir).status, "ok");
+      assert.deepEqual([record(keyDir).status, record(keyDir).key, record(keyDir).runId], ["unreadable", "64.4", null]);
+      assert.match(record(keyDir).reason, /cannot read: EACCES/);
+      assert.equal(record(closed.runDir).status, "unreadable");
+      assert.match(record(closed.runDir).reason, /cannot read owner\.json: EACCES/, "a permission error is not reported as missing");
+
+      const listing = listOwned({ root, run: sbx.run });
+      assert.deepEqual(listing.owned.map((row) => row.runId).sort(), [readable.runId, unlisted.runId].sort());
+      assert.ok(listing.unreadable.some((entry) => entry.runDir === keyDir && /EACCES/.test(entry.reason)));
+
+      const plan = cleanupPlan({ root, run: sbx.run });
+      assert.deepEqual(plan.runs.map((entry) => entry.runId), [readable.runId]);
+      assert.match(plan.skipped.find((entry) => entry.runDir === keyDir).reason, /cannot read: EACCES/);
+      assert.match(plan.skipped.find((entry) => entry.runId === closed.runId).reason, /cannot read owner\.json: EACCES/);
+      assert.match(plan.skipped.find((entry) => entry.runId === unlisted.runId).reason, /cannot read run directory: EACCES/);
+    } finally {
+      for (const dir of [keyDir, closed.runDir, unlisted.runDir]) chmodSync(dir, 0o755);
+    }
   });
 });
 
@@ -449,6 +486,81 @@ describe("cleanup", () => {
     assert.match(result.results[0].skipped, /link; ownership unknown/);
     assert.ok(existsSync(join(target, "workspace", "keep.txt")));
     assert.ok(!sbx.calls.some((argv) => argv[2] === "rm"));
+  });
+
+  it("acts only on a run directory under the plan's own root, whatever the plan names", () => {
+    const root = temporaryDirectory("sbx-anchor-");
+    const other = temporaryDirectory("sbx-anchor-other-");
+    const loose = temporaryDirectory("sbx-anchor-loose-");
+    const sbx = fixtureSbx([]);
+    // A genuine plan for another tree, which is then given this root.
+    const victim = makeRun(other, { state: "collected" });
+    const foreign = cleanupPlan({ root: other, run: sbx.run });
+    assert.deepEqual(foreign.runs.map((entry) => entry.runId), [victim.runId]);
+    // A plan whose key walks out of this root's sandboxes area to that same run directory.
+    const walking = { ...foreign.runs[0], key: relative(join(root, ".pathfinder", "sandboxes"), join(other, ".pathfinder", "sandboxes", "64.3")) };
+    assert.equal(runDirectory(root, walking.key, walking.runId), victim.runDir, "the walking key names the other tree's run");
+    // A hand-built plan for <any>/64.3/<runId> holding a valid record, with no .pathfinder/sandboxes on its path.
+    counter += 1;
+    const runId = newRunId(NOW, () => counter.toString(16).padStart(8, "0"));
+    const looseRun = join(loose, "64.3", runId);
+    mkdirSync(join(looseRun, "workspace"), { recursive: true });
+    writeFileSync(join(looseRun, "workspace", "keep.txt"), "keep\n");
+    const looseRecord = { ...victim.record, runId, sandbox: sandboxName("64.3", "implementation", runId), workspace: join(looseRun, "workspace") };
+    assert.ok(writeOwnerRecord(looseRun, looseRecord).ok);
+    const handBuilt = { key: "64.3", runId, runDir: looseRun, sandbox: looseRecord.sandbox, state: "collected", status: "absent", actions: [{ kind: "archive" }, { kind: "remove-workspace", path: join(looseRun, "workspace") }, { kind: "mark-removed" }] };
+
+    const result = executeCleanup({ ...foreign, root, runs: [foreign.runs[0], walking, handBuilt] }, { run: sbx.run });
+    assert.deepEqual(result.results.map((entry) => entry.done), [[], [], []]);
+    assert.match(result.results[0].skipped, /^before archive: run directory .* is not .*; ownership unknown$/);
+    assert.match(result.results[1].skipped, /is not a ticket key; ownership unknown$/);
+    assert.match(result.results[2].skipped, /^before archive: run directory .* is not .*; ownership unknown$/);
+    assert.ok(existsSync(join(victim.workspace, "src", "index.js")));
+    assert.ok(existsSync(join(looseRun, "workspace", "keep.txt")));
+    assert.equal(readRecord(victim).state, "collected");
+    assert.equal(JSON.parse(readFileSync(join(looseRun, "owner.json"), "utf8")).state, "collected");
+    for (const tree of [root, other, loose]) assert.ok(!existsSync(join(tree, ".pathfinder", "archives")), tree);
+    assert.ok(!sbx.calls.some((argv) => argv[2] !== "ls"));
+    assert.equal(executeCleanup({ ...foreign, root: undefined }).ok, false, "a plan with no root is refused");
+  });
+
+  it("never follows a linked .pathfinder or sandboxes directory", () => {
+    const sbx = fixtureSbx([]);
+    for (const linked of [[".pathfinder"], [".pathfinder", "sandboxes"]]) {
+      const label = linked.join("/");
+      const root = temporaryDirectory("sbx-linked-base-");
+      const elsewhere = temporaryDirectory("sbx-linked-base-target-");
+      const run = makeRun(root, { state: "collected" });
+      const plan = cleanupPlan({ root, run: sbx.run });
+      assert.equal(plan.runs.length, 1, label);
+      // After the preview, the directory moves elsewhere and a link to it takes its place.
+      const moved = join(elsewhere, ...linked);
+      mkdirSync(dirname(moved), { recursive: true });
+      renameSync(join(root, ...linked), moved);
+      linkDir(moved, join(root, ...linked));
+      const movedRun = runDirectory(elsewhere, "64.3", run.runId);
+
+      const result = executeCleanup(plan, { run: sbx.run });
+      assert.deepEqual(result.results[0].done, [], label);
+      assert.match(result.results[0].skipped, /is a link; ownership unknown$/, label);
+      assert.ok(existsSync(join(movedRun, "workspace", "src", "index.js")), label);
+      assert.equal(JSON.parse(readFileSync(join(movedRun, "owner.json"), "utf8")).state, "collected", label);
+      assert.ok(!existsSync(archiveDirectory(elsewhere, "64.3", run.runId)), label);
+
+      // Read through the link, the base is one unreadable entry: reported, never followed or dropped.
+      const records = readOwnerRecords(root);
+      assert.deepEqual(records.map((entry) => [entry.status, entry.key, entry.runId]), [["unreadable", null, null]], label);
+      assert.match(records[0].reason, /is a link; not followed$/, label);
+      const listing = listOwned({ root, run: sbx.run });
+      assert.deepEqual([listing.owned.length, listing.unreadable.length], [0, 1], label);
+      assert.equal(stopOwned({ root, run: sbx.run, key: "64.3", runId: run.runId }).skipped.length, 1, label);
+      const again = cleanupPlan({ root, run: sbx.run });
+      assert.deepEqual(again.runs, [], label);
+      assert.match(again.skipped[0].reason, /is a link; not followed/, label);
+      assert.deepEqual(executeCleanup(again, { run: sbx.run }).results, [], label);
+      assert.ok(existsSync(join(movedRun, "workspace", "src", "index.js")), label);
+    }
+    assert.ok(!sbx.calls.some((argv) => argv[2] !== "ls"));
   });
 
   it("never lets workspace contents choose the sandbox, path, or archive it acts on", () => {

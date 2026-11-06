@@ -18,6 +18,15 @@
  * owner process it cannot check as active. It never runs `sbx prune`,
  * `sbx rm --all`, or any `docker` command.
  *
+ * A run directory is acted on only when it is exactly
+ * `<root>/.pathfinder/sandboxes/<key>/<runId>` for the plan's own `root`, and
+ * every component below `root` — `.pathfinder`, `sandboxes`, the key and the
+ * run directory — is a plain directory, never a link. `root` itself is the
+ * caller's anchor and is taken as given. A plan is never trusted to name the
+ * directory: one built for another tree, or edited between preview and
+ * execute, is skipped. A linked or unreadable directory on that path is
+ * reported as unreadable, with its reason, and never followed or dropped.
+ *
  * Every `sbx` call goes through an injected runner (the Feature 64 shared
  * contract): `run(argv, options) → { status, signal, stdout, stderr, error }`,
  * `argv[0]` the executable. The default spawns with no shell and a timeout.
@@ -94,6 +103,30 @@ function inside(parent, child) {
   return rel;
 }
 
+const errorCode = (error) => error?.code ?? error?.message ?? String(error);
+
+/**
+ * Why `base/...parts` is not reached through plain directories alone, or null
+ * when every component below `base` is a directory and none is a link.
+ * `missing` is true only when a component does not exist.
+ */
+function pathProblem(base, parts) {
+  let current = base;
+  for (const part of parts) {
+    current = join(current, part);
+    let stats;
+    try { stats = lstatSync(current); } catch (error) {
+      return error?.code === "ENOENT" ? { missing: true, reason: `${current} is missing` } : { missing: false, reason: `cannot read ${current}: ${errorCode(error)}` };
+    }
+    if (stats.isSymbolicLink()) return { missing: false, reason: `${current} is a link` };
+    if (!stats.isDirectory()) return { missing: false, reason: `${current} is not a directory` };
+  }
+  return null;
+}
+
+/** `base/...parts` when every component below `base` is a plain directory, never a link; else null. */
+const plainDirectory = (base, ...parts) => (pathProblem(base, parts) === null ? join(base, ...parts) : null);
+
 // ---------------------------------------------------------------------------
 // Identity
 
@@ -121,6 +154,21 @@ export function sandboxName(key, session, runId) {
 
 export const runDirectory = (root, key, runId) => join(root, ...SANDBOXES_DIR.split("/"), key, runId);
 export const archiveDirectory = (root, key, runId) => join(root, ...ARCHIVES_DIR.split("/"), key, runId);
+
+/**
+ * Why `runDir` is not this root's own run directory for `key` and `runId`, or
+ * null. It must be exactly `runDirectory(root, key, runId)` and reached from
+ * `root` through plain directories alone.
+ */
+function runDirectoryProblem(root, runDir, key, runId) {
+  if (typeof root !== "string" || !root) return "the plan names no project root; ownership unknown";
+  if (!isKey(key)) return `\`${key}\` is not a ticket key; ownership unknown`;
+  if (!isRunId(runId)) return `\`${runId}\` is not a run id; ownership unknown`;
+  const expected = runDirectory(root, key, runId);
+  if (runDir !== expected) return `run directory ${runDir} is not ${expected}; ownership unknown`;
+  const problem = pathProblem(root, [...SANDBOXES_DIR.split("/"), key, runId]);
+  return problem ? `${problem.reason}; ownership unknown` : null;
+}
 
 // ---------------------------------------------------------------------------
 // Owner records
@@ -171,14 +219,18 @@ export function writeOwnerRecord(runDir, record) {
   return { ok: true, path: file, record };
 }
 
-/** The record in `runDir`, or `{ ok: false, reason }` when it is missing, a symlink, or malformed. */
+/** The record in `runDir`, or `{ ok: false, reason }` when it is missing, unreadable, a symlink, or malformed. */
 export function readOwnerRecord(runDir) {
   const file = join(runDir, OWNER_FILE);
   let stats;
-  try { stats = lstatSync(file); } catch { return { ok: false, reason: `${OWNER_FILE} is missing` }; }
+  try { stats = lstatSync(file); } catch (error) {
+    return { ok: false, reason: error?.code === "ENOENT" ? `${OWNER_FILE} is missing` : `cannot read ${OWNER_FILE}: ${errorCode(error)}` };
+  }
   if (!stats.isFile()) return { ok: false, reason: `${OWNER_FILE} is not a regular file` };
+  let text;
+  try { text = readFileSync(file, "utf8"); } catch (error) { return { ok: false, reason: `cannot read ${OWNER_FILE}: ${errorCode(error)}` }; }
   let record;
-  try { record = JSON.parse(readFileSync(file, "utf8")); } catch { return { ok: false, reason: `${OWNER_FILE} is not valid JSON` }; }
+  try { record = JSON.parse(text); } catch { return { ok: false, reason: `${OWNER_FILE} is not valid JSON` }; }
   const problem = recordProblem(record, runDir);
   return problem ? { ok: false, reason: problem } : { ok: true, record };
 }
@@ -207,28 +259,38 @@ export function updateOwnerRecord(runDir, patch, { from = null, now = new Date()
 
 /**
  * Every run directory under `.pathfinder/sandboxes/`, optionally for one key.
- * A malformed record, a symlinked or misnamed directory, or a missing record
- * is returned as `unreadable` with its reason — never dropped, and never
- * treated as owned.
+ * A malformed record, a symlinked, misnamed or unreadable directory, or a
+ * missing record is returned as `unreadable` with its reason — never dropped,
+ * never thrown, and never treated as owned. A linked or unreadable
+ * `.pathfinder` or `sandboxes` directory is one unreadable entry with no key:
+ * it is reported, never followed. No `.pathfinder/sandboxes` at all is no runs.
  */
 export function readOwnerRecords(root, { key = null } = {}) {
   const base = join(root, ...SANDBOXES_DIR.split("/"));
   const entries = [];
+  const unreadable = (runDir, keyName, runId, reason) => entries.push({ status: "unreadable", runDir, key: keyName, runId, reason });
+  const baseProblem = pathProblem(root, SANDBOXES_DIR.split("/"));
+  if (baseProblem?.missing) return entries;
+  if (baseProblem) { unreadable(base, null, null, `${baseProblem.reason}; not followed`); return entries; }
   let keys;
-  try { keys = readdirSync(base); } catch { return entries; }
+  try { keys = readdirSync(base); } catch (error) { unreadable(base, null, null, `cannot read: ${errorCode(error)}`); return entries; }
   for (const keyName of keys.sort()) {
     if (key !== null && keyName !== key) continue;
     const keyDir = join(base, keyName);
-    const keyStats = lstatSync(keyDir);
+    let keyStats;
+    try { keyStats = lstatSync(keyDir); } catch (error) { unreadable(keyDir, keyName, null, `cannot read: ${errorCode(error)}`); continue; }
     if (keyStats.isSymbolicLink() || !keyStats.isDirectory() || !isKey(keyName)) {
-      entries.push({ status: "unreadable", runDir: keyDir, key: keyName, runId: null, reason: keyStats.isSymbolicLink() ? "a symlink; not followed" : "not a ticket key directory" });
+      unreadable(keyDir, keyName, null, keyStats.isSymbolicLink() ? "a symlink; not followed" : "not a ticket key directory");
       continue;
     }
-    for (const runName of readdirSync(keyDir).sort()) {
+    let runs;
+    try { runs = readdirSync(keyDir); } catch (error) { unreadable(keyDir, keyName, null, `cannot read: ${errorCode(error)}`); continue; }
+    for (const runName of runs.sort()) {
       const runDir = join(keyDir, runName);
-      const runStats = lstatSync(runDir);
+      let runStats;
+      try { runStats = lstatSync(runDir); } catch (error) { unreadable(runDir, keyName, runName, `cannot read: ${errorCode(error)}`); continue; }
       if (runStats.isSymbolicLink() || !runStats.isDirectory() || !isRunId(runName)) {
-        entries.push({ status: "unreadable", runDir, key: keyName, runId: runName, reason: runStats.isSymbolicLink() ? "a symlink; not followed" : "not a run directory" });
+        unreadable(runDir, keyName, runName, runStats.isSymbolicLink() ? "a symlink; not followed" : "not a run directory");
         continue;
       }
       const read = readOwnerRecord(runDir);
@@ -329,19 +391,18 @@ const ownerState = (owner) => {
 };
 
 /**
- * Does the record's workspace belong to its own run, and does sbx agree?
- * Returns null when ownership is proven, else the reason it is not.
+ * Does the record's workspace belong to its own run under `root`, and does sbx
+ * agree? Returns null when ownership is proven, else the reason it is not.
  */
-function workspaceProblem(entry, observed) {
+function workspaceProblem(root, entry, observed) {
   const { runDir, record } = entry;
+  // The run directory is root's own <root>/.pathfinder/sandboxes/<key>/<runId>, every component below root a plain directory.
+  const anchor = runDirectoryProblem(root, runDir, record.key, record.runId);
+  if (anchor) return anchor;
   const canonicalRun = real(runDir);
-  if (!canonicalRun) return "run directory is unreadable";
-  // The run directory is reached through no link: <base>/<key>/<runId>, each a plain directory.
-  const keyDir = path.dirname(runDir);
-  try {
-    if (lstatSync(keyDir).isSymbolicLink() || lstatSync(runDir).isSymbolicLink()) return "run directory is reached through a link; ownership unknown";
-  } catch { return "run directory is unreadable"; }
-  if (canonicalRun !== join(real(path.dirname(keyDir)) ?? "", record.key, record.runId)) return "run directory does not resolve inside the sandboxes area; ownership unknown";
+  const canonicalRoot = real(root);
+  if (!canonicalRun || !canonicalRoot) return "run directory is unreadable";
+  if (canonicalRun !== join(canonicalRoot, ...SANDBOXES_DIR.split("/"), record.key, record.runId)) return "run directory does not resolve inside the sandboxes area; ownership unknown";
   const expected = join(canonicalRun, WORKSPACE_DIR);
   if (!ownWorkspace(record.workspace, runDir)) return `recorded workspace ${record.workspace} is not this run's own`;
   try {
@@ -408,7 +469,8 @@ export function listOwned({ root, run = defaultRun, key = null, env = process.en
 export function stopOwned({ root, run = defaultRun, key, runId = null, env = process.env, now = new Date() } = {}) {
   if (!isKey(key)) return refuse(`\`${key}\` is not a ticket key`);
   if (runId !== null && !isRunId(runId)) return refuse(`\`${runId}\` is not a run id`);
-  const entries = readOwnerRecords(root, { key }).filter((entry) => runId === null || entry.runId === runId);
+  // An unreadable directory that names no run may hold this one: it is reported, never dropped.
+  const entries = readOwnerRecords(root, { key }).filter((entry) => runId === null || entry.runId === runId || entry.runId === null);
   const listing = readSandboxes(run, env);
   const stopped = [];
   const skipped = [];
@@ -419,7 +481,7 @@ export function stopOwned({ root, run = defaultRun, key, runId = null, env = pro
     const base = { key: record.key, runId: record.runId, sandbox: record.sandbox };
     if (observed.status === "unknown") { skipped.push({ ...base, reason: listing.available ? "sbx status unknown" : `sbx unavailable or unreadable: ${listing.reason}` }); continue; }
     if (observed.status === "absent") { skipped.push({ ...base, reason: "sandbox is not present" }); continue; }
-    const problem = workspaceProblem(entry, observed);
+    const problem = workspaceProblem(root, entry, observed);
     if (problem) { skipped.push({ ...base, reason: problem }); continue; }
     if (observed.status === "running") {
       const result = sbx(run, env, "stop", record.sandbox);
@@ -436,7 +498,7 @@ export function stopOwned({ root, run = defaultRun, key, runId = null, env = pro
 // Cleanup
 
 /** Why this run must not be cleaned up now, or null. Unknown is never safe. */
-function blocker(entry, observed, listingReason) {
+function blocker(root, entry, observed, listingReason) {
   const { record } = entry;
   if (record.state === "removed") return "already removed";
   if (observed.status === "unknown") return listingReason ? `sbx unavailable or unreadable (${listingReason}); status unknown` : "sbx status unknown";
@@ -444,20 +506,7 @@ function blocker(entry, observed, listingReason) {
   const owner = ownerState(record.owner);
   if (owner === "alive") return "owner process is alive";
   if (owner === "unknown") return "owner process cannot be checked";
-  return workspaceProblem(entry, observed);
-}
-
-/** `base/...parts` when every component below `base` is a plain directory, never a link; else null. */
-function plainDirectory(base, ...parts) {
-  let current = base;
-  for (const part of parts) {
-    current = join(current, part);
-    try {
-      const stats = lstatSync(current);
-      if (stats.isSymbolicLink() || !stats.isDirectory()) return null;
-    } catch { return null; }
-  }
-  return current;
+  return workspaceProblem(root, entry, observed);
 }
 
 /** Evidence sources inside a run, as [source, archive-relative destination]. No link is followed to find them. */
@@ -486,12 +535,14 @@ export function cleanupPlan({ root, run = defaultRun, key = null, env = process.
     const { record } = entry;
     const observed = observe(entry, listing);
     const base = { key: record.key, runId: record.runId, runDir: entry.runDir, sandbox: record.sandbox, state: record.state, status: observed.status };
-    const reason = blocker(entry, observed, listing.available ? null : listing.reason);
+    const reason = blocker(root, entry, observed, listing.available ? null : listing.reason);
     if (reason) { skipped.push({ ...base, reason }); continue; }
+    let sources;
+    try { sources = evidenceSources(entry.runDir); } catch (error) { skipped.push({ ...base, reason: `cannot read run directory: ${errorCode(error)}` }); continue; }
     const workspace = join(real(entry.runDir), WORKSPACE_DIR);
     const actions = [];
     if (!FINAL.has(record.state)) actions.push({ kind: "mark-failed", reason: `interrupted: recorded ${record.state}, owner process has exited` });
-    actions.push({ kind: "archive", to: archiveDirectory(root, record.key, record.runId), from: evidenceSources(entry.runDir).map(([source]) => source) });
+    actions.push({ kind: "archive", to: archiveDirectory(root, record.key, record.runId), from: sources.map(([source]) => source) });
     if (observed.status === "stopped") actions.push({ kind: "sbx-rm", sandbox: record.sandbox });
     if (existsSync(workspace)) actions.push({ kind: "remove-workspace", path: workspace });
     actions.push({ kind: "mark-removed" });
@@ -552,13 +603,15 @@ export function removeWithin(boundary, dir) {
 }
 
 /**
- * Perform a plan from `cleanupPlan`. Before each action the record and
- * `sbx ls` are read again; if the record, its state, the sandbox's status, the
- * owner's liveness or the workspace agreement differ from what this run
- * expects, the rest of that run is skipped and left as it is.
+ * Perform a plan from `cleanupPlan`. Before each action the run directory is
+ * re-derived from the plan's root, key and run id and its path checked for
+ * links, and the record and `sbx ls` are read again; if the directory is not
+ * root's own, or the record, its state, the sandbox's status, the owner's
+ * liveness or the workspace agreement differ from what this run expects, the
+ * rest of that run is skipped and left as it is.
  */
 export function executeCleanup(plan, { run = defaultRun, env = process.env, now = new Date() } = {}) {
-  if (!plan?.ok || !Array.isArray(plan.runs)) return refuse("not a cleanup plan");
+  if (!plan?.ok || !Array.isArray(plan.runs) || typeof plan.root !== "string" || !plan.root) return refuse("not a cleanup plan");
   const { root } = plan;
   const results = [];
   for (const planned of plan.runs) {
@@ -568,6 +621,9 @@ export function executeCleanup(plan, { run = defaultRun, env = process.env, now 
     let archived = null;
     let skippedReason = null;
     for (const action of planned.actions) {
+      // The plan never chooses the directory: it must be root's own, reached through no link.
+      const anchor = runDirectoryProblem(root, planned.runDir, planned.key, planned.runId);
+      if (anchor) { skippedReason = `before ${action.kind}: ${anchor}`; break; }
       const current = readOwnerRecord(planned.runDir);
       if (!current.ok) { skippedReason = `before ${action.kind}: record unreadable (${current.reason})`; break; }
       const entry = { runDir: planned.runDir, record: current.record };
@@ -581,7 +637,7 @@ export function executeCleanup(plan, { run = defaultRun, env = process.env, now 
         skippedReason = `before ${action.kind}: sandbox is ${observed.status}${listing.available ? "" : ` (${listing.reason})`}, expected ${expectedStatus}`;
         break;
       }
-      const reason = blocker(entry, observed, listing.available ? null : listing.reason);
+      const reason = blocker(root, entry, observed, listing.available ? null : listing.reason);
       if (reason) { skippedReason = `before ${action.kind}: ${reason}`; break; }
       try {
         if (action.kind === "mark-failed") {
