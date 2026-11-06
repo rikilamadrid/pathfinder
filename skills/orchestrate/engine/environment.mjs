@@ -41,9 +41,17 @@ import {
   EXECUTION_ENVIRONMENTS,
   EXECUTION_MODE_PATH,
   SANDBOX_PERMISSION_MODES,
+  isMalformedEnvironmentLine,
   readExecutionEnvironment,
   readSandboxSettings,
 } from "./mode.mjs";
+
+/** What is wrong with an environment the mode file names that is not valid. */
+function invalidEnvironment(environment) {
+  if (environment === null) return `${EXECUTION_MODE_PATH} could not be read`;
+  if (isMalformedEnvironmentLine(environment)) return `the line \`${environment}\` opens the execution-environment marker but is not one`;
+  return `\`${environment}\` is not an execution environment`;
+}
 
 /** The statuses a readiness check, and the whole report, can carry. */
 export const READINESS_STATUSES = Object.freeze(["ready", "missing", "unsupported", "not-ready", "authentication-required"]);
@@ -191,20 +199,54 @@ function findVersion(value, depth = 0) {
   return null;
 }
 
+/** A one-element array stands for its element; any other array stands for nothing. */
+const single = (value) => (Array.isArray(value) ? (value.length === 1 ? value[0] : null) : value);
+
 /**
- * Whether `sbx daemon status --json` says the daemon runs: a `running: true`,
- * or a `status`/`state` of `running`. Anything else, including a shape this
- * reading does not know, is not proof it runs.
+ * What one level of a daemon status document claims: true for running, false
+ * for an explicit negative, null for no claim. `running` is the claim only
+ * when it is `true`; any other value under it is a negative. A string
+ * `status`/`state` is the claim only when it is `running`; any other string
+ * is a negative. A daemon level may also be a bare boolean or status string.
  */
-function daemonRunning(value, depth = 0) {
-  if (depth > 6 || value === null || typeof value !== "object") return false;
-  const entries = Array.isArray(value) ? value.map((item) => [null, item]) : Object.entries(value);
-  for (const [key, item] of entries) {
-    if (key === null) continue;
-    if (/^running$/i.test(key) && item === true) return true;
-    if (/^(status|state)$/i.test(key) && typeof item === "string" && item.trim().toLowerCase() === "running") return true;
+function runningClaim(level) {
+  if (typeof level === "boolean") return level;
+  if (typeof level === "string") return level.trim().toLowerCase() === "running";
+  if (level === null || typeof level !== "object" || Array.isArray(level)) return null;
+  let claim = null;
+  for (const [key, item] of Object.entries(level)) {
+    if (/^running$/i.test(key)) {
+      if (item !== true) return false;
+      claim = true;
+    } else if (/^(status|state)$/i.test(key) && typeof item === "string") {
+      if (item.trim().toLowerCase() !== "running") return false;
+      claim = true;
+    }
   }
-  return entries.some(([, item]) => daemonRunning(item, depth + 1));
+  return claim;
+}
+
+/**
+ * Whether `sbx daemon status --json` says the daemon runs. The shape is not
+ * documented, so this reading fails closed. It looks at two levels only: the
+ * document (or its one element) and the object under a `daemon` key. An
+ * explicit negative at either level means not running; otherwise a positive
+ * at either level — `running: true`, or a `status`/`state` of `running` — is
+ * required. A component nested anywhere else, saying it runs, is never proof
+ * the daemon does.
+ */
+function daemonRunning(value) {
+  const document = single(value);
+  if (document === null || typeof document !== "object" || Array.isArray(document)) return false;
+  const daemonKey = Object.keys(document).find((key) => /^daemon$/i.test(key));
+  const levels = [document, ...(daemonKey === undefined ? [] : [single(document[daemonKey])])];
+  let running = false;
+  for (const level of levels) {
+    const claim = runningClaim(level);
+    if (claim === false) return false;
+    if (claim === true) running = true;
+  }
+  return running;
 }
 
 function parseJson(text) {
@@ -241,28 +283,40 @@ const hostsOf = (entry) => {
   return (Array.isArray(raw) ? raw : [raw]).filter((host) => typeof host === "string");
 };
 
+/** An entry that names a scope other than global belongs to one sandbox. */
+const inheritedByEverySandbox = (entry) => entry.scope === null || entry.scope.toLowerCase() === "global";
+
 /**
- * `sbx secret ls --json`, reduced to the fields readiness may look at:
- * `service`, `scope` and hosts. `sbx` prints secrets partially masked — a
- * masked value is still part of the secret — so nothing else of an entry, and
- * none of the command's raw output, ever leaves this function: not in a
- * detail, not in an error, not in `--json`.
+ * The secrets every new sandbox inherits: `sbx secret ls --global --json`,
+ * reduced to the fields readiness may look at — `service`, `scope` and hosts.
+ *
+ * Service and custom secrets are global unless set with `--sandbox`, which
+ * scopes one to a single named sandbox; Pathfinder creates a new sandbox for
+ * every session, so a secret scoped to another one is never this session's.
+ * `--global` (documented beside `--json`) lists only the global ones, so no
+ * field name is assumed to tell them apart. An entry that still names another
+ * scope is dropped too, should a listing ever ignore the flag.
+ *
+ * `sbx` prints secrets partially masked — a masked value is still part of the
+ * secret — so nothing else of an entry, and none of the command's raw output,
+ * ever leaves this function: not in a detail, not in an error, not in
+ * `--json`.
  *
  * @returns {{ok: true, entries: {service: string|null, scope: string|null, hosts: string[]}[]}
  *         | {ok: false, authentication: boolean, detail: string}}
  */
 export function listSecrets(sbx) {
-  const result = sbx("secret", "ls", "--json");
+  const result = sbx("secret", "ls", "--global", "--json");
   if (result.status !== 0) {
     return {
       ok: false,
       authentication: NOT_AUTHENTICATED.test(`${result.stdout}\n${result.stderr}`),
-      detail: `\`sbx secret ls --json\` ${exited(result)}`,
+      detail: `\`sbx secret ls --global --json\` ${exited(result)}`,
     };
   }
   const parsed = parseJson(result.stdout);
   if (!parsed.ok || !Array.isArray(parsed.value)) {
-    return { ok: false, authentication: false, detail: "`sbx secret ls --json` reported nothing Pathfinder can read" };
+    return { ok: false, authentication: false, detail: "`sbx secret ls --global --json` reported nothing Pathfinder can read" };
   }
   return {
     ok: true,
@@ -272,7 +326,8 @@ export function listSecrets(sbx) {
         service: typeof entry.service === "string" ? entry.service : null,
         scope: typeof entry.scope === "string" ? entry.scope : null,
         hosts: hostsOf(entry),
-      })),
+      }))
+      .filter(inheritedByEverySandbox),
   };
 }
 
@@ -281,13 +336,15 @@ export function listSecrets(sbx) {
  * check, because how an agent signs in is the part of this contract most
  * likely to change. `checkReadiness` takes it as `agentAuth`; a replacement
  * receives `{secrets, declared, harness}` — `secrets` the sanitized listing
- * from `listSecrets`, `declared` the `sandbox-agent-auth` marker reading —
- * and returns one check `{name, status, detail, method?, remediation?}`.
+ * from `listSecrets`, global secrets only, `declared` the `sandbox-agent-auth`
+ * marker reading — and returns one check `{name, status, detail, method?,
+ * remediation?}`. A secret scoped to one named sandbox never reaches it: the
+ * new sandbox a session gets would not receive it.
  *
  * In order:
- *  1. an `anthropic` service secret → ready, method `api-key`;
- *  2. a custom secret whose hosts include api.anthropic.com → ready, method
- *     `custom-secret`, experimental and unverified with Claude Code;
+ *  1. a global `anthropic` service secret → ready, method `api-key`;
+ *  2. a global custom secret whose hosts include api.anthropic.com → ready,
+ *     method `custom-secret`, experimental and unverified with Claude Code;
  *  3. a declared subscription → `declared`: non-blocking, shown as a warning,
  *     because subscription OAuth held by sbx is visible to no read-only check;
  *  4. otherwise `authentication-required`, subscription route first.
@@ -297,14 +354,14 @@ export function checkAgentAuthentication({ secrets, declared }) {
   if (!secrets.ok) {
     return secrets.authentication
       ? { name, status: "authentication-required", detail: "sbx is not signed in to Docker", remediation: "sbx login" }
-      : { name, status: "not-ready", detail: secrets.detail, remediation: "Run `sbx secret ls` to see the error" };
+      : { name, status: "not-ready", detail: secrets.detail, remediation: "Run `sbx secret ls --global` to see the error" };
   }
   if (secrets.entries.some((entry) => entry.service === "anthropic")) {
     return {
       name,
       status: "ready",
       method: "api-key",
-      detail: "an anthropic API key is stored in sbx; billed per token to the Anthropic API account, separately from any Claude subscription",
+      detail: "an anthropic API key is stored in sbx for every sandbox; billed per token to the Anthropic API account, separately from any Claude subscription",
     };
   }
   if (secrets.entries.some((entry) => entry.hosts.some((host) => host.toLowerCase() === ANTHROPIC_API_HOST))) {
@@ -312,7 +369,7 @@ export function checkAgentAuthentication({ secrets, declared }) {
       name,
       status: "ready",
       method: "custom-secret",
-      detail: `a custom secret is injected for ${ANTHROPIC_API_HOST}; custom secrets are experimental in sbx and unverified with Claude Code`,
+      detail: `a custom secret is injected for ${ANTHROPIC_API_HOST} in every sandbox; custom secrets are experimental in sbx and unverified with Claude Code`,
     };
   }
   if (declared?.valid && declared.value === "subscription") {
@@ -327,7 +384,7 @@ export function checkAgentAuthentication({ secrets, declared }) {
   return {
     name,
     status: "authentication-required",
-    detail: `no agent credential is visible: no anthropic secret, no custom secret for ${ANTHROPIC_API_HOST}, and no declared subscription`,
+    detail: `no agent credential is visible to a new sandbox: no global anthropic secret, no global custom secret for ${ANTHROPIC_API_HOST} (a secret scoped to one named sandbox is not inherited), and no declared subscription`,
     remediation: `${SUBSCRIPTION_ROUTE}. Or: ${API_KEY_ROUTE}`,
   };
 }
@@ -413,7 +470,7 @@ function hostAccessChecks(sbx, secrets) {
   if (secrets === null || !secrets.ok) {
     checks.push({ name: "global-secrets", status: "info", informational: true, value: "unknown", detail: "unknown: the secret listing could not be read" });
   } else {
-    const names = [...new Set(secrets.entries.filter((entry) => entry.scope === null || entry.scope === "global").map((entry) => entry.service ?? "custom"))].sort();
+    const names = [...new Set(secrets.entries.map((entry) => entry.service ?? "custom"))].sort();
     checks.push({
       name: "global-secrets",
       status: "info",
@@ -488,7 +545,7 @@ export function checkReadiness({
     checks.push({
       name: "environment",
       status: "unsupported",
-      detail: environment === null ? `${EXECUTION_MODE_PATH} could not be read` : `\`${environment}\` is not an execution environment`,
+      detail: invalidEnvironment(environment),
       remediation: `Fix the line in ${EXECUTION_MODE_PATH} to \`<!-- pathfinder:execution-environment local|sandbox -->\`; the valid values are ${EXECUTION_ENVIRONMENTS.join(" and ")}.`,
     });
     return report(null);
@@ -613,8 +670,14 @@ export function localDispatchRefusal(root, harness) {
   const selected = readExecutionEnvironment(root);
   if (selected.valid && selected.environment === "local") return null;
   if (!selected.valid) {
+    const what =
+      selected.environment === null
+        ? "names an unreadable execution environment"
+        : isMalformedEnvironmentLine(selected.environment)
+          ? `carries a malformed execution-environment line (\`${selected.environment}\`)`
+          : `names an invalid (\`${selected.environment}\`) execution environment`;
     return (
-      `${EXECUTION_MODE_PATH} names ${selected.environment === null ? "an unreadable" : `an invalid (\`${selected.environment}\`)`} execution environment, ` +
+      `${EXECUTION_MODE_PATH} ${what}, ` +
       `so no worker is dispatched. The valid values are ${EXECUTION_ENVIRONMENTS.join(" and ")}; ` +
       "fix the `<!-- pathfinder:execution-environment ... -->` line, then check it with `orchestrate environment`."
     );

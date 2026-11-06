@@ -184,6 +184,8 @@ export const EXECUTION_ENVIRONMENTS = Object.freeze(["local", "sandbox"]);
 export const DEFAULT_EXECUTION_ENVIRONMENT = EXECUTION_ENVIRONMENTS[0];
 
 const ENVIRONMENT_MARKER = /^<!--\s*pathfinder:execution-environment\s+(\S+)\s*-->$/;
+/** A line that opens the environment marker, well formed or not. */
+const ENVIRONMENT_OPENING = /^<!--\s*pathfinder:\s*execution-environment\b/i;
 
 /**
  * The execution environment a mode file's contents name, on its own optional
@@ -197,17 +199,32 @@ const ENVIRONMENT_MARKER = /^<!--\s*pathfinder:execution-environment\s+(\S+)\s*-
  * refuses an invalid environment rather than guessing one. The first marker
  * line decides, and a marker quoted inside a longer line is not one.
  *
+ * A line that opens the marker and is not exactly that shape — a colon or an
+ * `=` after the name, an extra word, text after `-->` — is invalid wherever it
+ * is, and `environment` is that whole line. It is never read as no line: a
+ * hand edit that plainly meant to choose an environment, read as `local`, is
+ * the silent fallback the selection exists to prevent.
+ *
  * Execution environment is not execution mode and not harness: it says only
  * where an orchestrated worker would execute.
  *
  * @returns {{environment: string, explicit: boolean, valid: boolean}}
  */
 export function readExecutionEnvironmentMarker(content) {
-  for (const line of String(content ?? "").split(/\r?\n/)) {
-    const match = ENVIRONMENT_MARKER.exec(line.trim());
-    if (match) return { environment: match[1], explicit: true, valid: EXECUTION_ENVIRONMENTS.includes(match[1]) };
+  let first = null;
+  for (const raw of String(content ?? "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!ENVIRONMENT_OPENING.test(line)) continue;
+    const match = ENVIRONMENT_MARKER.exec(line);
+    if (!match) return { environment: line, explicit: true, valid: false };
+    first ??= { environment: match[1], explicit: true, valid: EXECUTION_ENVIRONMENTS.includes(match[1]) };
   }
-  return { environment: DEFAULT_EXECUTION_ENVIRONMENT, explicit: false, valid: true };
+  return first ?? { environment: DEFAULT_EXECUTION_ENVIRONMENT, explicit: false, valid: true };
+}
+
+/** Is this invalid environment a malformed marker line, rather than a value? */
+export function isMalformedEnvironmentLine(environment) {
+  return typeof environment === "string" && ENVIRONMENT_OPENING.test(environment);
 }
 
 /**

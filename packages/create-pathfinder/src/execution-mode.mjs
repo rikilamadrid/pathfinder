@@ -158,6 +158,7 @@ export function readEvidenceJudgeMarker(content) {
 // Where orchestrated workers execute, preserved the same way. The engine
 // judges the value; the installer writes only one it offers.
 const EXECUTION_ENVIRONMENT_PATTERN = /^<!--\s*pathfinder:execution-environment\s+(\S+)\s*-->$/;
+const EXECUTION_ENVIRONMENT_OPENING = /^<!--\s*pathfinder:\s*execution-environment\b/i;
 
 /** Where orchestrated workers execute. The first is what no line means. */
 export const EXECUTION_ENVIRONMENTS = Object.freeze(["local", "sandbox"]);
@@ -198,13 +199,28 @@ export function readSandboxMarkerLines(content) {
   return found;
 }
 
-/** The execution environment a file names on its own marker line, as written, or null. */
+/**
+ * The execution environment a file names on its own marker line, as written,
+ * or null. A line that opens the marker but is not exactly its shape comes
+ * back whole, wherever it is: the engine reads it as invalid and refuses
+ * dispatch, and a re-render keeps it verbatim. Dropping it would read as no
+ * line — local — which is a choice nobody made.
+ */
 export function readExecutionEnvironmentMarker(content) {
-  for (const line of String(content ?? "").split(/\r?\n/)) {
-    const match = EXECUTION_ENVIRONMENT_PATTERN.exec(line.trim());
-    if (match) return match[1];
+  let first = null;
+  for (const raw of String(content ?? "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!EXECUTION_ENVIRONMENT_OPENING.test(line)) continue;
+    const match = EXECUTION_ENVIRONMENT_PATTERN.exec(line);
+    if (!match) return line;
+    first ??= match[1];
   }
-  return null;
+  return first;
+}
+
+/** The marker line for a value, or a malformed line read back, kept as written. */
+function executionEnvironmentLine(value) {
+  return EXECUTION_ENVIRONMENT_OPENING.test(value) ? value : `<!-- pathfinder:execution-environment ${value} -->`;
 }
 
 /** The prose under the markers for the environment line, or nothing without one. */
@@ -369,7 +385,7 @@ export function renderExecutionMode(mode, { routingPolicy = null, evidenceJudge 
     `<!-- ${EXECUTION_MODE_MARKER} ${mode} -->`,
     ...(routingPolicy ? [`<!-- pathfinder:routing-policy ${routingPolicy} -->`] : []),
     ...(evidenceJudge ? [`<!-- pathfinder:evidence-judge ${evidenceJudge} -->`] : []),
-    ...(executionEnvironment ? [`<!-- pathfinder:execution-environment ${executionEnvironment} -->`] : []),
+    ...(executionEnvironment ? [executionEnvironmentLine(executionEnvironment)] : []),
     ...sandboxMarkers,
     "",
     ...meaning,

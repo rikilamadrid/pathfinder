@@ -94,6 +94,30 @@ describe("--environment", () => {
     assert.deepEqual(await engineReading(cwd), { environment: "cloud", explicit: true, valid: false });
   });
 
+  it("keeps a malformed line verbatim, so the engine still refuses it, until --environment replaces it", async () => {
+    for (const line of [
+      "<!-- pathfinder:execution-environment: sandbox -->",
+      "<!-- pathfinder:execution-environment=sandbox -->",
+      "<!-- pathfinder:execution-environment sandbox (pinned) -->",
+      "<!-- pathfinder:execution-environment sandbox --> <!-- chosen 2026-11 -->",
+    ]) {
+      const cwd = repository();
+      await install(["--mode", "orchestrator"], { cwd });
+      writeFileSync(modeFile(cwd), readFileSync(modeFile(cwd), "utf8").replace("<!-- pathfinder:execution-mode orchestrator -->", `<!-- pathfinder:execution-mode orchestrator -->\n  ${line}\r`));
+      const invalid = { environment: line, explicit: true, valid: false };
+      assert.deepEqual(await engineReading(cwd), invalid);
+      for (const argv of [["--mode", "human-in-the-loop"], ["--mode", "orchestrator", "--evidence-judge", "none"]]) {
+        assert.equal((await install(argv, { cwd })).code, 0);
+        assert.equal(marker(cwd), line, `${argv.join(" ")} keeps it`);
+        assert.ok(readFileSync(modeFile(cwd), "utf8").split("\n").includes(line), "written back exactly as read");
+        assert.deepEqual(await engineReading(cwd), invalid, "never dropped, which would read local");
+      }
+      assert.equal((await install(["--environment", "sandbox"], { cwd })).code, 0);
+      assert.equal(marker(cwd), "sandbox");
+      assert.deepEqual(await engineReading(cwd), { environment: "sandbox", explicit: true, valid: true });
+    }
+  });
+
   it("keeps the sandbox permission mode and agent-auth lines across re-renders", async () => {
     const cwd = repository();
     await install(["--mode", "orchestrator", "--environment", "sandbox"], { cwd });

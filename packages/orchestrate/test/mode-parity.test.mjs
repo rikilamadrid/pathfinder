@@ -89,6 +89,13 @@ describe("the installer and the engine read the execution environment identicall
     ["CRLF and padding", "# M\r\n\r\n  <!--  pathfinder:execution-environment   sandbox  -->  \r\n"],
     ["quoted inline", "It says `<!-- pathfinder:execution-environment sandbox -->` here.\n"],
     ["first marker wins", "<!-- pathfinder:execution-environment sandbox -->\n<!-- pathfinder:execution-environment local -->\n"],
+    ["list item quoting it", "- <!-- pathfinder:execution-environment sandbox -->\n"],
+    ["colon after the name", "<!-- pathfinder:execution-mode orchestrator -->\n<!-- pathfinder:execution-environment: sandbox -->\n"],
+    ["equals sign", "<!-- pathfinder:execution-environment=sandbox -->\n"],
+    ["extra word", "<!-- pathfinder:execution-environment sandbox (pinned) -->\n"],
+    ["text after -->", "  <!-- pathfinder:execution-environment sandbox --> <!-- chosen 2026-11 -->\r\n"],
+    ["capitalised prefix", "<!-- Pathfinder:execution-environment sandbox -->\n"],
+    ["malformed after a valid line", "<!-- pathfinder:execution-environment local -->\n<!-- pathfinder:execution-environment: sandbox -->\n"],
   ];
   for (const [name, content] of cases) {
     it(name, () => {
@@ -98,6 +105,9 @@ describe("the installer and the engine read the execution environment identicall
       assert.equal(read.environment, raw ?? installer.DEFAULT_EXECUTION_ENVIRONMENT);
       assert.equal(read.valid, installer.EXECUTION_ENVIRONMENTS.includes(raw ?? installer.DEFAULT_EXECUTION_ENVIRONMENT));
       if (raw !== null) assert.deepEqual(installer.parseExecutionEnvironmentFlag(raw).error === undefined, read.valid);
+      // What the installer would re-render from this file, the engine reads the same way.
+      const rendered = installer.renderExecutionMode("orchestrator", { executionEnvironment: raw });
+      assert.deepEqual(engine.readExecutionEnvironmentMarker(rendered), read);
     });
   }
 

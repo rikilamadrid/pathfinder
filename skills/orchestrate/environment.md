@@ -24,6 +24,14 @@ Any other value is invalid: readiness reports it as `unsupported`, and
 dispatch refuses it. A marker quoted inside a longer line is not one, and the
 first marker line decides.
 
+A line that opens the marker but is not exactly its shape — a colon or `=`
+after the name, an extra word, text after `-->` — is invalid too, wherever it
+is in the file, and never read as no line. Read as `local`, a hand edit that
+plainly meant to choose an environment would be the silent fallback this
+selection exists to prevent. Readiness and the `brief` refusal quote the line
+so it can be fixed, and the installer keeps it exactly as written until
+`--environment` replaces it.
+
 In `human-in-the-loop` mode Pathfinder launches no session, so the line
 applies only to orchestrated dispatch. It never makes a human-started session
 sandboxed.
@@ -77,7 +85,7 @@ host. The overall status is the first blocking check that is not ready.
 | platform | not macOS 14+ on Apple silicon | `unsupported` | run on a supported host, or select `local` |
 | sbx | not at `PATHFINDER_SBX` (an absolute path) or on `PATH` | `missing` | `brew trust docker/tap && brew install docker/tap/sbx` |
 | version | `sbx --no-input version --json` fails, or reads below 0.48.0 | `not-ready` | upgrade `sbx` |
-| daemon | `sbx --no-input daemon status --json` fails or does not report running | `not-ready` | `sbx daemon start` |
+| daemon | `sbx --no-input daemon status --json` fails or does not report running — see below | `not-ready` | `sbx daemon start` |
 | docker-login | `sbx --no-input ls --json` says not authenticated | `authentication-required` | `sbx login` |
 | agent-auth | no agent credential is visible or declared — see below | `authentication-required` | the subscription route, then the API-key route |
 | permission-mode | no `sandbox-permission-mode` line, or an unknown value | `not-ready` | choose one explicitly |
@@ -87,13 +95,24 @@ can confirm) and `info` (host access, reported only). Both are listed under
 **Warnings**, and the report still exits `0` when nothing else blocks.
 
 The probes after `daemon status` run only once it reports the daemon running,
-so readiness cannot start it. Every `sbx` call carries `--no-input`, so a
+so readiness cannot start it. Docker does not document that command's JSON, so
+it is read failing closed, at two levels only: the document (or its one
+element) and the object under a `daemon` key. An explicit negative at either
+level — `running` anything but `true`, or a `status`/`state` other than
+`running` — means not running, and otherwise a `running: true` or a
+`status`/`state` of `running` at one of them is required. A component nested
+anywhere else that says it runs is never taken as the daemon running. Every `sbx` call carries `--no-input`, so a
 prompt fails rather than waits. No `sbx` output is ever echoed: the version is
 the one value read from it.
 
 ### Agent authentication
 
-Checked after Docker sign-in, from one `sbx --no-input secret ls --json`.
+Checked after Docker sign-in, from one `sbx --no-input secret ls --global --json`.
+Only global secrets count: service and custom secrets are global unless set
+with `--sandbox`, which scopes one to a single named sandbox, and every
+Pathfinder session gets a new sandbox that would not receive it. `--global`
+lists exactly the secrets every new sandbox inherits, and an entry that still
+names another scope is dropped as well.
 `sbx` prints secrets partially masked (Docker's example:
 `gho_GCaw4o****...****43qy`), and a masked value is still part of a secret, so
 only each entry's `service`, `scope` and hosts are read. No value, and none of
@@ -102,10 +121,10 @@ error or in `--json`.
 
 In order:
 
-1. A stored `anthropic` service secret — ready, method `api-key`. It is billed
+1. A global `anthropic` service secret — ready, method `api-key`. It is billed
    per token to the Anthropic API account, separately from any Claude
    subscription, and readiness says so.
-2. A custom secret whose hosts include `api.anthropic.com` — ready, method
+2. A global custom secret whose hosts include `api.anthropic.com` — ready, method
    `custom-secret`. Custom secrets (`sbx secret set-custom`) are experimental
    in `sbx`, and this route is unverified with Claude Code.
 3. `<!-- pathfinder:sandbox-agent-auth subscription -->` in
@@ -150,7 +169,8 @@ them is the human's choice:
 - The host browser, `browser.enabled` (default on): a sandbox can open URLs in
   the host browser.
 - Global secrets every sandbox inherits, by service name only (for example
-  `github`), from the same secret listing.
+  `github`), from the same global listing, so this line and agent
+  authentication never disagree.
 
 A setting that cannot be read is reported as `unknown`, stated rather than
 hidden. The network policy preset (`allow-all`, `balanced`, `deny-all`) is

@@ -81,9 +81,28 @@ describe("the execution environment marker", () => {
     ["CRLF and padding", "# M\r\n\r\n  <!--  pathfinder:execution-environment   sandbox  -->  \r\n", { environment: "sandbox", explicit: true, valid: true }],
     ["quoted inline", "It says `<!-- pathfinder:execution-environment sandbox -->` here.\n", { environment: "local", explicit: false, valid: true }],
     ["first marker wins", "<!-- pathfinder:execution-environment sandbox -->\n<!-- pathfinder:execution-environment local -->\n", { environment: "sandbox", explicit: true, valid: true }],
+    ["a list item quoting it is not one", "- <!-- pathfinder:execution-environment sandbox -->\n", { environment: "local", explicit: false, valid: true }],
   ];
   for (const [name, content, expected] of cases) {
     it(name, () => assert.deepEqual(readExecutionEnvironmentMarker(content), expected));
+  }
+
+  // A line that opens the marker and is not exactly its shape is invalid, never no line.
+  const malformed = [
+    ["a colon after the name", "<!-- pathfinder:execution-environment: sandbox -->"],
+    ["an equals sign", "<!-- pathfinder:execution-environment=sandbox -->"],
+    ["an extra word", "<!-- pathfinder:execution-environment sandbox (pinned) -->"],
+    ["text after -->", "<!-- pathfinder:execution-environment sandbox --> <!-- chosen 2026-11 -->"],
+    ["a space after pathfinder:", "<!-- pathfinder: execution-environment sandbox -->"],
+    ["a capitalised prefix", "<!-- Pathfinder:execution-environment sandbox -->"],
+    ["no value", "<!-- pathfinder:execution-environment -->"],
+  ];
+  for (const [name, line] of malformed) {
+    it(`a malformed line is invalid: ${name}`, () => {
+      const expected = { environment: line, explicit: true, valid: false };
+      assert.deepEqual(readExecutionEnvironmentMarker(`# M\n\n<!-- pathfinder:execution-mode orchestrator -->\n  ${line}  \r\n`), expected);
+      assert.deepEqual(readExecutionEnvironmentMarker(`<!-- pathfinder:execution-environment local -->\n${line}\n`), expected, "wherever it is");
+    });
   }
 
   it("defaults to local, of the two environments", () => {
@@ -104,7 +123,7 @@ const READY_ANSWERS = Object.freeze({
   "version --json": { stdout: JSON.stringify([{ client: { version: "0.48.0" } }]) },
   "daemon status --json": { stdout: JSON.stringify([{ status: "running" }]) },
   "ls --json": { stdout: "[]" },
-  "secret ls --json": { stdout: JSON.stringify([{ service: "anthropic", scope: "global", value: MASKED }, { service: "github", scope: "global", value: MASKED }]) },
+  "secret ls --global --json": { stdout: JSON.stringify([{ service: "anthropic", scope: "global", value: MASKED }, { service: "github", scope: "global", value: MASKED }]) },
   "settings get ssh.agentForwardingEnabled --json": { stdout: "true" },
   "settings get browser.enabled --json": { stdout: JSON.stringify({ value: false }) },
   "policy ls --json": { stdout: JSON.stringify([{ name: "balanced" }]) },
@@ -131,7 +150,7 @@ const never = () => {
   throw new Error("the runner must not be called");
 };
 
-const withSecrets = (entries) => ({ ...READY_ANSWERS, "secret ls --json": { stdout: JSON.stringify(entries) } });
+const withSecrets = (entries) => ({ ...READY_ANSWERS, "secret ls --global --json": { stdout: JSON.stringify(entries) } });
 const check = (report, name) => report.checks.find((entry) => entry.name === name);
 const text = (report) => formatReadiness({ selected: { environment: "sandbox", explicit: true, valid: true }, readiness: report, mode: "orchestrator" });
 
@@ -186,6 +205,14 @@ describe("readiness, read-only", () => {
     const report = checkReadiness({ environment: "cloud", ...MAC, run: never });
     assert.equal(report.status, "unsupported");
     assert.match(report.remediation, /local and sandbox/);
+  });
+
+  it("a malformed environment line is unsupported, naming the line and how to fix it, with no probe", () => {
+    const line = "<!-- pathfinder:execution-environment: sandbox -->";
+    const report = checkReadiness({ environment: line, ...MAC, run: never });
+    assert.equal(report.status, "unsupported");
+    assert.equal(check(report, "environment").detail, `the line \`${line}\` opens the execution-environment marker but is not one`);
+    assert.match(report.remediation, /^Fix the line in context\/execution-mode\.md to `<!-- pathfinder:execution-environment local\|sandbox -->`/);
   });
 
   for (const harness of ["codex", "manual"]) {
@@ -277,6 +304,37 @@ describe("readiness, read-only", () => {
     }
   });
 
+  it("a stopped daemon stays stopped whatever a nested component says, and nothing after daemon status runs", () => {
+    // FIXTURE shapes: the real `sbx daemon status --json` schema is not documented.
+    const stopped = [
+      { daemon: { running: false, pid: null }, components: [{ name: "proxy", status: "running" }] },
+      { running: false, components: [{ name: "proxy", status: "running" }] },
+      [{ status: "stopped", components: [{ running: true }] }],
+      { running: true, daemon: { state: "stopped" } },
+      { status: "running", daemon: "stopped" },
+      { daemon: { running: "true" } },
+      { components: [{ name: "proxy", status: "running" }] },
+      { sandboxd: { running: true } },
+      [{ status: "running" }, { status: "running" }],
+    ];
+    for (const shape of stopped) {
+      const { report, run } = sandbox({ "version --json": READY_ANSWERS["version --json"], "daemon status --json": { stdout: JSON.stringify(shape) } });
+      assert.equal(report.status, "not-ready", JSON.stringify(shape));
+      assert.equal(check(report, "daemon").status, "not-ready");
+      assert.equal(report.remediation, "sbx daemon start");
+      assert.deepEqual(run.calls.map((argv) => argv.slice(2).join(" ")), ["version --json", "daemon status --json"], JSON.stringify(shape));
+    }
+  });
+
+  it("a running daemon is read from the document or its daemon object only", () => {
+    // FIXTURE shapes, as above.
+    for (const shape of [{ running: true }, [{ status: "running" }], { state: "Running" }, { daemon: { status: "running" } }, { daemon: "running" }, { daemon: [{ running: true }], components: [] }]) {
+      const { report } = sandbox({ ...READY_ANSWERS, "daemon status --json": { stdout: JSON.stringify(shape) } });
+      assert.equal(check(report, "daemon").status, "ready", JSON.stringify(shape));
+      assert.equal(report.status, "ready", JSON.stringify(shape));
+    }
+  });
+
   it("Docker not signed in is authentication-required with sbx login, and no secret is listed", () => {
     const { report, run } = sandbox({ ...READY_ANSWERS, "ls --json": { status: 1, stderr: "Error: You are not authenticated to Docker. Run sbx login.\n" } });
     assert.equal(report.status, "authentication-required");
@@ -324,11 +382,34 @@ describe("readiness, read-only", () => {
     }
   });
 
+  it("lists only global secrets, so one scoped to another sandbox never makes agent-auth ready", () => {
+    // FIXTURE listings: a listing that ignored --global and still named each entry's scope.
+    for (const entries of [
+      [{ service: "anthropic", scope: "other-project-sbx", value: MASKED }],
+      [{ scope: "other-project-sbx", hosts: ["api.anthropic.com"], value: MASKED }],
+      [{ service: "anthropic", scope: "other-project-sbx", value: MASKED }, { scope: "other-project-sbx", hosts: ["api.anthropic.com"] }, { service: "github", scope: "global" }],
+    ]) {
+      const { report, run } = sandbox(withSecrets(entries));
+      assert.ok(run.calls.some((argv) => argv.slice(2).join(" ") === "secret ls --global --json"), "asks sbx for global secrets only");
+      assert.equal(run.calls.some((argv) => argv.includes("secret") && !argv.includes("--global")), false, "never lists every scope");
+      assert.equal(report.status, "authentication-required", JSON.stringify(entries));
+      const auth = check(report, "agent-auth");
+      assert.equal(auth.status, "authentication-required");
+      assert.match(auth.detail, /no global anthropic secret, no global custom secret for api\.anthropic\.com \(a secret scoped to one named sandbox is not inherited\)/);
+      assert.match(report.remediation, /^Claude subscription: sign in once with \/login[\s\S]*Anthropic API key: sbx secret set anthropic/);
+      assert.equal(check(report, "global-secrets").value.includes("anthropic"), false, "the two lines agree");
+      assert.equal(JSON.stringify(report).includes("other-project-sbx"), false, "a scope is never echoed");
+    }
+    const global = sandbox(withSecrets([{ service: "anthropic", scope: "Global" }, { scope: null, hosts: ["api.anthropic.com"] }]));
+    assert.equal(check(global.report, "agent-auth").method, "api-key");
+    assert.deepEqual(check(global.report, "global-secrets").value, ["anthropic", "custom"]);
+  });
+
   it("a secret listing that fails stops at agent-auth without echoing it", () => {
-    const failed = sandbox({ ...READY_ANSWERS, "secret ls --json": { status: 1, stderr: "You are not authenticated" } });
+    const failed = sandbox({ ...READY_ANSWERS, "secret ls --global --json": { status: 1, stderr: "You are not authenticated" } });
     assert.equal(failed.report.status, "authentication-required");
     assert.equal(failed.report.remediation, "sbx login");
-    const broken = sandbox({ ...READY_ANSWERS, "secret ls --json": { status: 3, stdout: MASKED, stderr: MASKED } });
+    const broken = sandbox({ ...READY_ANSWERS, "secret ls --global --json": { status: 3, stdout: MASKED, stderr: MASKED } });
     assert.equal(broken.report.status, "not-ready");
     assert.equal(check(broken.report, "global-secrets").value, "unknown");
   });
@@ -403,7 +484,7 @@ describe("readiness, read-only", () => {
     ];
     for (const answer of outputs) {
       for (const declaredAgentAuth of [null, { value: "subscription", explicit: true, valid: true }]) {
-        const { report } = sandbox({ ...READY_ANSWERS, "secret ls --json": answer }, { declaredAgentAuth });
+        const { report } = sandbox({ ...READY_ANSWERS, "secret ls --global --json": answer }, { declaredAgentAuth });
         for (const leak of [MASKED, SECRET, "GCaw4o", "43qy"]) {
           assert.equal(JSON.stringify(report).includes(leak), false, `--json carries ${leak}`);
           assert.equal(text(report).includes(leak), false, `text carries ${leak}`);
@@ -435,7 +516,7 @@ describe("orchestrate environment", () => {
       `  "--no-input version --json") echo '{"version":"0.48.0"}' ;;`,
       `  "--no-input daemon status --json") echo '[{"status":"running"}]' ;;`,
       `  "--no-input ls --json") echo '[]' ;;`,
-      `  "--no-input secret ls --json") echo '[{"service":"github","scope":"global","value":"${MASKED}"}]' ;;`,
+      `  "--no-input secret ls --global --json") echo '[{"service":"github","scope":"global","value":"${MASKED}"}]' ;;`,
       `  "--no-input settings get"*) echo 'true' ;;`,
       `  "--no-input policy ls --json") echo '[]' ;;`,
       "  *) exit 64 ;;",
@@ -517,6 +598,31 @@ describe("no silent fallback to local", () => {
     const result = orchestrate(["brief", "1.1", "--harness", "manual", "--approval", APPROVAL], { root });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /invalid \(`cloud`\) execution environment/);
+  });
+
+  it("brief refuses under a malformed line, and environment names it, rather than reading it as local", () => {
+    for (const line of [
+      "<!-- pathfinder:execution-environment: sandbox -->",
+      "<!-- pathfinder:execution-environment=sandbox -->",
+      "<!-- pathfinder:execution-environment sandbox (pinned) -->",
+      "<!-- pathfinder:execution-environment sandbox --> <!-- chosen 2026-11 -->",
+    ]) {
+      const root = project();
+      select(root, line);
+      for (const harness of ["claude-code", "codex", "manual"]) {
+        const result = orchestrate(["brief", "1.1", "--harness", harness, "--approval", APPROVAL], { root });
+        assert.equal(result.status, 1, `${harness}: ${line}`);
+        assert.equal(result.stdout, "", "no brief is printed");
+        assert.ok(result.stderr.includes(`carries a malformed execution-environment line (\`${line}\`)`), result.stderr);
+        assert.match(result.stderr, /fix the `<!-- pathfinder:execution-environment \.\.\. -->` line, then check it with `orchestrate environment`/);
+      }
+      const report = orchestrate(["environment"], { root });
+      assert.equal(report.status, 1);
+      assert.ok(report.stdout.includes(`the line \`${line}\` opens the execution-environment marker but is not one`), report.stdout);
+      assert.match(report.stdout, /Next: Fix the line in context\/execution-mode\.md/);
+      const planned = json(orchestrate(["plan", "--json"], { root }));
+      assert.equal(planned.environment.localDispatch, "refused");
+    }
   });
 
   it("brief and plan are byte-identical under local and under no line", () => {
