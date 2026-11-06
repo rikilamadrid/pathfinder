@@ -22,10 +22,16 @@
  * Everything the sandbox produces is untrusted input, and ancestry alone is
  * not authorization: before the fast-forward, every imported commit is read
  * from the claim worktree (the trusted repository) and refused if it merges,
- * adds a gitlink, a symlink out of the repository, a `.git` or `..` path
- * component, or touches a host-owned path; its state may move only toward the
- * next host-checked stage. Imported commits are unverified work: collecting
- * never marks a ticket reviewed or done.
+ * adds a gitlink, a symlink that could lead out of the repository, a `.git` or
+ * `..` path component, or touches a host-owned path — compared as a case- and
+ * normalization-insensitive filesystem would check it out; its state may move
+ * only toward the next host-checked stage. Imported commits are unverified
+ * work: collecting never marks a ticket reviewed or done.
+ *
+ * Collect only once the sandbox has stopped and nothing can write the
+ * workspace any more. Reads never follow a link and recheck the directories
+ * they pass through, which narrows but cannot close the window a writer still
+ * running could use to swap a directory for a link between a check and a read.
  *
  * Every command goes through an injected runner,
  * `run(argv, {cwd}) → {status, signal, stdout, stderr, error}`, with `argv[0]`
@@ -64,8 +70,9 @@ export const IMPORT_REF_PREFIX = "refs/pathfinder/sandbox-import/";
 export const MAX_IMPORT_COMMITS = 100;
 /**
  * Host-owned paths an imported commit may not add, change, or delete. A
- * trailing `/` names a directory and everything under it. Matched without
- * regard to case, as a case-insensitive filesystem would check them out.
+ * trailing `/` names a directory and everything under it. Matched through
+ * `foldName`, as a case- and normalization-insensitive filesystem would check
+ * them out.
  */
 export const PROTECTED_PATHS = Object.freeze([
   ".gitignore",
@@ -89,6 +96,27 @@ const MAX_TEXT = 2048;
 const refuse = (message) => ({ ok: false, message });
 const plainObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 const singleLine = (value) => typeof value === "string" && value.trim() !== "" && value.length <= MAX_TEXT && !LINE_BREAK.test(value) && !value.includes("\0");
+/** Code points HFS+ ignores in names — the set Git's `core.protectHFS` skips. */
+const HFS_IGNORABLE = /[\u200c-\u200f\u202a-\u202e\u206a-\u206f\ufeff]/g;
+/** Git's exact refusal of an empty bundle, as a whole line of its output. */
+const EMPTY_BUNDLE = /^(?:fatal|error): Refusing to create empty bundle\.?$/m;
+
+/**
+ * A name as a case- and normalization-insensitive filesystem may check it
+ * out: compatibility-normalized, HFS-ignorable code points dropped, and fully
+ * case-folded. APFS folds `ſ` to `s`, `ﬁ` to `fi` and the Kelvin sign to `k`;
+ * this folds at least that much, so a comparison through it refuses more
+ * spellings than such a filesystem would merge, never fewer.
+ */
+export function foldName(text) {
+  return String(text).normalize("NFKC").replace(HFS_IGNORABLE, "").toLowerCase().toUpperCase().toLowerCase().normalize("NFKC");
+}
+
+/** A path component that is, or that a filesystem could check out as, `.git`. */
+function dotGit(segment) {
+  const folded = foldName(segment);
+  return /^\.git[. ]*$/.test(folded) || /^git~\d+$/.test(folded);
+}
 
 /** Spawn `argv` with no shell and a timeout. Never throws. */
 export function defaultRun(argv, { cwd, env, timeout = 300_000 } = {}) {
@@ -251,7 +279,9 @@ export function prepareWorkspace({ root, key, worktree, branch, session, runId, 
 /**
  * The argv that writes the session's commits to `out/branch.bundle`, run
  * inside the sandbox (or by a recovery `sbx exec`): every commit on `branch`
- * after the dispatched head. Interpret its result with `bundleOutcome`.
+ * after the dispatched head. Interpret its result with `bundleOutcome`. It
+ * runs Git under `LC_ALL=C`, so Git's refusal of an empty bundle keeps the one
+ * untranslated wording `bundleOutcome` recognizes.
  */
 export function bundleCommand({ workspace, branch, dispatchedHead }) {
   const unsafe = workspacePathProblem(workspace);
@@ -261,18 +291,20 @@ export function bundleCommand({ workspace, branch, dispatchedHead }) {
   if (badBranch) return refuse(badBranch);
   if (typeof dispatchedHead !== "string" || !OBJECT_ID.test(dispatchedHead)) return refuse("dispatchedHead must be a full commit id");
   const bundle = join(workspace, SANDBOX_IO_DIR, "out", "branch.bundle");
-  return { ok: true, bundle, argv: ["git", "-C", workspace, "bundle", "create", "--quiet", bundle, `${dispatchedHead}..refs/heads/${branch}`] };
+  return { ok: true, bundle, argv: ["env", "LC_ALL=C", "git", "-C", workspace, "bundle", "create", "--quiet", bundle, `${dispatchedHead}..refs/heads/${branch}`] };
 }
 
 /**
  * What a `bundleCommand` run produced. A session with no new commits gets no
  * bundle — Git refuses an empty one — and that is reported as "no commits",
- * not as a failure. Anything else unexpected is a failure.
+ * not as a failure. Only Git's own refusal line counts: the words appearing
+ * anywhere else, such as in a path inside another error, do not. Anything else
+ * unexpected is a failure.
  */
 export function bundleOutcome(result) {
   if (result?.status === 0 && !result.error) return { ok: true, bundle: true, message: "bundle written" };
   const stderr = String(result?.stderr ?? "").trim();
-  if (result?.status !== null && !result?.error && /empty bundle/i.test(stderr)) return { ok: true, bundle: false, message: "no commits" };
+  if (result?.status !== null && !result?.error && EMPTY_BUNDLE.test(stderr)) return { ok: true, bundle: false, message: "no commits" };
   return refuse(`the bundle was not written: ${result?.error?.message || stderr || `exit status ${result?.status}`}`);
 }
 
@@ -345,25 +377,68 @@ export function stateErrors(state, { allowCommits = false } = {}) {
   return errors;
 }
 
-/** Why an imported path is refused, or null: a `.git` or `..` component, or a host-owned path. */
+/**
+ * Why an imported path is refused, or null: a `.git` or `..` component, or a
+ * host-owned path. Both are compared through `foldName`, so `.agentſ/` is
+ * `.agents/` and `.pathﬁnder/` is `.pathfinder/`, as APFS would check them out.
+ */
 export function importPathProblem(file) {
   const segments = String(file).split("/");
-  if (segments.some((segment) => /^\.git[. ]*$/i.test(segment) || /^git~\d+$/i.test(segment))) return `${JSON.stringify(file)} has a .git component`;
+  if (segments.some(dotGit)) return `${JSON.stringify(file)} has a .git component`;
   if (segments.some((segment) => segment === ".." || segment === "." || segment === "")) return `${JSON.stringify(file)} has a "..", "." or empty component`;
-  const lower = file.toLowerCase();
-  const owned = PROTECTED_PATHS.find((entry) => (entry.endsWith("/") ? lower.startsWith(entry) : lower === entry));
+  const folded = foldName(file);
+  const owned = PROTECTED_PATHS.find((entry) => (entry.endsWith("/") ? folded.startsWith(entry) : folded === entry));
   return owned ? `${JSON.stringify(file)} is host-owned (${owned})` : null;
 }
 
-/** Why a symlink at `file` pointing at `target` is refused, or null. */
+/** A link target's components, split on either slash as Windows would, with `.` and empty ones dropped. */
+const targetParts = (target) => String(target).replace(/\\/g, "/").split("/").filter((part) => part !== "" && part !== ".");
+/** The directories a link at `file` sits in, outermost first. */
+const linkDirectory = (file) => (posix.dirname(file) === "." ? [] : posix.dirname(file).split("/"));
+
+/**
+ * Whether `target` has a `..` after a name. A name can be, or be made, a link
+ * that lands anywhere — `a/s -> ..` lands on the repository root — and `..`
+ * from there climbs out: `x -> a/s/..`. This is the shape that lets links
+ * that each look contained compose into one that is not.
+ */
+function climbsAfterName(target) {
+  const parts = targetParts(target);
+  const firstName = parts.findIndex((part) => part !== "..");
+  return firstName !== -1 && parts.indexOf("..", firstName) !== -1;
+}
+
+/**
+ * Why a symlink at `file` pointing at `target` is refused, or null.
+ *
+ * Judged by shape, never by normalizing the target away: it may climb only
+ * with leading `..` components, no higher than the link's own directory, and
+ * then descend by names, none of them `.git`. Its climb starts from the real
+ * directory the link is checked out in, so it stays in the repository.
+ * `rangeProblems` adds what one link cannot show: no name on the way down may
+ * be another symlink, so no chain of links leads anywhere one link could not.
+ */
 export function symlinkProblem(file, target) {
   if (target === "" || target.includes("\0")) return `symlink ${JSON.stringify(file)} has an empty or binary target`;
   const forward = target.replace(/\\/g, "/");
   if (forward.startsWith("/") || /^[A-Za-z]:/.test(forward)) return `symlink ${JSON.stringify(file)} points at absolute ${JSON.stringify(target)}`;
-  const landed = posix.normalize(posix.join(posix.dirname(file), forward));
-  if (landed === ".." || landed.startsWith("../")) return `symlink ${JSON.stringify(file)} escapes the repository through ${JSON.stringify(target)}`;
-  if (landed.split("/").some((segment) => /^\.git[. ]*$/i.test(segment))) return `symlink ${JSON.stringify(file)} points into .git`;
+  if (climbsAfterName(target)) return `symlink ${JSON.stringify(file)} climbs ".." after a name in ${JSON.stringify(target)}; a link may climb only with leading ".." components`;
+  const parts = targetParts(target);
+  if (parts.filter((part) => part === "..").length > linkDirectory(file).length) return `symlink ${JSON.stringify(file)} escapes the repository through ${JSON.stringify(target)}`;
+  if (parts.some(dotGit)) return `symlink ${JSON.stringify(file)} points into .git`;
   return null;
+}
+
+/**
+ * Every repository path a contained link's target passes through on its way
+ * down, ending with the path it names: `a/b -> ../c/d` passes `c`, then `c/d`.
+ */
+function walkedPaths(file, target) {
+  const parts = targetParts(target);
+  const names = parts.filter((part) => part !== "..");
+  const directory = linkDirectory(file);
+  const base = directory.slice(0, directory.length - (parts.length - names.length));
+  return names.map((_, index) => [...base, ...names.slice(0, index + 1)].join("/"));
 }
 
 function reportFits(name, report, validate, key, dispatchedHead) {
@@ -397,16 +472,23 @@ function realDirectory(dir, label) {
   try { stats = lstatSync(dir); } catch { return refuse(`${label} does not exist`); }
   if (stats.isSymbolicLink()) return refuse(`${label} is a symlink; refusing to follow it`);
   if (!stats.isDirectory()) return refuse(`${label} is not a directory`);
-  return { ok: true };
+  return { ok: true, dev: stats.dev, ino: stats.ino };
 }
 
 /**
  * Bring one sandboxed session's results back to the host.
  *
+ * Call it only once the sandbox has stopped and nothing can write the
+ * workspace any more; the caller guarantees that. Each directory on the way to
+ * `out/` is checked to be a real directory and rechecked, by device and inode,
+ * after the listing and after every file read, refusing on any change — which
+ * narrows, but cannot close, the window a writer still running would have.
+ *
  * Reads and validates every output first; only then, and only when
  * `allowCommits`, imports `branch.bundle` as a fast-forward of the claim
  * branch. A bundle from a session that may not commit is refused. No Git
- * command ever runs with the workspace as its repository or directory.
+ * command ever runs with the workspace as its repository or directory. Every
+ * problem, an unreadable `out/` included, is a refusal; it never throws.
  *
  * @returns {{ok: true, result: object, state: object|null, experiments: object|null, findings: object|null,
  *            commits: {imported: boolean, from?: string, to?: string, reason?: string}, ignored: string[]} | {ok: false, message: string}}
@@ -443,17 +525,39 @@ export function collectWorkspace({ root, key, runDir, worktree, branch, dispatch
 
   const workspace = join(found.path, "workspace");
   const outDir = join(workspace, SANDBOX_IO_DIR, "out");
-  for (const [dir, label] of [[workspace, "the workspace"], [join(workspace, SANDBOX_IO_DIR), SANDBOX_IO_DIR], [outDir, `${SANDBOX_IO_DIR}/out`]]) {
+  const chain = [[workspace, "the workspace"], [join(workspace, SANDBOX_IO_DIR), SANDBOX_IO_DIR], [outDir, `${SANDBOX_IO_DIR}/out`]];
+  const identities = [];
+  for (const [dir, label] of chain) {
     const checked = realDirectory(dir, label);
     if (!checked.ok) return checked;
+    identities.push(checked);
   }
+  // The same real directories as at the first check, or a refusal.
+  const unchanged = () => {
+    for (const [index, [dir, label]] of chain.entries()) {
+      const again = realDirectory(dir, label);
+      if (!again.ok) return again;
+      if (again.dev !== identities[index].dev || again.ino !== identities[index].ino) return refuse(`${label} was replaced while it was collected; collect only once the sandbox has stopped`);
+    }
+    return { ok: true };
+  };
 
+  let names;
+  try {
+    names = readdirSync(outDir).sort();
+  } catch (error) {
+    return refuse(`cannot read ${SANDBOX_IO_DIR}/out: ${error.message}`);
+  }
+  const listed = unchanged();
+  if (!listed.ok) return listed;
   const files = {};
   const ignored = [];
-  for (const name of readdirSync(outDir).sort()) {
+  for (const name of names) {
     if (!Object.hasOwn(limits, name)) { ignored.push(name); continue; }
     const read = readBounded(join(outDir, name), name, limits[name]);
     if (!read.ok) return read;
+    const same = unchanged();
+    if (!same.ok) return same;
     files[name] = read.bytes;
   }
 
@@ -495,15 +599,52 @@ export function collectWorkspace({ root, key, runDir, worktree, branch, dispatch
 }
 
 /**
+ * The symlinks already at the dispatched head, read once from the host's own
+ * commit: their paths, and a problem for each whose target climbs after a
+ * name. Such a link stays where it lands only while nothing on its way
+ * changes, and an import changes things, so it is refused until the host
+ * fixes it.
+ */
+function standingLinks(host, dispatchedHead) {
+  const listed = host(["ls-tree", "-r", "-z", "--full-tree", dispatchedHead]);
+  if (!listed.ok) return refuse(`cannot list the symlinks at the dispatched head: ${listed.message}`);
+  const paths = [];
+  const problems = [];
+  for (const entry of listed.stdout.split("\0")) {
+    const tab = entry.indexOf("\t");
+    if (tab === -1) continue;
+    const [mode, , id] = entry.slice(0, tab).split(" ");
+    if (mode !== "120000") continue;
+    const file = entry.slice(tab + 1);
+    paths.push(file);
+    const target = host(["cat-file", "blob", id]);
+    if (!target.ok) problems.push(`cannot read symlink ${JSON.stringify(file)} at the dispatched head`);
+    else if (climbsAfterName(target.stdout)) problems.push(`symlink ${JSON.stringify(file)}, already at the dispatched head, climbs ".." after a name in ${JSON.stringify(target.stdout)}; imported changes could redirect it out of the repository, so fix it on the host first`);
+  }
+  return { ok: true, paths, problems };
+}
+
+/**
  * Every problem with the commits `dispatchedHead..tip`, read from the claim
  * worktree after the fetch and before the fast-forward.
+ *
+ * Symlinks are judged against each other, not one at a time: a link added or
+ * changed anywhere in the range must pass `symlinkProblem`, and may not pass
+ * through, or name, any path that is a symlink at the dispatched head or
+ * becomes one anywhere in the range — compared through `foldName`. With every
+ * such link descending only through real directories from a contained climb,
+ * no imported link leads out of the repository or into `.git`.
  */
 function rangeProblems(host, dispatchedHead, tip, maxCommits) {
   const listed = host(["rev-list", "--parents", "--reverse", `${dispatchedHead}..${tip}`]);
   if (!listed.ok) return [`cannot list the imported commits: ${listed.message}`];
   const commits = listed.stdout.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => line.split(" "));
   if (commits.length > maxCommits) return [`${commits.length} commits, over the ${maxCommits}-commit limit`];
-  const problems = [];
+  const standing = standingLinks(host, dispatchedHead);
+  if (!standing.ok) return [standing.message];
+  const problems = [...standing.problems];
+  const linkPaths = new Set(standing.paths.map(foldName));
+  const contained = [];
   for (const [commit, ...parents] of commits) {
     if (parents.length !== 1) { problems.push(`commit ${commit} ${parents.length ? "is a merge commit" : "has no parent"}`); continue; }
     const diff = host(["diff-tree", "-r", "-z", "--raw", "--no-renames", "--no-abbrev", parents[0], commit]);
@@ -516,11 +657,17 @@ function rangeProblems(host, dispatchedHead, tip, maxCommits) {
       const pathProblem = importPathProblem(file);
       if (pathProblem) problems.push(`commit ${commit}: ${pathProblem}`);
       if (newMode === "120000") {
+        linkPaths.add(foldName(file));
         const target = host(["cat-file", "blob", newId]);
         const linkProblem = target.ok ? symlinkProblem(file, target.stdout) : `cannot read symlink ${JSON.stringify(file)}`;
         if (linkProblem) problems.push(`commit ${commit}: ${linkProblem}`);
+        else contained.push({ commit, file, target: target.stdout });
       }
     }
+  }
+  for (const { commit, file, target } of contained) {
+    const through = walkedPaths(file, target).find((walked) => linkPaths.has(foldName(walked)));
+    if (through !== undefined) problems.push(`commit ${commit}: symlink ${JSON.stringify(file)} reaches ${JSON.stringify(target)} through the symlink ${JSON.stringify(through)}; a link may not lead through another`);
   }
   return problems;
 }

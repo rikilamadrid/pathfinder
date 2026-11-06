@@ -14,7 +14,7 @@
 
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, realpathSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, realpathSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, describe, it } from "node:test";
@@ -22,13 +22,15 @@ import { after, describe, it } from "node:test";
 import { cleanUpTemporaryDirectories, ENGINE_ROOT, gitEnv, runGit, temporaryDirectory } from "../lib/harness.mjs";
 
 const {
-  bundleCommand, bundleOutcome, collectWorkspace, defaultRun, IMPORT_REF_PREFIX, importPathProblem, inputPathProblem,
+  bundleCommand, bundleOutcome, collectWorkspace, defaultRun, foldName, IMPORT_REF_PREFIX, importPathProblem, inputPathProblem,
   PROTECTED_PATHS, prepareWorkspace, symlinkProblem,
 } = await import(pathToFileURL(join(ENGINE_ROOT, "sandbox-workspace.mjs")));
 
 after(cleanUpTemporaryDirectories);
 
 const WINDOWS = process.platform === "win32";
+/** File modes only bind a process that is neither Windows nor root. */
+const MODES_BIND = !WINDOWS && process.getuid?.() !== 0;
 const KEY = "1.1";
 const BRANCH = "ticket/1.1-sandboxed";
 const RUN_ID = "20261106T120000Z-1a2b3c4d";
@@ -207,7 +209,7 @@ describe("the bundle command", () => {
     const p = project();
     const prepared = prepare(p);
     const command = bundleCommand({ workspace: prepared.workspace, branch: BRANCH, dispatchedHead: prepared.dispatchedHead });
-    assert.equal(command.argv[0], "git");
+    assert.deepEqual(command.argv.slice(0, 3), ["env", "LC_ALL=C", "git"], "Git runs untranslated, so its refusal keeps one wording");
     assert.equal(command.bundle, join(prepared.workspace, ".pathfinder-sandbox", "out", "branch.bundle"));
     const outcome = bundleOutcome(defaultRun(command.argv, { env: gitEnv() }));
     assert.deepEqual(outcome, { ok: true, bundle: false, message: "no commits" });
@@ -216,6 +218,39 @@ describe("the bundle command", () => {
     assert.equal(bundleOutcome({ status: 128, signal: null, stdout: "", stderr: "fatal: something else", error: null }).ok, false);
     assert.match(bundleCommand({ workspace: "/a:b", branch: BRANCH, dispatchedHead: p.head }).message, /contains ":"/);
     assert.equal(bundleCommand({ workspace: prepared.workspace, branch: BRANCH, dispatchedHead: "HEAD" }).ok, false);
+  });
+
+  it("reports no commits only from Git's own refusal line, never from the words elsewhere", () => {
+    const failed = (stderr) => bundleOutcome({ status: 128, signal: null, stdout: "", stderr, error: null });
+    assert.deepEqual(failed("fatal: Refusing to create empty bundle.\n"), { ok: true, bundle: false, message: "no commits" });
+    assert.deepEqual(failed("error: Refusing to create empty bundle."), { ok: true, bundle: false, message: "no commits" });
+    for (const stderr of [
+      "fatal: Unable to create '/x/my empty bundle repo/out/branch.bundle.lock': Permission denied",
+      "fatal: could not write to /tmp/Refusing to create empty bundle./out",
+      "fatal: Leere Bundles werden nicht erstellt.",
+    ]) assert.equal(failed(stderr).ok, false, stderr);
+  });
+
+  it("does not mistake a failed write for no commits when the repository path says empty bundle", () => {
+    if (!MODES_BIND) return;
+    const p = project("my empty bundle repo");
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeFileSync(join(ws, "feature.txt"), "real work\n");
+    runGit(["add", "."], ws);
+    runGit(["commit", "--quiet", "-m", "real work"], ws);
+    const command = bundleCommand({ workspace: ws, branch: BRANCH, dispatchedHead: prepared.dispatchedHead });
+    const out = join(ws, ".pathfinder-sandbox", "out");
+    chmodSync(out, 0o500);
+    let outcome;
+    try {
+      outcome = bundleOutcome(defaultRun(command.argv, { env: gitEnv() }));
+    } finally {
+      chmodSync(out, 0o755);
+    }
+    assert.equal(outcome.ok, false, "a commit that could not be bundled is a failure");
+    assert.match(outcome.message, /the bundle was not written: .*empty bundle repo.*Permission denied/);
+    assert.equal(bundleOutcome(defaultRun(command.argv, { env: gitEnv() })).bundle, true, "with out/ writable the same argv bundles the commit");
   });
 
   it("passes shell-sensitive arguments as data", () => {
@@ -387,6 +422,52 @@ describe("collecting a sandbox workspace", () => {
     assert.equal(runGit(["rev-parse", "HEAD"], p.worktree).trim(), p.head, "nothing was imported");
   });
 
+  it("refuses an unreadable out directory instead of throwing", () => {
+    if (!MODES_BIND) return;
+    const p = project();
+    const prepared = prepare(p);
+    writeOut(prepared.workspace, "result.json", result());
+    const out = join(prepared.workspace, ".pathfinder-sandbox", "out");
+    chmodSync(out, 0o000);
+    let collected;
+    try {
+      assert.doesNotThrow(() => { collected = collect(p, prepared); });
+    } finally {
+      chmodSync(out, 0o755);
+    }
+    assert.equal(collected.ok, false);
+    assert.match(collected.message, /cannot read \.pathfinder-sandbox\/out: EACCES/);
+  });
+
+  it("refuses when out/ is replaced between its check and a read", () => {
+    // A labelled stand-in for a writer that has not stopped: reading the
+    // result.json limit swaps out/ mid-collect, deterministically.
+    const p = project();
+    const prepared = prepare(p);
+    const out = join(prepared.workspace, ".pathfinder-sandbox", "out");
+    writeOut(prepared.workspace, "result.json", result());
+    const elsewhere = temporaryDirectory("elsewhere-");
+    writeFileSync(join(elsewhere, "result.json"), JSON.stringify({ ...result(), message: "OUTSIDE the workspace" }));
+    const swapping = (swap) => ({ get "result.json"() { swap(); return 16 * 1024; } });
+
+    const replaced = collect(p, prepared, { limits: swapping(() => {
+      renameSync(out, `${out}.old`);
+      mkdirSync(out);
+      writeFileSync(join(out, "result.json"), JSON.stringify({ ...result(), message: "a replacement directory" }));
+    }) });
+    assert.equal(replaced.ok, false);
+    assert.match(replaced.message, /\.pathfinder-sandbox\/out was replaced while it was collected; collect only once the sandbox has stopped/);
+
+    rmSync(out, { recursive: true });
+    renameSync(`${out}.old`, out);
+    const linked = collect(p, prepared, { limits: swapping(() => {
+      renameSync(out, `${out}.old`);
+      symlinkSync(elsewhere, out, WINDOWS ? "junction" : "dir");
+    }) });
+    assert.equal(linked.ok, false, "the outside result.json is never returned");
+    assert.match(linked.message, /\.pathfinder-sandbox\/out is a symlink/);
+  });
+
   it("refuses a run directory outside .pathfinder/sandboxes/<key>/", () => {
     const p = project();
     const prepared = prepare(p);
@@ -462,6 +543,34 @@ function agentRawCommit(workspace, entries, message = "raw") {
   const commit = runGit(["commit-tree", tree, "-p", "HEAD", "-m", message], workspace).trim();
   runGit(["update-ref", `refs/heads/${BRANCH}`, commit], workspace);
   return commit;
+}
+
+/**
+ * One commit of these entries at any depth, written through the index so no
+ * filesystem has to hold them first: `{ path, content, mode }`, mode 120000
+ * for a symlink whose content is its target. Returns the new head.
+ */
+function indexCommit(repository, entries, message = "indexed") {
+  for (const { path, content, mode = "100644" } of entries) {
+    const blob = spawnSync("git", ["hash-object", "-w", "--stdin"], { cwd: repository, env: gitEnv(), input: content, encoding: "utf8" }).stdout.trim();
+    runGit(["update-index", "--add", "--cacheinfo", `${mode},${blob},${path}`], repository);
+  }
+  runGit(["commit", "--quiet", "-m", message], repository);
+  return runGit(["rev-parse", "HEAD"], repository).trim();
+}
+const link = (path, target) => ({ path, content: target, mode: "120000" });
+
+/** Bundle the agent's branch, collect, and check that the refusal left the claim exactly as it was. */
+function assertRefusedUntouched(p, prepared, label) {
+  agentBundle(prepared.workspace, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+  const refused = collect(p, prepared);
+  assert.equal(refused.ok, false, `${label}: refused`);
+  assert.match(refused.message, /the imported commits are refused/, label);
+  assert.ok(existsSync(refused.preserved), `${label}: the bundle is kept for inspection`);
+  assert.equal(runGit(["rev-parse", BRANCH], p.worktree).trim(), prepared.dispatchedHead, `${label}: the branch is untouched`);
+  assert.equal(runGit(["for-each-ref", IMPORT_REF_PREFIX], p.root).trim(), "", `${label}: the temporary ref is gone`);
+  assert.equal(runGit(["status", "--porcelain", "--untracked-files=all"], p.worktree), "", `${label}: the worktree is clean`);
+  return refused.message;
 }
 
 describe("treating sandbox output as untrusted", () => {
@@ -564,6 +673,90 @@ describe("treating sandbox output as untrusted", () => {
     assert.equal(runGit(["rev-parse", BRANCH], p.worktree).trim(), head);
   });
 
+  it("refuses symlinks that each look contained but compose into an escape, at any depth", () => {
+    const p = project();
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    const attempts = [
+      // a/s lands on the repository root; x climbs from there to its parent.
+      ["a/s -> .., x -> a/s/..", [[link("a/s", ".."), link("x", "a/s/..")]],
+        [/symlink "x" climbs "\.\." after a name in "a\/s\/\.\."/]],
+      // Each further link climbs one more directory, past the root to the host.
+      ["a multi-level chain", [[link("a/s", ".."), link("x", "a/s/.."), link("p", "x/.."), link("q", "p/.."), link("r", "q/..")]],
+        [/symlink "x" climbs/, /symlink "p" climbs "\.\." after a name in "x\/\.\."/, /symlink "q" climbs/, /symlink "r" climbs/]],
+      // No ".." after a name, but a link leading through another link.
+      ["a link through a link", [[link("a/s", ".."), link("y", "a/s/a/s/README.md")]],
+        [/symlink "y" reaches "a\/s\/a\/s\/README\.md" through the symlink "a\/s"/]],
+      // The link it passes through arrives in a later commit.
+      ["a link through a later link", [[link("y", "a/s/README.md")], [link("a/s", "..")]],
+        [/symlink "y" reaches "a\/s\/README\.md" through the symlink "a\/s"/]],
+      // Spelled as a case-insensitive filesystem would still resolve it.
+      ["a link through a differently cased link", [[link("a/s", ".."), link("y", "A/S/README.md")]],
+        [/symlink "y" reaches "A\/S\/README\.md" through the symlink "A\/S"/]],
+    ];
+    for (const [label, commits, expected] of attempts) {
+      agentReset(ws, prepared.dispatchedHead);
+      for (const entries of commits) indexCommit(ws, entries, label);
+      const message = assertRefusedUntouched(p, prepared, label);
+      for (const pattern of expected) assert.match(message, pattern, label);
+      assert.doesNotMatch(message, /commit [0-9a-f]+: symlink "a\/s"/, `${label}: a/s alone lands inside and is not the problem`);
+    }
+  });
+
+  it("refuses an import while a symlink already at the dispatched head climbs after a name", () => {
+    // The host's own x -> a/s/.. lands on a while a/s is a real directory;
+    // the agent turns a/s into a link to the root, and x would then climb out.
+    const p = project();
+    mkdirSync(join(p.worktree, "a", "s"), { recursive: true });
+    indexCommit(p.worktree, [{ path: "a/s/keep.txt", content: "kept\n" }, link("x", "a/s/..")], "host link");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    runGit(["rm", "--quiet", "--cached", "a/s/keep.txt"], ws);
+    indexCommit(ws, [link("a/s", "..")], "a/s becomes a link");
+    const message = assertRefusedUntouched(p, prepared, "a redirected host link");
+    assert.match(message, /symlink "x", already at the dispatched head, climbs "\.\." after a name in "a\/s\/\.\."; imported changes could redirect it out of the repository/);
+    assert.doesNotMatch(message, /commit [0-9a-f]+: symlink "a\/s"/);
+  });
+
+  it("imports symlinks that climb only from their own directory and stay inside", () => {
+    const p = project();
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    const tip = indexCommit(ws, [link("docs/readme", "../README.md"), link("a/b/up", "../.."), link("here", ".")], "contained links");
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    const collected = collect(p, prepared);
+    assert.equal(collected.ok, true, collected.message);
+    assert.equal(collected.commits.to, tip);
+    if (WINDOWS) return;
+    const inside = realpathSync.native(p.worktree);
+    assert.equal(realpathSync.native(join(p.worktree, "docs", "readme")), join(inside, "README.md"));
+    assert.equal(realpathSync.native(join(p.worktree, "a", "b", "up")), inside);
+  });
+
+  it("refuses host-owned paths spelled so a case-insensitive filesystem folds them onto the protected names", () => {
+    const p = project();
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    const attempts = [
+      [".agentſ/skills/new/SKILL.md", /"\.agentſ\/skills\/new\/SKILL\.md" is host-owned \(\.agents\/\)/],
+      [".pathﬁnder/evil.txt", /"\.pathﬁnder\/evil\.txt" is host-owned \(\.pathfinder\/\)/],
+      ["context/tracKer.md", /"context\/tracKer\.md" is host-owned \(context\/tracker\.md\)/],
+    ];
+    for (const [path, expected] of attempts) {
+      agentReset(ws, prepared.dispatchedHead);
+      indexCommit(ws, [{ path, content: "from the sandbox\n" }], path);
+      const message = assertRefusedUntouched(p, prepared, path);
+      assert.match(message, expected, path);
+    }
+    assert.equal(existsSync(join(p.worktree, ".agents")), false, "nothing was written under .agents/");
+    assert.equal(existsSync(join(p.worktree, ".pathfinder", "evil.txt")), false, "nothing was written under .pathfinder/");
+  });
+
   it("enforces the commit-count limit", () => {
     const p = project();
     const prepared = prepare(p);
@@ -603,11 +796,23 @@ describe("treating sandbox output as untrusted", () => {
       assert.ok(importPathProblem(bad), bad);
     }
     for (const good of ["src/a.js", "context/history.md", "docs/.github-notes.md", "a/.gitkeep", "sub/.gitignore"]) assert.equal(importPathProblem(good), null, good);
+    // Folded as APFS (or HFS+) would check them out, never fewer spellings.
+    for (const folded of [".agent\u017f/x", ".path\ufb01nder/x", "context/trac\u212aer.md", ".agen\u200cts/x", ".g\u200cit/config", "\uff0egithub/x"]) {
+      assert.ok(importPathProblem(folded), folded);
+    }
+    assert.equal(foldName(".Agent\u017f"), ".agents");
+    assert.equal(foldName("Stra\u1e9ee"), "strasse");
     assert.ok(symlinkProblem("a", "/abs"));
     assert.ok(symlinkProblem("a", "C:\\x"));
     assert.ok(symlinkProblem("a/b", "../../x"));
     assert.ok(symlinkProblem("a", ".git/config"));
+    assert.ok(symlinkProblem("a", "sub/.G\u200cIT/config"));
     assert.equal(symlinkProblem("a/b", "../c"), null);
+    // A ".." after a name is refused whatever it seems to normalize to.
+    for (const [file, target] of [["x", "a/s/.."], ["a/b", "c/../d"], ["a", "./b/../c"], ["a/b", "..\\c\\..\\d"]]) {
+      assert.match(symlinkProblem(file, target), /climbs "\.\." after a name/, `${file} -> ${target}`);
+    }
+    for (const [file, target] of [["a/s", ".."], ["a/b/up", "../.."], ["here", "."], ["a/b", "./../c/"]]) assert.equal(symlinkProblem(file, target), null, `${file} -> ${target}`);
   });
 });
 
