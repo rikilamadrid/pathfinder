@@ -17,7 +17,26 @@
  * bundle reads only the bundle, never the repository it came from. The import
  * is a fast-forward of the dispatched head, for a session allowed to commit,
  * into the registered claim worktree still clean at that head — or it is
- * refused. No Git hook runs during the import, the host's own included.
+ * refused.
+ *
+ * The claim worktree's own configuration is the host's, but it can name
+ * programs inside the tracked tree, which an import rewrites. So every Git
+ * command collect runs there goes through `hostGit`, and during collect no
+ * hook runs — not from the hooks directory, a `core.hooksPath`, or a
+ * `hook.<name>` the configuration declares, each switched off by name — and
+ * no fsmonitor, the host's own versions included; nor a pager, automatic gc
+ * or maintenance, or submodule recursion. No filter driver runs on a path
+ * the import writes: such a path is refused before checkout. The host's own
+ * filter may still run on the host's own files — the clean
+ * filter `git status` applies before checkout, or the smudge that restores a
+ * filtered file the import deletes after a failed checkout, once every other
+ * file is the host's again. And a file the host's configuration reads from
+ * the claim worktree — an `include.path` or `includeIf` target,
+ * `core.attributesFile`, `core.excludesFile` — is host-owned, so every
+ * command collect runs reads the configuration the host had before the
+ * import. What this does not cover: the host's own later Git commands in the
+ * claim worktree read that configuration as it is, and run the imported
+ * version of any program it names in the tracked tree.
  *
  * Everything the sandbox produces is untrusted input, and ancestry alone is
  * not authorization: before the fast-forward, every imported commit is read
@@ -62,6 +81,15 @@
  * truncated, which makes a repository of roughly 140,000 tracked paths (at
  * about 70 bytes a path) too large to import into.
  *
+ * A name no supported filesystem can hold — not valid UTF-8, a component over
+ * `MAX_NAME_BYTES`, a path over `MAX_PATH_BYTES` — is refused before checkout
+ * too. When the fast-forward still fails partway (a full disk, a directory it
+ * may not write), Git leaves the branch and the index where they were but not
+ * the files it already wrote. So collect puts the claim worktree back exactly
+ * as it was and proves it clean (`restoreClaim`) before it says nothing was
+ * imported, or says by name that it could not, and never then that nothing
+ * was imported.
+ *
  * Collect only once the sandbox has stopped and nothing can write the
  * workspace any more. Reads never follow a link and recheck the directories
  * they pass through, which narrows but cannot close the window a writer still
@@ -74,7 +102,7 @@
 
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, closeSync, constants, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, closeSync, constants, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, rmdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import path, { dirname, join, posix, resolve } from "node:path";
 
 import { PROTOCOLS } from "./brief.mjs";
@@ -101,13 +129,18 @@ export const OUTPUT_LIMITS = Object.freeze({
 /** Where an import holds the fetched tip until the fast-forward; deleted on every path. */
 export const IMPORT_REF_PREFIX = "refs/pathfinder/sandbox-import/";
 /**
- * Config for every import command that updates a ref or the worktree: no
- * Git hook runs, the host's own included. A hooks path inside the tracked
- * tree, as husky sets one, would otherwise run the imported `post-merge` the
- * moment the fast-forward checks it out, and the imported
- * `reference-transaction` as the temporary ref is deleted.
+ * What every Git command collect runs in the claim worktree is given, before
+ * `hostGit` adds each configured hook by name: no hook from a hooks directory
+ * (a hooks path inside the tracked tree, as husky sets one, would run the
+ * imported `post-merge` the moment the fast-forward checks it out), no
+ * fsmonitor (`status`, `ls-files` and the fast-forward itself query one
+ * whenever they read the index), no pager, no automatic gc or maintenance
+ * after the fetch or the fast-forward, and no recursion into submodules.
  */
-const NO_HOOKS = Object.freeze(["-c", "core.hooksPath=/dev/null"]);
+const HOST_GIT = Object.freeze([
+  "--no-pager", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
+  "-c", "gc.auto=0", "-c", "maintenance.auto=false", "-c", "submodule.recurse=false",
+]);
 /** The most commits one session may bring back. */
 export const MAX_IMPORT_COMMITS = 100;
 /**
@@ -138,6 +171,18 @@ export const MAX_IMPORT_WRITTEN_PATHS = 20_000;
 export const MAX_IMPORT_WRITTEN_BYTES = 256 * 1024 * 1024;
 /** The most output the default runner reads from one command; a larger listing is refused, never truncated. */
 export const MAX_COMMAND_OUTPUT = 16 * 1024 * 1024;
+/**
+ * The longest name component, in UTF-8 bytes, an import may write: `NAME_MAX`
+ * on APFS, ext4 and most other filesystems. A longer one fails the checkout
+ * partway (`File name too long`), so it is refused before.
+ */
+export const MAX_NAME_BYTES = 255;
+/**
+ * The longest absolute path, in UTF-8 bytes, an import may write in the claim
+ * worktree: one under macOS's `PATH_MAX` of 1,024, the smallest of the
+ * supported hosts, so the checkout and every later tool can name it.
+ */
+export const MAX_PATH_BYTES = 1023;
 /**
  * Host-owned paths an imported commit may not add, change, or delete. A
  * trailing `/` names a directory. Each entry is refused as itself, as
@@ -225,12 +270,22 @@ export function defaultRun(argv, { cwd, env, input, timeout = 300_000 } = {}) {
   return { status: result.status, signal: result.signal ?? null, stdout: result.stdout ?? "", stderr: result.stderr ?? "", error: result.error ?? null };
 }
 
+/** The Git subcommand in `args`, past the global options and each `-c` setting before it. */
+function subcommand(args) {
+  for (let index = 0; index < args.length; index += 1) {
+    if (args[index] === "-c") index += 1;
+    else if (!args[index].startsWith("-")) return args[index];
+  }
+  return "";
+}
+
 function gitIn(run, cwd, args, input) {
   const result = run(["git", ...args], input === undefined ? { cwd } : { cwd, input });
   const stderr = String(result.stderr ?? "").trim();
   const ok = result.status === 0 && !result.error;
-  const overflow = result.error?.code === "ENOBUFS" ? `git ${args[0]} printed more than the runner reads (${MAX_COMMAND_OUTPUT} bytes by default); the listing is refused, not truncated` : "";
-  const message = overflow || result.error?.message || stderr || (result.signal ? `git ${args[0]} was stopped by ${result.signal}` : `git ${args[0]} exited with status ${result.status}`);
+  const name = subcommand(args);
+  const overflow = result.error?.code === "ENOBUFS" ? `git ${name} printed more than the runner reads (${MAX_COMMAND_OUTPUT} bytes by default); the listing is refused, not truncated` : "";
+  const message = overflow || result.error?.message || stderr || (result.signal ? `git ${name} was stopped by ${result.signal}` : `git ${name} exited with status ${result.status}`);
   return { ok, status: result.status, stdout: String(result.stdout ?? ""), message: ok ? "" : message };
 }
 
@@ -266,19 +321,119 @@ export function inputPathProblem(name) {
 }
 
 /**
- * The claim worktree on `branch`, clean, and its head. Runs Git in the host's
- * own worktree, never in a workspace.
+ * The claim worktree on `branch`, clean, and its head, through `git(args)` —
+ * Git in the host's own worktree, never in a workspace.
  */
-function worktreeAt(run, worktree, branch) {
-  const on = gitIn(run, worktree, ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+function worktreeAt(git, worktree, branch) {
+  const on = git(["symbolic-ref", "--quiet", "--short", "HEAD"]);
   const current = on.ok ? on.stdout.trim() : "a detached HEAD";
   if (current !== branch) return refuse(`claim worktree ${worktree} is on ${current}, not ${branch}`);
-  const status = gitIn(run, worktree, ["status", "--porcelain", "--untracked-files=all"]);
+  const status = git(["status", "--porcelain", "--untracked-files=all"]);
   if (!status.ok) return refuse(`cannot read the status of ${worktree}: ${status.message}`);
   if (status.stdout.trim() !== "") return refuse(`claim worktree ${worktree} has uncommitted changes; commit or remove them first`);
-  const head = gitIn(run, worktree, ["rev-parse", "--verify", "HEAD^{commit}"]);
+  const head = git(["rev-parse", "--verify", "HEAD^{commit}"]);
   if (!head.ok) return refuse(`cannot read the head of ${worktree}: ${head.message}`);
   return { ok: true, head: head.stdout.trim() };
+}
+
+/**
+ * Git in the claim worktree with nothing run that its configuration names:
+ * `HOST_GIT`, and every hook the configuration declares at any scope
+ * (`hook.<name>.command`, `.event`, `.enabled`) switched off by name, with
+ * `hook.<name>.enabled=false` and its events cleared — a hooks path of
+ * `/dev/null` does not reach those, and Git 2.54 runs them on `post-merge`,
+ * `reference-transaction` and `post-index-change` like any hook. Reading the
+ * configuration runs nothing. A name holding `=` cannot be given to `-c`,
+ * which splits there, so it is refused, as is a configuration Git cannot read.
+ *
+ * Returns `git(args, input)`, the runner every import command goes through.
+ */
+function hostGit(run, worktree) {
+  const listed = gitIn(run, worktree, [...HOST_GIT, "config", "-z", "--get-regexp", "^hook\\..+\\.[^.]+$"]);
+  if (!listed.ok && listed.status !== 1) return refuse(`cannot read the host's hook configuration in the claim worktree: ${listed.message}`);
+  const names = new Set();
+  for (const record of listed.ok ? listed.stdout.split("\0") : []) {
+    const newline = record.indexOf("\n");
+    const key = newline === -1 ? record : record.slice(0, newline);
+    const last = key.lastIndexOf(".");
+    if (key.startsWith("hook.") && last > "hook.".length) names.add(key.slice("hook.".length, last));
+  }
+  const unsafe = [...names].find((name) => name.includes("="));
+  if (unsafe !== undefined) return refuse(`the host's configuration declares hook ${JSON.stringify(unsafe)}, whose name holds "=", so it cannot be switched off on Git's command line for the import; rename that hook on the host`);
+  const prefix = [...HOST_GIT, ...[...names].flatMap((name) => ["-c", `hook.${name}.enabled=false`, "-c", `hook.${name}.event=`])];
+  return { ok: true, git: (args, input) => gitIn(run, worktree, [...prefix, ...args], input) };
+}
+
+/** The keys whose values name a file Git reads as more configuration, or as attribute or ignore rules. */
+const CONFIG_FILE_KEYS = "^(include\\.path|includeif\\..+\\.path|core\\.attributesfile|core\\.excludesfile)$";
+
+/**
+ * The claim-worktree paths standing for `target`: as it is spelled, once a
+ * leading directory of it is the claim worktree, and as it resolves on disk
+ * through its deepest existing directory. Both, so neither a link on its way
+ * nor the file it reaches can change unseen.
+ */
+function claimSpellings(worktree, target) {
+  const resolved = resolve(target);
+  const { root: top } = path.parse(resolved);
+  const parts = resolved.slice(top.length).split(path.sep).filter(Boolean);
+  const found = new Set();
+  for (let index = 0; index < parts.length; index += 1) {
+    let real;
+    try { real = canonical(join(top, ...parts.slice(0, index + 1))); } catch { break; }
+    if (real === worktree) {
+      if (index + 1 < parts.length) found.add(parts.slice(index + 1).join("/"));
+      break;
+    }
+  }
+  for (let index = parts.length; index >= 0; index -= 1) {
+    let real;
+    try { real = canonical(join(top, ...parts.slice(0, index))); } catch { continue; }
+    const rel = within(worktree, join(real, ...parts.slice(index)));
+    if (rel !== null) found.add(rel.split(path.sep).join("/"));
+    break;
+  }
+  return [...found];
+}
+
+/**
+ * Every file in the claim worktree the host's configuration reads as more
+ * configuration — an `include.path` or `includeIf.<condition>.path` target,
+ * every condition taken as met, nested includes too — or as attribute or
+ * ignore rules (`core.attributesFile`, `core.excludesFile`), as
+ * `{file, key}`. An import that wrote one would hand the next Git process
+ * agent-written configuration: a hook, an fsmonitor, a filter. Git expands
+ * `~` itself (`--type=path`); a relative include is relative to the file
+ * holding it, a relative attribute or ignore file to the worktree's top.
+ */
+function configFiles(host, worktree) {
+  const listed = host(["config", "-z", "--show-origin", "--type=path", "--get-regexp", CONFIG_FILE_KEYS]);
+  if (!listed.ok && listed.status !== 1) return refuse(`cannot read the host's configuration in the claim worktree: ${listed.message}`);
+  const records = listed.ok ? listed.stdout.split("\0") : [];
+  const files = [];
+  for (let index = 0; index + 1 < records.length; index += 2) {
+    const [origin, entry] = [records[index], records[index + 1]];
+    const newline = entry.indexOf("\n");
+    if (newline === -1 || newline === entry.length - 1) continue;
+    const key = entry.slice(0, newline);
+    const value = entry.slice(newline + 1);
+    let target;
+    if (path.isAbsolute(value)) target = value;
+    else if (!key.endsWith(".path")) target = resolve(worktree, value);
+    else if (origin.startsWith("file:")) target = resolve(worktree, dirname(origin.slice("file:".length)), value);
+    else continue; // Git refuses a relative include that no file holds.
+    for (const file of claimSpellings(worktree, target)) files.push({ file, key });
+  }
+  return { ok: true, files };
+}
+
+/** Why `file`, an imported entry, would change what `owned` names, or null: it is that path, lies under it, or stands where a directory holding it belongs. */
+function ownedPath(file, owned) {
+  const folded = foldName(file);
+  const base = foldName(owned.replace(/\/$/, ""));
+  if (folded === base || folded.startsWith(`${base}/`)) return "is";
+  if (base.startsWith(`${folded}/`)) return "holds";
+  return null;
 }
 
 function sandboxesRefusal(run, root) {
@@ -324,7 +479,7 @@ export function prepareWorkspace({ root, key, worktree, branch, session, runId, 
   if (unsafe) return refuse(unsafe);
   if (existsSync(runDir)) return refuse(`${runDir} already exists; every session gets a fresh workspace`);
 
-  const at = worktreeAt(run, worktreePath, branch);
+  const at = worktreeAt((args) => gitIn(run, worktreePath, args), worktreePath, branch);
   if (!at.ok) return at;
   const dispatchedHead = at.head;
   const identity = {};
@@ -491,18 +646,41 @@ export function stateErrors(state, { allowCommits = false } = {}) {
  * change what the host's checkout writes, or run a program as it does. The
  * refusal says how a ticket that needs one gets it: from the host, outside
  * the sandbox.
+ *
+ * A name no supported filesystem can hold fails the checkout partway, so it
+ * is refused before: one that is not valid UTF-8 (Git's bytes reach this
+ * module decoded, with U+FFFD for what was not UTF-8, so U+FFFD itself is
+ * refused too), and a component longer than `MAX_NAME_BYTES`.
  */
 export function importPathProblem(file) {
   const segments = String(file).split("/");
+  if (String(file).includes("\uFFFD")) return `${JSON.stringify(file)} is not a valid UTF-8 name (or holds U+FFFD); the host could not check it out on every filesystem it supports, or name it to clean up`;
+  const long = segments.find((segment) => Buffer.byteLength(segment, "utf8") > MAX_NAME_BYTES);
+  if (long !== undefined) return `${JSON.stringify(file)} has a component of ${Buffer.byteLength(long, "utf8")} bytes, over the ${MAX_NAME_BYTES}-byte name limit of the filesystems the host supports`;
   if (segments.some(dotGit)) return `${JSON.stringify(file)} has a .git component`;
   if (segments.some((segment) => segment === ".." || segment === "." || segment === "")) return `${JSON.stringify(file)} has a "..", "." or empty component`;
   if (segments.some(ignoreFile)) return `${JSON.stringify(file)} is host-owned (ignore files, at any depth): a sandbox may not add, change or delete ignore rules; if the ticket needs this change, the host commits it on the claim branch outside the sandbox`;
   if (segments.some(attributeFile)) return `${JSON.stringify(file)} is host-owned (attribute files, at any depth): a sandbox may not add, change or delete Git attributes, which decide how the host checks files out; if the ticket needs this change, the host commits it on the claim branch outside the sandbox`;
-  const folded = foldName(file);
   for (const entry of PROTECTED_PATHS) {
-    const base = entry.endsWith("/") ? entry.slice(0, -1) : entry;
-    if (folded === base || folded.startsWith(`${base}/`)) return `${JSON.stringify(file)} is host-owned (${entry})`;
-    if (base.startsWith(`${folded}/`)) return `${JSON.stringify(file)} stands where the directory holding host-owned ${entry} belongs`;
+    const owned = ownedPath(file, entry);
+    if (owned === "is") return `${JSON.stringify(file)} is host-owned (${entry})`;
+    if (owned === "holds") return `${JSON.stringify(file)} stands where the directory holding host-owned ${entry} belongs`;
+  }
+  return null;
+}
+
+/**
+ * Why an imported entry would change a file the host's configuration reads
+ * (`configFiles`), or null. Such a file is host-owned like an ignore file: as
+ * itself, as anything under it, and as a file or link standing for one of its
+ * leading directories.
+ */
+function configFileProblem(file, owned) {
+  for (const { file: read, key } of owned) {
+    const match = ownedPath(file, read);
+    if (match === null) continue;
+    const where = match === "is" ? "is host-owned:" : `stands where the directory holding ${JSON.stringify(read)} belongs, and`;
+    return `${JSON.stringify(file)} ${where} the host's Git configuration reads ${JSON.stringify(read)} (${key}); a sandbox may not add, change or delete what the host's Git reads as configuration, attributes or ignore rules; if the ticket needs this change, the host commits it on the claim branch outside the sandbox`;
   }
   return null;
 }
@@ -995,32 +1173,39 @@ function checkoutGrowth(attributes, config, hexLength) {
  * filter driver, or whose growth cannot be bounded, is refused by name.
  * Measured from the claim worktree after the fetch and before anything is
  * checked out.
+ *
+ * Also returns `filtered`: the files the import changes or deletes that the
+ * host checks out through a configured filter driver — the ones a
+ * restoration after a failed checkout checks out last (`restoreClaim`).
  */
 function sizeProblems(host, dispatchedHead, tip, changes, limits) {
+  const none = new Set();
   const listed = host(["rev-list", "--objects", "--no-object-names", `${dispatchedHead}..${tip}`]);
-  if (!listed.ok) return [`cannot list the imported objects: ${listed.message}`];
+  if (!listed.ok) return { problems: [`cannot list the imported objects: ${listed.message}`], filtered: none };
   const ids = listed.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
   const expanded = objectSizes(host, ids);
-  if (!expanded.ok) return [expanded.message];
+  if (!expanded.ok) return { problems: [expanded.message], filtered: none };
   const problems = [];
   const expandedBytes = total(expanded.sizes);
   if (expandedBytes > limits.objectBytes) problems.push(`the imported objects expand to ${expandedBytes} bytes (${ids.length} objects), over the ${limits.objectBytes}-byte limit on expanded object data`);
   const written = changes.filter(({ newMode }) => kind(newMode) === "file" || kind(newMode) === "link");
   const sized = objectSizes(host, written.map(({ newId }) => newId));
-  if (!sized.ok) return [...problems, sized.message];
+  if (!sized.ok) return { problems: [...problems, sized.message], filtered: none };
   const blobBytes = total(sized.sizes);
   const overBytes = (bytes) => `the fast-forward would write ${bytes} bytes into the claim worktree, over the ${limits.writtenBytes}-byte limit`;
   if (written.length > limits.writtenPaths) {
     // Too many paths to ask about each: their blobs alone are judged.
     problems.push(`the fast-forward would write ${written.length} files and links into the claim worktree, over the ${limits.writtenPaths}-path limit`);
     if (blobBytes > limits.writtenBytes) problems.push(overBytes(blobBytes));
-    return problems;
+    return { problems, filtered: none };
   }
   const files = written.filter(({ newMode }) => kind(newMode) === "file").map(({ path: file }) => file);
-  const attributes = checkoutAttributes(host, files);
-  if (!attributes.ok) return [...problems, attributes.message];
+  const replaced = changes.filter(({ oldMode }) => kind(oldMode) === "file").map(({ path: file }) => file);
+  const attributes = checkoutAttributes(host, [...new Set([...files, ...replaced])]);
+  if (!attributes.ok) return { problems: [...problems, attributes.message], filtered: none };
   const config = checkoutConfig(host);
-  if (!config.ok) return [...problems, config.message];
+  if (!config.ok) return { problems: [...problems, config.message], filtered: none };
+  const filtered = new Set(replaced.filter((file) => config.drivers.has(attributes.byPath.get(file).filter)));
   let bound = 0;
   let grown = 0;
   for (const [index, { path: file, newMode }] of written.entries()) {
@@ -1037,7 +1222,7 @@ function sizeProblems(host, dispatchedHead, tip, changes, limits) {
     problems.push(grown === 0 ? overBytes(bound)
       : `the fast-forward could write up to ${bound} bytes into the claim worktree (${blobBytes} bytes of blobs, ${grown} ${grown === 1 ? "file" : "files"} grown by the host's checkout attributes: ident, line endings or working-tree-encoding), over the ${limits.writtenBytes}-byte limit`);
   }
-  return problems;
+  return { problems, filtered };
 }
 
 /**
@@ -1055,20 +1240,27 @@ function sizeProblems(host, dispatchedHead, tip, changes, limits) {
  * host's own links are refused only where the import could redirect them
  * (`standingRedirects`; `resolves` says whether one resolves in the claim
  * worktree at the dispatched head). The tip's tree must also be one a case-insensitive
- * filesystem can check out whole, as far as the import changes it.
+ * filesystem can check out whole, as far as the import changes it, within
+ * `MAX_PATH_BYTES` once it stands in the claim worktree. No imported entry
+ * may change a file the host's configuration reads (`configFiles`, as
+ * `owned`).
  */
-function rangeProblems(host, dispatchedHead, tip, limits, resolves) {
+function rangeProblems({ host, worktree, dispatchedHead, tip, limits, resolves, owned }) {
   const listed = host(["rev-list", "--parents", "--reverse", `${dispatchedHead}..${tip}`]);
   if (!listed.ok) return { problems: [`cannot list the imported commits: ${listed.message}`] };
   const commits = listed.stdout.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => line.split(" "));
   if (commits.length > limits.commits) return { problems: [`${commits.length} commits, over the ${limits.commits}-commit limit`] };
   const net = netChanges(host, dispatchedHead, tip);
   if (!net.ok) return { problems: [net.message] };
-  const oversized = sizeProblems(host, dispatchedHead, tip, net.changes, limits);
-  if (oversized.length) return { problems: oversized };
+  const sized = sizeProblems(host, dispatchedHead, tip, net.changes, limits);
+  if (sized.problems.length) return { problems: sized.problems };
   const standing = standingLinks(host, dispatchedHead);
   if (!standing.ok) return { problems: [standing.message] };
   const problems = [...standing.problems];
+  for (const { path: file, newMode } of net.changes) {
+    const bytes = Buffer.byteLength(join(worktree, ...file.split("/")), "utf8");
+    if (kind(newMode) !== null && bytes > MAX_PATH_BYTES) problems.push(`${JSON.stringify(file)} would stand at a path of ${bytes} bytes in the claim worktree, over the ${MAX_PATH_BYTES}-byte path limit of the filesystems the host supports`);
+  }
   const headLinks = new Set(standing.links.map(({ file }) => foldName(file)));
   const linkPaths = new Set(headLinks);
   const touched = new Set();
@@ -1085,7 +1277,7 @@ function rangeProblems(host, dispatchedHead, tip, limits, resolves) {
       touched.add(foldName(file));
       if (oldMode === "120000" || newMode === "120000") touchedLinks.add(foldName(file));
       if (oldMode === "160000" || newMode === "160000") problems.push(`commit ${commit}: ${JSON.stringify(file)} is a gitlink`);
-      const pathProblem = importPathProblem(file);
+      const pathProblem = importPathProblem(file) ?? configFileProblem(file, owned);
       if (pathProblem) problems.push(`commit ${commit}: ${pathProblem}`);
       if (newMode === "120000") {
         linkPaths.add(foldName(file));
@@ -1102,7 +1294,7 @@ function rangeProblems(host, dispatchedHead, tip, limits, resolves) {
   }
   problems.push(...standingRedirects(standing.links, headLinks, touched, touchedLinks, resolves));
   problems.push(...foldCollisions(host, tip, net.changes));
-  return { problems, changes: net.changes };
+  return { problems, changes: net.changes, filtered: sized.filtered };
 }
 
 /**
@@ -1229,30 +1421,155 @@ function untrackedProblems(host, worktree, changes) {
 }
 
 /**
+ * What stands at a claim-worktree path, never through a link: `none`, a
+ * `directory`, a `file` (a file, link or anything else), or `unknown`. A name
+ * the filesystem calls too long while the whole path is within
+ * `MAX_PATH_BYTES` has a component no entry there can have, so nothing stands
+ * at it.
+ */
+function standing(worktree, file) {
+  const at = join(worktree, ...file.split("/"));
+  try {
+    return lstatSync(at).isDirectory() ? "directory" : "file";
+  } catch (error) {
+    if (error.code === "ENOENT" || error.code === "ENOTDIR") return "none";
+    return error.code === "ENAMETOOLONG" && Buffer.byteLength(at, "utf8") <= MAX_PATH_BYTES ? "none" : "unknown";
+  }
+}
+
+/**
+ * What stands, just before the fast-forward, at every path it adds, changes
+ * or removes and at each of their leading directories: what `restoreClaim`
+ * puts back. Refused when any of them cannot be seen.
+ */
+function snapshot(worktree, changes) {
+  const before = new Map();
+  for (const { path: file } of changes) {
+    const parts = file.split("/");
+    for (let index = 1; index <= parts.length; index += 1) {
+      const at = parts.slice(0, index).join("/");
+      if (before.has(at)) continue;
+      const kindNow = standing(worktree, at);
+      if (kindNow === "unknown") return refuse(`cannot see what stands at ${JSON.stringify(at)} in the claim worktree`);
+      before.set(at, kindNow);
+    }
+  }
+  return { ok: true, before };
+}
+
+const nameList = (paths) => `${paths.slice(0, 20).map((file) => JSON.stringify(file)).join(", ")}${paths.length > 20 ? ` and ${paths.length - 20} more` : ""}`;
+
+/**
+ * Put the claim worktree back exactly as it was after a fast-forward that
+ * failed partway. Git's checkout writes entry by entry and fails only at the
+ * end, leaving the branch and the index at the dispatched head but the files
+ * it already removed, changed or created on disk.
+ *
+ * Both are confirmed first. Then, deepest first, what stands where something
+ * else stood before (`snapshot`) is removed — a file or link where nothing or
+ * a directory stood, a directory where nothing or a file did — a directory
+ * only when empty, so nothing the import did not create is removed, and an
+ * ignored host file never is. The files the import changes or deletes are
+ * checked out again from the index, those the host checks out through a
+ * filter driver last, once every other file, a filter's own program among
+ * them, is the host's again. Empty directories the checkout removed are
+ * recreated. Then it is proved: every snapshot path holds what it held, and
+ * Git reports the worktree clean at the dispatched head. Every command runs
+ * through `host`, so no hook or fsmonitor runs; the configuration it reads is
+ * the host's, since no import may change a file it reads (`configFiles`).
+ *
+ * Returns `{ok: true, removed, rewritten}`, or `{ok: false, why, leftover}`
+ * naming what could not be put back; it stops before checking anything out
+ * when something it did not create stands in the way.
+ */
+function restoreClaim({ host, worktree, branch, dispatchedHead, changes, before, filtered }) {
+  const failed = (why, leftover = []) => ({ ok: false, why, leftover });
+  const at = (file) => join(worktree, ...file.split("/"));
+  const head = host(["rev-parse", "--verify", "HEAD^{commit}"]);
+  if (!head.ok) return failed(`cannot read the claim's head: ${head.message}`);
+  if (head.stdout.trim() !== dispatchedHead) return failed(`${branch} is at ${head.stdout.trim()}, not the dispatched head ${dispatchedHead}`);
+  const index = host(["diff-index", "--cached", "--quiet", dispatchedHead]);
+  if (index.status === 1) return failed("the index no longer matches the dispatched head");
+  if (!index.ok) return failed(`cannot compare the index with the dispatched head: ${index.message}`);
+
+  const leftover = [];
+  let removed = 0;
+  const deepestFirst = [...before.keys()].sort((a, b) => b.split("/").length - a.split("/").length);
+  for (const file of deepestFirst) {
+    const was = before.get(file);
+    const now = standing(worktree, file);
+    if (now === "none" || now === was) continue;
+    try {
+      if (now === "directory") rmdirSync(at(file));
+      else if (now === "file") unlinkSync(at(file));
+      else throw new Error("unseen");
+      removed += 1;
+    } catch {
+      leftover.push(file);
+    }
+  }
+  if (leftover.length) return failed("something the failed checkout left, or that it did not create, stands where the dispatched head has something else, and is not removed", leftover);
+
+  const replaced = changes.filter(({ oldMode }) => kind(oldMode) === "file" || kind(oldMode) === "link").map(({ path: file }) => file);
+  for (const group of [replaced.filter((file) => !filtered.has(file)), replaced.filter((file) => filtered.has(file))]) {
+    if (group.length === 0) continue;
+    const out = host(["checkout-index", "--quiet", "--force", "--index", "-z", "--stdin"], group.map((file) => `${file}\0`).join(""));
+    if (!out.ok) return failed(`cannot check the dispatched head's files out again: ${out.message}`, group);
+  }
+  for (const file of [...deepestFirst].reverse()) {
+    if (before.get(file) !== "directory" || standing(worktree, file) !== "none") continue;
+    try { mkdirSync(at(file)); } catch { leftover.push(file); }
+  }
+
+  const differs = deepestFirst.filter((file) => standing(worktree, file) !== before.get(file));
+  if (differs.length) return failed("these paths do not hold what they held before the import", differs);
+  const status = host(["status", "--porcelain", "-z", "--untracked-files=all"]);
+  if (!status.ok) return failed(`cannot read the claim's status: ${status.message}`);
+  const dirty = status.stdout.split("\0").filter(Boolean).map((entry) => entry.slice(3));
+  if (dirty.length) return failed("Git reports the claim worktree changed from the dispatched head", dirty);
+  return { ok: true, removed, rewritten: replaced.length };
+}
+
+/**
  * Fast-forward the claim branch from a bundle's bytes. The bytes are copied
  * into the run directory, outside the agent-written workspace, and every Git
- * command runs in the claim worktree. The fast-forward never replaces a file
- * Git does not track there: such paths are refused by name first, and the
- * merge runs with `--no-overwrite-ignore` as well. Nothing is checked out
- * until the import is within `importLimits`, and no Git hook runs
- * (`NO_HOOKS`). A refusal leaves the branch where
- * it was, deletes the temporary ref, and keeps the copy for inspection.
+ * command runs in the claim worktree through `hostGit`, so no hook or
+ * fsmonitor runs. The fast-forward never replaces a file Git does not track
+ * there: such paths are refused by name first, and the merge runs with
+ * `--no-overwrite-ignore` as well. Nothing is checked out until the import is
+ * within `importLimits`, and the temporary ref is deleted before it is.
+ *
+ * A refusal leaves the branch where it was, deletes the temporary ref, and
+ * keeps the copy for inspection. A fast-forward that fails partway is undone
+ * (`restoreClaim`) and refused as importing nothing only once the claim is
+ * proved back at the dispatched head; otherwise the refusal says it was not
+ * restored and names what is left (`restored: false`).
  */
 function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHead, bundle, claimedHead, importLimits }) {
-  const host = (args, input) => gitIn(run, worktree, args, input);
   const copy = join(runPath, `branch-${randomBytes(4).toString("hex")}.bundle`);
   const reject = (message) => existsSync(copy)
     ? { ok: false, message: `${message}; nothing was imported, and the bundle is kept at ${copy}`, preserved: copy }
     : refuse(`${message}; nothing was imported`);
+  const unrestored = (message, leftover = []) => ({
+    ok: false, restored: false, preserved: copy,
+    message: `${message}${leftover.length ? ` (${nameList(leftover)})` : ""}; the claim worktree was NOT restored to the dispatched head ${dispatchedHead} and may hold the import's files: inspect ${worktree} and put it back on the host before the next session; the bundle is kept at ${copy}`,
+  });
   const tempRef = `${IMPORT_REF_PREFIX}${key}/${runId}`;
+  let host = null;
   let fetched = false;
   let imported = false;
+  let attempted = false;
   try {
     writeFileSync(copy, bundle, { flag: "wx" });
+    const hardened = hostGit(run, worktree);
+    if (!hardened.ok) return reject(hardened.message);
+    host = hardened.git;
 
-    const before = worktreeAt(run, worktree, branch);
+    const before = worktreeAt(host, worktree, branch);
     if (!before.ok) return reject(before.message);
     if (before.head !== dispatchedHead) return reject(`claim worktree moved from the dispatched head ${dispatchedHead} to ${before.head}`);
+    const owned = configFiles(host, worktree);
+    if (!owned.ok) return reject(owned.message);
 
     const verified = host(["bundle", "verify", "--quiet", copy]);
     if (!verified.ok) return reject(`branch.bundle does not verify against the claim worktree: ${verified.message}`);
@@ -1273,7 +1590,7 @@ function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHe
     if (host(["rev-parse", "--verify", "--quiet", tempRef]).ok) return reject(`${tempRef} already exists; an earlier import of this run was interrupted`);
 
     fetched = true;
-    const fetch = host([...NO_HOOKS, "-c", "fetch.fsckObjects=true", "-c", "transfer.fsckObjects=true", "-c", "gc.auto=0",
+    const fetch = host(["-c", "fetch.fsckObjects=true", "-c", "transfer.fsckObjects=true",
       "fetch", "--quiet", "--no-tags", "--no-write-fetch-head", "--no-recurse-submodules", "--no-auto-maintenance",
       copy, `${wanted}:${tempRef}`]);
     if (!fetch.ok) return reject(`cannot fetch branch.bundle into the claim worktree: ${fetch.message}`);
@@ -1287,30 +1604,39 @@ function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHe
     const resolves = (file) => {
       try { canonical(join(worktree, ...file.split("/"))); return true; } catch { return false; }
     };
-    const { problems, changes } = rangeProblems(host, dispatchedHead, tip, importLimits, resolves);
+    const { problems, changes, filtered } = rangeProblems({ host, worktree, dispatchedHead, tip, limits: importLimits, resolves, owned: owned.files });
     if (problems.length) return reject(`the imported commits are refused: ${problems.slice(0, 20).join("; ")}${problems.length > 20 ? `; and ${problems.length - 20} more` : ""}`);
     const count = Number(host(["rev-list", "--count", `${dispatchedHead}..${tip}`]).stdout.trim());
 
-    const still = worktreeAt(run, worktree, branch);
+    const still = worktreeAt(host, worktree, branch);
     if (!still.ok || still.head !== dispatchedHead) return reject("claim worktree changed during the import");
     const untracked = untrackedProblems(host, worktree, changes);
     if (untracked.length) return reject(`the imported commits are refused: ${untracked.slice(0, 20).join("; ")}${untracked.length > 20 ? `; and ${untracked.length - 20} more` : ""}`);
+    const taken = snapshot(worktree, changes);
+    if (!taken.ok) return reject(taken.message);
+    // The fetched objects stay; the ref goes before anything is checked out, so no command after the checkout starts updates a ref but the branch.
+    const dropped = host(["update-ref", "-d", tempRef]);
+    if (!dropped.ok) return reject(`cannot delete ${tempRef}: ${dropped.message}`);
+    fetched = false;
+
     // Second layer: Git itself refuses to replace an ignored file, and moves nothing when it does.
-    const merged = host([...NO_HOOKS, "merge", "--ff-only", "--no-overwrite-ignore", "--quiet", "--no-stat", tip]);
+    attempted = true;
+    const merged = host(["merge", "--ff-only", "--no-overwrite-ignore", "--quiet", "--no-stat", tip]);
     if (!merged.ok) {
-      const now = host(["rev-parse", "--verify", "HEAD^{commit}"]);
-      const moved = now.ok && now.stdout.trim() !== dispatchedHead ? `, and ${branch} is now at ${now.stdout.trim()}; inspect the claim worktree` : "";
-      return reject(`cannot fast-forward ${branch} to ${tip}: ${merged.message}${moved}`);
+      const failure = `cannot fast-forward ${branch} to ${tip}: ${merged.message}`;
+      const restored = restoreClaim({ host, worktree, branch, dispatchedHead, changes, before: taken.before, filtered });
+      if (!restored.ok) return unrestored(`${failure}; restoring the claim worktree failed: ${restored.why}`, restored.leftover);
+      return { ...reject(`${failure}; the claim worktree is restored to the dispatched head and clean (${restored.removed} ${restored.removed === 1 ? "path" : "paths"} the failed checkout created removed, ${restored.rewritten} tracked ${restored.rewritten === 1 ? "path" : "paths"} it changes or deletes checked out again)`), restored: true };
     }
     const after = host(["rev-parse", "--verify", "HEAD^{commit}"]);
-    if (!after.ok || after.stdout.trim() !== tip) return reject(`${branch} did not reach ${tip} after the fast-forward`);
+    if (!after.ok || after.stdout.trim() !== tip) return unrestored(`the fast-forward to ${tip} reported success, but ${branch} is ${after.ok ? `at ${after.stdout.trim()}` : "unreadable"}`);
     imported = true;
     // Unverified work: the host's own Adversary and Tester judge it next.
     return { ok: true, commits: { imported: true, from: dispatchedHead, to: tip, count, verified: false } };
   } catch (error) {
-    return reject(`cannot import branch.bundle: ${error.message}`);
+    return attempted ? unrestored(`cannot import branch.bundle: ${error.message}`) : reject(`cannot import branch.bundle: ${error.message}`);
   } finally {
-    if (fetched) host([...NO_HOOKS, "update-ref", "-d", tempRef]);
+    if (fetched && host) host(["update-ref", "-d", tempRef]);
     if (imported) rmSync(copy, { force: true });
   }
 }

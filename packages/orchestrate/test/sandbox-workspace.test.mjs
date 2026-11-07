@@ -23,7 +23,7 @@ import { cleanUpTemporaryDirectories, ENGINE_ROOT, gitEnv, runGit, temporaryDire
 
 const {
   bundleCommand, bundleOutcome, collectWorkspace, defaultRun, foldName, IMPORT_REF_PREFIX, importPathProblem, inputPathProblem,
-  MAX_COMMAND_OUTPUT, MAX_IMPORT_OBJECT_BYTES, MAX_IMPORT_WRITTEN_BYTES, MAX_IMPORT_WRITTEN_PATHS, OUTPUT_LIMITS,
+  MAX_COMMAND_OUTPUT, MAX_IMPORT_OBJECT_BYTES, MAX_IMPORT_WRITTEN_BYTES, MAX_IMPORT_WRITTEN_PATHS, MAX_NAME_BYTES, MAX_PATH_BYTES, OUTPUT_LIMITS,
   PROTECTED_PATHS, prepareWorkspace, symlinkProblem,
 } = await import(pathToFileURL(join(ENGINE_ROOT, "sandbox-workspace.mjs")));
 
@@ -561,6 +561,37 @@ function indexCommit(repository, entries, message = "indexed") {
 }
 const link = (path, target) => ({ path, content: target, mode: "120000" });
 
+/** Whether this Git runs hooks its configuration declares (`hook.<name>.command`, Git 2.54 here), asked in `repository`. */
+function configHooksRun(repository) {
+  const probe = spawnSync("git", ["-c", "hook.probe.command=true", "-c", "hook.probe.event=pre-commit", "hook", "list", "pre-commit"], { cwd: repository, env: gitEnv(), encoding: "utf8" });
+  return probe.status === 0 && /probe/.test(probe.stdout);
+}
+
+/**
+ * Programs inside the tracked tree, each appending `<tag> <kind> ...` to
+ * `marker` when it runs: a script config-declared hooks run, a hooks
+ * directory, and an fsmonitor (`configurePrograms` points the host at them).
+ */
+function trackedPrograms(marker, tag) {
+  const hook = (what) => `#!/bin/sh\necho "${tag} ${what} $*" >> '${marker}'\n`;
+  return [
+    { path: "scripts/hook.sh", content: hook("config-hook"), mode: "100755" },
+    ...["post-merge", "reference-transaction", "post-index-change", "post-checkout"].map((name) => ({ path: `hooks/${name}`, content: hook(`hooks-path ${name}`), mode: "100755" })),
+    { path: "scripts/fsmonitor.sh", content: `#!/bin/sh\necho "${tag} fsmonitor" >> '${marker}'\nprintf 'token\\0'\n`, mode: "100755" },
+  ];
+}
+
+/** Point the host's repository configuration at `trackedPrograms`: a hooks path, an fsmonitor, and (where Git runs them) config-declared hooks. */
+function configurePrograms(root, withConfigHooks) {
+  runGit(["config", "core.hooksPath", "hooks"], root);
+  runGit(["config", "core.fsmonitor", "scripts/fsmonitor.sh"], root);
+  if (!withConfigHooks) return;
+  for (const event of ["post-merge", "reference-transaction", "post-index-change"]) {
+    runGit(["config", `hook.on-${event}.command`, `sh scripts/hook.sh ${event}`], root);
+    runGit(["config", `hook.on-${event}.event`, event], root);
+  }
+}
+
 /** Bundle the agent's branch, collect, and check that the refusal left the claim exactly as it was. */
 function assertRefusedUntouched(p, prepared, label, overrides = {}) {
   agentBundle(prepared.workspace, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
@@ -575,30 +606,103 @@ function assertRefusedUntouched(p, prepared, label, overrides = {}) {
 }
 
 describe("treating sandbox output as untrusted", () => {
-  it("runs the import with Git hooks off, so imported scripts on a tracked hooks path never run", () => {
-    // A hooks path inside the tracked tree (as husky sets one) would run the
-    // agent's post-merge the moment the fast-forward checks it out, and its
-    // reference-transaction on every ref the import updates.
+  it("runs no hook and no fsmonitor during the import, though host configuration names tracked programs the import rewrites", () => {
+    // A hooks path inside the tracked tree (as husky sets one), hooks declared
+    // in configuration (hook.<name>.command, which a hooks path of /dev/null
+    // does not reach) and an fsmonitor script would each run during the
+    // import: the host's version while Git reads the index, the imported one
+    // once the fast-forward has checked it out.
     if (WINDOWS) return;
     const p = project();
-    indexCommit(p.worktree, [{ path: "hooks/README", content: "the host's hooks\n" }], "a tracked hooks directory");
+    const marker = join(temporaryDirectory("programs-"), "marker");
+    indexCommit(p.worktree, trackedPrograms(marker, "host"), "tracked programs");
     runGit(["reset", "--quiet", "--hard"], p.worktree);
+    const withConfigHooks = configHooksRun(p.root);
     const prepared = prepare(p);
     const ws = prepared.workspace;
     writeOut(ws, "result.json", result());
-    const marker = join(temporaryDirectory("hooks-"), "marker");
-    const hook = (name) => ({ path: `hooks/${name}`, content: `#!/bin/sh\necho "${name}" >> '${marker}'\n`, mode: "100755" });
-    const tip = indexCommit(ws, ["post-merge", "reference-transaction", "post-index-change", "post-checkout"].map(hook), "agent hooks");
-    runGit(["config", "core.hooksPath", "hooks"], p.root);
+    const tip = indexCommit(ws, [...trackedPrograms(marker, "IMPORTED"), { path: "src/x.js", content: "x\n" }], "agent rewrites the programs");
     agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    configurePrograms(p.root, withConfigHooks);
+    rmSync(marker, { force: true });
     const collected = collect(p, prepared);
+    const ran = existsSync(marker) ? readFileSync(marker, "utf8") : "";
     assert.equal(collected.ok, true, collected.message);
     assert.equal(collected.commits.to, tip);
-    assert.equal(existsSync(marker), false, "no hook ran during the import");
+    assert.equal(ran, "", "no hook or fsmonitor ran during the import, the host's own included");
 
-    // Control: the imported hooks are live, and the host's next Git command in the claim would run them.
+    // Control: the configuration is live, and the host's next Git commands in the claim run the imported programs.
+    runGit(["status", "--porcelain"], p.worktree);
     runGit(["update-ref", "refs/heads/control", "HEAD"], p.worktree);
-    assert.match(readFileSync(marker, "utf8"), /reference-transaction/, "the hooks run when the host's Git runs them");
+    const after = readFileSync(marker, "utf8");
+    assert.match(after, /^IMPORTED fsmonitor/m, "the imported fsmonitor runs on the host's next status");
+    assert.match(after, /^IMPORTED hooks-path reference-transaction/m, "the imported hooks path runs on the next ref update");
+    if (withConfigHooks) assert.match(after, /^IMPORTED config-hook reference-transaction/m, "the imported config-declared hook runs on the next ref update");
+  });
+
+  it("refuses an import while a configured hook's name cannot be switched off on Git's command line, running nothing", () => {
+    if (WINDOWS) return;
+    const p = project();
+    const marker = join(temporaryDirectory("programs-"), "marker");
+    const prepared = prepare(p);
+    agentCommits(prepared.workspace, prepared.dispatchedHead);
+    writeOut(prepared.workspace, "result.json", result());
+    runGit(["config", "hook.a=b.command", `echo ran >> '${marker}'`], p.root);
+    runGit(["config", "hook.a=b.event", "post-merge"], p.root);
+    runGit(["config", "--add", "hook.a=b.event", "reference-transaction"], p.root);
+    const refused = collect(p, prepared);
+    assert.equal(refused.ok, false);
+    assert.match(refused.message, /declares hook "a=b", whose name holds "=", so it cannot be switched off/);
+    assert.match(refused.message, /nothing was imported, and the bundle is kept/);
+    assert.equal(existsSync(marker), false, "nothing ran");
+    assert.equal(runGit(["rev-parse", BRANCH], p.worktree).trim(), prepared.dispatchedHead);
+    assert.equal(runGit(["status", "--porcelain", "--untracked-files=all"], p.worktree), "");
+  });
+
+  it("treats a file the host's configuration reads from the claim worktree as host-owned: an include, the attributes file, the excludes file", () => {
+    // An imported include could declare a hook or an fsmonitor that every Git
+    // process after the checkout reads; an attributes file could put a path
+    // through a filter. So none of them may change.
+    const p = project();
+    indexCommit(p.worktree, [
+      { path: "cfg/git.inc", content: "[user]\n\tname = Host Person\n" },
+      { path: "tools/attrs", content: "*.bin -text\n" },
+      { path: "tools/ignore", content: "*.tmp\n" },
+    ], "host configuration files");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    // Relative to the file holding it, absolute, and relative to the worktree's top.
+    runGit(["config", "include.path", "../.pathfinder/worktrees/1.1/cfg/git.inc"], p.root);
+    runGit(["config", "includeIf.onbranch:ticket/**.path", join(p.worktree, "cfg", "later.inc")], p.root);
+    runGit(["config", "core.attributesFile", "tools/attrs"], p.root);
+    runGit(["config", "core.excludesFile", join(p.worktree, "tools", "ignore")], p.root);
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    const cases = [
+      ["cfg/git.inc", "[hook \"agent\"]\n\tcommand = touch marker\n\tevent = post-merge\n", /"cfg\/git\.inc" is host-owned: the host's Git configuration reads "cfg\/git\.inc" \(include\.path\)/],
+      ["cfg/later.inc", "[core]\n\tfsmonitor = touch marker\n", /"cfg\/later\.inc" is host-owned: the host's Git configuration reads "cfg\/later\.inc" \(includeif\.onbranch:ticket\/\*\*\.path\)/],
+      ["tools/attrs", "* filter=agent\n", /"tools\/attrs" is host-owned: .*\(core\.attributesfile\)/],
+      ["tools/ignore", "*\n", /"tools\/ignore" is host-owned: .*\(core\.excludesfile\)/],
+    ];
+    for (const [file, content, pattern] of cases) {
+      agentReset(ws, prepared.dispatchedHead);
+      indexCommit(ws, [{ path: file, content }], `agent changes ${file}`);
+      const message = assertRefusedUntouched(p, prepared, file);
+      assert.match(message, pattern, file);
+      assert.match(message, /the host commits it on the claim branch outside the sandbox/, file);
+    }
+    agentReset(ws, prepared.dispatchedHead);
+    runGit(["rm", "-rq", "cfg"], ws);
+    writeFileSync(join(ws, "cfg"), "a file where the directory was\n");
+    runGit(["add", "cfg"], ws);
+    runGit(["commit", "--quiet", "-m", "agent replaces cfg/"], ws);
+    assert.match(assertRefusedUntouched(p, prepared, "cfg as a file"), /"cfg" stands where the directory holding "cfg\/git\.inc" belongs, and the host's Git configuration reads/);
+
+    agentReset(ws, prepared.dispatchedHead);
+    const tip = agentCommits(ws, prepared.dispatchedHead);
+    const accepted = collect(p, prepared);
+    assert.equal(accepted.ok, true, accepted.message);
+    assert.equal(accepted.commits.to, tip, "an import that leaves them alone goes ahead");
   });
 
   it("imports only into the registered claim worktree for the key, on its branch", () => {
@@ -1489,5 +1593,201 @@ describe("bounding what an import brings", () => {
     assert.equal(collected.commits.to, tip);
     assert.equal(readFileSync(join(p.worktree, "x.raw"), "utf8"), "raw\n");
     assert.equal(existsSync(marker), false, "no filter ran");
+  });
+});
+
+/**
+ * One commit of these entries, written straight into the index so no
+ * filesystem has to hold their names first — `{ path, content, mode }`, or
+ * `{ raw }` bytes for a name that is not UTF-8 — after removing `deleted`.
+ */
+function rawIndexCommit(repository, entries, deleted = [], message = "raw names") {
+  for (const { path, raw, content, mode = "100644" } of entries) {
+    const blob = spawnSync("git", ["hash-object", "-w", "--stdin"], { cwd: repository, env: gitEnv(), input: content }).stdout.toString().trim();
+    const line = Buffer.concat([Buffer.from(`${mode} ${blob}\t`), raw ?? Buffer.from(path), Buffer.from("\0")]);
+    const added = spawnSync("git", ["update-index", "--add", "-z", "--index-info"], { cwd: repository, env: gitEnv(), input: line });
+    assert.equal(added.status, 0, String(added.stderr));
+  }
+  for (const file of deleted) runGit(["rm", "-q", "--cached", "--", file], repository);
+  runGit(["commit", "--quiet", "-m", message], repository);
+  return runGit(["rev-parse", "HEAD"], repository).trim();
+}
+
+describe("leaving the claim exactly as it was when an import fails", () => {
+  /**
+   * A claim with a tracked file the import deletes, a directory the host may
+   * make read-only, and an ignored directory holding a host file.
+   */
+  function failingProject() {
+    const p = project();
+    indexCommit(p.worktree, [
+      { path: ".gitignore", content: "/.pathfinder/\n/context/current-ticket.md\n/build/\n" },
+      { path: "gone.txt", content: "tracked; the import deletes it\n" },
+      { path: "ro/keep.txt", content: "keep\n" },
+    ], "host files");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    mkdirSync(join(p.worktree, "build"));
+    writeFileSync(join(p.worktree, "build", "cache.o"), "an ignored host file\n");
+    return { ...p, head: runGit(["rev-parse", "HEAD"], p.worktree).trim() };
+  }
+
+  /** What the claim holds — index entries, and every file Git sees, ignored ones included — to compare after a refusal. */
+  const claimState = (worktree) => ({
+    index: runGit(["ls-files", "--stage"], worktree),
+    files: runGit(["status", "--porcelain", "--ignored", "--untracked-files=all"], worktree),
+  });
+
+  /** The import around a failing entry: an added file and directory, a changed and a deleted tracked file, a file in an ignored directory. */
+  const around = [
+    { path: "a.txt", content: "added\n" },
+    { path: "work.txt", content: "CHANGED by the sandbox\n" },
+    { path: "nd/x/y.txt", content: "in a new directory\n" },
+    { path: "build/new.txt", content: "into an ignored directory\n" },
+    { path: "z.txt", content: "added last\n" },
+  ];
+
+  function assertClaimAsBefore(p, prepared, refused, before, label) {
+    assert.equal(refused.ok, false, `${label}: refused`);
+    assert.ok(refused.preserved && existsSync(refused.preserved), `${label}: the bundle is kept for inspection`);
+    assert.equal(runGit(["rev-parse", BRANCH], p.worktree).trim(), prepared.dispatchedHead, `${label}: the branch is untouched`);
+    assert.equal(runGit(["symbolic-ref", "--short", "HEAD"], p.worktree).trim(), BRANCH, `${label}: still on the branch`);
+    assert.deepEqual(claimState(p.worktree), before, `${label}: index, tracked, untracked and ignored files exactly as before`);
+    assert.equal(runGit(["status", "--porcelain", "--untracked-files=all"], p.worktree), "", `${label}: clean`);
+    assert.equal(readFileSync(join(p.worktree, "work.txt"), "utf8"), "one\n", `${label}: the changed file is the host's again`);
+    assert.equal(readFileSync(join(p.worktree, "gone.txt"), "utf8"), "tracked; the import deletes it\n", `${label}: the deleted file is back`);
+    assert.equal(readFileSync(join(p.worktree, "build", "cache.o"), "utf8"), "an ignored host file\n", `${label}: the ignored host file is kept`);
+    for (const created of ["a.txt", "z.txt", "nd", "build/new.txt"]) assert.equal(existsSync(join(p.worktree, created)), false, `${label}: ${created} is gone`);
+    assert.equal(runGit(["for-each-ref", IMPORT_REF_PREFIX], p.root).trim(), "", `${label}: the temporary ref is gone`);
+    const again = prepare(p, { runId: "20261106T130000Z-0f0f0f0f" });
+    assert.equal(again.ok, true, `${label}: the claim is ready for the next session: ${again.message}`);
+    rmSync(again.runDir, { recursive: true, force: true });
+  }
+
+  it("refuses before checkout a name no supported filesystem can hold, beside changed and added files", () => {
+    assert.match(importPathProblem(`m/${"n".repeat(300)}`), /has a component of 300 bytes, over the 255-byte name limit/);
+    assert.equal(importPathProblem(`m/${"n".repeat(255)}`), null, "255 bytes is within the limit");
+    assert.match(importPathProblem(`m/${"é".repeat(128)}`), /component of 256 bytes/, "bytes, not characters, are counted");
+    assert.match(importPathProblem("bad�.txt"), /is not a valid UTF-8 name/);
+    assert.equal(MAX_NAME_BYTES, 255);
+    assert.equal(MAX_PATH_BYTES, 1023);
+    const cases = [
+      ["a 300-byte component", [{ path: `m/${"n".repeat(300)}`, content: "long\n" }], /has a component of 300 bytes, over the 255-byte name limit/],
+      ["an invalid UTF-8 name", [{ raw: Buffer.from([0x62, 0x61, 0x64, 0xff, 0x2e, 0x74, 0x78, 0x74]), content: "bad\n" }], /is not a valid UTF-8 name/],
+      ["a path past PATH_MAX", [{ path: Array.from({ length: 5 }, (_, index) => `${index}${"d".repeat(229)}`).join("/"), content: "deep\n" }], /would stand at a path of \d+ bytes in the claim worktree, over the 1023-byte path limit/],
+    ];
+    for (const [label, failing, pattern] of cases) {
+      const p = failingProject();
+      const before = claimState(p.worktree);
+      const prepared = prepare(p);
+      rawIndexCommit(prepared.workspace, [...around, ...failing], ["gone.txt"]);
+      agentBundle(prepared.workspace, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+      writeOut(prepared.workspace, "result.json", result());
+      const refused = collect(p, prepared);
+      assert.match(refused.message, pattern, label);
+      assert.match(refused.message, /the imported commits are refused: .*; nothing was imported, and the bundle is kept/, label);
+      assertClaimAsBefore(p, prepared, refused, before, label);
+    }
+  });
+
+  it("puts the claim back when the checkout fails partway on the filesystem, and says so", () => {
+    // A directory the host made read-only: Git writes every other entry, then fails.
+    if (!MODES_BIND) return;
+    const p = failingProject();
+    const before = claimState(p.worktree);
+    const prepared = prepare(p);
+    rawIndexCommit(prepared.workspace, [...around, { path: "ro/new.txt", content: "cannot be created\n" }], ["gone.txt"]);
+    agentBundle(prepared.workspace, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    writeOut(prepared.workspace, "result.json", result());
+    chmodSync(join(p.worktree, "ro"), 0o555);
+    let refused;
+    try {
+      refused = collect(p, prepared);
+    } finally {
+      chmodSync(join(p.worktree, "ro"), 0o755);
+    }
+    assert.equal(refused.restored, true, refused.message);
+    assert.match(refused.message, /cannot fast-forward .*unable to create file ro\/new\.txt.*; the claim worktree is restored to the dispatched head and clean \(6 paths the failed checkout created removed, 2 tracked paths it changes or deletes checked out again\); nothing was imported, and the bundle is kept/);
+    assertClaimAsBefore(p, prepared, refused, before, "read-only directory");
+  });
+
+  /**
+   * A host runner whose fast-forward does what Git's does when it fails
+   * partway: writes some of the import's entries, removes others, and exits
+   * non-zero, leaving the branch and the index alone. `extra` runs after it.
+   */
+  function failingMerge(worktree, writes, removes, extra = () => {}) {
+    return (argv, options = {}) => {
+      if (argv.includes("--ff-only")) {
+        for (const { path: file, content, mode } of writes) {
+          mkdirSync(join(worktree, file, ".."), { recursive: true });
+          rmSync(join(worktree, file), { force: true });
+          writeFileSync(join(worktree, file), content, { mode: mode === "100755" ? 0o755 : 0o644 });
+        }
+        for (const file of removes) rmSync(join(worktree, file), { force: true });
+        extra();
+        return { status: 128, signal: null, stdout: "", stderr: "error: unable to create file m/nnnn: File name too long", error: null };
+      }
+      return defaultRun(argv, { ...options, env: gitEnv() });
+    };
+  }
+
+  it("restores with no hook or fsmonitor run, and the host's filtered files last, once their filter's program is the host's again", () => {
+    if (WINDOWS) return;
+    const p = failingProject();
+    const marker = join(temporaryDirectory("programs-"), "marker");
+    const smudge = (tag) => ({ path: "scripts/smudge.sh", content: `#!/bin/sh\necho "${tag} smudge" >> '${marker}'\ncat\n`, mode: "100755" });
+    indexCommit(p.worktree, [...trackedPrograms(marker, "host"), smudge("host"), { path: ".gitattributes", content: "*.dat filter=up\n" }, { path: "x.dat", content: "filtered data\n" }], "host programs and a filtered file");
+    runGit(["config", "filter.up.smudge", "sh scripts/smudge.sh"], p.root);
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    const before = claimState(p.worktree);
+    const withConfigHooks = configHooksRun(p.root);
+    const prepared = prepare(p);
+    const imported = [...trackedPrograms(marker, "IMPORTED"), smudge("IMPORTED")];
+    rawIndexCommit(prepared.workspace, [...around, ...imported], ["gone.txt", "x.dat"]);
+    agentBundle(prepared.workspace, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    writeOut(prepared.workspace, "result.json", result());
+    configurePrograms(p.root, withConfigHooks);
+    rmSync(marker, { force: true });
+    const run = failingMerge(p.worktree, [...around, ...imported], ["gone.txt", "x.dat"]);
+    const refused = collectWorkspace({ root: p.root, key: KEY, runDir: prepared.runDir, worktree: p.worktree, branch: BRANCH, dispatchedHead: prepared.dispatchedHead, allowCommits: true, run });
+    const ran = existsSync(marker) ? readFileSync(marker, "utf8") : "";
+    assert.equal(refused.restored, true, refused.message);
+    assert.match(refused.message, /File name too long; the claim worktree is restored to the dispatched head and clean/);
+    assert.equal(ran, "host smudge\n", "only the host's own smudge ran, restoring the filtered file the import deletes; no hook, fsmonitor or imported program");
+    assert.equal(readFileSync(join(p.worktree, "x.dat"), "utf8"), "filtered data\n");
+    assertClaimAsBefore(p, prepared, refused, before, "simulated partial checkout");
+  });
+
+  it("says by name when the claim cannot be proved restored, never that nothing was imported, and removes nothing it did not create", () => {
+    if (WINDOWS) return;
+    const run = (p, extra, fail) => {
+      const prepared = prepare(p);
+      rawIndexCommit(prepared.workspace, around, ["gone.txt"]);
+      agentBundle(prepared.workspace, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+      writeOut(prepared.workspace, "result.json", result());
+      const merge = failingMerge(p.worktree, around, ["gone.txt"], extra);
+      const runner = (argv, options) => (fail && argv.includes("checkout-index") ? { status: 1, signal: null, stdout: "", stderr: "fatal: cannot write", error: null } : merge(argv, options));
+      return { prepared, refused: collectWorkspace({ root: p.root, key: KEY, runDir: prepared.runDir, worktree: p.worktree, branch: BRANCH, dispatchedHead: prepared.dispatchedHead, allowCommits: true, run: runner }) };
+    };
+
+    // Something the import did not create stands in a directory it did.
+    const p = failingProject();
+    const foreign = join(p.worktree, "nd", "x", "foreign.txt");
+    const { prepared, refused } = run(p, () => writeFileSync(foreign, "not the import's\n"));
+    assert.equal(refused.ok, false);
+    assert.equal(refused.restored, false);
+    assert.match(refused.message, /restoring the claim worktree failed: .*\("nd\/x"/);
+    assert.match(refused.message, /the claim worktree was NOT restored to the dispatched head [0-9a-f]{40} and may hold the import's files: inspect .* and put it back on the host before the next session; the bundle is kept at /);
+    assert.doesNotMatch(refused.message, /nothing was imported/);
+    assert.ok(existsSync(refused.preserved), "the bundle is kept");
+    assert.equal(readFileSync(foreign, "utf8"), "not the import's\n", "what the import did not create is never removed");
+    assert.equal(runGit(["rev-parse", BRANCH], p.worktree).trim(), prepared.dispatchedHead);
+
+    // The tracked files cannot be checked out again.
+    const q = failingProject();
+    const failed = run(q, () => {}, true).refused;
+    assert.equal(failed.restored, false);
+    assert.match(failed.message, /cannot check the dispatched head's files out again: fatal: cannot write \("gone\.txt", "work\.txt"\)/);
+    assert.doesNotMatch(failed.message, /nothing was imported/);
   });
 });
