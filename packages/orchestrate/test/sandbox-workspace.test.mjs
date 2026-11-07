@@ -575,6 +575,32 @@ function assertRefusedUntouched(p, prepared, label, overrides = {}) {
 }
 
 describe("treating sandbox output as untrusted", () => {
+  it("runs the import with Git hooks off, so imported scripts on a tracked hooks path never run", () => {
+    // A hooks path inside the tracked tree (as husky sets one) would run the
+    // agent's post-merge the moment the fast-forward checks it out, and its
+    // reference-transaction on every ref the import updates.
+    if (WINDOWS) return;
+    const p = project();
+    indexCommit(p.worktree, [{ path: "hooks/README", content: "the host's hooks\n" }], "a tracked hooks directory");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    const marker = join(temporaryDirectory("hooks-"), "marker");
+    const hook = (name) => ({ path: `hooks/${name}`, content: `#!/bin/sh\necho "${name}" >> '${marker}'\n`, mode: "100755" });
+    const tip = indexCommit(ws, ["post-merge", "reference-transaction", "post-index-change", "post-checkout"].map(hook), "agent hooks");
+    runGit(["config", "core.hooksPath", "hooks"], p.root);
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    const collected = collect(p, prepared);
+    assert.equal(collected.ok, true, collected.message);
+    assert.equal(collected.commits.to, tip);
+    assert.equal(existsSync(marker), false, "no hook ran during the import");
+
+    // Control: the imported hooks are live, and the host's next Git command in the claim would run them.
+    runGit(["update-ref", "refs/heads/control", "HEAD"], p.worktree);
+    assert.match(readFileSync(marker, "utf8"), /reference-transaction/, "the hooks run when the host's Git runs them");
+  });
+
   it("imports only into the registered claim worktree for the key, on its branch", () => {
     const p = project();
     const prepared = prepare(p);

@@ -17,7 +17,7 @@
  * bundle reads only the bundle, never the repository it came from. The import
  * is a fast-forward of the dispatched head, for a session allowed to commit,
  * into the registered claim worktree still clean at that head — or it is
- * refused.
+ * refused. No Git hook runs during the import, the host's own included.
  *
  * Everything the sandbox produces is untrusted input, and ancestry alone is
  * not authorization: before the fast-forward, every imported commit is read
@@ -100,6 +100,14 @@ export const OUTPUT_LIMITS = Object.freeze({
 });
 /** Where an import holds the fetched tip until the fast-forward; deleted on every path. */
 export const IMPORT_REF_PREFIX = "refs/pathfinder/sandbox-import/";
+/**
+ * Config for every import command that updates a ref or the worktree: no
+ * Git hook runs, the host's own included. A hooks path inside the tracked
+ * tree, as husky sets one, would otherwise run the imported `post-merge` the
+ * moment the fast-forward checks it out, and the imported
+ * `reference-transaction` as the temporary ref is deleted.
+ */
+const NO_HOOKS = Object.freeze(["-c", "core.hooksPath=/dev/null"]);
 /** The most commits one session may bring back. */
 export const MAX_IMPORT_COMMITS = 100;
 /**
@@ -1226,7 +1234,8 @@ function untrackedProblems(host, worktree, changes) {
  * command runs in the claim worktree. The fast-forward never replaces a file
  * Git does not track there: such paths are refused by name first, and the
  * merge runs with `--no-overwrite-ignore` as well. Nothing is checked out
- * until the import is within `importLimits`. A refusal leaves the branch where
+ * until the import is within `importLimits`, and no Git hook runs
+ * (`NO_HOOKS`). A refusal leaves the branch where
  * it was, deletes the temporary ref, and keeps the copy for inspection.
  */
 function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHead, bundle, claimedHead, importLimits }) {
@@ -1264,7 +1273,7 @@ function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHe
     if (host(["rev-parse", "--verify", "--quiet", tempRef]).ok) return reject(`${tempRef} already exists; an earlier import of this run was interrupted`);
 
     fetched = true;
-    const fetch = host(["-c", "fetch.fsckObjects=true", "-c", "transfer.fsckObjects=true", "-c", "gc.auto=0",
+    const fetch = host([...NO_HOOKS, "-c", "fetch.fsckObjects=true", "-c", "transfer.fsckObjects=true", "-c", "gc.auto=0",
       "fetch", "--quiet", "--no-tags", "--no-write-fetch-head", "--no-recurse-submodules", "--no-auto-maintenance",
       copy, `${wanted}:${tempRef}`]);
     if (!fetch.ok) return reject(`cannot fetch branch.bundle into the claim worktree: ${fetch.message}`);
@@ -1287,7 +1296,7 @@ function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHe
     const untracked = untrackedProblems(host, worktree, changes);
     if (untracked.length) return reject(`the imported commits are refused: ${untracked.slice(0, 20).join("; ")}${untracked.length > 20 ? `; and ${untracked.length - 20} more` : ""}`);
     // Second layer: Git itself refuses to replace an ignored file, and moves nothing when it does.
-    const merged = host(["merge", "--ff-only", "--no-overwrite-ignore", "--quiet", "--no-stat", tip]);
+    const merged = host([...NO_HOOKS, "merge", "--ff-only", "--no-overwrite-ignore", "--quiet", "--no-stat", tip]);
     if (!merged.ok) {
       const now = host(["rev-parse", "--verify", "HEAD^{commit}"]);
       const moved = now.ok && now.stdout.trim() !== dispatchedHead ? `, and ${branch} is now at ${now.stdout.trim()}; inspect the claim worktree` : "";
@@ -1301,7 +1310,7 @@ function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHe
   } catch (error) {
     return reject(`cannot import branch.bundle: ${error.message}`);
   } finally {
-    if (fetched) host(["update-ref", "-d", tempRef]);
+    if (fetched) host([...NO_HOOKS, "update-ref", "-d", tempRef]);
     if (imported) rmSync(copy, { force: true });
   }
 }
