@@ -14,7 +14,7 @@
 
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, realpathSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, realpathSync, readFileSync, readdirSync, readlinkSync, renameSync, rmSync, statSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, describe, it } from "node:test";
@@ -705,6 +705,71 @@ describe("treating sandbox output as untrusted", () => {
     assert.equal(accepted.commits.to, tip, "an import that leaves them alone goes ahead");
   });
 
+  it("treats the host's signature verifiers and allowed signers in the claim worktree as host-owned, and runs only the host's verifier, once, before checkout", () => {
+    // With merge.verifySignatures the fast-forward verifies the tip's signature,
+    // before it checks anything out, through the program the host configures
+    // for the format the signature declares. A verifier or an allowed-signers
+    // file that is a path in the claim worktree is host-owned: an import that
+    // rewrote one would make the host's next verification run the sandbox's.
+    if (WINDOWS) return;
+    const p = project();
+    const marker = join(temporaryDirectory("verifiers-"), "marker");
+    const verifier = (tag) => [
+      "#!/bin/sh", `echo "${tag} $*" >> '${marker}'`, "cat > /dev/null",
+      "echo '[GNUPG:] NEWSIG'",
+      "echo '[GNUPG:] GOODSIG 0123456789ABCDEF Test <test@example.com>'",
+      "echo '[GNUPG:] VALIDSIG 0123456789ABCDEF0123456789ABCDEF01234567 2026-01-01 1767225600 0 4 0 1 10 00 0123456789ABCDEF0123456789ABCDEF01234567'",
+      "echo '[GNUPG:] TRUST_ULTIMATE 0 pgp'", "",
+    ].join("\n");
+    indexCommit(p.worktree, [
+      { path: "scripts/gpg.sh", content: verifier("host"), mode: "100755" },
+      { path: "keys/allowed_signers", content: "test@example.com ssh-ed25519 AAAAhost\n" },
+    ], "host verifiers");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    runGit(["config", "merge.verifySignatures", "true"], p.root);
+    runGit(["config", "gpg.program", "scripts/gpg.sh"], p.root);
+    runGit(["config", "gpg.ssh.allowedSignersFile", "keys/allowed_signers"], p.root);
+    runGit(["config", "gpg.x509.program", join(p.worktree, "tools", "gpgsm")], p.root);
+    runGit(["config", "gpg.ssh.program", "ssh-keygen"], p.root);
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    // As the agent: its own signer, outside every repository.
+    const signer = join(temporaryDirectory("signer-"), "sign.sh");
+    writeFileSync(signer, "#!/bin/sh\ncat > /dev/null\necho '[GNUPG:] SIG_CREATED D 1 10 00 1767225600 0123456789ABCDEF' >&2\nprintf -- '-----BEGIN PGP SIGNATURE-----\\n\\nAAAA\\n-----END PGP SIGNATURE-----\\n'\n", { mode: 0o755 });
+    const signedCommit = (entries) => {
+      for (const { path: file, content, mode = "100644" } of entries) {
+        const blob = spawnSync("git", ["hash-object", "-w", "--stdin"], { cwd: ws, env: gitEnv(), input: content, encoding: "utf8" }).stdout.trim();
+        runGit(["update-index", "--add", "--cacheinfo", `${mode},${blob},${file}`], ws);
+      }
+      runGit(["-c", `gpg.program=${signer}`, "commit", "--quiet", "-S", "-m", "signed by the agent"], ws);
+    };
+    const ran = () => (existsSync(marker) ? readFileSync(marker, "utf8") : "");
+    const cases = [
+      ["scripts/gpg.sh", verifier("IMPORTED"), "100755", /"scripts\/gpg\.sh" is host-owned: the host's Git configuration names "scripts\/gpg\.sh" \(gpg\.program\); a sandbox may not add, change or delete what the host's Git runs or reads to verify signatures/],
+      ["keys/allowed_signers", "test@example.com ssh-ed25519 AAAAsandbox\n", "100644", /"keys\/allowed_signers" is host-owned: .*\(gpg\.ssh\.allowedsignersfile\)/],
+      ["tools/gpgsm", verifier("IMPORTED"), "100755", /"tools\/gpgsm" is host-owned: .*\(gpg\.x509\.program\)/],
+    ];
+    for (const [file, content, mode, pattern] of cases) {
+      agentReset(ws, prepared.dispatchedHead);
+      signedCommit([{ path: file, content, mode }]);
+      rmSync(marker, { force: true });
+      const message = assertRefusedUntouched(p, prepared, file);
+      assert.match(message, pattern, file);
+      assert.equal(ran(), "", `${file}: refused before anything ran`);
+    }
+
+    // A bare program name is looked up on PATH, so a file of that name in the claim is the sandbox's to add.
+    agentReset(ws, prepared.dispatchedHead);
+    signedCommit([{ path: "feature.txt", content: "from the sandbox\n" }, { path: "ssh-keygen", content: "not on PATH\n" }]);
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    rmSync(marker, { force: true });
+    const accepted = collect(p, prepared);
+    assert.equal(accepted.ok, true, accepted.message);
+    assert.equal(accepted.commits.imported, true);
+    assert.match(ran(), /^host --keyid-format=long --status-fd=1 --verify \S+ -\n$/, "the host's verifier ran once, on the sandbox's commit, and nothing else did");
+  });
+
   it("imports only into the registered claim worktree for the key, on its branch", () => {
     const p = project();
     const prepared = prepare(p);
@@ -1352,6 +1417,10 @@ describe("treating sandbox output as untrusted", () => {
       assert.match(symlinkProblem(file, target), /climbs "\.\." after a name/, `${file} -> ${target}`);
     }
     for (const [file, target] of [["a/s", ".."], ["a/b/up", "../.."], ["here", "."], ["a/b", "./../c/"]]) assert.equal(symlinkProblem(file, target), null, `${file} -> ${target}`);
+    // A target no supported host can create as a link fails the checkout partway, so it is refused by its bytes.
+    assert.equal(symlinkProblem("zz/link", `${"./".repeat(507)}README.md`), null, "1,023 bytes is within the limit");
+    assert.match(symlinkProblem("zz/link", `${"./".repeat(507)}README.mdx`), /^symlink "zz\/link" has a target of 1024 bytes, over the 1023-byte limit macOS's symlink\(2\) accepts; the checkout would fail partway$/);
+    assert.match(symlinkProblem("l", "\u00e9".repeat(512)), /a target of 1024 bytes/, "bytes, not characters, are counted");
   });
 });
 
@@ -1706,7 +1775,7 @@ describe("leaving the claim exactly as it was when an import fails", () => {
       chmodSync(join(p.worktree, "ro"), 0o755);
     }
     assert.equal(refused.restored, true, refused.message);
-    assert.match(refused.message, /cannot fast-forward .*unable to create file ro\/new\.txt.*; the claim worktree is restored to the dispatched head and clean \(6 paths the failed checkout created removed, 2 tracked paths it changes or deletes checked out again\); nothing was imported, and the bundle is kept/);
+    assert.match(refused.message, /cannot fast-forward .*unable to create file ro\/new\.txt.*; the claim worktree is restored to the dispatched head and clean, every directory the import touches holding exactly the names and files it held \(6 paths the failed checkout created removed, 2 tracked paths it changes or deletes checked out again\); nothing was imported, and the bundle is kept/);
     assertClaimAsBefore(p, prepared, refused, before, "read-only directory");
   });
 
@@ -1789,5 +1858,160 @@ describe("leaving the claim exactly as it was when an import fails", () => {
     assert.equal(failed.restored, false);
     assert.match(failed.message, /cannot check the dispatched head's files out again: fatal: cannot write \("gone\.txt", "work\.txt"\)/);
     assert.doesNotMatch(failed.message, /nothing was imported/);
+  });
+
+  /**
+   * A claim whose top holds `Docs/` (two tracked files, one a level down),
+   * `Readme.txt`, a directory spelled `café` in NFC, and an ignored `.env`
+   * beside them, on top of `failingProject`.
+   */
+  function spelledProject() {
+    const p = failingProject();
+    indexCommit(p.worktree, [
+      { path: ".gitignore", content: "/.pathfinder/\n/context/current-ticket.md\n/build/\n/.env\n" },
+      { path: "Docs/a.md", content: "doc\n" },
+      { path: "Docs/sub/b.md", content: "deep\n" },
+      { path: "Readme.txt", content: "read me\n" },
+      { path: "café/c.md", content: "nfc\n" },
+    ], "host names");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    writeFileSync(join(p.worktree, ".env"), "SECRET=host\n");
+    return { ...p, head: runGit(["rev-parse", "HEAD"], p.worktree).trim() };
+  }
+
+  /** Every entry under `dir`, `.git` aside, by the exact name readdir returns: kind, permission bits, link target or content. */
+  function exactTree(dir, rel = "", out = {}) {
+    for (const name of readdirSync(rel ? join(dir, rel) : dir).sort()) {
+      const file = rel ? `${rel}/${name}` : name;
+      if (file === ".git") continue;
+      const stats = lstatSync(join(dir, file));
+      if (stats.isDirectory()) {
+        out[file] = `directory ${(stats.mode & 0o7777).toString(8)}`;
+        exactTree(dir, file, out);
+      } else if (stats.isSymbolicLink()) out[file] = `link ${readlinkSync(join(dir, file))}`;
+      else out[file] = `file ${(stats.mode & 0o7777).toString(8)} ${readFileSync(join(dir, file), "base64")}`;
+    }
+    return out;
+  }
+
+  /** Whether the volume the fixtures live on resolves one spelling of a name to an entry spelled `other`ly. */
+  function folds(spelling, other) {
+    const probe = temporaryDirectory("fold-probe-");
+    mkdirSync(join(probe, spelling));
+    return existsSync(join(probe, other)) && !readdirSync(probe).includes(other);
+  }
+  const FOLDS_CASE = folds("CaseProbe", "caseprobe");
+  const FOLDS_NORMALIZATION = folds("café", "café");
+  const CASE_SENSITIVE = "the volume is case-sensitive: there Docs/ and docs/ are two paths, a case-only rename is an ordinary delete and add, and no lookup finds one through the other";
+  const NORMALIZATION_SENSITIVE = "the volume does not fold Unicode normalization: there the NFC and NFD spellings are two names, and no lookup finds one through the other";
+
+  /** The renames that make `Docs/` the import's `docs/`, with the same bytes. */
+  const caseRename = [{ path: "docs/a.md", content: "doc\n" }, { path: "docs/sub/b.md", content: "deep\n" }];
+  const caseDeleted = ["Docs/a.md", "Docs/sub/b.md"];
+
+  function assertExactlyAsBefore(p, prepared, before, label) {
+    assert.deepEqual(exactTree(p.worktree), before, `${label}: every name, byte for byte, and every kind, mode, link and file exactly as before`);
+    assert.equal(runGit(["rev-parse", BRANCH], p.worktree).trim(), prepared.dispatchedHead, `${label}: the branch is untouched`);
+    assert.equal(runGit(["symbolic-ref", "--short", "HEAD"], p.worktree).trim(), BRANCH, `${label}: still on the branch`);
+    assert.equal(runGit(["diff-index", "--cached", "--name-only", prepared.dispatchedHead], p.worktree), "", `${label}: the index is the dispatched head's`);
+    assert.equal(runGit(["-c", "core.ignorecase=false", "status", "--porcelain", "--untracked-files=all"], p.worktree), "", `${label}: clean, read case-sensitively too`);
+    assert.equal(runGit(["for-each-ref", IMPORT_REF_PREFIX], p.root).trim(), "", `${label}: the temporary ref is gone`);
+    const again = prepare(p, { runId: "20261106T130000Z-0f0f0f0f" });
+    assert.equal(again.ok, true, `${label}: the claim is ready for the next session: ${again.message}`);
+    rmSync(again.runDir, { recursive: true, force: true });
+  }
+
+  it("refuses before checkout a symlink target no supported host can create, so a case-only directory rename beside it never reaches the claim", () => {
+    // The Tester's combined case: on its own, the sandbox could fail the
+    // checkout partway after Git had already removed Docs/ and created docs/.
+    const p = spelledProject();
+    const before = exactTree(p.worktree);
+    const prepared = prepare(p);
+    rawIndexCommit(prepared.workspace, [...caseRename, { path: "a.txt", content: "added\n" }, { path: "zz/link", content: `${"./".repeat(560)}README.md`, mode: "120000" }], caseDeleted);
+    agentBundle(prepared.workspace, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    writeOut(prepared.workspace, "result.json", result());
+    const refused = collect(p, prepared);
+    assert.equal(refused.ok, false);
+    assertExactlyAsBefore(p, prepared, before, "over-long link target");
+    assert.match(refused.message, /symlink "zz\/link" has a target of 1129 bytes, over the 1023-byte limit macOS's symlink\(2\) accepts; the checkout would fail partway; nothing was imported, and the bundle is kept/);
+    assert.equal(refused.restored, undefined, "refused before checkout: there was nothing to restore");
+    assert.ok(existsSync(refused.preserved), "the bundle is kept for inspection");
+  });
+
+  it("gives a directory a failed checkout renamed by case back its own spelling, and proves every name, byte for byte", (t) => {
+    if (!MODES_BIND) { t.skip("file modes do not bind here (Windows or root), so a read-only directory cannot fail the checkout"); return; }
+    if (!FOLDS_CASE) { t.skip(CASE_SENSITIVE); return; }
+    const p = spelledProject();
+    const before = exactTree(p.worktree);
+    const ignored = statSync(join(p.worktree, ".env")).ino;
+    const prepared = prepare(p);
+    rawIndexCommit(prepared.workspace, [...caseRename, { path: "README.TXT", content: "read me\n" }, { path: "work.txt", content: "CHANGED\n" }, { path: "ro/new.txt", content: "cannot be created\n" }], [...caseDeleted, "Readme.txt", "gone.txt"]);
+    agentBundle(prepared.workspace, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    writeOut(prepared.workspace, "result.json", result());
+    chmodSync(join(p.worktree, "ro"), 0o555);
+    let refused;
+    try {
+      refused = collect(p, prepared);
+    } finally {
+      chmodSync(join(p.worktree, "ro"), 0o755);
+    }
+    assert.equal(refused.restored, true, refused.message);
+    assertExactlyAsBefore(p, prepared, before, "case-only rename");
+    assert.ok(readdirSync(p.worktree).includes("Docs") && !readdirSync(p.worktree).includes("docs"), "the top lists Docs, as the index names it");
+    assert.equal(statSync(join(p.worktree, ".env")).ino, ignored, "the ignored host file beside it is the very same file");
+    assert.match(refused.message, /unable to create file ro\/new\.txt.*; the claim worktree is restored to the dispatched head and clean, every directory the import touches holding exactly the names and files it held \(\d+ paths? the failed checkout created removed, \d+ tracked paths it changes or deletes checked out again, 1 name it respelled given back its own spelling\); nothing was imported, and the bundle is kept/);
+  });
+
+  it("gives a directory back its Unicode normalization too, whatever made the checkout fail", (t) => {
+    if (WINDOWS) { t.skip("Windows does not fold Unicode normalization"); return; }
+    if (!FOLDS_NORMALIZATION) { t.skip(NORMALIZATION_SENSITIVE); return; }
+    const p = spelledProject();
+    const before = exactTree(p.worktree);
+    const prepared = prepare(p);
+    runGit(["config", "core.precomposeUnicode", "false"], prepared.workspace);
+    rawIndexCommit(prepared.workspace, [{ path: "café/c.md", content: "nfc\n" }], ["café/c.md"]);
+    agentBundle(prepared.workspace, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    writeOut(prepared.workspace, "result.json", result());
+    // A fast-forward that fails after it re-created the directory under the import's NFD spelling.
+    const run = (argv, options = {}) => {
+      if (!argv.includes("--ff-only")) return defaultRun(argv, { ...options, env: gitEnv() });
+      renameSync(join(p.worktree, "café"), join(p.worktree, "café"));
+      return { status: 128, signal: null, stdout: "", stderr: "error: unable to create file: No space left on device", error: null };
+    };
+    const refused = collectWorkspace({ root: p.root, key: KEY, runDir: prepared.runDir, worktree: p.worktree, branch: BRANCH, dispatchedHead: prepared.dispatchedHead, allowCommits: true, run });
+    assert.equal(refused.restored, true, refused.message);
+    assertExactlyAsBefore(p, prepared, before, "NFD rename");
+    assert.ok(readdirSync(p.worktree).includes("café"), "the top lists the NFC spelling again");
+    assert.match(refused.message, /1 name it respelled given back its own spelling\); nothing was imported/);
+  });
+
+  it("says restored: false, naming the entry, when it cannot give a directory back its spelling, and never that nothing was imported", (t) => {
+    if (!MODES_BIND) { t.skip("file modes do not bind here (Windows or root), so the top cannot be made read-only"); return; }
+    if (!FOLDS_CASE) { t.skip(CASE_SENSITIVE); return; }
+    const p = spelledProject();
+    const prepared = prepare(p);
+    rawIndexCommit(prepared.workspace, caseRename, caseDeleted);
+    agentBundle(prepared.workspace, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    writeOut(prepared.workspace, "result.json", result());
+    // A fast-forward that respells Docs/ and fails, leaving a top that may no longer be written.
+    const run = (argv, options = {}) => {
+      if (!argv.includes("--ff-only")) return defaultRun(argv, { ...options, env: gitEnv() });
+      renameSync(join(p.worktree, "Docs"), join(p.worktree, "docs"));
+      chmodSync(p.worktree, 0o555);
+      return { status: 128, signal: null, stdout: "", stderr: "error: unable to create file: Input/output error", error: null };
+    };
+    let refused;
+    try {
+      refused = collectWorkspace({ root: p.root, key: KEY, runDir: prepared.runDir, worktree: p.worktree, branch: BRANCH, dispatchedHead: prepared.dispatchedHead, allowCommits: true, run });
+    } finally {
+      chmodSync(p.worktree, 0o755);
+    }
+    assert.equal(refused.ok, false);
+    assert.equal(refused.restored, false, refused.message);
+    assert.match(refused.message, /restoring the claim worktree failed: these do not stand exactly as before the import: "Docs" is spelled "docs" on disk; the claim worktree was NOT restored to the dispatched head [0-9a-f]{40} and may hold the import's files: inspect .* and put it back on the host before the next session; the bundle is kept at /);
+    assert.doesNotMatch(refused.message, /nothing was imported/);
+    assert.ok(existsSync(refused.preserved), "the bundle is kept");
+    assert.equal(readFileSync(join(p.worktree, ".env"), "utf8"), "SECRET=host\n", "the ignored host file is never removed");
+    assert.equal(readFileSync(join(p.worktree, "docs", "a.md"), "utf8"), "doc\n", "the tracked file is the host's, under the spelling it could not give back");
   });
 });

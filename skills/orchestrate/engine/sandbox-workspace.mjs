@@ -34,9 +34,19 @@
  * the claim worktree — an `include.path` or `includeIf` target,
  * `core.attributesFile`, `core.excludesFile` — is host-owned, so every
  * command collect runs reads the configuration the host had before the
- * import. What this does not cover: the host's own later Git commands in the
- * claim worktree read that configuration as it is, and run the imported
- * version of any program it names in the tracked tree.
+ * import. So is a file the host's Git runs or reads to verify a signature
+ * (`gpg.program` and each format's program, when it names a path, and the SSH
+ * format's allowed-signers and revocation files): when the host sets
+ * `merge.verifySignatures`, the fast-forward runs the host's verifier for the
+ * format the tip's signature declares — once, twice for SSH — on the
+ * sandbox's commit before it checks anything out, a host program reading
+ * untrusted input, and no import can change a verifier or signers file the
+ * configuration names in the claim worktree (a bare program name is found on
+ * the host's `PATH`, which collect does not inspect). What this does not
+ * cover: the host's own later Git commands in the claim worktree read that
+ * configuration as it is, and run the imported version of any other program
+ * it names in the tracked tree — a hooks path, an fsmonitor, a configured
+ * hook, a filter's script.
  *
  * Everything the sandbox produces is untrusted input, and ancestry alone is
  * not authorization: before the fast-forward, every imported commit is read
@@ -82,13 +92,16 @@
  * about 70 bytes a path) too large to import into.
  *
  * A name no supported filesystem can hold — not valid UTF-8, a component over
- * `MAX_NAME_BYTES`, a path over `MAX_PATH_BYTES` — is refused before checkout
- * too. When the fast-forward still fails partway (a full disk, a directory it
- * may not write), Git leaves the branch and the index where they were but not
- * the files it already wrote. So collect puts the claim worktree back exactly
- * as it was and proves it clean (`restoreClaim`) before it says nothing was
- * imported, or says by name that it could not, and never then that nothing
- * was imported.
+ * `MAX_NAME_BYTES`, a path over `MAX_PATH_BYTES` — and a symlink target over
+ * `MAX_PATH_BYTES`, which no supported host can create, are refused before
+ * checkout too. When the fast-forward still fails partway (a full disk, a
+ * directory it may not write), Git leaves the branch and the index where they
+ * were but not the files it already wrote, and on a case- or
+ * normalization-insensitive filesystem not always the spelling of a directory
+ * it removed and created again. So collect puts the claim worktree back
+ * exactly as it was and proves it, name by name in every directory the import
+ * touches (`restoreClaim`), before it says nothing was imported; or it says by
+ * name what is not as it was, and never then that nothing was imported.
  *
  * Collect only once the sandbox has stopped and nothing can write the
  * workspace any more. Reads never follow a link and recheck the directories
@@ -102,7 +115,7 @@
 
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFileSync, closeSync, constants, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, rmdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, chmodSync, closeSync, constants, existsSync, fstatSync, lstatSync, mkdirSync, openSync, readdirSync, readlinkSync, readSync, realpathSync, renameSync, rmdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import path, { dirname, join, posix, resolve } from "node:path";
 
 import { PROTOCOLS } from "./brief.mjs";
@@ -180,7 +193,9 @@ export const MAX_NAME_BYTES = 255;
 /**
  * The longest absolute path, in UTF-8 bytes, an import may write in the claim
  * worktree: one under macOS's `PATH_MAX` of 1,024, the smallest of the
- * supported hosts, so the checkout and every later tool can name it.
+ * supported hosts, so the checkout and every later tool can name it. Also the
+ * longest target an imported symlink may hold: macOS's `symlink(2)` refuses a
+ * longer one (`File name too long`), which would fail the checkout partway.
  */
 export const MAX_PATH_BYTES = 1023;
 /**
@@ -364,8 +379,17 @@ function hostGit(run, worktree) {
   return { ok: true, git: (args, input) => gitIn(run, worktree, [...prefix, ...args], input) };
 }
 
-/** The keys whose values name a file Git reads as more configuration, or as attribute or ignore rules. */
-const CONFIG_FILE_KEYS = "^(include\\.path|includeif\\..+\\.path|core\\.attributesfile|core\\.excludesfile)$";
+/**
+ * The keys whose values name a file Git reads as more configuration, or as
+ * attribute or ignore rules, or runs or reads to verify a signature: the
+ * program of each signature format and the SSH format's allowed-signers and
+ * revocation files.
+ */
+const CONFIG_FILE_KEYS = "^(include\\.path|includeif\\..+\\.path|core\\.attributesfile|core\\.excludesfile|gpg\\.program|gpg\\.(openpgp|x509|ssh)\\.program|gpg\\.ssh\\.allowedsignersfile|gpg\\.ssh\\.revocationfile)$";
+/** A signature program's key: Git runs its value, looked up on `PATH` when it is a bare name. */
+const SIGNATURE_PROGRAM = /^gpg\.(?:(?:openpgp|x509|ssh)\.)?program$/;
+/** Whether a program's value names a path, which Git runs as it resolves from the worktree's top, rather than a name it finds on `PATH`. */
+const namesPath = (value) => (process.platform === "win32" ? /[\\/]/ : /\//).test(value);
 
 /**
  * The claim-worktree paths standing for `target`: as it is spelled, once a
@@ -405,6 +429,16 @@ function claimSpellings(worktree, target) {
  * agent-written configuration: a hook, an fsmonitor, a filter. Git expands
  * `~` itself (`--type=path`); a relative include is relative to the file
  * holding it, a relative attribute or ignore file to the worktree's top.
+ *
+ * So is every file the host's Git runs or reads to verify a signature: the
+ * program of each format (`gpg.program`, `gpg.openpgp.program`,
+ * `gpg.x509.program`, `gpg.ssh.program`) when its value is a path, and
+ * `gpg.ssh.allowedSignersFile` and `gpg.ssh.revocationFile`, each relative to
+ * the worktree's top. Collect's own verification, when the host sets
+ * `merge.verifySignatures`, runs before the checkout and so the host's
+ * version; an import that rewrote one would make the host's next verification
+ * run the sandbox's program, or trust its signers. A bare program name is
+ * looked up on the host's `PATH`, which this does not inspect.
  */
 function configFiles(host, worktree) {
   const listed = host(["config", "-z", "--show-origin", "--type=path", "--get-regexp", CONFIG_FILE_KEYS]);
@@ -417,6 +451,7 @@ function configFiles(host, worktree) {
     if (newline === -1 || newline === entry.length - 1) continue;
     const key = entry.slice(0, newline);
     const value = entry.slice(newline + 1);
+    if (SIGNATURE_PROGRAM.test(key) && !namesPath(value)) continue; // A bare name: found on the host's PATH.
     let target;
     if (path.isAbsolute(value)) target = value;
     else if (!key.endsWith(".path")) target = resolve(worktree, value);
@@ -670,8 +705,8 @@ export function importPathProblem(file) {
 }
 
 /**
- * Why an imported entry would change a file the host's configuration reads
- * (`configFiles`), or null. Such a file is host-owned like an ignore file: as
+ * Why an imported entry would change a file the host's configuration reads or
+ * runs (`configFiles`), or null. Such a file is host-owned like an ignore file: as
  * itself, as anything under it, and as a file or link standing for one of its
  * leading directories.
  */
@@ -680,7 +715,9 @@ function configFileProblem(file, owned) {
     const match = ownedPath(file, read);
     if (match === null) continue;
     const where = match === "is" ? "is host-owned:" : `stands where the directory holding ${JSON.stringify(read)} belongs, and`;
-    return `${JSON.stringify(file)} ${where} the host's Git configuration reads ${JSON.stringify(read)} (${key}); a sandbox may not add, change or delete what the host's Git reads as configuration, attributes or ignore rules; if the ticket needs this change, the host commits it on the claim branch outside the sandbox`;
+    const signature = key.startsWith("gpg.");
+    const how = signature ? "runs or reads to verify signatures" : "reads as configuration, attributes or ignore rules";
+    return `${JSON.stringify(file)} ${where} the host's Git configuration ${signature ? "names" : "reads"} ${JSON.stringify(read)} (${key}); a sandbox may not add, change or delete what the host's Git ${how}; if the ticket needs this change, the host commits it on the claim branch outside the sandbox`;
   }
   return null;
 }
@@ -713,9 +750,13 @@ function climbsAfterName(target) {
  * directory the link is checked out in, so it stays in the repository.
  * `rangeProblems` adds what one link cannot show: no name on the way down may
  * be another symlink, so no chain of links leads anywhere one link could not.
+ * A target longer than `MAX_PATH_BYTES` is refused too: no supported host can
+ * create the link, so the checkout would fail partway.
  */
 export function symlinkProblem(file, target) {
   if (target === "" || target.includes("\0")) return `symlink ${JSON.stringify(file)} has an empty or binary target`;
+  const bytes = Buffer.byteLength(target, "utf8");
+  if (bytes > MAX_PATH_BYTES) return `symlink ${JSON.stringify(file)} has a target of ${bytes} bytes, over the ${MAX_PATH_BYTES}-byte limit macOS's symlink(2) accepts; the checkout would fail partway`;
   const forward = target.replace(/\\/g, "/");
   if (forward.startsWith("/") || /^[A-Za-z]:/.test(forward)) return `symlink ${JSON.stringify(file)} points at absolute ${JSON.stringify(target)}`;
   if (climbsAfterName(target)) return `symlink ${JSON.stringify(file)} climbs ".." after a name in ${JSON.stringify(target)}; a link may climb only with leading ".." components`;
@@ -1425,7 +1466,10 @@ function untrackedProblems(host, worktree, changes) {
  * `directory`, a `file` (a file, link or anything else), or `unknown`. A name
  * the filesystem calls too long while the whole path is within
  * `MAX_PATH_BYTES` has a component no entry there can have, so nothing stands
- * at it.
+ * at it. On a case- or normalization-insensitive filesystem this finds an
+ * entry under any spelling the filesystem folds onto the one asked for, so it
+ * says what kind of entry stands there, never how its name is spelled:
+ * `listing` does.
  */
 function standing(worktree, file) {
   const at = join(worktree, ...file.split("/"));
@@ -1437,61 +1481,147 @@ function standing(worktree, file) {
   }
 }
 
+/** A claim-worktree directory path's components; the top is "". */
+const partsOf = (directory) => (directory === "" ? [] : directory.split("/"));
+/** A name in a claim-worktree directory, as a path to show. */
+const shownIn = (directory, name) => (directory === "" ? name : `${directory}/${name}`);
+/** The directory `parts` under `worktree` as raw bytes, with one name in it, as `readdir` returned its bytes, when given. */
+function rawPath(worktree, parts, name) {
+  const directory = Buffer.from(join(worktree, ...parts));
+  return name === undefined ? directory : Buffer.concat([directory, Buffer.from(path.sep), name]);
+}
+/** The entry `lstat` read: the same device and inode is the same entry. */
+const entryId = (stats) => `${stats.dev}:${stats.ino}`;
+/** And the same size and modification time, to the nanosecond, is the same, untouched file. */
+const fileId = (stats) => `${stats.dev}:${stats.ino}:${stats.size}:${stats.mtimeNs}`;
+
 /**
- * What stands, just before the fast-forward, at every path it adds, changes
- * or removes and at each of their leading directories: what `restoreClaim`
- * puts back. Refused when any of them cannot be seen.
+ * The exact listing of the claim-worktree directory at `parts`, read without
+ * following a link, or `null` when anything but a real directory stands at it
+ * or at one of its leading components. Each entry is keyed by the bytes
+ * `readdir` returns for its name (as hex), so a name that differs only in
+ * case or normalization is another name, and carries its kind, permission
+ * bits, identity (`entryId`, `fileId`) and, for a link, its target's bytes.
+ * Throws when the directory or an entry in it cannot be read.
+ */
+function listing(worktree, parts) {
+  for (let index = 1; index <= parts.length; index += 1) {
+    let stats;
+    try {
+      stats = lstatSync(join(worktree, ...parts.slice(0, index)));
+    } catch (error) {
+      if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
+      throw error;
+    }
+    if (!stats.isDirectory()) return null;
+  }
+  const entries = new Map();
+  for (const name of readdirSync(rawPath(worktree, parts), { encoding: "buffer" })) {
+    const at = rawPath(worktree, parts, name);
+    const stats = lstatSync(at, { bigint: true });
+    const kind = stats.isDirectory() ? "directory" : stats.isSymbolicLink() ? "link" : stats.isFile() ? "file" : "other";
+    entries.set(name.toString("hex"), {
+      name: name.toString("utf8"), kind, mode: Number(stats.mode & 0o7777n), entry: entryId(stats), file: fileId(stats), size: stats.size,
+      target: kind === "link" ? readlinkSync(at, { encoding: "buffer" }).toString("hex") : null,
+    });
+  }
+  return entries;
+}
+
+/**
+ * What stands, just before the fast-forward, where it writes: what
+ * `restoreClaim` puts back, and then proves. `before` is the kind of entry at
+ * every path the fast-forward adds, changes or removes and at each of their
+ * leading directories, as the filesystem resolves each name. `listings` is
+ * the exact listing (`listing`) of the claim worktree's top and of each of
+ * those leading directories: every entry, tracked, untracked or ignored, of
+ * every directory the fast-forward may write in, by the bytes of its name.
+ * Refused when any of it cannot be read.
  */
 function snapshot(worktree, changes) {
   const before = new Map();
+  const directories = new Set([""]);
   for (const { path: file } of changes) {
     const parts = file.split("/");
     for (let index = 1; index <= parts.length; index += 1) {
       const at = parts.slice(0, index).join("/");
+      if (index < parts.length) directories.add(at);
       if (before.has(at)) continue;
       const kindNow = standing(worktree, at);
       if (kindNow === "unknown") return refuse(`cannot see what stands at ${JSON.stringify(at)} in the claim worktree`);
       before.set(at, kindNow);
     }
   }
-  return { ok: true, before };
+  const listings = new Map();
+  for (const directory of directories) {
+    try {
+      listings.set(directory, listing(worktree, partsOf(directory)));
+    } catch (error) {
+      return refuse(`cannot list ${directory === "" ? "the top of the claim worktree" : JSON.stringify(directory)} exactly before the import: ${error.message}`);
+    }
+  }
+  return { ok: true, before, listings };
 }
 
 const nameList = (paths) => `${paths.slice(0, 20).map((file) => JSON.stringify(file)).join(", ")}${paths.length > 20 ? ` and ${paths.length - 20} more` : ""}`;
 
 /**
  * Put the claim worktree back exactly as it was after a fast-forward that
- * failed partway. Git's checkout writes entry by entry and fails only at the
- * end, leaving the branch and the index at the dispatched head but the files
- * it already removed, changed or created on disk.
+ * failed partway, and prove it. Git's checkout writes entry by entry and fails
+ * only at the end, leaving the branch and the index at the dispatched head but
+ * the files it already removed, changed or created on disk; on a case- or
+ * normalization-insensitive filesystem it can also leave a directory it
+ * removed and created again under the import's spelling of its name (`Docs/`
+ * as `docs/`), which every lookup by name still finds.
  *
- * Both are confirmed first. Then, deepest first, what stands where something
- * else stood before (`snapshot`) is removed — a file or link where nothing or
- * a directory stood, a directory where nothing or a file did — a directory
- * only when empty, so nothing the import did not create is removed, and an
- * ignored host file never is. The files the import changes or deletes are
- * checked out again from the index, those the host checks out through a
- * filter driver last, once every other file, a filter's own program among
- * them, is the host's again. Empty directories the checkout removed are
- * recreated. Then it is proved: every snapshot path holds what it held, and
- * Git reports the worktree clean at the dispatched head. Every command runs
- * through `host`, so no hook or fsmonitor runs; the configuration it reads is
- * the host's, since no import may change a file it reads (`configFiles`).
+ * The branch, HEAD and index are confirmed first. Then, deepest first, what
+ * stands where something else stood before (`snapshot`) is removed — a file or
+ * link where nothing or a directory stood, a directory where nothing or a file
+ * did — a directory only when empty, and a file never when it is one that
+ * stood in the claim before the import (same device, inode, size and
+ * modification time), so nothing the import did not create is removed. The
+ * files the import changes or deletes are checked out again from the index,
+ * those the host checks out through a filter driver last, once every other
+ * file, a filter's own program among them, is the host's again. Empty
+ * directories the checkout removed are recreated. A name the filesystem
+ * resolves to the same entry under another spelling is renamed back to its
+ * own bytes, and what was recreated or checked out again gets its permission
+ * bits back.
  *
- * Returns `{ok: true, removed, rewritten}`, or `{ok: false, why, leftover}`
- * naming what could not be put back; it stops before checking anything out
- * when something it did not create stands in the way.
+ * Then it is proved, in every directory `snapshot` listed: the same names, byte
+ * for byte, each the same kind with the same permission bits; every file or
+ * link not checked out again the very same one, untouched (so untracked and
+ * ignored files are proved kept, not merely present); every tracked one
+ * checked out again the size and link target it had, its contents Git's; and
+ * the branch, HEAD and index still at the dispatched head, with Git reporting
+ * the worktree clean. Every command runs through `host`, so no hook or
+ * fsmonitor runs; the configuration it reads is the host's, since no import
+ * may change a file it reads (`configFiles`).
+ *
+ * Returns `{ok: true, removed, rewritten, respelled}`, or `{ok: false, why,
+ * leftover}` naming what is not as it was; it stops before checking anything
+ * out when something it did not create stands in the way.
  */
-function restoreClaim({ host, worktree, branch, dispatchedHead, changes, before, filtered }) {
+function restoreClaim({ host, worktree, branch, dispatchedHead, changes, before, listings, filtered }) {
   const failed = (why, leftover = []) => ({ ok: false, why, leftover });
   const at = (file) => join(worktree, ...file.split("/"));
-  const head = host(["rev-parse", "--verify", "HEAD^{commit}"]);
-  if (!head.ok) return failed(`cannot read the claim's head: ${head.message}`);
-  if (head.stdout.trim() !== dispatchedHead) return failed(`${branch} is at ${head.stdout.trim()}, not the dispatched head ${dispatchedHead}`);
-  const index = host(["diff-index", "--cached", "--quiet", dispatchedHead]);
-  if (index.status === 1) return failed("the index no longer matches the dispatched head");
-  if (!index.ok) return failed(`cannot compare the index with the dispatched head: ${index.message}`);
+  const atHead = () => {
+    const on = host(["symbolic-ref", "--quiet", "HEAD"]);
+    if (!on.ok || on.stdout.trim() !== `refs/heads/${branch}`) return `the claim worktree is no longer on ${branch}`;
+    const head = host(["rev-parse", "--verify", "HEAD^{commit}"]);
+    if (!head.ok) return `cannot read the claim's head: ${head.message}`;
+    if (head.stdout.trim() !== dispatchedHead) return `${branch} is at ${head.stdout.trim()}, not the dispatched head ${dispatchedHead}`;
+    const index = host(["diff-index", "--cached", "--quiet", dispatchedHead]);
+    if (index.status === 1) return "the index no longer matches the dispatched head";
+    if (!index.ok) return `cannot compare the index with the dispatched head: ${index.message}`;
+    return null;
+  };
+  const moved = atHead();
+  if (moved) return failed(moved);
 
+  // Every file or link that stood, before the import, in a directory it writes in.
+  const stood = new Set();
+  for (const entries of listings.values()) for (const entry of entries?.values() ?? []) if (entry.kind !== "directory") stood.add(entry.file);
   const leftover = [];
   let removed = 0;
   const deepestFirst = [...before.keys()].sort((a, b) => b.split("/").length - a.split("/").length);
@@ -1501,8 +1631,8 @@ function restoreClaim({ host, worktree, branch, dispatchedHead, changes, before,
     if (now === "none" || now === was) continue;
     try {
       if (now === "directory") rmdirSync(at(file));
-      else if (now === "file") unlinkSync(at(file));
-      else throw new Error("unseen");
+      else if (now === "file" && !stood.has(fileId(lstatSync(at(file), { bigint: true })))) unlinkSync(at(file));
+      else throw new Error("not the import's");
       removed += 1;
     } catch {
       leftover.push(file);
@@ -1521,13 +1651,98 @@ function restoreClaim({ host, worktree, branch, dispatchedHead, changes, before,
     try { mkdirSync(at(file)); } catch { leftover.push(file); }
   }
 
-  const differs = deepestFirst.filter((file) => standing(worktree, file) !== before.get(file));
-  if (differs.length) return failed("these paths do not hold what they held before the import", differs);
+  const directories = [...listings.keys()].sort((a, b) => partsOf(a).length - partsOf(b).length);
+  const now = (directory) => { try { return listing(worktree, partsOf(directory)); } catch { return null; } };
+  // The name in `current` that the filesystem resolves `hex`, a name `was` held and `current` does not, to: the same entry, spelled otherwise.
+  const spelledAs = (directory, hex, was, current) => {
+    let stats;
+    try { stats = lstatSync(rawPath(worktree, partsOf(directory), Buffer.from(hex, "hex")), { bigint: true }); } catch { return null; }
+    const found = [...current].find(([other, entry]) => !was.has(other) && entry.entry === entryId(stats));
+    return found === undefined ? null : found[0];
+  };
+  let respelled = 0;
+  for (const directory of directories) {
+    const was = listings.get(directory);
+    const current = was === null ? null : now(directory);
+    if (current === null) continue;
+    for (const hex of was.keys()) {
+      if (current.has(hex)) continue;
+      const alias = spelledAs(directory, hex, was, current);
+      if (alias === null) continue;
+      try {
+        renameSync(rawPath(worktree, partsOf(directory), Buffer.from(alias, "hex")), rawPath(worktree, partsOf(directory), Buffer.from(hex, "hex")));
+        respelled += 1;
+      } catch { /* The proof below names it. */ }
+    }
+  }
+  // What was checked out again: by the entry the filesystem resolves each tracked path to, however spelled.
+  const rewritten = new Set();
+  for (const file of replaced) {
+    try { rewritten.add(entryId(lstatSync(at(file), { bigint: true }))); } catch { /* Missing: the proof below names it. */ }
+  }
+  for (const directory of directories) {
+    const was = listings.get(directory);
+    const current = was === null ? null : now(directory);
+    if (current === null) continue;
+    for (const [hex, entry] of was) {
+      const there = current.get(hex);
+      if (!there || there.kind !== entry.kind || there.kind === "link" || there.mode === entry.mode) continue;
+      if (there.kind !== "directory" && !rewritten.has(there.entry)) continue;
+      try { chmodSync(rawPath(worktree, partsOf(directory), Buffer.from(hex, "hex")), entry.mode); } catch { /* The proof below names it. */ }
+    }
+  }
+
+  const differences = new Set();
+  const octal = (mode) => mode.toString(8).padStart(4, "0");
+  for (const directory of directories) {
+    const was = listings.get(directory);
+    let current;
+    try {
+      current = listing(worktree, partsOf(directory));
+    } catch (error) {
+      differences.add(`${directory === "" ? "the top of the claim worktree" : JSON.stringify(directory)} cannot be listed: ${error.message}`);
+      continue;
+    }
+    if (was === null || current === null) {
+      if (was === null && current !== null) differences.add(`${JSON.stringify(directory)} is a directory, and was not before the import`);
+      if (was !== null && current === null) differences.add(`${JSON.stringify(directory)} is no longer the directory it was`);
+      continue;
+    }
+    const aliases = new Set();
+    for (const [hex, entry] of was) {
+      const name = JSON.stringify(shownIn(directory, entry.name));
+      const there = current.get(hex);
+      if (there === undefined) {
+        const alias = spelledAs(directory, hex, was, current);
+        if (alias !== null) aliases.add(alias);
+        differences.add(alias === null ? `${name} is missing` : `${name} is spelled ${JSON.stringify(shownIn(directory, current.get(alias).name))} on disk`);
+      } else if (there.kind !== entry.kind) {
+        differences.add(`${name} is a ${there.kind} where a ${entry.kind} stood`);
+      } else if (entry.kind !== "link" && there.mode !== entry.mode) {
+        differences.add(`${name} has permissions ${octal(there.mode)}, not ${octal(entry.mode)}`);
+      } else if (entry.kind === "directory") {
+        continue;
+      } else if (rewritten.has(there.entry)) {
+        if (there.size !== entry.size || there.target !== entry.target) differences.add(`${name}, checked out again, does not hold what it held`);
+      } else if (there.file !== entry.file || there.target !== entry.target) {
+        differences.add(`${name} is not the file it was: another inode, size or modification time`);
+      }
+    }
+    for (const [hex, entry] of current) {
+      if (!was.has(hex) && !aliases.has(hex)) differences.add(`${JSON.stringify(shownIn(directory, entry.name))} was not there before the import`);
+    }
+  }
+  if (differences.size) {
+    const listed = [...differences];
+    return failed(`these do not stand exactly as before the import: ${listed.slice(0, 20).join("; ")}${listed.length > 20 ? `; and ${listed.length - 20} more` : ""}`);
+  }
+  const still = atHead();
+  if (still) return failed(still);
   const status = host(["status", "--porcelain", "-z", "--untracked-files=all"]);
   if (!status.ok) return failed(`cannot read the claim's status: ${status.message}`);
   const dirty = status.stdout.split("\0").filter(Boolean).map((entry) => entry.slice(3));
   if (dirty.length) return failed("Git reports the claim worktree changed from the dispatched head", dirty);
-  return { ok: true, removed, rewritten: replaced.length };
+  return { ok: true, removed, rewritten: replaced.length, respelled };
 }
 
 /**
@@ -1542,8 +1757,16 @@ function restoreClaim({ host, worktree, branch, dispatchedHead, changes, before,
  * A refusal leaves the branch where it was, deletes the temporary ref, and
  * keeps the copy for inspection. A fast-forward that fails partway is undone
  * (`restoreClaim`) and refused as importing nothing only once the claim is
- * proved back at the dispatched head; otherwise the refusal says it was not
- * restored and names what is left (`restored: false`).
+ * proved exactly as it was — the branch, HEAD and index at the dispatched head,
+ * and every directory the import touches holding the same names, byte for
+ * byte, and the same files; otherwise the refusal says it was not restored and
+ * names what is not as it was (`restored: false`).
+ *
+ * When the host sets `merge.verifySignatures`, the fast-forward verifies the
+ * tip's signature before it checks anything out: Git runs the host's
+ * verifier for the format the signature declares (once; twice for SSH) on the
+ * sandbox's commit. The program and the files it reads are the host's, since
+ * no import may change them (`configFiles`).
  */
 function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHead, bundle, claimedHead, importLimits }) {
   const copy = join(runPath, `branch-${randomBytes(4).toString("hex")}.bundle`);
@@ -1624,9 +1847,14 @@ function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHe
     const merged = host(["merge", "--ff-only", "--no-overwrite-ignore", "--quiet", "--no-stat", tip]);
     if (!merged.ok) {
       const failure = `cannot fast-forward ${branch} to ${tip}: ${merged.message}`;
-      const restored = restoreClaim({ host, worktree, branch, dispatchedHead, changes, before: taken.before, filtered });
+      const restored = restoreClaim({ host, worktree, branch, dispatchedHead, changes, before: taken.before, listings: taken.listings, filtered });
       if (!restored.ok) return unrestored(`${failure}; restoring the claim worktree failed: ${restored.why}`, restored.leftover);
-      return { ...reject(`${failure}; the claim worktree is restored to the dispatched head and clean (${restored.removed} ${restored.removed === 1 ? "path" : "paths"} the failed checkout created removed, ${restored.rewritten} tracked ${restored.rewritten === 1 ? "path" : "paths"} it changes or deletes checked out again)`), restored: true };
+      const counts = [
+        `${restored.removed} ${restored.removed === 1 ? "path" : "paths"} the failed checkout created removed`,
+        `${restored.rewritten} tracked ${restored.rewritten === 1 ? "path" : "paths"} it changes or deletes checked out again`,
+        ...(restored.respelled ? [`${restored.respelled} ${restored.respelled === 1 ? "name" : "names"} it respelled given back ${restored.respelled === 1 ? "its" : "their"} own spelling`] : []),
+      ];
+      return { ...reject(`${failure}; the claim worktree is restored to the dispatched head and clean, every directory the import touches holding exactly the names and files it held (${counts.join(", ")})`), restored: true };
     }
     const after = host(["rev-parse", "--verify", "HEAD^{commit}"]);
     if (!after.ok || after.stdout.trim() !== tip) return unrestored(`the fast-forward to ${tip} reported success, but ${branch} is ${after.ok ? `at ${after.stdout.trim()}` : "unreadable"}`);
