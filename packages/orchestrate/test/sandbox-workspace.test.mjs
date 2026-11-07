@@ -14,7 +14,7 @@
 
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, realpathSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, realpathSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { after, describe, it } from "node:test";
@@ -23,6 +23,7 @@ import { cleanUpTemporaryDirectories, ENGINE_ROOT, gitEnv, runGit, temporaryDire
 
 const {
   bundleCommand, bundleOutcome, collectWorkspace, defaultRun, foldName, IMPORT_REF_PREFIX, importPathProblem, inputPathProblem,
+  MAX_COMMAND_OUTPUT, MAX_IMPORT_OBJECT_BYTES, MAX_IMPORT_WRITTEN_BYTES, MAX_IMPORT_WRITTEN_PATHS, OUTPUT_LIMITS,
   PROTECTED_PATHS, prepareWorkspace, symlinkProblem,
 } = await import(pathToFileURL(join(ENGINE_ROOT, "sandbox-workspace.mjs")));
 
@@ -704,7 +705,7 @@ describe("treating sandbox output as untrusted", () => {
     }
   });
 
-  it("refuses an import while a symlink already at the dispatched head climbs after a name", () => {
+  it("refuses an import that could redirect a host symlink climbing after a name, and imports one that leaves its way alone", () => {
     // The host's own x -> a/s/.. lands on a while a/s is a real directory;
     // the agent turns a/s into a link to the root, and x would then climb out.
     const p = project();
@@ -717,8 +718,44 @@ describe("treating sandbox output as untrusted", () => {
     runGit(["rm", "--quiet", "--cached", "a/s/keep.txt"], ws);
     indexCommit(ws, [link("a/s", "..")], "a/s becomes a link");
     const message = assertRefusedUntouched(p, prepared, "a redirected host link");
-    assert.match(message, /symlink "x", already at the dispatched head, climbs "\.\." after a name in "a\/s\/\.\."; imported changes could redirect it out of the repository/);
+    assert.match(message, /symlink "x", already at the dispatched head, climbs "\.\." after a name in "a\/s\/\.\."; imported changes could redirect it out of the repository: they add, change or remove a symlink at "a\/s" on its way/);
     assert.doesNotMatch(message, /commit [0-9a-f]+: symlink "a\/s"/);
+
+    // Spelled as a case-insensitive filesystem would still resolve it.
+    agentReset(ws, prepared.dispatchedHead);
+    runGit(["rm", "--quiet", "--cached", "a/s/keep.txt"], ws);
+    indexCommit(ws, [link("A", ".")], "A becomes a link beside a");
+    assert.match(assertRefusedUntouched(p, prepared, "a link at a differently cased step"), /symlink "x", already at the dispatched head, .* a symlink at "a" on its way/);
+
+    // An import that touches nothing on x's way goes ahead: x is the host's, and lands where it did.
+    agentReset(ws, prepared.dispatchedHead);
+    const tip = indexCommit(ws, [{ path: "src/new.js", content: "new\n" }, { path: "a/s/more.txt", content: "more\n" }, link("docs/readme", "../README.md")], "unrelated work");
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    const collected = collect(p, prepared);
+    assert.equal(collected.ok, true, collected.message);
+    assert.equal(collected.commits.to, tip);
+    assert.equal(runGit(["status", "--porcelain", "--untracked-files=all"], p.worktree), "");
+    if (!WINDOWS) assert.equal(realpathSync.native(join(p.worktree, "x")), join(realpathSync.native(p.worktree), "a"), "x still lands on a");
+  });
+
+  it("refuses an import that touches any symlink while a host link climbing after a name passes through another host link", () => {
+    // x -> l/s/.. goes through the host's link l, past which its way is not
+    // read; with an imported link anywhere, it is refused, and without one it imports.
+    const p = project();
+    indexCommit(p.worktree, [{ path: "a/s/keep.txt", content: "kept\n" }, link("l", "a"), link("x", "l/s/..")], "host links");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    indexCommit(ws, [link("docs/readme", "../README.md")], "an unrelated link");
+    assert.match(assertRefusedUntouched(p, prepared, "a link elsewhere"), /symlink "x", already at the dispatched head, climbs "\.\." after a name in "l\/s\/\.\."; imported changes could redirect it out of the repository: it passes through the host's symlink "l"/);
+
+    agentReset(ws, prepared.dispatchedHead);
+    const tip = indexCommit(ws, [{ path: "src/new.js", content: "new\n" }], "no links");
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    const collected = collect(p, prepared);
+    assert.equal(collected.ok, true, collected.message);
+    assert.equal(collected.commits.to, tip);
   });
 
   it("imports symlinks that climb only from their own directory and stay inside", () => {
@@ -784,6 +821,46 @@ describe("treating sandbox output as untrusted", () => {
     }
   });
 
+  it("refuses an ignore file at any depth, added, changed or deleted, leaving the host's ignored files ignored", () => {
+    // The host tracks a nested ignore file and ignores .env anywhere; its
+    // state file, a secret and a local file are ignored and must stay so.
+    const p = project();
+    writeFileSync(join(p.worktree, ".gitignore"), "/.pathfinder/\n/context/current-ticket.md\n.env\n");
+    runGit(["add", ".gitignore"], p.worktree);
+    indexCommit(p.worktree, [{ path: "context/ai-interaction.md", content: "rules\n" }, { path: "apps/web/index.js", content: "web\n" }, { path: "pkg/.gitignore", content: "local.json\n" }], "host layout");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    const held = { "context/current-ticket.md": STATE_FILE, "apps/web/.env": "HOST_SECRET=keep-me\n", "pkg/local.json": "{\"host\": true}\n" };
+    for (const [name, content] of Object.entries(held)) writeFileSync(join(p.worktree, name), content);
+    assert.equal(runGit(["status", "--porcelain", "--untracked-files=all"], p.worktree), "", "the host's files are ignored");
+    const prepared = prepare(p);
+    assert.equal(prepared.ok, true, prepared.message);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    const attempts = [
+      ["a nested ignore un-ignoring the state file", () => indexCommit(ws, [{ path: "context/.gitignore", content: "!current-ticket.md\n" }]), "context/.gitignore"],
+      ["a nested ignore un-ignoring a secret", () => indexCommit(ws, [{ path: "apps/web/.gitignore", content: "!.env\n" }]), "apps/web/.gitignore"],
+      ["a changed nested ignore", () => indexCommit(ws, [{ path: "pkg/.gitignore", content: "!local.json\n" }]), "pkg/.gitignore"],
+      ["a deleted nested ignore", () => { runGit(["rm", "--quiet", "--cached", "pkg/.gitignore"], ws); runGit(["commit", "--quiet", "-m", "drop it"], ws); }, "pkg/.gitignore"],
+      ["a nested ignore in another case", () => indexCommit(ws, [{ path: "apps/web/.GitIgnore", content: "!.env\n" }]), "apps/web/.GitIgnore"],
+      ["a nested ignore as a link", () => indexCommit(ws, [link("apps/web/.gitignore", "../../README.md")]), "apps/web/.gitignore"],
+      ["the root ignore file", () => indexCommit(ws, [{ path: ".gitignore", content: "/.pathfinder/\n" }]), ".gitignore"],
+    ];
+    for (const [label, make, file] of attempts) {
+      agentReset(ws, prepared.dispatchedHead);
+      make();
+      const message = assertRefusedUntouched(p, prepared, label);
+      assert.ok(message.includes(`${JSON.stringify(file)} is host-owned (ignore files, at any depth): a sandbox may not add, change or delete ignore rules; if the ticket needs this change, the host commits it on the claim branch outside the sandbox`), `${label}: ${message}`);
+      for (const [name, content] of Object.entries(held)) {
+        assert.equal(readFileSync(join(p.worktree, name), "utf8"), content, `${label}: ${name} is the host's`);
+        runGit(["check-ignore", "--quiet", "--", name], p.worktree);
+      }
+      assert.equal(readFileSync(join(p.worktree, "pkg", ".gitignore"), "utf8"), "local.json\n", `${label}: the host's ignore rules are unchanged`);
+      assert.equal(existsSync(join(p.worktree, "context", ".gitignore")) || existsSync(join(p.worktree, "apps", "web", ".gitignore")), false, `${label}: no ignore file was written`);
+      assert.equal(runGit(["add", "--all", "--dry-run"], p.worktree), "", `${label}: nothing the host holds could be staged`);
+    }
+    assert.equal(prepare(p, { runId: "20261106T120001Z-1a2b3c4e" }).ok, true, "the claim stays preparable");
+  });
+
   it("never replaces a file the claim worktree holds but Git does not track, refusing each by name", () => {
     const p = project();
     writeFileSync(join(p.root, ".git", "info", "exclude"), "/.env\n/cache/\n/build/out.bin\n");
@@ -809,7 +886,13 @@ describe("treating sandbox output as untrusted", () => {
       [".env in another case", () => indexCommit(ws, [{ path: ".ENV", content: "HOST_SECRET=agent\n" }]),
         [/"\.ENV" would replace "\.env", which the claim worktree holds but Git does not track/]],
       ["a file inside an ignored directory", () => indexCommit(ws, [{ path: "cache/data.bin", content: "agent\n" }]),
-        [/"cache\/data\.bin" would replace "cache", which the claim worktree holds but Git does not track/]],
+        [/"cache\/data\.bin" would replace "cache\/data\.bin", inside "cache", which the claim worktree holds but Git does not track/]],
+      ["a path through an ignored file", () => indexCommit(ws, [{ path: "cache/data.bin/x", content: "agent\n" }]),
+        [/"cache\/data\.bin\/x" would replace "cache\/data\.bin", inside "cache"/]],
+      ["a path through .env", () => indexCommit(ws, [{ path: ".env/x", content: "agent\n" }]),
+        [/"\.env\/x" would replace "\.env", which the claim worktree holds but Git does not track/]],
+      ["a file where an ignored directory stands", () => indexCommit(ws, [{ path: "cache", content: "a file now\n" }]),
+        [/"cache" would remove the files in "cache", which the claim worktree holds but Git does not track/]],
       ["a tracked directory that becomes a file", () => { runGit(["rm", "-r", "--quiet", "--cached", "build"], ws); indexCommit(ws, [{ path: "build", content: "a file now\n" }]); },
         [/"build" would remove "build\/out\.bin", which the claim worktree holds but Git does not track/]],
     ];
@@ -832,6 +915,44 @@ describe("treating sandbox output as untrusted", () => {
     assert.equal(collected.ok, true, collected.message);
     assert.equal(collected.commits.to, tip);
     assert.equal(readFileSync(join(p.worktree, "build", "out.bin"), "utf8"), "built\n");
+  });
+
+  it("imports a first file into an empty directory, one holding only ignored files, or an ignored one, replacing nothing", () => {
+    const p = project();
+    writeFileSync(join(p.root, ".git", "info", "exclude"), "/.vscode/settings.json\n/build/\n");
+    mkdirSync(join(p.worktree, "out"));
+    mkdirSync(join(p.worktree, "spare", "nested"), { recursive: true });
+    mkdirSync(join(p.worktree, ".vscode"));
+    writeFileSync(join(p.worktree, ".vscode", "settings.json"), "HOST settings\n");
+    mkdirSync(join(p.worktree, "build"));
+    writeFileSync(join(p.worktree, "build", "keep.bin"), "HOST build\n");
+    const prepared = prepare(p);
+    assert.equal(prepared.ok, true, prepared.message);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+
+    // Still refused: a file where a directory holding only ignored files stands.
+    indexCommit(ws, [{ path: ".vscode", content: "a file now\n" }]);
+    assert.match(assertRefusedUntouched(p, prepared, ".vscode as a file"), /"\.vscode" would remove the files in "\.vscode", which the claim worktree holds but Git does not track/);
+    assert.equal(readFileSync(join(p.worktree, ".vscode", "settings.json"), "utf8"), "HOST settings\n");
+
+    agentReset(ws, prepared.dispatchedHead);
+    const tip = indexCommit(ws, [
+      { path: "out/report.txt", content: "report\n" },
+      { path: ".vscode/extensions.json", content: "{}\n" },
+      { path: "build/other.bin", content: "tracked\n" },
+      { path: "spare", content: "a file where only empty directories stood\n" },
+    ], "first files");
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    const collected = collect(p, prepared);
+    assert.equal(collected.ok, true, collected.message);
+    assert.equal(collected.commits.to, tip);
+    assert.equal(readFileSync(join(p.worktree, "out", "report.txt"), "utf8"), "report\n");
+    assert.equal(readFileSync(join(p.worktree, "spare"), "utf8"), "a file where only empty directories stood\n");
+    assert.equal(readFileSync(join(p.worktree, ".vscode", "settings.json"), "utf8"), "HOST settings\n", "the ignored settings are the host's");
+    assert.equal(readFileSync(join(p.worktree, "build", "keep.bin"), "utf8"), "HOST build\n", "the ignored build output is the host's");
+    assert.equal(runGit(["status", "--porcelain", "--untracked-files=all"], p.worktree), "", "the claim is clean");
+    assert.equal(prepare(p, { runId: "20261106T120001Z-1a2b3c4e" }).ok, true, "and preparable");
   });
 
   it("lets Git refuse to replace an ignored file too, leaving the branch where it was", () => {
@@ -875,6 +996,37 @@ describe("treating sandbox output as untrusted", () => {
       assert.equal(existsSync(join(p.worktree, "a")), false, `${label}: nothing was checked out`);
     }
     assert.equal(prepare(p, { runId: "20261106T120001Z-1a2b3c4e" }).ok, true, "the claim stays clean for the next session");
+  });
+
+  it("imports beside a fold pair the dispatched head already holds, and refuses one the import brings", () => {
+    const p = project();
+    indexCommit(p.worktree, [{ path: "Docs/a.md", content: "a\n" }, { path: "docs/b.md", content: "b\n" }], "a case split the host holds");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    assert.equal(runGit(["status", "--porcelain", "--untracked-files=all"], p.worktree), "", "the host holds the split clean");
+    const prepared = prepare(p);
+    assert.equal(prepared.ok, true, prepared.message);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    const attempts = [
+      ["docs/a.md beside Docs/a.md", [{ path: "docs/a.md", content: "agent\n" }], /"Docs\/a\.md" and "docs\/a\.md" are one path/],
+      ["a link DOCS beside Docs/ and docs/", [link("DOCS", "Docs")], /"DOCS" and "Docs" are one path/],
+    ];
+    for (const [label, entries, expected] of attempts) {
+      agentReset(ws, prepared.dispatchedHead);
+      indexCommit(ws, entries, label);
+      const message = assertRefusedUntouched(p, prepared, label);
+      assert.match(message, expected, label);
+      assert.doesNotMatch(message, /"Docs" and "docs" are one path/, `${label}: the host's own pair is not the problem`);
+    }
+
+    agentReset(ws, prepared.dispatchedHead);
+    const tip = indexCommit(ws, [{ path: "src/new.js", content: "new\n" }, { path: "docs/c.md", content: "c\n" }], "unrelated work");
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    const collected = collect(p, prepared);
+    assert.equal(collected.ok, true, collected.message);
+    assert.equal(collected.commits.to, tip);
+    assert.equal(runGit(["status", "--porcelain", "--untracked-files=all"], p.worktree), "", "the claim stays clean");
+    assert.equal(prepare(p, { runId: "20261106T120001Z-1a2b3c4e" }).ok, true, "and preparable");
   });
 
   it("enforces the commit-count limit", () => {
@@ -923,8 +1075,12 @@ describe("treating sandbox output as untrusted", () => {
       assert.equal(importPathProblem(bare), `${JSON.stringify(bare)} is host-owned (${owner})`, bare);
     }
     assert.match(importPathProblem("CONTEXT"), /"CONTEXT" stands where the directory holding host-owned context\/execution-mode\.md belongs/);
-    for (const good of ["src/a.js", "context/history.md", "docs/.github-notes.md", "a/.gitkeep", "sub/.gitignore", ".claudette", ".github-notes.md", "contexts/tracker.md", "docs/context", "sub/.claude"]) {
+    for (const good of ["src/a.js", "context/history.md", "docs/.github-notes.md", "a/.gitkeep", ".gitignore-template", "docs/gitignore.md", ".claudette", ".github-notes.md", "contexts/tracker.md", "docs/context", "sub/.claude"]) {
       assert.equal(importPathProblem(good), null, good);
+    }
+    // An ignore file is host-owned at any depth and in any spelling a filesystem could check out as one.
+    for (const ignore of [".gitignore", "sub/.gitignore", "context/.gitignore", "a/b/c/.GitIgnore", "x/.gitignore/y", "pkg/.gitignore. ", "pkg/GITIGN~1", "pkg/gi250a~2", "pkg/.git\u200cignore", "pkg/\uff0egitignore"]) {
+      assert.match(importPathProblem(ignore), /is host-owned \(ignore files, at any depth\): a sandbox may not add, change or delete ignore rules; if the ticket needs this change, the host commits it on the claim branch outside the sandbox$/, ignore);
     }
     // Folded as APFS (or HFS+) would check them out, never fewer spellings.
     for (const folded of [".agent\u017f/x", ".path\ufb01nder/x", "context/trac\u212aer.md", ".agen\u200cts/x", ".g\u200cit/config", "\uff0egithub/x"]) {
@@ -946,3 +1102,125 @@ describe("treating sandbox output as untrusted", () => {
   });
 });
 
+/** As the agent: one commit whose index lists `blob` at every one of `paths`, written through `update-index --index-info`. */
+function sharedBlobCommit(workspace, blob, paths, message) {
+  const listing = paths.map((path) => `100644 ${blob}\t${path}`).join("\n") + "\n";
+  const updated = spawnSync("git", ["update-index", "--index-info"], { cwd: workspace, env: gitEnv(), input: listing, encoding: "utf8" });
+  assert.equal(updated.status, 0, updated.stderr);
+  runGit(["commit", "--quiet", "-m", message], workspace);
+  return runGit(["rev-parse", "HEAD"], workspace).trim();
+}
+
+/** As the agent: a blob of `bytes` zeros, hashed from stdin. */
+function zeroBlob(workspace, bytes) {
+  const hashed = spawnSync("git", ["hash-object", "-w", "--stdin"], { cwd: workspace, env: gitEnv(), input: Buffer.alloc(bytes) });
+  assert.equal(hashed.status, 0, String(hashed.stderr));
+  return String(hashed.stdout).trim();
+}
+
+/** The refusal left the claim exactly as it was, with nothing of the import checked out. */
+function assertBoundedRefusal(p, prepared, refused, label) {
+  assert.equal(refused.ok, false, `${label}: refused`);
+  assert.match(refused.message, /the imported commits are refused/, label);
+  assert.ok(existsSync(refused.preserved), `${label}: the bundle is kept for inspection`);
+  assert.equal(runGit(["rev-parse", BRANCH], p.worktree).trim(), prepared.dispatchedHead, `${label}: the branch is untouched`);
+  assert.equal(runGit(["for-each-ref", IMPORT_REF_PREFIX], p.root).trim(), "", `${label}: the temporary ref is gone`);
+  assert.equal(runGit(["status", "--porcelain", "--untracked-files=all"], p.worktree), "", `${label}: the worktree is clean`);
+  assert.deepEqual(runGit(["ls-files"], p.worktree), ".gitignore\nREADME.md\nwork.txt\n", `${label}: nothing new is tracked`);
+}
+
+describe("bounding what an import brings", () => {
+  it("keeps the expanded and written limits separate from, and well above, the compressed bundle limit", () => {
+    assert.equal(MAX_IMPORT_OBJECT_BYTES, 256 * 1024 * 1024);
+    assert.equal(MAX_IMPORT_WRITTEN_BYTES, 256 * 1024 * 1024);
+    assert.equal(MAX_IMPORT_WRITTEN_PATHS, 20_000);
+    assert.equal(MAX_COMMAND_OUTPUT, 16 * 1024 * 1024);
+    assert.equal(MAX_IMPORT_OBJECT_BYTES, 4 * OUTPUT_LIMITS["branch.bundle"]);
+  });
+
+  it("refuses a small bundle whose objects expand past the limit, before anything is checked out", () => {
+    const p = project();
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    // A sparse file of zeros: no disk is spent, and zlib packs it a thousandfold.
+    const size = MAX_IMPORT_OBJECT_BYTES + 1024 * 1024;
+    writeFileSync(join(ws, "zeros.bin"), "");
+    truncateSync(join(ws, "zeros.bin"), size);
+    runGit(["add", "zeros.bin"], ws);
+    runGit(["commit", "--quiet", "-m", "a quarter gigabyte of zeros"], ws);
+    rmSync(join(ws, "zeros.bin"));
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    const bundled = statSync(join(ws, ".pathfinder-sandbox", "out", "branch.bundle")).size;
+    assert.ok(bundled < 4 * 1024 * 1024 && bundled * 16 < OUTPUT_LIMITS["branch.bundle"], `the bundle is small: ${bundled} bytes`);
+
+    const refused = collect(p, prepared);
+    assertBoundedRefusal(p, prepared, refused, "an expanding bundle");
+    assert.match(refused.message, new RegExp(`the imported objects expand to \\d+ bytes \\(3 objects\\), over the ${MAX_IMPORT_OBJECT_BYTES}-byte limit on expanded object data`));
+    assert.match(refused.message, new RegExp(`the fast-forward would write ${size} bytes into the claim worktree, over the ${MAX_IMPORT_WRITTEN_BYTES}-byte limit`));
+    assert.equal(existsSync(join(p.worktree, "zeros.bin")), false, "nothing was checked out");
+    assert.equal(prepare(p, { runId: "20261106T120001Z-1a2b3c4e" }).ok, true, "the claim stays preparable");
+  });
+
+  it("refuses one small blob checked out at many paths past the written-bytes limit, though its objects stay small", () => {
+    const p = project();
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    const blob = zeroBlob(ws, 1024 * 1024);
+    const copies = Array.from({ length: 300 }, (_, index) => `copies/copy-${String(index).padStart(3, "0")}.bin`);
+    sharedBlobCommit(ws, blob, copies, "one megabyte, three hundred times");
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    assert.ok(statSync(join(ws, ".pathfinder-sandbox", "out", "branch.bundle")).size < 64 * 1024, "the bundle is a few kilobytes");
+
+    const refused = collect(p, prepared);
+    assertBoundedRefusal(p, prepared, refused, "a blob written many times");
+    assert.match(refused.message, new RegExp(`the fast-forward would write ${300 * 1024 * 1024} bytes into the claim worktree, over the ${MAX_IMPORT_WRITTEN_BYTES}-byte limit`));
+    assert.doesNotMatch(refused.message, /expand to/, "the objects themselves are within their limit");
+    assert.equal(existsSync(join(p.worktree, "copies")), false, "nothing was checked out");
+  });
+
+  it("refuses more written paths than the limit", () => {
+    const p = project();
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    const empty = zeroBlob(ws, 0);
+    const many = Array.from({ length: MAX_IMPORT_WRITTEN_PATHS + 1 }, (_, index) => `many/f-${String(index).padStart(5, "0")}`);
+    sharedBlobCommit(ws, empty, many, "twenty thousand and one empty files");
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+
+    const refused = collect(p, prepared);
+    assertBoundedRefusal(p, prepared, refused, "too many paths");
+    assert.match(refused.message, new RegExp(`the fast-forward would write ${MAX_IMPORT_WRITTEN_PATHS + 1} files and links into the claim worktree, over the ${MAX_IMPORT_WRITTEN_PATHS}-path limit`));
+    assert.equal(existsSync(join(p.worktree, "many")), false, "nothing was checked out");
+  });
+
+  it("takes each limit as its own argument, and imports within all of them", () => {
+    const p = project();
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    const tip = agentCommits(ws, prepared.dispatchedHead, { "feature.txt": "x".repeat(4096) });
+    assert.match(collect(p, prepared, { maxObjectBytes: 1024 }).message, /the imported objects expand to \d+ bytes \(3 objects\), over the 1024-byte limit/);
+    assert.match(collect(p, prepared, { maxWrittenPaths: 0 }).message, /would write 1 files and links into the claim worktree, over the 0-path limit/);
+    assert.match(collect(p, prepared, { maxWrittenBytes: 4095 }).message, /would write 4096 bytes into the claim worktree, over the 4095-byte limit/);
+    assert.equal(runGit(["rev-parse", BRANCH], p.worktree).trim(), prepared.dispatchedHead);
+    const collected = collect(p, prepared, { maxObjectBytes: 1 << 20, maxWrittenPaths: 1, maxWrittenBytes: 4096 });
+    assert.equal(collected.ok, true, collected.message);
+    assert.equal(collected.commits.to, tip);
+  });
+
+  it("refuses a listing too large to read whole, rather than judge a truncated one", () => {
+    const p = project();
+    const prepared = prepare(p);
+    agentCommits(prepared.workspace, prepared.dispatchedHead);
+    writeOut(prepared.workspace, "result.json", result());
+    const overflowing = (argv, options = {}) => (argv.includes("--objects")
+      ? { status: null, signal: "SIGTERM", stdout: "", stderr: "", error: Object.assign(new Error("spawnSync git ENOBUFS"), { code: "ENOBUFS" }) }
+      : defaultRun(argv, { ...options, env: gitEnv() }));
+    const refused = collect(p, prepared, { run: overflowing });
+    assertBoundedRefusal(p, prepared, refused, "an overflowing listing");
+    assert.match(refused.message, new RegExp(`cannot list the imported objects: git rev-list printed more than the runner reads \\(${MAX_COMMAND_OUTPUT} bytes by default\\); the listing is refused, not truncated`));
+  });
+});

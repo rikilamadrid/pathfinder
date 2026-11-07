@@ -25,11 +25,34 @@
  * adds a gitlink, a symlink that could lead out of the repository, a `.git` or
  * `..` path component, or touches a host-owned path — compared as a case- and
  * normalization-insensitive filesystem would check it out; a tip whose paths
- * such a filesystem would fold onto each other is refused too. The import
- * never replaces a file Git does not track in the claim worktree — an ignored
- * state file, `.env` or `.pathfinder/` evidence — and its state may move only
- * toward the next host-checked stage. Imported commits are unverified work:
- * collecting never marks a ticket reviewed or done.
+ * such a filesystem would fold onto each other is refused too, when the import
+ * brings that pair. The import never replaces a file Git does not track in the
+ * claim worktree — an ignored state file, `.env` or `.pathfinder/` evidence —
+ * and its state may move only toward the next host-checked stage. Imported
+ * commits are unverified work: collecting never marks a ticket reviewed or
+ * done.
+ *
+ * Ignore rules are host-owned at every depth. An ignore file (`.gitignore`,
+ * root or nested) decides which host files Git leaves alone — the claim's
+ * state file, a `.env` — so an import that adds, changes or deletes one is
+ * refused, whatever it contains. A ticket that needs an ignore-file change
+ * gets it from the host: the coordinator or the human commits it on the claim
+ * branch outside the sandbox, before or after the sandboxed session.
+ *
+ * The import is bounded before anything reaches the claim worktree, by
+ * separate limits, each refused by name with the measured value: the
+ * compressed bundle (`OUTPUT_LIMITS["branch.bundle"]`), the commit count
+ * (`MAX_IMPORT_COMMITS`), the expanded object data the commits bring
+ * (`MAX_IMPORT_OBJECT_BYTES`), and what the fast-forward would write into the
+ * worktree (`MAX_IMPORT_WRITTEN_PATHS`, `MAX_IMPORT_WRITTEN_BYTES`). A small
+ * bundle can expand far: zlib packs a run of zeros a thousandfold, and one
+ * blob can be checked out at many paths. Fetching the bundle already inflates
+ * each object once to verify it, bounded only by the compressed limit and the
+ * runner's timeout; a refused import leaves its objects unreachable in the
+ * object store until Git's garbage collection. Every listing is read whole,
+ * up to `MAX_COMMAND_OUTPUT`: a larger one is refused, never truncated, which
+ * makes a repository of roughly 140,000 tracked paths (at about 70 bytes a
+ * path) too large to import into.
  *
  * Collect only once the sandbox has stopped and nothing can write the
  * workspace any more. Reads never follow a link and recheck the directories
@@ -37,8 +60,8 @@
  * running could use to swap a directory for a link between a check and a read.
  *
  * Every command goes through an injected runner,
- * `run(argv, {cwd}) → {status, signal, stdout, stderr, error}`, with `argv[0]`
- * the executable and no shell.
+ * `run(argv, {cwd, input}) → {status, signal, stdout, stderr, error}`, with
+ * `argv[0]` the executable, no shell, and `input`, when given, as its stdin.
  */
 
 import { spawnSync } from "node:child_process";
@@ -72,6 +95,27 @@ export const IMPORT_REF_PREFIX = "refs/pathfinder/sandbox-import/";
 /** The most commits one session may bring back. */
 export const MAX_IMPORT_COMMITS = 100;
 /**
+ * The most bytes the objects an import brings may expand to: every commit,
+ * tree and blob reachable from the bundle's tip and not from the dispatched
+ * head, at full size. Four times the compressed bundle limit, so a full-size
+ * bundle of ordinary source, which zlib packs a few times over, still fits,
+ * and the bound holds however far a bundle was packed.
+ */
+export const MAX_IMPORT_OBJECT_BYTES = 256 * 1024 * 1024;
+/**
+ * The most files and links one fast-forward may write into the claim
+ * worktree: the paths the tip adds or changes against the dispatched head,
+ * which the claim already holds checked out.
+ */
+export const MAX_IMPORT_WRITTEN_PATHS = 20_000;
+/**
+ * The most bytes those writes may hold, counting a blob once for every path
+ * that uses it, so one blob checked out at many paths counts each time.
+ */
+export const MAX_IMPORT_WRITTEN_BYTES = 256 * 1024 * 1024;
+/** The most output the default runner reads from one command; a larger listing is refused, never truncated. */
+export const MAX_COMMAND_OUTPUT = 16 * 1024 * 1024;
+/**
  * Host-owned paths an imported commit may not add, change, or delete. A
  * trailing `/` names a directory. Each entry is refused as itself, as
  * anything under it, and as a file or link standing where one of its leading
@@ -79,7 +123,8 @@ export const MAX_IMPORT_COMMITS = 100;
  * link would hold `context/tracker.md`. Matched through `foldName`, as a case-
  * and normalization-insensitive filesystem would check them out. The claim's
  * own state files are here so a sandbox can never track them, even where the
- * host has none yet.
+ * host has none yet. Beyond this list, an ignore file is host-owned at any
+ * depth: see `importPathProblem`.
  */
 export const PROTECTED_PATHS = Object.freeze([
   ".gitignore",
@@ -127,22 +172,33 @@ function dotGit(segment) {
   return /^\.git[. ]*$/.test(folded) || /^git~\d+$/.test(folded);
 }
 
-/** Spawn `argv` with no shell and a timeout. Never throws. */
-export function defaultRun(argv, { cwd, env, timeout = 300_000 } = {}) {
+/**
+ * A path component that is, or that a filesystem could check out as, an
+ * ignore file: `.gitignore` in any spelling `foldName` merges, with the
+ * trailing dots and spaces Windows drops, or one of its NTFS short names, as
+ * Git's own `is_ntfs_dotgitignore` reads them.
+ */
+function ignoreFile(segment) {
+  return /^(?:\.gitignore[. ]*|gitign~\d+|gi250a~\d+)$/.test(foldName(segment));
+}
+
+/** Spawn `argv` with no shell and a timeout, `input` as its stdin when given. Never throws. */
+export function defaultRun(argv, { cwd, env, input, timeout = 300_000 } = {}) {
   let result;
   try {
-    result = spawnSync(argv[0], argv.slice(1), { cwd, env, encoding: "utf8", shell: false, timeout, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 16 * 1024 * 1024 });
+    result = spawnSync(argv[0], argv.slice(1), { cwd, env, input, encoding: "utf8", shell: false, timeout, windowsHide: true, stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"], maxBuffer: MAX_COMMAND_OUTPUT });
   } catch (error) {
     return { status: null, signal: null, stdout: "", stderr: "", error };
   }
   return { status: result.status, signal: result.signal ?? null, stdout: result.stdout ?? "", stderr: result.stderr ?? "", error: result.error ?? null };
 }
 
-function gitIn(run, cwd, args) {
-  const result = run(["git", ...args], { cwd });
+function gitIn(run, cwd, args, input) {
+  const result = run(["git", ...args], input === undefined ? { cwd } : { cwd, input });
   const stderr = String(result.stderr ?? "").trim();
   const ok = result.status === 0 && !result.error;
-  const message = result.error?.message || stderr || (result.signal ? `git ${args[0]} was stopped by ${result.signal}` : `git ${args[0]} exited with status ${result.status}`);
+  const overflow = result.error?.code === "ENOBUFS" ? `git ${args[0]} printed more than the runner reads (${MAX_COMMAND_OUTPUT} bytes by default); the listing is refused, not truncated` : "";
+  const message = overflow || result.error?.message || stderr || (result.signal ? `git ${args[0]} was stopped by ${result.signal}` : `git ${args[0]} exited with status ${result.status}`);
   return { ok, status: result.status, stdout: String(result.stdout ?? ""), message: ok ? "" : message };
 }
 
@@ -395,11 +451,18 @@ export function stateErrors(state, { allowCommits = false } = {}) {
  * directory. So an entry named exactly a protected directory, `.claude` or
  * `.Claude`, is refused like anything under it, and so is one named for a
  * protected path's leading directory, such as a link `context`.
+ *
+ * An ignore file is host-owned at any depth, root or nested, whether it is
+ * added, changed or deleted: a nested `context/.gitignore` reading
+ * `!current-ticket.md` would un-ignore the claim's state file. The refusal
+ * says how a ticket that needs one gets it: from the host, outside the
+ * sandbox.
  */
 export function importPathProblem(file) {
   const segments = String(file).split("/");
   if (segments.some(dotGit)) return `${JSON.stringify(file)} has a .git component`;
   if (segments.some((segment) => segment === ".." || segment === "." || segment === "")) return `${JSON.stringify(file)} has a "..", "." or empty component`;
+  if (segments.some(ignoreFile)) return `${JSON.stringify(file)} is host-owned (ignore files, at any depth): a sandbox may not add, change or delete ignore rules; if the ticket needs this change, the host commits it on the claim branch outside the sandbox`;
   const folded = foldName(file);
   for (const entry of PROTECTED_PATHS) {
     const base = entry.endsWith("/") ? entry.slice(0, -1) : entry;
@@ -459,6 +522,29 @@ function walkedPaths(file, target) {
   return names.map((_, index) => [...base, ...names.slice(0, index + 1)].join("/"));
 }
 
+/**
+ * Every repository path a link's target names on its way, read lexically from
+ * the link's own directory, `..` included: `x -> a/s/..` names `a`, then
+ * `a/s`, and lands back on `a`. Where every one of them is a real directory,
+ * the link lands where this reading says; a link at any of them can send it
+ * elsewhere. It stops where the reading climbs above the repository root.
+ */
+function lexicalWalk(file, target) {
+  const at = linkDirectory(file);
+  const walked = [];
+  for (const part of targetParts(target)) {
+    if (part !== "..") {
+      at.push(part);
+      walked.push(at.join("/"));
+    } else if (at.length === 0) {
+      break;
+    } else {
+      at.pop();
+    }
+  }
+  return walked;
+}
+
 function reportFits(name, report, validate, key, dispatchedHead) {
   const checked = validate(report);
   if (!checked.ok) return refuse(`${name} is invalid: ${checked.errors.join("; ")}`);
@@ -508,10 +594,17 @@ function realDirectory(dir, label) {
  * command ever runs with the workspace as its repository or directory. Every
  * problem, an unreadable `out/` included, is a refusal; it never throws.
  *
+ * `limits` bounds each output file's bytes, `branch.bundle`'s compressed;
+ * `maxCommits`, `maxObjectBytes`, `maxWrittenPaths` and `maxWrittenBytes`
+ * bound the import, defaulting to the exported `MAX_IMPORT_*` constants.
+ *
  * @returns {{ok: true, result: object, state: object|null, experiments: object|null, findings: object|null,
  *            commits: {imported: boolean, from?: string, to?: string, reason?: string}, ignored: string[]} | {ok: false, message: string}}
  */
-export function collectWorkspace({ root, key, runDir, worktree, branch, dispatchedHead, allowCommits, limits = OUTPUT_LIMITS, maxCommits = MAX_IMPORT_COMMITS, run = defaultRun }) {
+export function collectWorkspace({
+  root, key, runDir, worktree, branch, dispatchedHead, allowCommits, limits = OUTPUT_LIMITS, maxCommits = MAX_IMPORT_COMMITS,
+  maxObjectBytes = MAX_IMPORT_OBJECT_BYTES, maxWrittenPaths = MAX_IMPORT_WRITTEN_PATHS, maxWrittenBytes = MAX_IMPORT_WRITTEN_BYTES, run = defaultRun,
+}) {
   if (!isKey(key)) return refuse(`\`${key}\` is not a ticket key`);
   const badBranch = branchProblem(branch);
   if (badBranch) return refuse(badBranch);
@@ -611,22 +704,21 @@ export function collectWorkspace({ root, key, runDir, worktree, branch, dispatch
     return { ok: true, ...outputs, commits: { imported: false, reason: allowCommits ? "no commits" : "this session may not commit" } };
   }
 
-  const imported = importBundle({ run, runPath: found.path, runId: found.runId, key, worktree: worktreePath, branch, dispatchedHead, bundle, claimedHead: result.head, maxCommits });
+  const importLimits = { commits: maxCommits, objectBytes: maxObjectBytes, writtenPaths: maxWrittenPaths, writtenBytes: maxWrittenBytes };
+  const imported = importBundle({ run, runPath: found.path, runId: found.runId, key, worktree: worktreePath, branch, dispatchedHead, bundle, claimedHead: result.head, importLimits });
   if (!imported.ok) return imported;
   return { ok: true, ...outputs, commits: imported.commits };
 }
 
 /**
  * The symlinks already at the dispatched head, read once from the host's own
- * commit: their paths, and a problem for each whose target climbs after a
- * name. Such a link stays where it lands only while nothing on its way
- * changes, and an import changes things, so it is refused until the host
- * fixes it.
+ * commit, each with its target. They are the host's: an import is judged by
+ * what it changes about them, never refused for their existence alone.
  */
 function standingLinks(host, dispatchedHead) {
   const listed = host(["ls-tree", "-r", "-z", "--full-tree", dispatchedHead]);
   if (!listed.ok) return refuse(`cannot list the symlinks at the dispatched head: ${listed.message}`);
-  const paths = [];
+  const links = [];
   const problems = [];
   for (const entry of listed.stdout.split("\0")) {
     const tab = entry.indexOf("\t");
@@ -634,35 +726,142 @@ function standingLinks(host, dispatchedHead) {
     const [mode, , id] = entry.slice(0, tab).split(" ");
     if (mode !== "120000") continue;
     const file = entry.slice(tab + 1);
-    paths.push(file);
     const target = host(["cat-file", "blob", id]);
     if (!target.ok) problems.push(`cannot read symlink ${JSON.stringify(file)} at the dispatched head`);
-    else if (climbsAfterName(target.stdout)) problems.push(`symlink ${JSON.stringify(file)}, already at the dispatched head, climbs ".." after a name in ${JSON.stringify(target.stdout)}; imported changes could redirect it out of the repository, so fix it on the host first`);
+    links.push({ file, target: target.ok ? target.stdout : null });
   }
-  return { ok: true, paths, problems };
+  return { ok: true, links, problems };
+}
+
+/**
+ * The host's own links an import could redirect out of the repository. A
+ * link whose target climbs `..` after a name lands where it does only while
+ * the paths it names stay what they are: the agent turning `a/s` into a link
+ * to the root sends `x -> a/s/..` out of it. So such a link is refused when
+ * the imported commits add, change or remove a symlink at any path its target
+ * names on the way (`lexicalWalk`), or — when it already passes through one of
+ * the host's links, past which its way cannot be read — when they touch any
+ * symlink at all. One the import leaves alone keeps landing where it did at
+ * the dispatched head, and the import goes ahead; one the import changes or
+ * removes is judged as an imported link, or is gone.
+ */
+function standingRedirects(links, headLinks, touched, touchedLinks) {
+  const problems = [];
+  for (const { file, target } of links) {
+    if (target === null || !climbsAfterName(target) || touched.has(foldName(file))) continue;
+    const walked = lexicalWalk(file, target);
+    const changed = walked.find((step) => touchedLinks.has(foldName(step)));
+    const opening = `symlink ${JSON.stringify(file)}, already at the dispatched head, climbs ".." after a name in ${JSON.stringify(target)}; imported changes could redirect it out of the repository`;
+    if (changed !== undefined) {
+      problems.push(`${opening}: they add, change or remove a symlink at ${JSON.stringify(changed)} on its way. Fix the link on the host first`);
+      continue;
+    }
+    const through = walked.find((step) => headLinks.has(foldName(step)));
+    if (through !== undefined && touchedLinks.size > 0) {
+      problems.push(`${opening}: it passes through the host's symlink ${JSON.stringify(through)}, past which its way cannot be read, and the imported commits change symlinks. Fix the link on the host first`);
+    }
+  }
+  return problems;
+}
+
+/** What a tree entry's mode makes it: nothing, a directory, a link, a gitlink, or a file. */
+function kind(mode) {
+  if (mode === "000000") return null;
+  if (mode === "040000") return "tree";
+  if (mode === "120000") return "link";
+  if (mode === "160000") return "gitlink";
+  return "file";
+}
+
+/**
+ * Every path the tip adds, changes or removes against the dispatched head,
+ * directories included — the net change the fast-forward makes to the claim
+ * worktree, which already holds the dispatched head checked out.
+ */
+function netChanges(host, dispatchedHead, tip) {
+  const diff = host(["diff-tree", "-r", "-t", "-z", "--raw", "--no-renames", "--no-abbrev", dispatchedHead, tip]);
+  if (!diff.ok) return refuse(`cannot list what the imported commits change: ${diff.message}`);
+  const fields = diff.stdout.split("\0");
+  const changes = [];
+  for (let index = 0; index + 1 < fields.length; index += 2) {
+    const [oldMode, newMode, , newId] = fields[index].replace(/^:/, "").split(" ");
+    changes.push({ path: fields[index + 1], oldMode, newMode, newId });
+  }
+  return { ok: true, changes };
+}
+
+/** The total expanded size of these objects, one `cat-file` for all of them; an object counts each time it is listed. */
+function objectBytes(host, ids) {
+  if (ids.length === 0) return { ok: true, bytes: 0 };
+  const sized = host(["cat-file", "--batch-check=%(objectsize)"], `${ids.join("\n")}\n`);
+  if (!sized.ok) return refuse(`cannot read the size of the imported objects: ${sized.message}`);
+  const lines = sized.stdout.split("\n").filter((line) => line !== "");
+  if (lines.length !== ids.length) return refuse("cannot read the size of every imported object");
+  let bytes = 0;
+  for (const [index, line] of lines.entries()) {
+    if (!/^\d+$/.test(line)) return refuse(`cannot read the size of imported object ${ids[index]}: ${line}`);
+    bytes += Number(line);
+  }
+  return { ok: true, bytes };
+}
+
+/**
+ * The import's size, against limits separate from the compressed bundle's
+ * and the commit count: the expanded object data the commits bring — every
+ * object reachable from the tip and not from the dispatched head, at full
+ * size — and what the fast-forward would write into the claim worktree, the
+ * files and links the tip adds or changes, each blob counted once per path.
+ * Measured from the claim worktree after the fetch and before anything is
+ * checked out.
+ */
+function sizeProblems(host, dispatchedHead, tip, changes, limits) {
+  const listed = host(["rev-list", "--objects", "--no-object-names", `${dispatchedHead}..${tip}`]);
+  if (!listed.ok) return [`cannot list the imported objects: ${listed.message}`];
+  const ids = listed.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
+  const expanded = objectBytes(host, ids);
+  if (!expanded.ok) return [expanded.message];
+  const problems = [];
+  if (expanded.bytes > limits.objectBytes) problems.push(`the imported objects expand to ${expanded.bytes} bytes (${ids.length} objects), over the ${limits.objectBytes}-byte limit on expanded object data`);
+  const written = changes.filter(({ newMode }) => kind(newMode) === "file" || kind(newMode) === "link");
+  if (written.length > limits.writtenPaths) problems.push(`the fast-forward would write ${written.length} files and links into the claim worktree, over the ${limits.writtenPaths}-path limit`);
+  const bytes = objectBytes(host, written.map(({ newId }) => newId));
+  if (!bytes.ok) problems.push(bytes.message);
+  else if (bytes.bytes > limits.writtenBytes) problems.push(`the fast-forward would write ${bytes.bytes} bytes into the claim worktree, over the ${limits.writtenBytes}-byte limit`);
+  return problems;
 }
 
 /**
  * Every problem with the commits `dispatchedHead..tip`, read from the claim
- * worktree after the fetch and before the fast-forward.
+ * worktree after the fetch and before the fast-forward, with the net change
+ * they make. The commit count and the import's size come first: past either
+ * limit nothing else is read.
  *
  * Symlinks are judged against each other, not one at a time: a link added or
  * changed anywhere in the range must pass `symlinkProblem`, and may not pass
  * through, or name, any path that is a symlink at the dispatched head or
  * becomes one anywhere in the range — compared through `foldName`. With every
  * such link descending only through real directories from a contained climb,
- * no imported link leads out of the repository or into `.git`. The tip's tree
- * must also be one a case-insensitive filesystem can check out whole.
+ * no imported link leads out of the repository or into `.git`; and the
+ * host's own links are refused only where the import could redirect them
+ * (`standingRedirects`). The tip's tree must also be one a case-insensitive
+ * filesystem can check out whole, as far as the import changes it.
  */
-function rangeProblems(host, dispatchedHead, tip, maxCommits) {
+function rangeProblems(host, dispatchedHead, tip, limits) {
   const listed = host(["rev-list", "--parents", "--reverse", `${dispatchedHead}..${tip}`]);
-  if (!listed.ok) return [`cannot list the imported commits: ${listed.message}`];
+  if (!listed.ok) return { problems: [`cannot list the imported commits: ${listed.message}`] };
   const commits = listed.stdout.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => line.split(" "));
-  if (commits.length > maxCommits) return [`${commits.length} commits, over the ${maxCommits}-commit limit`];
+  if (commits.length > limits.commits) return { problems: [`${commits.length} commits, over the ${limits.commits}-commit limit`] };
+  const net = netChanges(host, dispatchedHead, tip);
+  if (!net.ok) return { problems: [net.message] };
+  const oversized = sizeProblems(host, dispatchedHead, tip, net.changes, limits);
+  if (oversized.length) return { problems: oversized };
   const standing = standingLinks(host, dispatchedHead);
-  if (!standing.ok) return [standing.message];
+  if (!standing.ok) return { problems: [standing.message] };
   const problems = [...standing.problems];
-  const linkPaths = new Set(standing.paths.map(foldName));
+  const headLinks = new Set(standing.links.map(({ file }) => foldName(file)));
+  const linkPaths = new Set(headLinks);
+  const touched = new Set();
+  const touchedLinks = new Set();
   const contained = [];
   for (const [commit, ...parents] of commits) {
     if (parents.length !== 1) { problems.push(`commit ${commit} ${parents.length ? "is a merge commit" : "has no parent"}`); continue; }
@@ -672,6 +871,8 @@ function rangeProblems(host, dispatchedHead, tip, maxCommits) {
     for (let index = 0; index + 1 < fields.length; index += 2) {
       const [oldMode, newMode, , newId] = fields[index].replace(/^:/, "").split(" ");
       const file = fields[index + 1];
+      touched.add(foldName(file));
+      if (oldMode === "120000" || newMode === "120000") touchedLinks.add(foldName(file));
       if (oldMode === "160000" || newMode === "160000") problems.push(`commit ${commit}: ${JSON.stringify(file)} is a gitlink`);
       const pathProblem = importPathProblem(file);
       if (pathProblem) problems.push(`commit ${commit}: ${pathProblem}`);
@@ -688,18 +889,23 @@ function rangeProblems(host, dispatchedHead, tip, maxCommits) {
     const through = walkedPaths(file, target).find((walked) => linkPaths.has(foldName(walked)));
     if (through !== undefined) problems.push(`commit ${commit}: symlink ${JSON.stringify(file)} reaches ${JSON.stringify(target)} through the symlink ${JSON.stringify(through)}; a link may not lead through another`);
   }
-  problems.push(...foldCollisions(host, tip));
-  return problems;
+  problems.push(...standingRedirects(standing.links, headLinks, touched, touchedLinks));
+  problems.push(...foldCollisions(host, tip, net.changes));
+  return { problems, changes: net.changes };
 }
 
 /**
  * Every pair of distinct paths in `tip`'s tree, leading directories included,
- * that `foldName` makes one: a case- or normalization-insensitive filesystem
- * checks only one of them out, so the claim worktree would not hold the tree
- * the branch commits — `A -> .` beside `a/b/l`, or `README.md` beside
- * `readme.md`.
+ * that `foldName` makes one, where the import brings the pair: a case- or
+ * normalization-insensitive filesystem checks only one of them out, so the
+ * claim worktree would not hold the tree the branch commits — `A -> .` beside
+ * `a/b/l`, or `readme.md` beside `README.md`. A pair the dispatched head
+ * already held, each member the same kind of entry, is the host's: the claim
+ * worktree was checked out clean with it, and an import that adds neither
+ * member nor changes what either is goes ahead.
  */
-function foldCollisions(host, tip) {
+function foldCollisions(host, tip, changes) {
+  const brought = new Set(changes.filter(({ oldMode, newMode }) => kind(newMode) !== null && kind(newMode) !== kind(oldMode)).map(({ path: file }) => file));
   const listed = host(["ls-tree", "-r", "-t", "-z", "--full-tree", "--name-only", tip]);
   if (!listed.ok) return [`cannot list the imported tree: ${listed.message}`];
   const seen = new Map();
@@ -709,44 +915,104 @@ function foldCollisions(host, tip) {
     const folded = foldName(file);
     const first = seen.get(folded);
     if (first === undefined) seen.set(folded, file);
-    else problems.push(`${JSON.stringify(first)} and ${JSON.stringify(file)} are one path on a case- or normalization-insensitive filesystem; Git cannot check out both`);
+    else if (brought.has(first) || brought.has(file)) problems.push(`${JSON.stringify(first)} and ${JSON.stringify(file)} are one path on a case- or normalization-insensitive filesystem; Git cannot check out both`);
   }
   return problems;
 }
 
 /**
- * Every imported path that would replace something Git does not track in the
- * claim worktree — an ignored or untracked file or directory that is the
- * path, one of its leading directories, or inside a tracked directory the
- * import turns into a file or link. Git's fast-forward replaces ignored files
- * silently; the claim's state file, `.env` and `.pathfinder/` evidence are
- * ignored files. Compared through `foldName`, as the filesystem may.
+ * What stands in the claim worktree at `parts`, looked up one component at a
+ * time so no link is followed: nothing, a non-directory at one of its leading
+ * components or at the path itself, or a directory at the path. On a case- or
+ * normalization-insensitive filesystem the lookup folds as Git's checkout
+ * would.
  */
-function untrackedProblems(host, dispatchedHead, tip) {
-  const others = host(["ls-files", "-z", "--others", "--directory"]);
+function onDisk(worktree, parts) {
+  for (let index = 1; index <= parts.length; index += 1) {
+    const at = parts.slice(0, index).join("/");
+    let stats;
+    try {
+      stats = lstatSync(join(worktree, ...parts.slice(0, index)));
+    } catch (error) {
+      if (error.code === "ENOENT" || error.code === "ENOTDIR") return { kind: "none" };
+      return { kind: "unknown", at, message: error.message };
+    }
+    if (!stats.isDirectory()) return { kind: "other", at };
+    if (index === parts.length) return { kind: "directory", at };
+  }
+  return { kind: "none" };
+}
+
+/** The first file or link anywhere under `directory`, relative to `worktree`, or null when it holds only directories. */
+function fileUnder(worktree, directory) {
+  const pending = [directory];
+  while (pending.length) {
+    const current = pending.pop();
+    let entries;
+    try { entries = readdirSync(join(worktree, ...current.split("/")), { withFileTypes: true }); } catch { return current; }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) return `${current}/${entry.name}`;
+      pending.push(`${current}/${entry.name}`);
+    }
+  }
+  return null;
+}
+
+/**
+ * Every imported path that would replace or remove something Git does not
+ * track in the claim worktree: an ignored or untracked file or link at the
+ * path or at one of its leading directories, or untracked files inside a
+ * directory the import turns into a file or link. Git's fast-forward replaces
+ * ignored files silently; the claim's state file, `.env` and `.pathfinder/`
+ * evidence are ignored files. Compared through `foldName`, as the filesystem
+ * may.
+ *
+ * A directory Git does not track at all — empty, holding only ignored files,
+ * or itself ignored — is listed whole, so inside it what stands on disk is
+ * looked up directly: a new file whose own path is free there replaces
+ * nothing, and imports. An empty directory is not listed, and Git removes it
+ * itself when a file takes its place.
+ */
+function untrackedProblems(host, worktree, changes) {
+  const others = host(["ls-files", "-z", "--others", "--directory", "--no-empty-directory"]);
   if (!others.ok) return [`cannot list the files Git does not track in the claim worktree: ${others.message}`];
-  const added = host(["diff-tree", "-r", "-z", "--no-renames", "--name-only", "--diff-filter=A", dispatchedHead, tip]);
-  if (!added.ok) return [`cannot list the imported paths: ${added.message}`];
   const untracked = new Map();
   const holders = new Map();
   for (const entry of others.stdout.split("\0")) {
     if (entry === "") continue;
     const file = entry.replace(/\/$/, "");
     const parts = foldName(file).split("/");
-    if (!untracked.has(parts.join("/"))) untracked.set(parts.join("/"), file);
+    if (!untracked.has(parts.join("/"))) untracked.set(parts.join("/"), { file, directory: entry.endsWith("/") });
     for (let index = 1; index < parts.length; index += 1) {
       const holder = parts.slice(0, index).join("/");
       if (!holders.has(holder)) holders.set(holder, file);
     }
   }
+  const untrackedNote = "which the claim worktree holds but Git does not track (ignored or untracked)";
   const problems = [];
-  for (const file of added.stdout.split("\0")) {
-    if (file === "") continue;
-    const parts = foldName(file).split("/");
-    let replaced;
-    for (let index = 1; index <= parts.length && replaced === undefined; index += 1) replaced = untracked.get(parts.slice(0, index).join("/"));
-    if (replaced !== undefined) problems.push(`${JSON.stringify(file)} would replace ${JSON.stringify(replaced)}, which the claim worktree holds but Git does not track (ignored or untracked)`);
-    else if (holders.has(parts.join("/"))) problems.push(`${JSON.stringify(file)} would remove ${JSON.stringify(holders.get(parts.join("/")))}, which the claim worktree holds but Git does not track (ignored or untracked)`);
+  for (const { path: file, oldMode, newMode } of changes) {
+    if (kind(oldMode) !== null || (kind(newMode) !== "file" && kind(newMode) !== "link")) continue;
+    const parts = file.split("/");
+    const folded = foldName(file).split("/");
+    let judged = false;
+    for (let index = 1; index <= folded.length && !judged; index += 1) {
+      const found = untracked.get(folded.slice(0, index).join("/"));
+      if (found === undefined) continue;
+      judged = true;
+      if (!found.directory) problems.push(`${JSON.stringify(file)} would replace ${JSON.stringify(found.file)}, ${untrackedNote}`);
+      else if (index === folded.length) problems.push(`${JSON.stringify(file)} would remove the files in ${JSON.stringify(found.file)}, ${untrackedNote}`);
+      else {
+        // Inside a directory Git does not track at all: look at what is there.
+        const there = onDisk(worktree, parts);
+        if (there.kind === "unknown") problems.push(`cannot see what stands at ${JSON.stringify(there.at)} in the claim worktree: ${there.message}`);
+        else if (there.kind === "other") problems.push(`${JSON.stringify(file)} would replace ${JSON.stringify(there.at)}, inside ${JSON.stringify(found.file)}, ${untrackedNote}`);
+        else if (there.kind === "directory") {
+          const held = fileUnder(worktree, there.at);
+          if (held !== null) problems.push(`${JSON.stringify(file)} would remove ${JSON.stringify(held)}, ${untrackedNote}`);
+        }
+      }
+    }
+    if (!judged && holders.has(folded.join("/"))) problems.push(`${JSON.stringify(file)} would remove ${JSON.stringify(holders.get(folded.join("/")))}, ${untrackedNote}`);
   }
   return problems;
 }
@@ -756,11 +1022,12 @@ function untrackedProblems(host, dispatchedHead, tip) {
  * into the run directory, outside the agent-written workspace, and every Git
  * command runs in the claim worktree. The fast-forward never replaces a file
  * Git does not track there: such paths are refused by name first, and the
- * merge runs with `--no-overwrite-ignore` as well. A refusal leaves the branch
- * where it was, deletes the temporary ref, and keeps the copy for inspection.
+ * merge runs with `--no-overwrite-ignore` as well. Nothing is checked out
+ * until the import is within `importLimits`. A refusal leaves the branch where
+ * it was, deletes the temporary ref, and keeps the copy for inspection.
  */
-function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHead, bundle, claimedHead, maxCommits }) {
-  const host = (args) => gitIn(run, worktree, args);
+function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHead, bundle, claimedHead, importLimits }) {
+  const host = (args, input) => gitIn(run, worktree, args, input);
   const copy = join(runPath, `branch-${randomBytes(4).toString("hex")}.bundle`);
   const reject = (message) => existsSync(copy)
     ? { ok: false, message: `${message}; nothing was imported, and the bundle is kept at ${copy}`, preserved: copy }
@@ -804,13 +1071,13 @@ function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHe
     const ancestor = host(["merge-base", "--is-ancestor", dispatchedHead, tip]);
     if (ancestor.status === 1) return reject(`the bundle's ${branch} (${tip}) does not descend from the dispatched head ${dispatchedHead}`);
     if (!ancestor.ok) return reject(`cannot check ancestry: ${ancestor.message}`);
-    const problems = rangeProblems(host, dispatchedHead, tip, maxCommits);
+    const { problems, changes } = rangeProblems(host, dispatchedHead, tip, importLimits);
     if (problems.length) return reject(`the imported commits are refused: ${problems.slice(0, 20).join("; ")}${problems.length > 20 ? `; and ${problems.length - 20} more` : ""}`);
     const count = Number(host(["rev-list", "--count", `${dispatchedHead}..${tip}`]).stdout.trim());
 
     const still = worktreeAt(run, worktree, branch);
     if (!still.ok || still.head !== dispatchedHead) return reject("claim worktree changed during the import");
-    const untracked = untrackedProblems(host, dispatchedHead, tip);
+    const untracked = untrackedProblems(host, worktree, changes);
     if (untracked.length) return reject(`the imported commits are refused: ${untracked.slice(0, 20).join("; ")}${untracked.length > 20 ? `; and ${untracked.length - 20} more` : ""}`);
     // Second layer: Git itself refuses to replace an ignored file, and moves nothing when it does.
     const merged = host(["merge", "--ff-only", "--no-overwrite-ignore", "--quiet", "--no-stat", tip]);
