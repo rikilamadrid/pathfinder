@@ -562,9 +562,9 @@ function indexCommit(repository, entries, message = "indexed") {
 const link = (path, target) => ({ path, content: target, mode: "120000" });
 
 /** Bundle the agent's branch, collect, and check that the refusal left the claim exactly as it was. */
-function assertRefusedUntouched(p, prepared, label) {
+function assertRefusedUntouched(p, prepared, label, overrides = {}) {
   agentBundle(prepared.workspace, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
-  const refused = collect(p, prepared);
+  const refused = collect(p, prepared, overrides);
   assert.equal(refused.ok, false, `${label}: refused`);
   assert.match(refused.message, /the imported commits are refused/, label);
   assert.ok(existsSync(refused.preserved), `${label}: the bundle is kept for inspection`);
@@ -758,6 +758,94 @@ describe("treating sandbox output as untrusted", () => {
     assert.equal(collected.commits.to, tip);
   });
 
+  it("refuses, conservatively, an import touching a symlink while a host link's target holds a backslash", () => {
+    // On POSIX a backslash is part of a name: w -> a\s/.. climbs out of the
+    // real directory "a\s", which Windows would read as a, then s. Turning
+    // "a\s" into a link to the root would send w out of the claim worktree.
+    if (WINDOWS) return;
+    const p = project();
+    indexCommit(p.worktree, [{ path: "a\\s/keep.txt", content: "kept\n" }, link("w", "a\\s/..")], "a host link with a backslash");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    const inside = realpathSync.native(p.worktree);
+    assert.equal(realpathSync.native(join(p.worktree, "w")), inside, "w lands on the root at the head");
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    runGit(["rm", "--quiet", "--cached", "a\\s/keep.txt"], ws);
+    indexCommit(ws, [link("a\\s", ".")], "a\\s becomes a link to the root");
+    assert.match(assertRefusedUntouched(p, prepared, "a link at the backslashed name"),
+      /symlink "w", already at the dispatched head, climbs "\.\." after a name in "a\\\\s\/\.\."; imported changes could redirect it out of the repository: they add, change or remove a symlink at "a\\\\s" on its way/);
+    assert.equal(realpathSync.native(join(p.worktree, "w")), inside, "w still lands inside");
+
+    // Its way is not read exactly, so any symlink change is refused, even one elsewhere.
+    agentReset(ws, prepared.dispatchedHead);
+    indexCommit(ws, [link("docs/readme", "../README.md")], "an unrelated link");
+    assert.match(assertRefusedUntouched(p, prepared, "a link elsewhere"),
+      /symlink "w", .*: its target holds a backslash, part of a name on POSIX and a separator on Windows, so its way cannot be read exactly, and the imported commits add, change or remove symlinks/);
+    assert.equal(realpathSync.native(join(p.worktree, "w")), inside);
+
+    // An import without links leaves a way that resolves alone.
+    agentReset(ws, prepared.dispatchedHead);
+    const tip = indexCommit(ws, [{ path: "src/new.js", content: "new\n" }], "no links");
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    const collected = collect(p, prepared);
+    assert.equal(collected.ok, true, collected.message);
+    assert.equal(collected.commits.to, tip);
+    assert.equal(realpathSync.native(join(p.worktree, "w")), inside, "w lands where it did");
+  });
+
+  it("refuses, conservatively, an import touching a symlink while a host link's way climbs above the repository root", () => {
+    // v -> q/../../1.1/s/.. leaves the repository and comes back in by the
+    // claim worktree's own directory name; turning s into a link to the
+    // root would send v out of it.
+    if (WINDOWS) return;
+    const p = project();
+    indexCommit(p.worktree, [{ path: "q/keep.txt", content: "q\n" }, { path: "s/keep.txt", content: "s\n" }, link("v", `q/../../${KEY}/s/..`)], "a host link re-entering by name");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    const inside = realpathSync.native(p.worktree);
+    assert.equal(realpathSync.native(join(p.worktree, "v")), inside, "v lands on the root at the head");
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    runGit(["rm", "--quiet", "--cached", "s/keep.txt"], ws);
+    indexCommit(ws, [link("s", ".")], "s becomes a link to the root");
+    assert.match(assertRefusedUntouched(p, prepared, "a link on the way back in"),
+      /symlink "v", already at the dispatched head, climbs "\.\." after a name in "q\/\.\.\/\.\.\/1\.1\/s\/\.\."; imported changes could redirect it out of the repository: its way climbs above the repository root, so its way cannot be read exactly, and the imported commits add, change or remove symlinks/);
+    assert.equal(realpathSync.native(join(p.worktree, "v")), inside, "v still lands inside");
+
+    agentReset(ws, prepared.dispatchedHead);
+    const tip = indexCommit(ws, [{ path: "src/new.js", content: "new\n" }], "no links");
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    const collected = collect(p, prepared);
+    assert.equal(collected.ok, true, collected.message);
+    assert.equal(collected.commits.to, tip);
+    assert.equal(realpathSync.native(join(p.worktree, "v")), inside, "v lands where it did");
+  });
+
+  it("refuses every import while a host link whose way cannot be read does not resolve, since new directories alone could complete it", () => {
+    // w -> q/../.. has no q at the head: adding the directory q would send
+    // it above the root. y -> L/s/t/../.. runs through the host's L ->
+    // real/deep, whose s -> ../.. lands on the root: adding t would send y out.
+    if (WINDOWS) return;
+    const attempts = [
+      ["a way above the root", [link("w", "q/../..")], "q/new.txt", "w",
+        /symlink "w", already at the dispatched head, climbs "\.\." after a name in "q\/\.\.\/\.\."; imported changes could redirect it out of the repository: its way climbs above the repository root, so its way cannot be read exactly, and it does not resolve at the dispatched head, where new directories alone could complete it anywhere; every import is refused until the link is fixed on the host/],
+      ["a way through host links", [{ path: "real/deep/keep.txt", content: "k\n" }, link("L", "real/deep"), link("real/deep/s", "../.."), link("y", "L/s/t/../..")], "t/new.txt", "y",
+        /symlink "y", .*: it passes through the host's symlink "L", so its way cannot be read exactly, and it does not resolve at the dispatched head/],
+    ];
+    for (const [label, hostEntries, added, watch, expected] of attempts) {
+      const p = project();
+      indexCommit(p.worktree, hostEntries, label);
+      runGit(["reset", "--quiet", "--hard"], p.worktree);
+      assert.throws(() => realpathSync.native(join(p.worktree, watch)), { code: "ENOENT" }, `${label}: ${watch} does not resolve at the head`);
+      const prepared = prepare(p);
+      writeOut(prepared.workspace, "result.json", result());
+      indexCommit(prepared.workspace, [{ path: added, content: "new\n" }], `${label}: a new directory, no links`);
+      assert.match(assertRefusedUntouched(p, prepared, label), expected, label);
+      assert.throws(() => realpathSync.native(join(p.worktree, watch)), { code: "ENOENT" }, `${label}: ${watch} still leads nowhere`);
+    }
+  });
+
   it("imports symlinks that climb only from their own directory and stay inside", () => {
     const p = project();
     const prepared = prepare(p);
@@ -859,6 +947,36 @@ describe("treating sandbox output as untrusted", () => {
       assert.equal(runGit(["add", "--all", "--dry-run"], p.worktree), "", `${label}: nothing the host holds could be staged`);
     }
     assert.equal(prepare(p, { runId: "20261106T120001Z-1a2b3c4e" }).ok, true, "the claim stays preparable");
+  });
+
+  it("refuses an attribute file at any depth, added, changed or deleted, so the host's attributes decide the checkout", () => {
+    // An imported .gitattributes could grow a small blob many times over as
+    // the host checks it out, or route it through a filter program.
+    const p = project();
+    indexCommit(p.worktree, [{ path: "pkg/.gitattributes", content: "*.txt text\n" }], "host attributes");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    const prepared = prepare(p);
+    assert.equal(prepared.ok, true, prepared.message);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    const attempts = [
+      ["UTF-32", () => indexCommit(ws, [{ path: ".gitattributes", content: "data.txt working-tree-encoding=UTF-32\n" }, { path: "data.txt", content: "a".repeat(900_000) }]), ".gitattributes"],
+      ["ident and UTF-32", () => indexCommit(ws, [{ path: ".gitattributes", content: "data.txt ident working-tree-encoding=UTF-32\n" }, { path: "data.txt", content: "$Id$".repeat(225_000) }]), ".gitattributes"],
+      ["a nested filter", () => indexCommit(ws, [{ path: "src/.gitattributes", content: "* filter=lfs\n" }, { path: "src/a.js", content: "a\n" }]), "src/.gitattributes"],
+      ["a changed nested file", () => indexCommit(ws, [{ path: "pkg/.gitattributes", content: "* ident\n" }]), "pkg/.gitattributes"],
+      ["a deleted nested file", () => { runGit(["rm", "--quiet", "--cached", "pkg/.gitattributes"], ws); runGit(["commit", "--quiet", "-m", "drop it"], ws); }, "pkg/.gitattributes"],
+      ["another case", () => indexCommit(ws, [{ path: "docs/.GitAttributes", content: "* ident\n" }]), "docs/.GitAttributes"],
+      ["a link", () => indexCommit(ws, [link(".gitattributes", "README.md")]), ".gitattributes"],
+    ];
+    for (const [label, make, file] of attempts) {
+      agentReset(ws, prepared.dispatchedHead);
+      make();
+      const message = assertRefusedUntouched(p, prepared, label, { maxWrittenBytes: 1_000_000 });
+      assert.ok(message.includes(`${JSON.stringify(file)} is host-owned (attribute files, at any depth): a sandbox may not add, change or delete Git attributes, which decide how the host checks files out; if the ticket needs this change, the host commits it on the claim branch outside the sandbox`), `${label}: ${message}`);
+      assert.equal(existsSync(join(p.worktree, "data.txt")), false, `${label}: nothing was checked out`);
+      assert.equal(existsSync(join(p.worktree, ".gitattributes")), false, `${label}: no attribute file was written`);
+      assert.equal(readFileSync(join(p.worktree, "pkg", ".gitattributes"), "utf8"), "*.txt text\n", `${label}: the host's attributes are unchanged`);
+    }
   });
 
   it("never replaces a file the claim worktree holds but Git does not track, refusing each by name", () => {
@@ -1082,6 +1200,11 @@ describe("treating sandbox output as untrusted", () => {
     for (const ignore of [".gitignore", "sub/.gitignore", "context/.gitignore", "a/b/c/.GitIgnore", "x/.gitignore/y", "pkg/.gitignore. ", "pkg/GITIGN~1", "pkg/gi250a~2", "pkg/.git\u200cignore", "pkg/\uff0egitignore"]) {
       assert.match(importPathProblem(ignore), /is host-owned \(ignore files, at any depth\): a sandbox may not add, change or delete ignore rules; if the ticket needs this change, the host commits it on the claim branch outside the sandbox$/, ignore);
     }
+    // So is an attribute file, in the same spellings.
+    for (const attributes of [".gitattributes", "sub/.gitattributes", "a/b/c/.GitAttributes", "x/.gitattributes/y", "pkg/.gitattributes. ", "pkg/GITATT~1", "pkg/gi7d29~2", "pkg/.git\u200cattributes", "pkg/\uff0egitattributes"]) {
+      assert.match(importPathProblem(attributes), /is host-owned \(attribute files, at any depth\): a sandbox may not add, change or delete Git attributes, which decide how the host checks files out; if the ticket needs this change, the host commits it on the claim branch outside the sandbox$/, attributes);
+    }
+    for (const good of [".gitattributes-template", "docs/gitattributes.md", "a/.gitattribute"]) assert.equal(importPathProblem(good), null, good);
     // Folded as APFS (or HFS+) would check them out, never fewer spellings.
     for (const folded of [".agent\u017f/x", ".path\ufb01nder/x", "context/trac\u212aer.md", ".agen\u200cts/x", ".g\u200cit/config", "\uff0egithub/x"]) {
       assert.ok(importPathProblem(folded), folded);
@@ -1222,5 +1345,123 @@ describe("bounding what an import brings", () => {
     const refused = collect(p, prepared, { run: overflowing });
     assertBoundedRefusal(p, prepared, refused, "an overflowing listing");
     assert.match(refused.message, new RegExp(`cannot list the imported objects: git rev-list printed more than the runner reads \\(${MAX_COMMAND_OUTPUT} bytes by default\\); the listing is refused, not truncated`));
+  });
+
+  it("bounds what the host's own attributes make the checkout write, UTF-32 with and without ident, before anything is checked out", () => {
+    // The host's .gitattributes, committed at the dispatched head, re-encode
+    // data.txt as UTF-32 and expand each $Id$ to 47 bytes: a 900,000-byte
+    // blob would be written as 3,600,004 or 42,300,004 bytes.
+    const limit = 1_000_000;
+    const cases = [
+      ["UTF-32", "data.txt working-tree-encoding=UTF-32\n", "a".repeat(900_000), 900_000 * 4 + 4],
+      ["ident and UTF-32", "data.txt ident working-tree-encoding=UTF-32\n", "$Id$".repeat(225_000), 225_000 * 47 * 4 + 4],
+    ];
+    for (const [label, rules, content, bound] of cases) {
+      const p = project();
+      indexCommit(p.worktree, [{ path: ".gitattributes", content: rules }], "host attributes");
+      runGit(["reset", "--quiet", "--hard"], p.worktree);
+      const prepared = prepare(p);
+      writeOut(prepared.workspace, "result.json", result());
+      indexCommit(prepared.workspace, [{ path: "data.txt", content }], label);
+      const message = assertRefusedUntouched(p, prepared, label, { maxWrittenBytes: limit });
+      assert.match(message, new RegExp(`the fast-forward could write up to ${bound} bytes into the claim worktree \\(900000 bytes of blobs, 1 file grown by the host's checkout attributes: ident, line endings or working-tree-encoding\\), over the ${limit}-byte limit`), label);
+      assert.equal(existsSync(join(p.worktree, "data.txt")), false, `${label}: nothing was checked out`);
+      assert.equal(prepare(p, { runId: "20261106T120001Z-1a2b3c4e" }).ok, true, `${label}: the claim stays preparable`);
+    }
+  });
+
+  it("imports a file the host's attributes grow within the limit, writing no more than the bound", () => {
+    const p = project();
+    indexCommit(p.worktree, [{ path: ".gitattributes", content: "*.txt ident working-tree-encoding=UTF-32\n" }], "host attributes");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    const prepared = prepare(p);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    const tip = indexCommit(ws, [{ path: "data.txt", content: "$Id$".repeat(5000) }], "within the bound");
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    const bound = 5000 * 47 * 4 + 4;
+    assert.match(collect(p, prepared, { maxWrittenBytes: bound - 1 }).message, new RegExp(`could write up to ${bound} bytes into the claim worktree \\(20000 bytes of blobs, 1 file grown`));
+    const collected = collect(p, prepared, { maxWrittenBytes: bound });
+    assert.equal(collected.ok, true, collected.message);
+    assert.equal(collected.commits.to, tip);
+    const written = statSync(join(p.worktree, "data.txt")).size;
+    assert.ok(written > 20_000 && written <= bound, `the checkout grew the file within the bound: ${written} bytes`);
+    assert.equal(runGit(["status", "--porcelain", "--untracked-files=all"], p.worktree), "", "the claim stays clean");
+  });
+
+  it("applies the host's other attribute sources and line endings: .git/info/attributes, core.attributesFile, eol=crlf and core.autocrlf", () => {
+    const limit = 1_000_000;
+    const hostCommits = (p, entries) => { indexCommit(p.worktree, entries, "host attributes"); runGit(["reset", "--quiet", "--hard"], p.worktree); };
+    const cases = [
+      ["info/attributes ident", (p) => writeFileSync(join(p.root, ".git", "info", "attributes"), "*.txt ident\n"), "data.txt", "$Id$".repeat(225_000), 225_000 * 47],
+      ["core.attributesFile UTF-16", (p) => {
+        const file = join(temporaryDirectory("attributes-"), "attributes");
+        writeFileSync(file, "*.dat working-tree-encoding=UTF-16\n");
+        runGit(["config", "core.attributesFile", file], p.root);
+      }, "x.dat", "a".repeat(600_000), 600_000 * 2 + 4],
+      ["eol=crlf", (p) => hostCommits(p, [{ path: ".gitattributes", content: "*.txt text eol=crlf\n" }]), "data.txt", "\n".repeat(600_000), 1_200_000],
+      ["core.autocrlf", (p) => runGit(["config", "core.autocrlf", "true"], p.root), "data.txt", "\n".repeat(600_000), 1_200_000],
+    ];
+    for (const [label, setUp, file, content, bound] of cases) {
+      const p = project();
+      setUp(p);
+      const prepared = prepare(p);
+      assert.equal(prepared.ok, true, `${label}: ${prepared.message}`);
+      writeOut(prepared.workspace, "result.json", result());
+      indexCommit(prepared.workspace, [{ path: file, content }], label);
+      const message = assertRefusedUntouched(p, prepared, label, { maxWrittenBytes: limit });
+      assert.match(message, new RegExp(`the fast-forward could write up to ${bound} bytes into the claim worktree \\(${content.length} bytes of blobs, 1 file grown`), label);
+      assert.equal(existsSync(join(p.worktree, file)), false, `${label}: nothing was checked out`);
+    }
+
+    // A binary file gets no line endings, so the same bytes import within the limit.
+    const p = project();
+    hostCommits(p, [{ path: ".gitattributes", content: "*.bin -text\n" }]);
+    runGit(["config", "core.autocrlf", "true"], p.root);
+    const prepared = prepare(p);
+    writeOut(prepared.workspace, "result.json", result());
+    const tip = indexCommit(prepared.workspace, [{ path: "data.bin", content: "\n".repeat(600_000) }], "binary newlines");
+    agentBundle(prepared.workspace, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    const collected = collect(p, prepared, { maxWrittenBytes: limit });
+    assert.equal(collected.ok, true, collected.message);
+    assert.equal(collected.commits.to, tip);
+    assert.equal(statSync(join(p.worktree, "data.bin")).size, 600_000);
+  });
+
+  it("refuses a file the host would check out through a configured filter driver, and never runs it", () => {
+    if (WINDOWS) return;
+    const p = project();
+    indexCommit(p.worktree, [{ path: ".gitattributes", content: "*.dat filter=marker\n*.prc filter=proc\n*.req filter=req\n*.raw filter=absent\n" }], "host attributes");
+    runGit(["reset", "--quiet", "--hard"], p.worktree);
+    const markers = temporaryDirectory("filter-");
+    const marker = join(markers, "marker");
+    const script = join(markers, "filter.sh");
+    writeFileSync(script, `#!/bin/sh\necho "$0 $1" >> '${marker}'\ncat\n`);
+    chmodSync(script, 0o755);
+    runGit(["config", "filter.marker.smudge", script], p.root);
+    runGit(["config", "filter.proc.process", script], p.root);
+    runGit(["config", "filter.req.required", "true"], p.root);
+    const prepared = prepare(p);
+    assert.equal(prepared.ok, true, prepared.message);
+    const ws = prepared.workspace;
+    writeOut(ws, "result.json", result());
+    for (const [label, file, driver] of [["a smudge filter", "x.dat", "marker"], ["a long-running process filter", "x.prc", "proc"], ["a required filter", "x.req", "req"]]) {
+      agentReset(ws, prepared.dispatchedHead);
+      indexCommit(ws, [{ path: file, content: "agent\n" }], label);
+      const message = assertRefusedUntouched(p, prepared, label);
+      assert.ok(message.includes(`${JSON.stringify(file)} would be checked out through the host's filter driver ${JSON.stringify(driver)} (filter.${driver}.*), which can run an external program; the host checks it out outside the sandbox`), `${label}: ${message}`);
+      assert.equal(existsSync(join(p.worktree, file)), false, `${label}: nothing was checked out`);
+      assert.equal(existsSync(marker), false, `${label}: the filter never ran`);
+    }
+
+    // A filter attribute naming no configured driver changes nothing at checkout.
+    agentReset(ws, prepared.dispatchedHead);
+    const tip = indexCommit(ws, [{ path: "x.raw", content: "raw\n" }], "no driver");
+    agentBundle(ws, [`${prepared.dispatchedHead}..refs/heads/${BRANCH}`]);
+    const collected = collect(p, prepared);
+    assert.equal(collected.ok, true, collected.message);
+    assert.equal(collected.commits.to, tip);
+    assert.equal(readFileSync(join(p.worktree, "x.raw"), "utf8"), "raw\n");
+    assert.equal(existsSync(marker), false, "no filter ran");
   });
 });

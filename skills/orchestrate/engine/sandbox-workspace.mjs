@@ -32,12 +32,14 @@
  * commits are unverified work: collecting never marks a ticket reviewed or
  * done.
  *
- * Ignore rules are host-owned at every depth. An ignore file (`.gitignore`,
- * root or nested) decides which host files Git leaves alone — the claim's
- * state file, a `.env` — so an import that adds, changes or deletes one is
- * refused, whatever it contains. A ticket that needs an ignore-file change
- * gets it from the host: the coordinator or the human commits it on the claim
- * branch outside the sandbox, before or after the sandboxed session.
+ * Ignore rules and attributes are host-owned at every depth. An ignore file
+ * (`.gitignore`, root or nested) decides which host files Git leaves alone —
+ * the claim's state file, a `.env` — and an attribute file (`.gitattributes`)
+ * decides how the host checks files out: through which filter program, with
+ * which conversions. So an import that adds, changes or deletes either is
+ * refused, whatever it contains. A ticket that needs such a change gets it
+ * from the host: the coordinator or the human commits it on the claim branch
+ * outside the sandbox, before or after the sandboxed session.
  *
  * The import is bounded before anything reaches the claim worktree, by
  * separate limits, each refused by name with the measured value: the
@@ -45,14 +47,20 @@
  * (`MAX_IMPORT_COMMITS`), the expanded object data the commits bring
  * (`MAX_IMPORT_OBJECT_BYTES`), and what the fast-forward would write into the
  * worktree (`MAX_IMPORT_WRITTEN_PATHS`, `MAX_IMPORT_WRITTEN_BYTES`). A small
- * bundle can expand far: zlib packs a run of zeros a thousandfold, and one
- * blob can be checked out at many paths. Fetching the bundle already inflates
+ * bundle can expand far: zlib packs a run of zeros a thousandfold, one blob
+ * can be checked out at many paths, and the host's own checkout attributes
+ * grow a file as it is written — `ident` almost twelvefold, a
+ * `working-tree-encoding` of UTF-32 fourfold. So written bytes are bounded
+ * after the worst-case growth of the attributes that apply to each path, and a
+ * path the host would check out through a configured filter driver, an
+ * external program, is refused. Fetching the bundle already inflates
  * each object once to verify it, bounded only by the compressed limit and the
  * runner's timeout; a refused import leaves its objects unreachable in the
- * object store until Git's garbage collection. Every listing is read whole,
- * up to `MAX_COMMAND_OUTPUT`: a larger one is refused, never truncated, which
- * makes a repository of roughly 140,000 tracked paths (at about 70 bytes a
- * path) too large to import into.
+ * object store until Git's garbage collection, and so does an accepted one for
+ * any object its pack carries that no imported commit reaches. Every listing
+ * is read whole, up to `MAX_COMMAND_OUTPUT`: a larger one is refused, never
+ * truncated, which makes a repository of roughly 140,000 tracked paths (at
+ * about 70 bytes a path) too large to import into.
  *
  * Collect only once the sandbox has stopped and nothing can write the
  * workspace any more. Reads never follow a link and recheck the directories
@@ -109,8 +117,15 @@ export const MAX_IMPORT_OBJECT_BYTES = 256 * 1024 * 1024;
  */
 export const MAX_IMPORT_WRITTEN_PATHS = 20_000;
 /**
- * The most bytes those writes may hold, counting a blob once for every path
- * that uses it, so one blob checked out at many paths counts each time.
+ * The most bytes of file contents those writes may hold, as an upper bound of
+ * what the checkout writes: a blob counts once for every path that uses it,
+ * so one blob checked out at many paths counts each time, and a file counts
+ * at the most the host's checkout attributes for its path can grow it —
+ * `ident`, CRLF line endings, a UTF-16 or UTF-32 `working-tree-encoding`
+ * (`checkoutGrowth`). A path whose growth cannot be bounded, or that the host
+ * would check out through a configured filter driver, is refused outright, so
+ * the bound holds for every file the fast-forward writes. An import cannot
+ * change those attributes: attribute files are host-owned.
  */
 export const MAX_IMPORT_WRITTEN_BYTES = 256 * 1024 * 1024;
 /** The most output the default runner reads from one command; a larger listing is refused, never truncated. */
@@ -123,8 +138,8 @@ export const MAX_COMMAND_OUTPUT = 16 * 1024 * 1024;
  * link would hold `context/tracker.md`. Matched through `foldName`, as a case-
  * and normalization-insensitive filesystem would check them out. The claim's
  * own state files are here so a sandbox can never track them, even where the
- * host has none yet. Beyond this list, an ignore file is host-owned at any
- * depth: see `importPathProblem`.
+ * host has none yet. Beyond this list, an ignore file and an attribute file
+ * are host-owned at any depth: see `importPathProblem`.
  */
 export const PROTECTED_PATHS = Object.freeze([
   ".gitignore",
@@ -180,6 +195,15 @@ function dotGit(segment) {
  */
 function ignoreFile(segment) {
   return /^(?:\.gitignore[. ]*|gitign~\d+|gi250a~\d+)$/.test(foldName(segment));
+}
+
+/**
+ * A path component that is, or that a filesystem could check out as, an
+ * attribute file: `.gitattributes` in the same spellings `ignoreFile` folds,
+ * with the NTFS short names Git's own `is_ntfs_dotgitattributes` reads.
+ */
+function attributeFile(segment) {
+  return /^(?:\.gitattributes[. ]*|gitatt~\d+|gi7d29~\d+)$/.test(foldName(segment));
 }
 
 /** Spawn `argv` with no shell and a timeout, `input` as its stdin when given. Never throws. */
@@ -454,15 +478,18 @@ export function stateErrors(state, { allowCommits = false } = {}) {
  *
  * An ignore file is host-owned at any depth, root or nested, whether it is
  * added, changed or deleted: a nested `context/.gitignore` reading
- * `!current-ticket.md` would un-ignore the claim's state file. The refusal
- * says how a ticket that needs one gets it: from the host, outside the
- * sandbox.
+ * `!current-ticket.md` would un-ignore the claim's state file. So is an
+ * attribute file: a `.gitattributes` reading `* ident` or `filter=lfs` would
+ * change what the host's checkout writes, or run a program as it does. The
+ * refusal says how a ticket that needs one gets it: from the host, outside
+ * the sandbox.
  */
 export function importPathProblem(file) {
   const segments = String(file).split("/");
   if (segments.some(dotGit)) return `${JSON.stringify(file)} has a .git component`;
   if (segments.some((segment) => segment === ".." || segment === "." || segment === "")) return `${JSON.stringify(file)} has a "..", "." or empty component`;
   if (segments.some(ignoreFile)) return `${JSON.stringify(file)} is host-owned (ignore files, at any depth): a sandbox may not add, change or delete ignore rules; if the ticket needs this change, the host commits it on the claim branch outside the sandbox`;
+  if (segments.some(attributeFile)) return `${JSON.stringify(file)} is host-owned (attribute files, at any depth): a sandbox may not add, change or delete Git attributes, which decide how the host checks files out; if the ticket needs this change, the host commits it on the claim branch outside the sandbox`;
   const folded = foldName(file);
   for (const entry of PROTECTED_PATHS) {
     const base = entry.endsWith("/") ? entry.slice(0, -1) : entry;
@@ -474,6 +501,8 @@ export function importPathProblem(file) {
 
 /** A link target's components, split on either slash as Windows would, with `.` and empty ones dropped. */
 const targetParts = (target) => String(target).replace(/\\/g, "/").split("/").filter((part) => part !== "" && part !== ".");
+/** A link target's components as POSIX resolves it, split on `/` alone: there a backslash is part of a name. */
+const posixParts = (target) => String(target).split("/").filter((part) => part !== "" && part !== ".");
 /** The directories a link at `file` sits in, outermost first. */
 const linkDirectory = (file) => (posix.dirname(file) === "." ? [] : posix.dirname(file).split("/"));
 
@@ -523,26 +552,28 @@ function walkedPaths(file, target) {
 }
 
 /**
- * Every repository path a link's target names on its way, read lexically from
- * the link's own directory, `..` included: `x -> a/s/..` names `a`, then
- * `a/s`, and lands back on `a`. Where every one of them is a real directory,
- * the link lands where this reading says; a link at any of them can send it
- * elsewhere. It stops where the reading climbs above the repository root.
+ * Every repository path a link's target `parts` name on its way, read
+ * lexically from the link's own directory, `..` included: `x -> a/s/..` names
+ * `a`, then `a/s`, and lands back on `a`. Where every one of them is a real
+ * directory, the link lands where this reading says; a link at any of them
+ * can send it elsewhere. A reading that climbs above the repository root
+ * stops there and says so: past that point the way runs through directories
+ * outside the repository, and this reading no longer says where it lands.
  */
-function lexicalWalk(file, target) {
+function lexicalWalk(file, parts) {
   const at = linkDirectory(file);
   const walked = [];
-  for (const part of targetParts(target)) {
+  for (const part of parts) {
     if (part !== "..") {
       at.push(part);
       walked.push(at.join("/"));
     } else if (at.length === 0) {
-      break;
+      return { walked, aboveRoot: true };
     } else {
       at.pop();
     }
   }
-  return walked;
+  return { walked, aboveRoot: false };
 }
 
 function reportFits(name, report, validate, key, dispatchedHead) {
@@ -739,26 +770,45 @@ function standingLinks(host, dispatchedHead) {
  * the paths it names stay what they are: the agent turning `a/s` into a link
  * to the root sends `x -> a/s/..` out of it. So such a link is refused when
  * the imported commits add, change or remove a symlink at any path its target
- * names on the way (`lexicalWalk`), or — when it already passes through one of
- * the host's links, past which its way cannot be read — when they touch any
- * symlink at all. One the import leaves alone keeps landing where it did at
- * the dispatched head, and the import goes ahead; one the import changes or
- * removes is judged as an imported link, or is gone.
+ * names on the way (`lexicalWalk`, read as POSIX does and, for a target
+ * holding a backslash, as Windows does too). One the import leaves alone keeps
+ * landing where it did at the dispatched head, and the import goes ahead; one
+ * the import changes or removes is judged as an imported link, or is gone.
+ *
+ * Where that way cannot be read exactly, the rule is conservative. A target
+ * holding a backslash names one path on POSIX and another on Windows; a
+ * reading that climbs above the repository root runs through directories
+ * outside it; a way through another of the host's links continues wherever
+ * that link points, which is not resolved here. Such a link is refused when
+ * the imported commits touch any symlink at all. And when it does not resolve
+ * at the dispatched head (`resolves`), new directories alone could complete
+ * its way anywhere, so every import is refused until the host fixes it. A
+ * link that resolves keeps resolving where it did while no symlink changes:
+ * an import without links can only take directories away from its way.
  */
-function standingRedirects(links, headLinks, touched, touchedLinks) {
+function standingRedirects(links, headLinks, touched, touchedLinks, resolves) {
   const problems = [];
   for (const { file, target } of links) {
     if (target === null || !climbsAfterName(target) || touched.has(foldName(file))) continue;
-    const walked = lexicalWalk(file, target);
-    const changed = walked.find((step) => touchedLinks.has(foldName(step)));
+    const backslash = target.includes("\\");
+    const readings = backslash ? [lexicalWalk(file, posixParts(target)), lexicalWalk(file, targetParts(target))] : [lexicalWalk(file, posixParts(target))];
+    const walked = readings.flatMap(({ walked: steps }) => steps);
     const opening = `symlink ${JSON.stringify(file)}, already at the dispatched head, climbs ".." after a name in ${JSON.stringify(target)}; imported changes could redirect it out of the repository`;
+    const changed = walked.find((step) => touchedLinks.has(foldName(step)));
     if (changed !== undefined) {
       problems.push(`${opening}: they add, change or remove a symlink at ${JSON.stringify(changed)} on its way. Fix the link on the host first`);
       continue;
     }
     const through = walked.find((step) => headLinks.has(foldName(step)));
-    if (through !== undefined && touchedLinks.size > 0) {
-      problems.push(`${opening}: it passes through the host's symlink ${JSON.stringify(through)}, past which its way cannot be read, and the imported commits change symlinks. Fix the link on the host first`);
+    const unread = readings.some(({ aboveRoot }) => aboveRoot) ? "its way climbs above the repository root"
+      : backslash ? "its target holds a backslash, part of a name on POSIX and a separator on Windows"
+      : through !== undefined ? `it passes through the host's symlink ${JSON.stringify(through)}`
+      : null;
+    if (unread === null) continue;
+    if (!resolves(file)) {
+      problems.push(`${opening}: ${unread}, so its way cannot be read exactly, and it does not resolve at the dispatched head, where new directories alone could complete it anywhere; every import is refused until the link is fixed on the host`);
+    } else if (touchedLinks.size > 0) {
+      problems.push(`${opening}: ${unread}, so its way cannot be read exactly, and the imported commits add, change or remove symlinks. Fix the link on the host first`);
     }
   }
   return problems;
@@ -790,19 +840,140 @@ function netChanges(host, dispatchedHead, tip) {
   return { ok: true, changes };
 }
 
-/** The total expanded size of these objects, one `cat-file` for all of them; an object counts each time it is listed. */
-function objectBytes(host, ids) {
-  if (ids.length === 0) return { ok: true, bytes: 0 };
+/** The expanded size of each of these objects, in order, one `cat-file` for all of them. */
+function objectSizes(host, ids) {
+  if (ids.length === 0) return { ok: true, sizes: [] };
   const sized = host(["cat-file", "--batch-check=%(objectsize)"], `${ids.join("\n")}\n`);
   if (!sized.ok) return refuse(`cannot read the size of the imported objects: ${sized.message}`);
   const lines = sized.stdout.split("\n").filter((line) => line !== "");
   if (lines.length !== ids.length) return refuse("cannot read the size of every imported object");
-  let bytes = 0;
+  const sizes = [];
   for (const [index, line] of lines.entries()) {
     if (!/^\d+$/.test(line)) return refuse(`cannot read the size of imported object ${ids[index]}: ${line}`);
-    bytes += Number(line);
+    sizes.push(Number(line));
   }
-  return { ok: true, bytes };
+  return { ok: true, sizes };
+}
+
+const total = (sizes) => sizes.reduce((sum, size) => sum + size, 0);
+
+/** Every attribute Git's `convert_attrs` reads to decide how it checks a file out. */
+const CHECKOUT_ATTRIBUTES = Object.freeze(["crlf", "ident", "filter", "eol", "text", "working-tree-encoding"]);
+/** How many paths one `check-attr` is asked about, so its listing stays far below `MAX_COMMAND_OUTPUT`. */
+const ATTRIBUTE_BATCH = 1000;
+
+/**
+ * Each file's checkout attributes, read in the claim worktree as its checkout
+ * reads them: the `.gitattributes` files of the dispatched head, which no
+ * import may change, then `.git/info/attributes`, `core.attributesFile` and
+ * the system file. `check-attr` only reads attributes; it runs no filter.
+ */
+function checkoutAttributes(host, files) {
+  const byPath = new Map();
+  for (let start = 0; start < files.length; start += ATTRIBUTE_BATCH) {
+    const batch = files.slice(start, start + ATTRIBUTE_BATCH);
+    const listed = host(["check-attr", "-z", "--stdin", ...CHECKOUT_ATTRIBUTES], batch.map((file) => `${file}\0`).join(""));
+    if (!listed.ok) return refuse(`cannot read the host's checkout attributes: ${listed.message}`);
+    const fields = listed.stdout.split("\0");
+    for (let index = 0; index + 2 < fields.length; index += 3) {
+      const [file, name, value] = fields.slice(index, index + 3);
+      if (!byPath.has(file)) byPath.set(file, {});
+      byPath.get(file)[name] = value;
+    }
+  }
+  for (const file of files) {
+    const read = byPath.get(file);
+    if (!read || CHECKOUT_ATTRIBUTES.some((name) => typeof read[name] !== "string")) return refuse(`cannot read the host's checkout attributes of ${JSON.stringify(file)}`);
+  }
+  return { ok: true, byPath };
+}
+
+/**
+ * The host's configuration a checkout's growth depends on, read in the claim
+ * worktree as its checkout reads it: every filter driver configured there
+ * (any `filter.<driver>.*` key, as Git's `read_convert_config` collects them),
+ * and whether text gets CRLF line endings (`core.autocrlf`, `core.eol`). A
+ * value Git might read as true is taken as true.
+ */
+function checkoutConfig(host) {
+  const listed = host(["config", "-z", "--get-regexp", "^(filter\\..+|core\\.autocrlf|core\\.eol)$"]);
+  if (!listed.ok && listed.status !== 1) return refuse(`cannot read the host's checkout configuration: ${listed.message}`);
+  const drivers = new Set();
+  let autocrlf;
+  let eol;
+  for (const record of listed.ok ? listed.stdout.split("\0") : []) {
+    if (record === "") continue;
+    const newline = record.indexOf("\n");
+    const key = newline === -1 ? record : record.slice(0, newline);
+    const value = newline === -1 ? null : record.slice(newline + 1);
+    const driver = /^filter\.(.+)\.[^.]+$/s.exec(key);
+    if (driver) drivers.add(driver[1]);
+    else if (key === "core.autocrlf") autocrlf = value;
+    else if (key === "core.eol") eol = value;
+  }
+  // `autocrlf` with no value is true; `input` is its own setting; anything Git does not read as false may be true.
+  const word = autocrlf === undefined ? "false" : autocrlf === null ? "true" : autocrlf.trim().toLowerCase();
+  const crlfSetting = word === "input" ? "input" : /^(?:false|no|off|[-+]?0+|)$/.test(word) ? "false" : "true";
+  const eolWord = (eol ?? "").trim().toLowerCase();
+  // Git's `text_eol_is_crlf`: autocrlf first, then core.eol, then the platform's native ending.
+  const textCrlf = crlfSetting === "true" || (crlfSetting === "false" && (eolWord === "crlf" || (process.platform === "win32" && eolWord !== "lf")));
+  return { ok: true, drivers, autocrlf: crlfSetting, textCrlf };
+}
+
+/** The `text` or `crlf` attribute as Git's `git_path_check_crlf` reads it, or null when it leaves the decision open. */
+function crlfAction(value) {
+  if (value === "set") return "text";
+  if (value === "unset") return "binary";
+  if (value === "input" || value === "auto") return value;
+  return null;
+}
+
+/**
+ * Whether a checkout may give this file CRLF line endings, as Git's
+ * `convert_attrs` and `output_eol` decide it: never for a binary file or one
+ * checked out with `eol=lf`; always with `eol=crlf`; for `text` or
+ * `text=auto` when the configuration ends text with CRLF; and otherwise when
+ * `core.autocrlf` is true.
+ */
+function crlfPossible(attributes, config) {
+  if (attributes.eol === "lf") return false;
+  const action = crlfAction(attributes.text) ?? crlfAction(attributes.crlf);
+  if (action === "binary") return false;
+  if (attributes.eol === "crlf") return true;
+  if (action === "input") return false;
+  if (action === "text" || action === "auto") return config.textCrlf;
+  return config.autocrlf === "true";
+}
+
+/**
+ * The most the host's checkout can grow one file, in the order Git's
+ * `convert_to_working_tree` converts it — `ident`, then line endings, then
+ * `working-tree-encoding` — as `{factor, extra}`: it writes at most
+ * `size * factor + extra` bytes. `ident` turns each `$Id$`, four bytes, into
+ * `$Id: <object id> $`; CRLF at most doubles the bytes; UTF-16 at most doubles
+ * UTF-8 and UTF-32 at most quadruples it, each with a byte-order mark. Or
+ * `{problem}` where the checkout would run a configured filter driver — an
+ * external program, which may also fail the checkout midway — or where its
+ * growth cannot be bounded: any other encoding, or an encoding attribute
+ * without a name, which Git refuses.
+ */
+function checkoutGrowth(attributes, config, hexLength) {
+  if (config.drivers.has(attributes.filter)) {
+    return { problem: `would be checked out through the host's filter driver ${JSON.stringify(attributes.filter)} (filter.${attributes.filter}.*), which can run an external program` };
+  }
+  let factor = 1;
+  let extra = 0;
+  if (attributes.ident === "set") factor *= (hexLength + 7) / 4;
+  if (crlfPossible(attributes, config)) factor *= 2;
+  const encoding = attributes["working-tree-encoding"];
+  if (encoding === "set" || encoding === "unset") return { problem: `has working-tree-encoding ${encoding} with no encoding named, which Git refuses at checkout` };
+  if (encoding !== "unspecified" && encoding !== "" && !/^utf-?8$/i.test(encoding)) {
+    if (/^(?:utf-?16|ucs-?2)/i.test(encoding)) factor *= 2;
+    else if (/^(?:utf-?32|ucs-?4)/i.test(encoding)) factor *= 4;
+    else return { problem: `would be checked out re-encoded as working-tree-encoding ${JSON.stringify(encoding)}, whose growth the import cannot bound` };
+    extra += 4;
+  }
+  return { factor, extra };
 }
 
 /**
@@ -810,7 +981,10 @@ function objectBytes(host, ids) {
  * and the commit count: the expanded object data the commits bring — every
  * object reachable from the tip and not from the dispatched head, at full
  * size — and what the fast-forward would write into the claim worktree, the
- * files and links the tip adds or changes, each blob counted once per path.
+ * files and links the tip adds or changes, each blob counted once per path
+ * and each file at the most the host's checkout attributes for its path can
+ * grow it (`checkoutGrowth`). A file the host would check out through a
+ * filter driver, or whose growth cannot be bounded, is refused by name.
  * Measured from the claim worktree after the fetch and before anything is
  * checked out.
  */
@@ -818,23 +992,51 @@ function sizeProblems(host, dispatchedHead, tip, changes, limits) {
   const listed = host(["rev-list", "--objects", "--no-object-names", `${dispatchedHead}..${tip}`]);
   if (!listed.ok) return [`cannot list the imported objects: ${listed.message}`];
   const ids = listed.stdout.split("\n").map((line) => line.trim()).filter(Boolean);
-  const expanded = objectBytes(host, ids);
+  const expanded = objectSizes(host, ids);
   if (!expanded.ok) return [expanded.message];
   const problems = [];
-  if (expanded.bytes > limits.objectBytes) problems.push(`the imported objects expand to ${expanded.bytes} bytes (${ids.length} objects), over the ${limits.objectBytes}-byte limit on expanded object data`);
+  const expandedBytes = total(expanded.sizes);
+  if (expandedBytes > limits.objectBytes) problems.push(`the imported objects expand to ${expandedBytes} bytes (${ids.length} objects), over the ${limits.objectBytes}-byte limit on expanded object data`);
   const written = changes.filter(({ newMode }) => kind(newMode) === "file" || kind(newMode) === "link");
-  if (written.length > limits.writtenPaths) problems.push(`the fast-forward would write ${written.length} files and links into the claim worktree, over the ${limits.writtenPaths}-path limit`);
-  const bytes = objectBytes(host, written.map(({ newId }) => newId));
-  if (!bytes.ok) problems.push(bytes.message);
-  else if (bytes.bytes > limits.writtenBytes) problems.push(`the fast-forward would write ${bytes.bytes} bytes into the claim worktree, over the ${limits.writtenBytes}-byte limit`);
+  const sized = objectSizes(host, written.map(({ newId }) => newId));
+  if (!sized.ok) return [...problems, sized.message];
+  const blobBytes = total(sized.sizes);
+  const overBytes = (bytes) => `the fast-forward would write ${bytes} bytes into the claim worktree, over the ${limits.writtenBytes}-byte limit`;
+  if (written.length > limits.writtenPaths) {
+    // Too many paths to ask about each: their blobs alone are judged.
+    problems.push(`the fast-forward would write ${written.length} files and links into the claim worktree, over the ${limits.writtenPaths}-path limit`);
+    if (blobBytes > limits.writtenBytes) problems.push(overBytes(blobBytes));
+    return problems;
+  }
+  const files = written.filter(({ newMode }) => kind(newMode) === "file").map(({ path: file }) => file);
+  const attributes = checkoutAttributes(host, files);
+  if (!attributes.ok) return [...problems, attributes.message];
+  const config = checkoutConfig(host);
+  if (!config.ok) return [...problems, config.message];
+  let bound = 0;
+  let grown = 0;
+  for (const [index, { path: file, newMode }] of written.entries()) {
+    const size = sized.sizes[index];
+    // A link is written as its target, never converted.
+    if (kind(newMode) !== "file") { bound += size; continue; }
+    const growth = checkoutGrowth(attributes.byPath.get(file), config, dispatchedHead.length);
+    if (growth.problem) { problems.push(`${JSON.stringify(file)} ${growth.problem}; the host checks it out outside the sandbox`); continue; }
+    const most = Math.ceil(size * growth.factor) + growth.extra;
+    if (most > size) grown += 1;
+    bound += most;
+  }
+  if (bound > limits.writtenBytes) {
+    problems.push(grown === 0 ? overBytes(bound)
+      : `the fast-forward could write up to ${bound} bytes into the claim worktree (${blobBytes} bytes of blobs, ${grown} ${grown === 1 ? "file" : "files"} grown by the host's checkout attributes: ident, line endings or working-tree-encoding), over the ${limits.writtenBytes}-byte limit`);
+  }
   return problems;
 }
 
 /**
  * Every problem with the commits `dispatchedHead..tip`, read from the claim
  * worktree after the fetch and before the fast-forward, with the net change
- * they make. The commit count and the import's size come first: past either
- * limit nothing else is read.
+ * they make. The commit count and the import's size, the host's checkout
+ * attributes included, come first: past either limit nothing else is read.
  *
  * Symlinks are judged against each other, not one at a time: a link added or
  * changed anywhere in the range must pass `symlinkProblem`, and may not pass
@@ -843,10 +1045,11 @@ function sizeProblems(host, dispatchedHead, tip, changes, limits) {
  * such link descending only through real directories from a contained climb,
  * no imported link leads out of the repository or into `.git`; and the
  * host's own links are refused only where the import could redirect them
- * (`standingRedirects`). The tip's tree must also be one a case-insensitive
+ * (`standingRedirects`; `resolves` says whether one resolves in the claim
+ * worktree at the dispatched head). The tip's tree must also be one a case-insensitive
  * filesystem can check out whole, as far as the import changes it.
  */
-function rangeProblems(host, dispatchedHead, tip, limits) {
+function rangeProblems(host, dispatchedHead, tip, limits, resolves) {
   const listed = host(["rev-list", "--parents", "--reverse", `${dispatchedHead}..${tip}`]);
   if (!listed.ok) return { problems: [`cannot list the imported commits: ${listed.message}`] };
   const commits = listed.stdout.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => line.split(" "));
@@ -889,7 +1092,7 @@ function rangeProblems(host, dispatchedHead, tip, limits) {
     const through = walkedPaths(file, target).find((walked) => linkPaths.has(foldName(walked)));
     if (through !== undefined) problems.push(`commit ${commit}: symlink ${JSON.stringify(file)} reaches ${JSON.stringify(target)} through the symlink ${JSON.stringify(through)}; a link may not lead through another`);
   }
-  problems.push(...standingRedirects(standing.links, headLinks, touched, touchedLinks));
+  problems.push(...standingRedirects(standing.links, headLinks, touched, touchedLinks, resolves));
   problems.push(...foldCollisions(host, tip, net.changes));
   return { problems, changes: net.changes };
 }
@@ -1071,7 +1274,11 @@ function importBundle({ run, runPath, runId, key, worktree, branch, dispatchedHe
     const ancestor = host(["merge-base", "--is-ancestor", dispatchedHead, tip]);
     if (ancestor.status === 1) return reject(`the bundle's ${branch} (${tip}) does not descend from the dispatched head ${dispatchedHead}`);
     if (!ancestor.ok) return reject(`cannot check ancestry: ${ancestor.message}`);
-    const { problems, changes } = rangeProblems(host, dispatchedHead, tip, importLimits);
+    // Whether a host link resolves in the claim worktree, clean at the dispatched head: realpath reads no file.
+    const resolves = (file) => {
+      try { canonical(join(worktree, ...file.split("/"))); return true; } catch { return false; }
+    };
+    const { problems, changes } = rangeProblems(host, dispatchedHead, tip, importLimits, resolves);
     if (problems.length) return reject(`the imported commits are refused: ${problems.slice(0, 20).join("; ")}${problems.length > 20 ? `; and ${problems.length - 20} more` : ""}`);
     const count = Number(host(["rev-list", "--count", `${dispatchedHead}..${tip}`]).stdout.trim());
 
